@@ -2,129 +2,346 @@
 
 ## A virtual machine specifically designed for video games
 
-The goal of GameVM is to make developing video games for game consoles easier. It's still in the early stages of development but some of the features I intend to implement are:
+GameVM makes developing video games for retro consoles easier by providing a modern development experience while respecting the severe constraints of vintage gaming hardware. The system analyzes your game's code to generate a specialized virtual machine, optimized for your specific needs and target platform.
 
-- [Runs on at least 2nd through 5th generation game consoles]
-- [Dynamically Generated VM]
-- [Support for mutltiple forms of dispatching]
-- [Support for familiar high level languages]
-- [Library based hardware abstraction layer]
-- [Seamless interop between bytecode and machine code]
-- [Fine grained compile time control over what is compiled to bytecode and what is compiled to machine code]
-- [JIT compiling for consoles that have enough RAM to support it]
+Key Features:
+- Flexible code generation strategies (VM-based or native)
+- Dynamic VM generation tailored to your game
+- Modern language support with compile-time checking
+- Cross-platform development within and across console generations
+- Comprehensive development tools and analysis
 
-## Runs on at least 2nd through 5th generation game consoles
+## Code Generation Flexibility
 
-My end goal is that a game that targets one console can be ported to another console by a simple recompile provided it uses the [HAL](#library-based-hardware-abstraction-layer) and stays within the target's ROM and RAM contraints. With this in mind GameVM will initially target the following consoles:
+GameVM supports multiple code generation strategies, letting developers choose the right trade-offs for their game:
 
-- 2nd Generation Consoles
-  - Fairchild Channel F (Fairchild F8)
-  - Atari VSC/2600 (MOS 6507)
-  - Atari 5200 (MOS 6502C)
-  - Bally Astrocade (Zilog Z80)
-  - Magnavox Odyssey 2 (Intel 8048)
-  - Intellivision (General Instrument CP1610)
-  - ColecoVision (Zilog Z80)
-  - Vectrex (Motorola MC68A09)
-  - Arcadia 2001 (Signetics 2650/2650A)
-- 3rd Generation Consoles
-  - Nintendo Entertainment System (NES) (Ricoh 2A03)
-  - Sega Master System (Zilog Z80)
-  - Atari 7800 (Atari SALLY)
-  - Commodore 64 Games System (MOS Technology 6510)
-  - Amstrad GX4000 (Zilog Z80)
-  - Sega SG-1000 Mark III (Zilog Z80)
-  - NEC PC Engine/TurboGrafx-16 (Hudson Soft HuC6280)
-  - Mattel Intellivision II (General Instrument CP1610)
-  - Atari XEGS (Atari SALLY)
-  - Casio PV-1000 (Zilog Z80)
-- 4th Generation Consoles
-  - Super Nintendo Entertainment System (SNES) (Ricoh 5A22)
-  - Sega Genesis/Mega Drive (Motorola 68000)
-  - TurboGrafx-16/PC Engine (HuC6280)
-  - Neo Geo AES (Motorola 68000)
-  - Philips CD-i (MIPS RISC)
-  - Commodore Amiga CD32 (Motorola 68EC020)
-  - Atari Jaguar (Tom and Jerry custom chips)
-  - 3DO Interactive Multiplayer (ARM60)
-  - Sega Game Gear (Zilog Z80)
-  - Sega Pico (Motorola 68000)
-  - Pioneer LaserActive (Mitsubishi M37702)
-  - Amstrad Mega PC (Intel 8086)
-  - NEC PC-FX (NEC V810)
-  - SNK Neo Geo CD (Motorola 68000)
-  - FM Towns Marty (Intel 80386)
-  - Bandai Playdia (Renesas H83002)
-  - Casio Loopy (Mitsubishi M74050)
-  - Apple Pippin (PowerPC 603)
-  - Tiger R-Zone (Toshiba TMP91C242F)
-  - Handhelds
-    - Nintendo Game Boy (Sharp LR35902)
-    - Sega Game Gear (Zilog Z80)
-    - Atari Lynx (2x Custom CMOS)
-    - NEC TurboExpress/PC Engine GT (HuC6280)  
-- 5th Generation Consoles
-  - Sony PlayStation (MIPS R3000)
-  - Sega Saturn (2x Hitachi SH-2)
-  - Nintendo 64 (MIPS R4300i)
-  - 3DO Interactive Multiplayer (ARM60)
-  - Atari Jaguar (Tom and Jerry custom chips)
-  - Bandai Playdia (Renesas H83002)
-  - NEC PC-FX (NEC V810)
-  - Sega Pico (Sega Genesis/Mega Drive compatible processor)
-  - Apple Bandai Pippin (PowerPC 603e)
-  - Handhelds
-    - Nintendo Game Boy Color (Zilog Z80)
-    - Neo Geo Pocket/Neo Geo Pocket Color (Toshiba TLCS-900H)
-    - Bandai WonderSwan/WonderSwan Color (NEC V30MZ)
-    - SNK Neo Geo Pocket Color (Toshiba TLCS-900H)
+### Virtual Machine Approaches
 
-Why not 1st generation consoles? 1st generation consoles did not have interchangable games, used custom hardware and were produced in limited quantities. Because of this there has been little interest in creating homebrew games for these consoles. I may consider supporting these consoles if there is enough interest though.
+1. **Token Threaded Code (TTC)**
+   - Most compact bytecode representation
+   - Smallest VM implementation
+   - Higher runtime overhead
+   - Ideal for: Games needing maximum ROM space for assets
 
-## Support for familiar high-level languages
+2. **Direct Threaded Code (DTC)**
+   - Faster execution than TTC
+   - Moderate code size
+   - Good balance of speed and size
+   - Ideal for: General-purpose game code
 
-GameVM aims to provide support for familiar high-level programming languages, enabling game developers to write games or game engines using their preferred languages. Here is a list of general-purpose programming languages commonly used in game development, ordered by the difficulty of implementing a compiler for each language (from easiest to most difficult):
+3. **Subroutine Threaded Code (STC)**
+   - Fastest VM execution
+   - Larger code size
+   - Platform-specific optimizations
+   - Ideal for: Performance-critical code needing portability
 
-- Python
-- Lua
-- JavaScript
-- C#
-- Ruby
-- Java
-- Haxe
-- Go
-- Rust
-- Pascal
-- Basic
-- C++
-- C
+### Native Code Generation
+- Direct machine code output
+- No runtime overhead
+- Platform-specific code
+- Ideal for: Timing-critical routines
 
-## Dynamically Generated VM
+### Mixed-Mode Execution
+- Combine different strategies within the same game
+- Use native code for timing-critical sections
+- Use threaded code for general game logic
+- Balance between size and speed per module
 
-Most VMs provide a static instruction set, which includes numerous instructions that may not be used by applications at runtime. GameVM takes a different approach. It dynamically generates an interpreter specific to the game during compilation. This optimized interpreter supports only the instructions required by the game.
+## Dynamic VM Generation
 
-GameVM utilizes a technique similar to optimizing compilers. Instructions are mapped to virtual op codes dynamically, tailored to the specific game being compiled. This customization not only saves space but can also enhance the VM's performance.
+GameVM analyzes your code at build time to create a specialized VM:
 
-In addition, GameVM empowers game developers to create explicit superinstructions. These superinstructions are combinations of primitive instructions embedded in the VM itself. By leveraging superinstructions, developers can avoid runtime decoding of virtual instructions into native instructions.
+### Analysis Phase
+- Identifies actually used instructions
+- Discovers common code patterns
+- Maps data access patterns
+- Analyzes timing requirements
 
-By adopting this dynamic generation approach and supporting superinstructions, GameVM streamlines the execution of games and facilitates easier portability across different consoles.
+### Optimization Phase
+- Creates custom opcodes for common patterns
+- Optimizes memory layout for your game
+- Generates specialized dispatch code
+- Implements platform-specific features
 
-## Support for mutltiple forms of dispatching
+### Resource Analysis
+- Detailed size analysis for each strategy
+- Memory usage estimates
+- Execution speed comparisons
+- Custom opcode efficiency metrics
 
-Dispatching is a crucial aspect of VMs, determining how instructions are executed. GameVM supports multiple forms of dispatching, each with its own characteristics. Here's a summary:
+## Development Experience
 
-- Native code: Instructions are executed sequentially by the CPU. This is traditional compiled applications or sometimes Ahead Of Time (AOT) compilation. This is usually the fastest approach, although it may result in larger code size.
-- Subroutine threaded code (STC): Functions are used to encapsulate low-level CPU operations, reducing memory footprint but incurring function call overhead.
-- Direct threaded code (DTC): Addresses are used instead of functions, stored in an ordered array. An instruction pointer variable points to the current address, resulting in efficient execution with minimal overhead.
-- Indirect threaded code (ITC): Adds an extra layer of indirection to DTC, using a table of addresses to addresses. This approach offers potential benefits, such as architecture independence, but may have performance costs.
-- Token threaded code: Uses a table of tokens instead of addresses. This approach can significantly reduce memory usage (especially if the token size is limited to a byte) and is portable across different platforms. However, it generally incurs a performance penalty and is often used in environments with limited RAM.
-- Line Interpreter: Deploys a game as minified source code along with a line interpreter. This option comes with significant trade-offs. A line interpreter is much slower than a threaded code interpreter. Additionally, while high level source code is often more compact than bytecode or machine code, a line interpreter is larger than a threaded code interpreter due to the inclusion of a parser and tokenizer. So depending on the size of your game this option may actually result in a larger overall size despite the conpactness of the source code.
+GameVM provides modern development tools while targeting vintage hardware:
 
-These different forms of dispatching provide flexibility in optimizing the VM's performance and memory usage based on the specific requirements of the game and the target console.
+### Build-Time Analysis
+- ROM and RAM usage analysis
+- Cycle-accurate timing analysis
+- Bank switching optimization
+- Custom opcode suggestions
 
-## Library based hardware abstraction layer
+### Development Tools
+- Source-level debugging
+- Performance profiling
+- Memory usage visualization
+- Code size analysis
 
-While the processor is abstracted by the VM itself, support for all other hardware is provided by optional modular libraries. This includes virtual memory, video and audio controllers, game controllers, and persistent storage (if available). The goal of these libraries is to provide a consistent interface to these subsystems to programmers. This may not always be ideal, especially on the more resource constrained game consoles. For those situations the libraries can act as well documented example code for how to interact directly with the hardware of a specific system.
+### Configuration Options
+- Code generation strategy selection
+- Optimization preferences
+- Platform-specific settings
+- Mixed-mode execution controls
+
+## Architecture Overview
+
+GameVM uses a flexible, multi-level architecture that enables efficient game development across diverse gaming platforms. The system consists of three main components:
+
+1. **Compiler Pipeline**: Transforms high-level code into optimized platform-specific code
+2. **Hardware Abstraction Layer**: Provides unified access to diverse gaming hardware
+3. **Runtime System**: Handles execution, memory management, and platform-specific optimizations
+
+## Intermediate Representation (IR) Design
+
+GameVM uses a multi-level IR design that bridges the gap between high-level languages and various retro gaming platforms. Each IR level serves a specific purpose in the compilation pipeline:
+
+### High-Level IR (HLIR)
+- Language-independent representation of high-level constructs
+- Preserves program structure and semantics
+- Features:
+  - Control flow structures (loops, conditionals)
+  - Function and method calls
+  - Object operations and data structures
+  - Variable scoping and visibility
+  - Type information where available
+  - Platform-agnostic optimizations
+
+### Mid-Level IR (MLIR)
+- Architecture-neutral optimization layer
+- Focuses on program analysis and transformation
+- Features:
+  - Control and data flow analysis
+  - Memory access pattern optimization
+  - Stack frame management
+  - Dead code elimination
+  - Constant propagation
+  - Static resource analysis (ROM, RAM, stack)
+  - Bank switching analysis
+  - Critical path identification
+
+### Low-Level IR (LLIR)
+- Target-specific representation
+- Bridges architecture differences
+- Features:
+  - Hybrid instruction model
+    - Register-based operations (Z80, 68000)
+    - Accumulator-based operations (6502 family)
+  - Explicit memory operations
+  - Hardware-specific optimizations
+  - Bank switching implementation
+  - Platform-specific calling conventions
+
+## Hardware Abstraction Layer for GameVM
+
+GameVM's HAL is designed specifically for retro gaming hardware, balancing abstraction with performance. Unlike traditional HALs that completely hide hardware details, GameVM's HAL provides:
+
+1. **Tiered Abstraction Levels**
+   - High-level portable APIs for cross-platform development
+   - Mid-level APIs exposing platform-specific optimizations
+   - Low-level direct hardware access when needed
+
+2. **Core Subsystems**
+   - **Video**: Abstracts various video chips (TIA, PPU, VDP) with common primitives
+     - Sprite management
+     - Tile-based backgrounds
+     - Hardware scrolling
+     - Color palette management
+   - **Audio**: Unified interface for different sound hardware
+     - Pulse/square wave generation
+     - Frequency modulation
+     - Sample playback (where supported)
+   - **Input**: Normalizes different controller types
+     - Digital pad mapping
+     - Analog input scaling
+     - Multi-player support
+   - **Memory**: Smart memory management
+     - Bank switching support
+     - Memory-mapped I/O handling
+     - Zero-page optimization for 6502
+
+## Seamless Interop Between Bytecode and Machine Code
+
+GameVM provides a sophisticated interoperability system between bytecode and native machine code, enabling optimal performance without sacrificing development flexibility:
+
+1. **Zero-Cost Bridging**
+   - Direct function calls between bytecode and machine code
+   - No marshalling overhead for primitive types
+   - Efficient object representation sharing
+   - Register-aware calling conventions
+
+2. **Runtime Memory Management**
+   - Unified memory model across bytecode and native code
+   - Automatic stack frame alignment
+   - Shared heap management
+   - Zero-copy data access where possible
+
+## Integrated Debugging Environment
+
+GameVM aims to provide a seamless debugging experience by integrating with popular emulators through the LibRetro API. This integration enables developers to debug their games in their actual target environment.
+
+### Emulator Integration
+
+- LibRetro/RetroArch integration for cross-platform debugging support
+- Direct memory inspection and modification during runtime
+- Breakpoint support across both GameVM bytecode and native code
+- Real-time state inspection while the game is running
+
+### Debug Features
+
+1. **Source-Level Debugging**
+   - Step through high-level code while seeing actual console state
+   - Map between source code and generated bytecode/native code
+   - Variable inspection in original source language
+   - Conditional breakpoints with high-level expressions
+
+2. **Hardware State Visualization**
+   - Real-time visualization of sprite tables and tile maps
+   - Audio channel state monitoring
+   - CPU register and memory state inspection
+   - Bank switching state tracking
+
+## Optimization Features
+
+#### Developer-Suggested Superinstructions
+GameVM allows developers to suggest methods as candidates for superinstruction creation. Similar to function inlining hints in modern languages, these suggestions help the compiler identify potentially beneficial optimization opportunities.
+
+Example (syntax varies by language):
+```
+// Developer suggests this method as a superinstruction candidate
+calculate_sum(x, y) {
+    result = x + y
+    store_value(result)
+}
+```
+
+The compiler considers these suggestions alongside other criteria:
+- Method complexity and size
+- Number of parameters and locals
+- Usage frequency in the codebase
+- Potential performance impact
+- Available instruction space
+
+Developer-suggested methods are prioritized in the analysis phase but may not become superinstructions if:
+- The method is too complex to be efficiently implemented as a single instruction
+- The potential performance gain doesn't justify the increased code size
+- The method is rarely called in practice
+- It would exceed the maximum allowed superinstructions
+
+This approach balances developer insight with compiler optimization expertise.
+
+#### Automatic Superinstruction Detection
+GameVM automatically identifies and optimizes frequently occurring instruction sequences:
+
+- **Pattern Analysis**: Analyzes the bytecode to identify common instruction sequences
+- **Frequency Threshold**: Creates superinstructions for sequences that appear more than a configurable threshold
+- **Cost-Benefit Analysis**: Evaluates trade-offs between code size and execution speed
+- **Cross-Module Analysis**: Detects patterns across different source files
+
+Example of automatically detected patterns:
+```csharp
+// Original code sequences that appear frequently
+load_local    // Load variable
+load_const    // Load constant
+multiply      // Multiply values
+store_local   // Store result
+
+// Automatically combined into superinstruction
+load_multiply_store  // Single optimized instruction
+```
+
+Configuration options allow fine-tuning of the detection process:
+```json
+{
+    "superinstructions": {
+        "minFrequency": 10,        // Minimum occurrences needed
+        "maxLength": 4,            // Maximum instructions per sequence
+        "maxSuperInstructions": 32 // Maximum number to generate
+    }
+}
+```
+
+## Fine-Grained Compile Time Control
+
+GameVM provides developers with precise control over the compilation process, enabling optimal performance across different console generations:
+
+1. **Compilation Strategies**
+   - Function-level compilation decisions
+   - Basic block level optimization
+   - Loop-specific compilation policies
+   - Conditional compilation based on target platform
+
+2. **Developer Controls**
+   - Compile to native or bytecode
+   - Optimize for size, speed, or balanced
+   - Specify memory constraints
+   - Enable or disable specific optimizations
+
+## Optional JIT Compilation
+
+GameVM includes optional JIT compilation capabilities for platforms with sufficient resources. This feature is primarily targeted at 5th generation consoles with adequate RAM and CPU power. For all other platforms, GameVM defaults to efficient ahead-of-time compilation and optimized interpreter execution.
+
+### Supported Platforms
+
+JIT compilation is available on:
+
+- Nintendo 64 (4MB-8MB RAM, MIPS R4300i @ 93.75 MHz)
+  - Full method JIT compilation
+  - Advanced register allocation
+  - Loop unrolling
+  - Constant propagation
+  - Code cache up to 512KB
+  - Profile-guided optimization
+
+- Sony PlayStation (2MB RAM, MIPS R3000 @ 33.8688 MHz)
+  - Basic block JIT for hot paths
+  - Simple register allocation
+  - Delay slot optimization
+  - Limited method inlining
+  - Code cache limited to 128-256KB
+
+- Sega Saturn (2MB RAM, 2x Hitachi SH-2 @ 28.6 MHz)
+  - Basic block JIT for critical paths
+  - Dual-CPU aware optimization
+  - Simple method inlining
+  - Code cache limited to 64-128KB per CPU
+
+## Compilation Pipeline
+
+GameVM uses a multi-stage compilation process designed for retro gaming platforms:
+
+1. **Frontend**
+   - Source language parsing (ANTLR4-based)
+   - AST generation
+   - Translation to common IR
+
+2. **Middle-end**
+   - Dead code elimination
+   - Constant folding
+   - Basic loop optimization
+   - Superinstruction processing:
+     - Recognition of developer-suggested superinstructions
+     - Common sequence detection
+     - Platform-specific patterns
+
+3. **Backend**
+   - Target selection (VM bytecode or native)
+   - Register/accumulator allocation
+   - Memory layout planning
+   - Platform-specific code generation
+   - ROM bank assignment
+
+4. **Post-processing**
+   - Resource placement
+   - ROM bank linking
+   - Checksum generation
 
 ## Licensing
 

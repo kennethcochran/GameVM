@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="9.32.0.97167">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="*.g4" />
+    <None Include="*.jar" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>[GameVM.Compiler.Python]*PythonLexer,[GameVM.Compiler.Python]*PythonParser,[GameVM.Compiler.Python]*PythonParserBase,[GameVM.Compiler.Python]*PythonLexerBase,[GameVM.Compiler.Python]*PythonParserBaseListener,[GameVM.Compiler.Python]*PythonParserBaseVisitor,[GameVM.Compiler.Python]*PythonParserListener,[GameVM.Compiler.Python]*PythonParserVisitor</Exclude>
+          <ExcludeByFile>**/PythonLexer.cs,**/PythonParser.cs,**/PythonParserBase.cs,**/PythonLexerBase.cs,**/PythonParserBaseListener.cs,**/PythonParserBaseVisitor.cs,**/PythonParserListener.cs,**/PythonParserVisitor.cs</ExcludeByFile>
+          <ExcludeByAttribute>
+            Obsolete,
+            GeneratedCodeAttribute,
+            CompilerGeneratedAttribute,
+            ExcludeFromCodeCoverageAttribute
+          </ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>false</DeterministicReport>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

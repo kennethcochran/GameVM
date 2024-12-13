@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Compile": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    }
+  }
+}

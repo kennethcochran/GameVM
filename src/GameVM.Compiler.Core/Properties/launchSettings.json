@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "GameVM.Compiler.Core": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    }
+  }
+}
