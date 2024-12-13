@@ -348,3 +348,52 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build and dependency directories
+node_modules/
+dist/
+build/
+out/
+
+# Temporary and cache files
+.cache/
+.temp/
+tmp/
+temp/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# ROM files and game data
+*.rom
+*.bin
+*.nes
+*.smc
+*.gb
+*.gbc
+*.vec
+
+# Documentation build directories
+docs/_build/
+docs/api/
+docs/html/
+
+# Project specific folders
+coveragereport/
+**/.antlr/
+**/tools/
+!**/tools/packages.config
