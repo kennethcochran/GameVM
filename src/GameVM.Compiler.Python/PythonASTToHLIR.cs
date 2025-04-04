@@ -16,7 +16,7 @@
  */
 
 using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Python.AST;
+using System;
 
 namespace GameVM.Compiler.Python
 {
@@ -25,16 +25,10 @@ namespace GameVM.Compiler.Python
     /// </summary>
     public class PythonASTToHLIR
     {
-        /// <summary>
-        /// Converts a Python module AST into HLIR
-        /// </summary>
-        /// <param name="module">The Python module AST to convert</param>
-        /// <returns>A new HighLevelIR instance</returns>
-        public HighLevelIR Convert(PythonModule module)
+        public HighLevelIR Convert()
         {
-            // TODO: Implement full conversion from Python AST to HLIR
-            // For now, return an empty HLIR as a placeholder
-            return new HighLevelIR();
+            throw new NotImplementedException();
         }
+
     }
 }

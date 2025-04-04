@@ -20,7 +20,7 @@ namespace GameVM.Compiler.Specs.Support
         public CompilerTestContext()
         {
             // Create the compilation pipeline components
-            var parseTreeToAST = new PythonParseTreeToAST("");
+            var parseTreeToAST = new PythonParseTreeToAst();
             var frontend = new PythonFrontend(parseTreeToAST);
             var mlirToLlir = new MidToLowLevelTransformer();
             var llirToFinal = new LowToFinalTransformer();

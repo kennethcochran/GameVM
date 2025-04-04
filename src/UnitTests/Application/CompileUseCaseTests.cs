@@ -1,12 +1,13 @@
+/******************************************************************************
+* This file contains tests for the CompileUseCase class.
+******************************************************************************/
 using Moq;
-using NUnit.Framework;
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 using Moq.AutoMock;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.Enums;
 
 namespace UnitTests.Application

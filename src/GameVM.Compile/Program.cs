@@ -1,17 +1,18 @@
-using GameVM.Compiler.Application;
-using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.CodeGen;
-using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Transformers;
-using GameVM.Compiler.Python;
-using GameVM.Compiler.Services;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using GameVM.Compiler.Core.Interfaces;
-
 namespace GameVM.Compile
 {
+    using GameVM.Compiler.Application;
+    using GameVM.Compiler.Application.Services;
+    using GameVM.Compiler.Core.CodeGen;
+    using GameVM.Compiler.Core.IR.Interfaces;
+    using GameVM.Compiler.Core.IR;
+    using GameVM.Compiler.Core.IR.Transformers;
+    using GameVM.Compiler.Python;
+    using GameVM.Compiler.Services;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Hosting;
+    using GameVM.Compiler.Core.Interfaces;
+    using System.CommandLine;
+
     public class Program
     {
         public static void Main(string[] args)
@@ -21,7 +22,7 @@ namespace GameVM.Compile
             builder.ConfigureServices(services =>
             {
                 // Register language frontends
-                services.AddSingleton<PythonParseTreeToAST>();
+                services.AddSingleton<PythonParseTreeToAst>();
                 services.AddSingleton<PythonASTToHLIR>();
                 services.AddSingleton<ILanguageFrontend, PythonFrontend>();
 
@@ -43,12 +44,27 @@ namespace GameVM.Compile
 
             var host = builder.Build();
 
-            // Run the application
-            using (var scope = host.Services.CreateScope())
+            // Command line argument handling
+            var rootCommand = new RootCommand
+                {
+                    new Option<string>(
+                        "--input",
+                        description: "Input file to compile"),
+                    new Option<string>(
+                        "--output",
+                        description: "Output file for the compiled code")
+                };
+
+            rootCommand.SetHandler((string input, string output) =>
             {
-                var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
-                // TODO: Add command line argument handling and actual compilation
-            }
+                using (var scope = host.Services.CreateScope())
+                {
+                    var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
+                    // TODO: Add actual compilation logic using input and output
+                }
+            }, new Option<string>("--input"), new Option<string>("--output"));
+
+            rootCommand.InvokeAsync(args).Wait();
         }
     }
 }

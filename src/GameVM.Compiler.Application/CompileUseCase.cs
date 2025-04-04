@@ -4,7 +4,6 @@
  * Primary use case for compiling source code to GameVM final IR.
  * Orchestrates the compilation process:
  * - Source file validation
- * - Language frontend selection
  * - IR generation pipeline
  * - Optimization passes
  * - Code generation
@@ -13,12 +12,8 @@
  * Central coordinator for the compilation workflow.
  */
 
-using System;
-using System.IO;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR.Transformers;
-using GameVM.Compiler.Core.CodeGen;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Application.Services;
