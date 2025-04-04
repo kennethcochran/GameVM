@@ -12,6 +12,8 @@ using System.IO;
 using NUnit.Framework;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Services;
+using GameVM.Compiler.Python.AST;
+using GameVM.Compiler.Python.ANTLR;
 
 namespace GameVM.Compiler.Specs.Steps;
 
@@ -30,7 +32,7 @@ public class PythonCompilationSteps
 
         // Register core compiler components
         services.AddScoped<ILanguageFrontend, PythonFrontend>();
-        services.AddScoped<IPythonASTBuilder>(_ => new PythonParseTreeToAST(""));
+        services.AddScoped<IPythonParserVisitor<AstNode>, PythonParseTreeToAst>();
         services.AddScoped<IMidLevelOptimizer, DefaultMidLevelOptimizer>();
         services.AddScoped<ILowLevelOptimizer, DefaultLowLevelOptimizer>();
         services.AddScoped<IFinalIROptimizer, DefaultFinalIROptimizer>();

@@ -22,6 +22,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Application
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Specs", "src\GameVM.Compiler.Specs\GameVM.Compiler.Specs.csproj", "{E48D8C38-E28C-431D-8B0B-6D23AE02390C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal", "src\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj", "{6EC6E34E-7F1A-474B-94C5-13C11D5F7FD7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal.Tests", "src\GameVM.Compiler.Pascal.Tests\GameVM.Compiler.Pascal.Tests.csproj", "{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +60,14 @@ Global
 		{E48D8C38-E28C-431D-8B0B-6D23AE02390C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E48D8C38-E28C-431D-8B0B-6D23AE02390C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E48D8C38-E28C-431D-8B0B-6D23AE02390C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6EC6E34E-7F1A-474B-94C5-13C11D5F7FD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6EC6E34E-7F1A-474B-94C5-13C11D5F7FD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6EC6E34E-7F1A-474B-94C5-13C11D5F7FD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6EC6E34E-7F1A-474B-94C5-13C11D5F7FD7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

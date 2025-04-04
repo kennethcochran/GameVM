@@ -35,9 +35,9 @@ namespace GameVM.Compiler.Python
     /// </summary>
     public class PythonFrontend : ILanguageFrontend
     {
-        private readonly IPythonASTBuilder _astBuilder;
+        private readonly PythonParseTreeToAst _astBuilder;
 
-        public PythonFrontend(IPythonASTBuilder astBuilder)
+        public PythonFrontend(PythonParseTreeToAst astBuilder)
         {
             _astBuilder = astBuilder ?? throw new ArgumentNullException(nameof(astBuilder));
         }
@@ -72,14 +72,14 @@ namespace GameVM.Compiler.Python
                 throw new ParserException(errorListener.GetErrorMessage());
             }
 
-            var ast = _astBuilder.Build(parseTree);
+            var ast = _astBuilder.Visit(parseTree);
 
-            if (ast is not PythonModule module)
+            if (ast is not ModuleNode _)
                 throw new InvalidOperationException("Failed to generate Python AST");
 
             // Convert AST to HLIR
             var hlirConverter = new PythonASTToHLIR();
-            return hlirConverter.Convert(module);
+            return hlirConverter.Convert();
         }
 
         /// <summary>
