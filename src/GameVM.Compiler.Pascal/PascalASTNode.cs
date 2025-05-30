@@ -36,12 +36,12 @@ namespace GameVM.Compiler.Pascal
     {
     }
 
-    public class VariableNode : PascalASTNode
+    public class VariableNode : ExpressionNode
     {
         public required string Name { get; set; }
     }
 
-    public class ConstantNode : PascalASTNode
+    public class ConstantNode : ExpressionNode
     {
         public required object Value { get; set; }
     }
@@ -206,6 +206,12 @@ namespace GameVM.Compiler.Pascal
     public class RecordTypeNode : TypeNode
     {
         public required List<FieldDeclarationNode> Fields { get; set; }
+
+        public RecordTypeNode()
+        {
+            Fields = new List<FieldDeclarationNode>();
+            TypeName = "record";
+        }
     }
 
     public class FieldDeclarationNode : PascalASTNode
@@ -234,6 +240,12 @@ namespace GameVM.Compiler.Pascal
     {
         public required List<ExpressionNode> Labels { get; set; }
         public required PascalASTNode Statement { get; set; }
+    }
+
+    public class TypeDefinitionNode : PascalASTNode
+    {
+        public required string Name { get; set; }
+        public required TypeNode Type { get; set; }
     }
 
     public class WithNode : PascalASTNode
@@ -270,5 +282,16 @@ namespace GameVM.Compiler.Pascal
     public class SetNode : ExpressionNode
     {
         public required List<ExpressionNode> Elements { get; set; }
+    }
+
+    public class SetTypeNode : TypeNode
+    {
+        public TypeNode? BaseType { get; set; }
+    }
+
+    public class SetRangeNode : ExpressionNode
+    {
+        public required ExpressionNode Low { get; set; }
+        public required ExpressionNode High { get; set; }
     }
 }

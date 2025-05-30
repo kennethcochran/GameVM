@@ -13,8 +13,11 @@ namespace GameVM.Compiler.Pascal.Tests
             var tokens = new CommonTokenStream(lexer);
             var parser = new PascalParser(tokens);
             var tree = parser.program();
+            Console.WriteLine("Parse tree: " + tree.ToStringTree(parser)); // Debug log
             var visitor = new ASTVisitor();
-            return visitor.Visit(tree);
+            var result = visitor.Visit(tree);
+            Console.WriteLine("AST Result: " + result); // Debug log
+            return result;
         }
 
         [Test]

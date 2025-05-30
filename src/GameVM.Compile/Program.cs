@@ -13,7 +13,7 @@ namespace GameVM.Compile
     using GameVM.Compiler.Core.Interfaces;
     using System.CommandLine;
 
-    public class Program
+    public static class Program
     {
         public static void Main(string[] args)
         {
@@ -60,7 +60,10 @@ namespace GameVM.Compile
                 using (var scope = host.Services.CreateScope())
                 {
                     var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
-                    // TODO: Add actual compilation logic using input and output
+                    useCase.Execute(input, output, new CompilationOptions
+                    {
+                        // Set any compilation options here
+                    });
                 }
             }, new Option<string>("--input"), new Option<string>("--output"));
 
