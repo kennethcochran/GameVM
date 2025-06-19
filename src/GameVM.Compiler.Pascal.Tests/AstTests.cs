@@ -1,4 +1,5 @@
 ﻿using Antlr4.Runtime;
+using GameVM.Compiler.Pascal.ANTLR;
 using NUnit.Framework;
 
 namespace GameVM.Compiler.Pascal.Tests
@@ -257,11 +258,14 @@ namespace GameVM.Compiler.Pascal.Tests
             
             var result = ParseProgram(input);
             var program = (ProgramNode)result;
-            var type = program.Block.Statements[0] as RecordTypeNode;
-            Assert.That(type, Is.Not.Null);
-            Assert.That(type.Fields, Has.Count.EqualTo(2));
-            Assert.That(type.Fields[0].Name, Is.EqualTo("name"));
-            Assert.That(type.Fields[1].Name, Is.EqualTo("age"));
+            var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
+            Assert.That(typeDef, Is.Not.Null);
+            Assert.That(typeDef.Name, Is.EqualTo("Person"));
+            var record = typeDef.Type as RecordTypeNode;
+            Assert.That(record, Is.Not.Null);
+            Assert.That(record.Fields, Has.Count.EqualTo(2));
+            Assert.That(record.Fields[0].Name, Is.EqualTo("name"));
+            Assert.That(record.Fields[1].Name, Is.EqualTo("age"));
         }
 
         [Test]
@@ -276,11 +280,14 @@ namespace GameVM.Compiler.Pascal.Tests
             
             var result = ParseProgram(input);
             var program = (ProgramNode)result;
-            var type = program.Block.Statements[0] as ArrayTypeNode;
-            Assert.That(type, Is.Not.Null);
-            Assert.That(type.Dimensions, Has.Count.EqualTo(1));
-            Assert.That(type.ElementType, Is.Not.Null);
-            Assert.That(type.ElementType.TypeName, Is.EqualTo("integer"));
+            var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
+            Assert.That(typeDef, Is.Not.Null);
+            Assert.That(typeDef.Name, Is.EqualTo("IntArray"));
+            var arrayType = typeDef.Type as ArrayTypeNode;
+            Assert.That(arrayType, Is.Not.Null);
+            Assert.That(arrayType.Dimensions, Has.Count.EqualTo(1));
+            Assert.That(arrayType.ElementType, Is.Not.Null);
+            Assert.That(arrayType.ElementType.TypeName, Is.EqualTo("integer"));
         }
 
         [Test]
@@ -376,6 +383,99 @@ namespace GameVM.Compiler.Pascal.Tests
             Assert.That(funcDecl, Is.Not.Null);
             Assert.That(funcDecl!.Name, Is.EqualTo("Add"));
             Assert.That(funcDecl.Parameters, Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void Test_Pointer_Type()
+        {
+            var input = @"
+                program Test;
+                type
+                    IntPtr = ^integer;
+                begin
+                end.";
+            var result = ParseProgram(input);
+            var program = (ProgramNode)result;
+            var type = program.Block.Statements[0];
+            Assert.That(type, Is.Not.Null);
+            // Will be PointerTypeNode after implementation
+        }
+
+        [Test]
+        public void Test_Label_And_Goto()
+        {
+            var input = @"
+                program Test;
+                label 100;
+                begin
+                    goto 100;
+                100: writeln('At label');
+                end.";
+            var result = ParseProgram(input);
+            var program = (ProgramNode)result;
+            Assert.That(program.Block.Statements, Is.Not.Empty);
+            // Will check for LabelNode and GotoNode after implementation
+        }
+
+        [Test]
+        public void Test_Variant_Record()
+        {
+            var input = @"
+                program Test;
+                type
+                    Shape = record
+                        case kind: integer of
+                            1: (radius: real);
+                            2: (width, height: real);
+                    end;
+                begin
+                end.";
+            var result = ParseProgram(input);
+            var program = (ProgramNode)result;
+            var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
+            Assert.That(typeDef, Is.Not.Null);
+            Assert.That(typeDef.Name, Is.EqualTo("Shape"));
+            var variant = typeDef.Type as VariantRecordNode;
+            Assert.That(variant, Is.Not.Null);
+            // Further checks for variant fields can be added here
+        }
+
+        [Test]
+        public void Test_Packed_Type()
+        {
+            var input = @"
+                program Test;
+                type
+                    PackedArr = packed array[1..10] of integer;
+                begin
+                end.";
+            var result = ParseProgram(input);
+            var program = (ProgramNode)result;
+            var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
+            Assert.That(typeDef, Is.Not.Null);
+            Assert.That(typeDef.Name, Is.EqualTo("PackedArr"));
+            var packed = typeDef.Type as PackedTypeNode;
+            Assert.That(packed, Is.Not.Null);
+            // Further checks for packed.InnerType can be added here
+        }
+
+        [Test]
+        public void Test_Enumerated_Type()
+        {
+            var input = @"
+                program Test;
+                type
+                    Color = (Red, Green, Blue);
+                begin
+                end.";
+            var result = ParseProgram(input);
+            var program = (ProgramNode)result;
+            var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
+            Assert.That(typeDef, Is.Not.Null);
+            Assert.That(typeDef.Name, Is.EqualTo("Color"));
+            var enumType = typeDef.Type as EnumeratedTypeNode;
+            Assert.That(enumType, Is.Not.Null);
+            Assert.That(enumType.Members, Is.EquivalentTo(new[] { "Red", "Green", "Blue" }));
         }
     }
 }

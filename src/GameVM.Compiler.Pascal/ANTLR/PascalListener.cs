@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from c:/Users/kenne/source/repos/GameVM/src/GameVM.Compiler.Pascal/ANTLR/Pascal.g4 by ANTLR 4.13.1
+// Generated from C:/Users/kenne/source/repos/GameVM/src/GameVM.Compiler.Pascal/ANTLR/Pascal.g4 by ANTLR 4.13.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -19,6 +19,7 @@
 // Ambiguous reference in cref attribute
 #pragma warning disable 419
 
+namespace GameVM.Compiler.Pascal.ANTLR {
 using Antlr4.Runtime.Misc;
 using IParseTreeListener = Antlr4.Runtime.Tree.IParseTreeListener;
 using IToken = Antlr4.Runtime.IToken;
@@ -1001,3 +1002,4 @@ public interface IPascalListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitRecordVariableList([NotNull] PascalParser.RecordVariableListContext context);
 }
+} // namespace GameVM.Compiler.Pascal.ANTLR
