@@ -294,4 +294,42 @@ namespace GameVM.Compiler.Pascal
         public required ExpressionNode Low { get; set; }
         public required ExpressionNode High { get; set; }
     }
+
+    public class PointerTypeNode : TypeNode
+    {
+        public required TypeNode TargetType { get; set; }
+    }
+
+    public class LabelNode : PascalASTNode
+    {
+        public required int Label { get; set; }
+    }
+
+    public class GotoNode : PascalASTNode
+    {
+        public required int TargetLabel { get; set; }
+    }
+
+    public class VariantRecordNode : RecordTypeNode
+    {
+        public required string VariantFieldName { get; set; }
+        public required TypeNode VariantFieldType { get; set; }
+        public required List<VariantCaseNode> Variants { get; set; }
+    }
+
+    public class VariantCaseNode : PascalASTNode
+    {
+        public required object Value { get; set; }
+        public required List<FieldDeclarationNode> Fields { get; set; }
+    }
+
+    public class PackedTypeNode : TypeNode
+    {
+        public required TypeNode InnerType { get; set; }
+    }
+
+    public class EnumeratedTypeNode : TypeNode
+    {
+        public required List<string> Members { get; set; }
+    }
 }

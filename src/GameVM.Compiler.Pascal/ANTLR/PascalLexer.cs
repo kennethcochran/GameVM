@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from c:/Users/kenne/source/repos/GameVM/src/GameVM.Compiler.Pascal/ANTLR/Pascal.g4 by ANTLR 4.13.1
+// Generated from C:/Users/kenne/source/repos/GameVM/src/GameVM.Compiler.Pascal/ANTLR/Pascal.g4 by ANTLR 4.13.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -19,6 +19,7 @@
 // Ambiguous reference in cref attribute
 #pragma warning disable 419
 
+namespace GameVM.Compiler.Pascal.ANTLR {
 using System;
 using System.IO;
 using System.Text;
@@ -318,3 +319,4 @@ public partial class PascalLexer : Lexer {
 
 
 }
+} // namespace GameVM.Compiler.Pascal.ANTLR
