@@ -1,132 +1,273 @@
-# Vectrex
+# Vectrex (MB Vector Display Gaming System)
 
 ## System Overview
-- CPU: Motorola 6809
-- Clock Speed: 1.5 MHz
-- Vector Generator: Custom Hardware
-- Sound Processor: AY-3-8912
-- Display: Samsung 9-inch Vector Monitor
+- CPU: Motorola 6809 @ 1.5 MHz
+- Display: Samsung 240RB40 9-inch monochrome vector monitor
 - Release Year: 1982
 - Generation: 2nd
 - Region: Worldwide
 - Predecessor: None (GCE/MB's first console)
-- Successor: None
+- Successor: None (cancelled Mini-Cade)
+- Unique Feature: Built-in vector display
 
 ## CPU Details
 ### Architecture Characteristics
-- Instruction Set Family: Motorola 6809
-- Word Size: 8-bit (with 16-bit operations)
+- Instruction Set: Motorola 6809
+- Word Size: 8-bit with 16-bit operations
 - Endianness: Big-endian
 - Register Set:
-  - Accumulators: A, B (can combine as D)
-  - Index Registers: X, Y
-  - User Stack Pointer: U
-  - Hardware Stack Pointer: S
-  - Program Counter: PC
-  - Direct Page Register: DP
-  - Condition Code Register: CC
-- Notable Features:
+  - Accumulators: A, B (8-bit), D (16-bit A:B)
+  - Index Registers: X, Y (16-bit)
+  - Stack Pointers: U (user), S (system)
+  - Program Counter: PC (16-bit)
+  - Direct Page: DP (8-bit)
+  - Condition Code: CC
+    - E (entire)
+    - F (fast interrupt mask)
+    - H (half carry)
+    - I (interrupt mask)
+    - N (negative)
+    - Z (zero)
+    - V (overflow)
+    - C (carry)
+- Special Features:
   - Position-independent code support
+  - 16-bit arithmetic
   - Hardware multiplication
-  - Advanced addressing modes
-  - Two stack pointers
+  - Stack indexing modes
 
 ### Memory Access
 - Address Bus Width: 16 bits
 - Data Bus Width: 8 bits
 - Memory Page Size: 256 bytes
-- Special Addressing Modes:
-  - Indexed with offset
-  - Auto increment/decrement
-  - Extended indirect
-  - Program counter relative
-- DMA Capabilities: None
+- Memory Access Timing:
+  - Basic Memory Cycle: 2-5 cycles
+  - Register Operations: 2 cycles
+  - Extended Addressing: 5+ cycles
+- DMA: Not available
+- Vector Generation: Memory-mapped
 
 ### Performance Considerations
 - Instruction Timing: 2-12 cycles
-- Pipeline Features: None
+- Interrupt Types:
+  - NMI (Non-Maskable)
+  - IRQ (Standard)
+  - FIRQ (Fast)
 - Known Bottlenecks:
-  - Vector generation timing
-  - Single accumulator pairs
-  - Memory access patterns
+  - Vector drawing time
+  - Display list processing
+  - RAM limitations
 - Optimization Opportunities:
-  - 16-bit operations
   - Position-independent code
-  - Indexed addressing
+  - Fast interrupt usage
+  - Register-based operations
 
 ## Memory Map
-### RAM
-- Total Size: 1KB
-- Layout:
-  - System RAM: 1KB ($0000-$03FF)
-  - Zero Page: First 256 bytes
-  - Stack: Configurable
-- Bank Switching: None for RAM
-- Access Speed: CPU-speed dependent
-- Constraints:
-  - Limited RAM size
-  - Vector display list space
-  - Stack/variable balance
+### System Memory
+- RAM: 1 KB (1024 bytes)
+- ROM: 8 KB (built-in MineStorm game)
+- Cartridge ROM: Up to 32 KB
+- Vector RAM: Shared with main RAM
 
-### ROM
-- BIOS Size: 8KB
-- Cartridge Size: 32KB
-- Bank Switching: Some cartridges
-- Access Speed: CPU-speed dependent
-- Special Features:
-  - Built-in ROM routines
-  - Vector drawing functions
-  - Sound generation code
-
-### Special Memory Regions
-- RAM: $0000-$03FF
-- ROM: $E000-$FFFF
-- Vector Hardware: $C800-$CFFF
-- Sound Chip: $C000-$C7FF
-- Via Chip: $D000-$D7FF
+### Memory Layout
+- $0000-$03FF: System RAM (1 KB)
+- $0400-$7FFF: Cartridge ROM
+- $8000-$9FFF: Reserved
+- $A000-$BFFF: Reserved
+- $C000-$DFFF: Vector ROM
+- $E000-$FFFF: System ROM
+- Special Registers:
+  - $F000: Vec_Music_Work
+  - $F100: Vec_ADSR_Table
+  - $F200: Vec_Shadow_Pattern
+  - $F300: Vec_Music_Waveform
+  - $F400: Vec_Dot_Pattern
+  - $F500: Vec_Ramp
 
 ## Vector Display System
-### Display Characteristics
-- Type: Vector (Samsung 9-inch)
-- Resolution: ~32768×32768 (theoretical)
-- Intensity Levels: 128
-- Refresh Rate: 50 Hz (Europe), 60 Hz (US)
-- Drawing Time: ~1.5µs per vector
+### Display Hardware
+- Type: Samsung 240RB40 CRT
+- Screen Size: 9-inch diagonal
+- Phosphor: P31 green
+- Beam Deflection: Electromagnetic
+- Refresh Rate: 50 Hz
+- Resolution: ~32,768 addressable points (theoretical)
+- Practical Resolution: ~256×256 points
+- Aspect Ratio: 1:1 (square display)
+
+### Vector Generation
+- Digital to Analog Converters:
+  - Two 8-bit DACs for X/Y positioning
+  - One 8-bit DAC for brightness control
+- Vector Types:
+  - Zero-Length (dots)
+  - Relative vectors
+  - Absolute vectors
+- Drawing Speed: ~30,000 vectors/second
+- Intensity Levels: 128 (7-bit)
+- Vector Length: Variable (hardware limited)
 
 ### Graphics Capabilities
-- Vector Support:
-  - Line drawing
-  - Intensity control
-  - Beam positioning
-  - Relative/absolute moves
-- Special Effects:
+- Drawing Features:
+  - Lines (vectors)
+  - Points
+  - Characters
+  - Shapes
   - Rotation
   - Scaling
-  - Brightness control
-  - Vector clipping
-- Hardware Features:
-  - Zero reference
-  - Integrator reset
-  - Beam blanking
-  - Vector timer
+- Hardware Assist:
+  - Zero detect circuitry
+  - Beam intensity control
+  - Vector timing control
+  - Auto-centering
+- Special Effects:
+  - Intensity modulation
+  - Vector rotation
+  - Vector scaling
+  - 3D perspective simulation
 
-### Drawing System
-- Vector List:
-  - Sequential commands
-  - Position updates
-  - Draw commands
-  - Intensity control
-- Timing:
-  - ~1.5µs per vector
-  - Frame time limit
+### Display Control
+- Beam Position Control:
+  - X position (8-bit)
+  - Y position (8-bit)
+  - Z (intensity) control
+- Timing Control:
+  - Vector generation timing
   - Beam settling time
-  - Reset time
+  - Frame synchronization
+- Hardware Registers:
+  - Vector generator control
+  - Position registers
+  - Scale registers
+  - Brightness control
 
-### Timing
-- Frame Time: 20ms (50Hz) or 16.7ms (60Hz)
-- Vector Time: ~1.5µs per vector
-- Settling Time: System dependent
-- Reset Time: Required between frames
+## Audio System
+## Input/Output System
+### Controller Interface
+- Number of Ports: 1 (plus 3 optional)
+- Built-in Controller:
+  - 4-way digital joystick
+  - 4 action buttons
+  - Self-centering mechanism
+  - Digital potentiometer
+- Optional Controllers:
+  - Light Pen
+  - 3D Imager glasses
+  - Additional player controllers
+
+### Storage Interface
+- Cartridge Slot:
+  - ROM Size: Up to 32 KB
+  - Edge connector: 30-pin
+  - Auto-detection
+  - No bank switching
+- Built-in Storage:
+  - 8 KB ROM (MineStorm game)
+  - No save capability
+
+### Display Output
+- Integrated Monitor:
+  - Vector CRT display
+  - Green phosphor
+  - 9-inch diagonal
+  - Built-in brightness control
+  - Contrast control
+- External Connections:
+  - Audio output jack
+  - Optional RGB mod points
+
+### Power System
+- Input Voltage: 120V AC (US), 220-240V AC (EU)
+- Power Consumption: ~50W
+- Internal Power Supply
+- Voltage Regulators:
+  - +5V digital
+  - ±12V analog
+  - High voltage for CRT
+
+## System Integration Features
+### Hardware Design
+- All-in-one Unit:
+  - Integrated vector display
+  - Built-in controller
+  - Internal power supply
+  - Tilt stand
+- Overlay System:
+  - Plastic color overlays
+  - Artwork for games
+  - Screen protection
+  - Color simulation
+
+### Special Features
+- Vector Graphics System:
+  - Real-time rotation
+  - Hardware scaling
+  - Intensity control
+  - 3D capabilities
+- Built-in Game:
+  - MineStorm (ROM)
+  - Auto-boot capability
+- 3D System Support:
+  - 3D Imager peripheral
+  - Mechanical color wheel
+  - Synchronized shuttering
+
+### Regional Differences
+- NTSC (North America):
+  - 120V AC power
+  - 60 Hz refresh
+- PAL (Europe):
+  - 220-240V AC power
+  - 50 Hz refresh
+- Universal vector display timing
+
+## Technical Legacy
+### Hardware Innovations
+- First home vector display system
+- Integrated monitor design
+- Real-time 3D capabilities
+- Hardware rotation/scaling
+
+### Software Development
+- Development System:
+  - 6809 assembly language
+  - Vector generation tools
+  - Sound programming tools
+- Programming Features:
+  - Vector drawing routines
+  - Music macros
+  - 3D mathematics
+  - Display list management
+
+### Market Impact
+- Production Run: 1982-1984
+- Units Sold: ~500,000
+- Games Released: ~30 officially
+- Price Points:
+  - Launch: $199
+  - Final: $100
+- Competition:
+  - Atari 2600
+  - Intellivision
+  - ColecoVision
+
+### Programming Resources
+- Built-in ROM Routines:
+  - Vector generation
+  - Character drawing
+  - Sound generation
+  - Controller reading
+- Development Tools:
+  - Vector list compiler
+  - Music composition
+  - Character set editor
+  - 3D modeling tools
+
+
+
+
+
+
 
 ## Audio System (AY-3-8912)
 ### Audio Hardware
