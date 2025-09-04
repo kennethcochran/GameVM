@@ -28,8 +28,8 @@ namespace GameVM.Compiler.Specs.Features
         
         private static string[] featureTags = ((string[])(null));
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Python Code Compilation", ("    As a game developer\r\n    I want to compile Python code into GameVM bytecode\r\n" +
-                "    So that I can run Python scripts in my game"), global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Python Code Compilation", "    As a game developer\n    I want to compile Python code into GameVM bytecode\n  " +
+                "  So that I can run Python scripts in my game", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
         
 #line 1 "PythonCompilation.feature"
 #line hidden

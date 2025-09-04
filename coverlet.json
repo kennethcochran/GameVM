@@ -1,0 +1,15 @@
+{
+  "include": ["GameVM.Compiler.Pascal"],
+  "exclude": [
+    "[xunit.*]*",
+    "[coverlet.*]*",
+    "[*]GameVM.Compiler.Pascal.Tests*"
+  ],
+  "excludeByAttribute": [
+    "System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage"
+  ],
+  "excludeByFile": [
+    "**/obj/**/*.cs",
+    "**/bin/**/*.cs"
+  ]
+}
