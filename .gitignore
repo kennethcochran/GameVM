@@ -292,6 +292,15 @@ node_modules/
 **/*.Server/ModelManifest.xml
 _Pvt_Extensions
 
+# ANTLR generated files (do not commit)
+# Ignore all files in ANTLR subdirectories except the grammar files
+**/ANTLR/*
+!**/ANTLR/*.g4
+!**/ANTLR/*.g4.orig
+
+# Keep custom implementations in the main project directories
+# (they won't be in the ANTLR subdirectory)
+
 # Paket dependency manager
 .paket/paket.exe
 paket-files/
