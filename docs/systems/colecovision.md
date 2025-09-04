@@ -3,121 +3,234 @@
 ## System Overview
 - CPU: Zilog Z80A
 - Clock Speed: 3.58 MHz
-- Video Processor: Texas Instruments TMS9928A
-- Sound Processor: Texas Instruments SN76489A
 - Release Year: 1982
 - Generation: 2nd
 - Region: Worldwide
-- Predecessor: None (Coleco's first console)
-- Successor: None
+- Predecessor: Coleco Telstar series
+- Successor: None (planned ADAM computer integration)
 
 ## CPU Details
 ### Architecture Characteristics
-- Instruction Set Family: Zilog Z80
+- Instruction Set: Z80A (enhanced 8080 instruction set)
 - Word Size: 8-bit
 - Endianness: Little-endian
 - Register Set:
-  - Main: A, F, B, C, D, E, H, L
-  - Alternate: A', F', B', C', D', E', H', L'
-  - Index: IX, IY
-  - Special: I (Interrupt), R (Refresh)
-  - PC (Program Counter)
-  - SP (Stack Pointer)
-- Notable Features:
-  - Extended instruction set
+  - Main: A (accumulator), B, C, D, E, H, L
+  - Alternate: A', B', C', D', E', H', L'
+  - Index Registers: IX, IY
+  - Special Purpose: 
+    - SP (stack pointer)
+    - PC (program counter)
+    - I (interrupt vector)
+    - R (refresh)
+  - Flags: S (sign), Z (zero), H (half carry), P/V (parity/overflow), N (add/subtract), C (carry)
+- Special Features:
   - Block instructions
-  - Indexed addressing
-  - Multiple register sets
+  - Index register operations
+  - Extended instruction set
+  - Two interrupt modes
 
 ### Memory Access
 - Address Bus Width: 16 bits
 - Data Bus Width: 8 bits
-- Memory Page Size: 256 bytes
-- Special Addressing Modes:
-  - Indexed (IX+d, IY+d)
-  - Relative
-  - Block transfer
-  - Bit addressing
-- DMA Capabilities: Via VDP
+- Memory Page Size: 16 KB
+- Memory Access Timing:
+  - Basic Memory Cycle: 4 T-states
+  - I/O Operations: 4 T-states
+  - Instruction Fetch: 4-6 T-states
+- DMA: Not available
 
 ### Performance Considerations
 - Instruction Timing: 4-23 T-states
-- Pipeline Features: None
+- Interrupt Modes: IM 0, IM 1, IM 2
 - Known Bottlenecks:
   - VDP access timing
-  - Single accumulator
-  - Memory access speed
+  - Limited RAM
+  - Shared memory bus
 - Optimization Opportunities:
-  - Block instructions
-  - Alternate register set
-  - Index register usage
+  - Block instructions for memory transfers
+  - Alternate register set usage
+  - Interrupt mode selection
 
 ## Memory Map
-### RAM
-- Total Size: 1KB main + 16KB video
-- Layout:
-  - System RAM: 1KB ($7000-$73FF)
-  - Video RAM: 16KB (in VDP)
-  - Stack: Configurable in main RAM
-- Bank Switching: None for RAM
-- Access Speed: CPU-speed dependent
-- Constraints:
-  - Limited main RAM
-  - VDP memory timing
-  - Shared video access
+### System Memory
+- RAM: 1 KB work RAM
+- Video RAM: 16 KB
+- ROM: 8 KB BIOS
+- Cartridge ROM: Up to 32 KB
+- Expansion RAM: Up to 32 KB (with expansion module)
 
-### ROM
-- BIOS Size: 8KB
-- Cartridge Size: Up to 32KB
-- Bank Switching: Some cartridges
-- Access Speed: CPU-speed dependent
-- Special Features:
-  - Multiple ROM pages possible
-  - BIOS routines available
-  - Some cartridges include RAM
+### Memory Layout
+- $0000-$1FFF: BIOS ROM (8 KB)
+- $2000-$3FFF: Expansion ROM
+- $4000-$5FFF: Expansion RAM
+- $6000-$7FFF: Work RAM (1 KB, mirrored)
+- $8000-$FFFF: Cartridge ROM
+- Ports:
+  - $BE: VDP data read
+  - $BF: VDP data write
+  - $40-$7F: Controller 1
+  - $80-$BF: Controller 2
 
-### Special Memory Regions
-- BIOS ROM: $0000-$1FFF
-- RAM: $7000-$73FF
-- VDP Ports: $BE, $BF
-- Sound Port: $FF
-- Controller Ports: $FC-$FF
-
-## Video System (TMS9928A)
-### Display Characteristics
-- Resolution: 256×192
-- Color Depth: 16 colors
+## Video System
+### Video Display Processor
+- Chip: Texas Instruments TMS9928A
+- Clock Speed: 10.738635 MHz
+- VRAM: 16 KB dedicated
+- Display Resolution: 256×192 pixels
 - Refresh Rate: 60 Hz (NTSC)
-- Video RAM: 16KB
 
 ### Graphics Capabilities
-- Sprite Support:
-  - 32 hardware sprites
-  - 16×16 or 8×8 size
-  - 4 sprites per line
-  - Collision detection
+- Color Palette:
+  - Total Colors: 16
+  - Colors on Screen: 15 + transparent
+  - Color Definition: RGB
+- Sprites:
+  - Total Sprites: 32
+  - Size: 8×8 or 16×16 pixels
+  - Colors: 1 color per sprite
+  - Sprites per Scanline: 4 (hardware limit)
+  - Early Clock: Allows 5th sprite
 - Background:
-  - 32×24 tile grid
-  - 256 unique 8×8 patterns
-  - 32 simultaneous colors
-  - Two planes available
-- Special Effects:
-  - Sprite magnification
-  - External video input
-  - Screen blanking
-  - Multiple modes
+  - Pattern Table: 256 patterns
+  - Color Table: 32 pattern colors
+  - Name Table: 768 bytes
+  - 32×24 character display
 
-### Graphics Modes
-- Text Mode: 40×24 characters
-- Graphics I: 32×24 tiles, limited color
-- Graphics II: 32×24 tiles, full color
-- Multicolor: 64×48 blocks
-- Sprite Mode: Overlaid on any mode
+### Display Modes
+- Graphics I Mode:
+  - Text: 40×24 characters
+  - Character size: 6×8 pixels
+  - Limited color options
+- Graphics II Mode:
+  - Resolution: 256×192
+  - 32×24 tiles
+  - Independent colors per 8×1 pixel row
+- Multicolor Mode:
+  - Resolution: 64×48
+  - 4×4 pixel blocks
+  - 15 colors + transparent
+- Sprite Mode:
+  - Magnification: 1× or 2×
+  - Size selection: 8×8 or 16×16
 
-### Timing
-- VBLANK: 60 Hz
-- HBLANK: Standard NTSC
-- Access Windows: Any time via ports
+### Special Features
+- Hardware Sprite Management
+- Sprite Collision Detection
+- Sprite Coincidence Detection
+- Interrupt Generation
+- Status Register Reading
+- Direct Memory Access
+
+## Audio System
+## Input/Output System
+### Controller Interface
+- Number of Ports: 2
+- Controller Features:
+  - 8-way digital joystick
+  - Fire buttons (2)
+  - Numeric keypad (12 buttons)
+  - Expansion port
+  - Overlays for game-specific functions
+- Special Controllers:
+  - Roller Controller (trackball)
+  - Super Action Controllers
+  - Driving Controller
+  - Expansion Module #2 (steering wheel)
+
+### Storage Interface
+- Cartridge Slot:
+  - ROM Size: Up to 32 KB
+  - Edge connector
+  - Gold-plated contacts
+  - Region encoding
+- Expansion Module Interface:
+  - Module #1: Atari 2600 adapter
+  - Module #2: Driving controller
+  - Module #3: ADAM computer expansion
+
+### Video Output
+- RF Output: Standard
+- Video Format: NTSC (60 Hz)
+- Resolution: 256×192 pixels
+- Colors: 16 total
+
+### Expansion Capabilities
+- ADAM Computer Expansion
+- Memory Expansion
+- Controller Expansions
+- Game-Specific Peripherals
+
+## System Integration Features
+### Hardware Variants
+- Original ColecoVision (1982)
+- Telegames Personal Arcade
+- Bentley Computer Systems Model 2000
+- CBS ColecoVision
+
+### Regional Differences
+- NTSC (North America)
+  - 60 Hz refresh
+  - 120V power supply
+- PAL (Europe)
+  - 50 Hz refresh
+  - 220V power supply
+- Region coding in cartridges
+
+### Special Features
+- Built-in Donkey Kong
+- Expansion module system
+- ADAM computer compatibility
+- High-quality arcade ports
+
+## Technical Legacy
+### Hardware Innovations
+- Arcade-quality graphics
+- Expandable system design
+- Advanced controller design
+- Multiple display modes
+
+### Software Development
+- Development Tools:
+  - Assembly development
+  - Sprite editor tools
+  - Pattern editor tools
+  - Sound development tools
+- Programming Features:
+  - BIOS routines
+  - VDP interrupt handling
+  - Sprite management
+  - Controller scanning
+
+### Market Impact
+- Production Run: 1982-1985
+- Units Sold: ~2 million
+- Games Released: ~145 officially
+- Price Points:
+  - Launch: $199
+  - Final: $99
+- Competition:
+  - Atari 2600
+  - Intellivision
+  - Vectrex
+
+### Programming Resources
+- BIOS Support:
+  - Controller reading
+  - Sound generation
+  - VDP management
+  - Interrupt handling
+- Development Features:
+  - Sprite system
+  - Pattern tables
+  - DMA transfers
+  - Interrupt system
+
+
+
+
+
+
 
 ## Audio System (SN76489A)
 ### Audio Hardware

@@ -1,27 +1,70 @@
 # GameVM
 
-## A virtual machine specifically designed for video games
+A virtual machine specifically designed for video games, making retro console development easier by providing modern tools while respecting vintage hardware constraints.
 
-GameVM makes developing video games for retro consoles easier by providing a modern development experience while respecting the severe constraints of vintage gaming hardware. The system analyzes your game's code to generate a specialized virtual machine, optimized for your specific needs and target platform.
+## Quick Start
 
-Key Features:
-- Flexible code generation strategies (VM-based or native)
+### Prerequisites
+
+GameVM requires:
+- .NET 8 SDK ([download](https://dotnet.microsoft.com/download/dotnet/8.0))
+- Java Development Kit 21 or later ([download](https://adoptium.net/))
+
+Both must be installed and available in your system's PATH.
+
+You can verify your setup by running:
+```shell
+dotnet --version  # Should show 8.x.x
+java -version     # Should show 21.x.x or higher
+```
+
+### Build
+```pwsh
+dotnet build
+```
+
+## Features
+
+- Flexible code generation (VM-based or native)
 - Dynamic VM generation tailored to your game
 - Modern language support with compile-time checking
 - Cross-platform development within and across console generations
 - Comprehensive development tools and analysis
 
-## Code Generation Flexibility
+## Documentation
 
-GameVM supports multiple code generation strategies, letting developers choose the right trade-offs for their game:
+- [Getting Started](docs/getting-started.md)
+- [Code Generation Strategies](docs/code-generation.md)
+- [Architecture Overview](docs/architecture.md)
+- [Optimization Guide](docs/optimization.md)
+- [Debugging Features](docs/debugging.md)
+- [Full Documentation](docs/README.md)
 
-### Virtual Machine Approaches
+### Supported Systems
+- Atari 2600 (MOS 6507)
+- ColecoVision (Z80)
+- Fairchild Channel F (F8)
+- Intellivision (CP1610)
+- Nintendo Entertainment System (6502)
+- Vectrex (6809)
 
-1. **Token Threaded Code (TTC)**
-   - Most compact bytecode representation
-   - Smallest VM implementation
-   - Higher runtime overhead
-   - Ideal for: Games needing maximum ROM space for assets
+See [systems documentation](docs/systems/) for detailed hardware references.
+
+## Development Status
+
+GameVM is under active development. We follow [Semantic Versioning](https://semver.org/) and maintain a [changelog](CHANGELOG.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
+
+## License
+
+TBD - See [LICENSE](LICENSE) for details.
 
 2. **Direct Threaded Code (DTC)**
    - Faster execution than TTC
