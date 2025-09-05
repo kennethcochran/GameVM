@@ -74,14 +74,14 @@ jobs:
         run: |
           # Begin SonarQube analysis
           Write-Host "Starting SonarQube analysis"
-          .\.sonar\scanner\dotnet-sonarscanner begin \
-            /k:"kennethcochran_GameVM" \
-            /o:"kennethcochran" \
-            /d:sonar.token="$env:SONAR_TOKEN" \
-            /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" \
-            /d:sonar.coverage.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**" \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
+          .\.sonar\scanner\dotnet-sonarscanner begin "`
+            /k:kennethcochran_GameVM `
+            /o:kennethcochran `
+            /d:sonar.token=$env:SONAR_TOKEN `
+            /d:sonar.host.url=https://sonarcloud.io `
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml `
+            /d:sonar.coverage.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/** `
+            /d:sonar.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
           
           if ($LASTEXITCODE -ne 0) { 
             Write-Error "Failed to start SonarQube analysis"
