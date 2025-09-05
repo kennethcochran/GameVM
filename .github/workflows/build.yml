@@ -42,48 +42,12 @@ jobs:
         run: |
           dotnet tool install --global dotnet-coverage
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-      - name: Create SonarQube config
-        shell: pwsh
-        run: |
-          # Create the .sonarqube/conf directory
-          New-Item -ItemType Directory -Path .sonarqube\conf -Force
-          
-          # Create the SonarQubeAnalysisConfig.xml file
-          @'
-          <?xml version="1.0" encoding="utf-8"?>
-          <SonarQubeAnalysisConfig>
-            <Server>
-              <Url>https://sonarcloud.io</Url>
-              <Organization>kennethcochran</Organization>
-              <ProjectKey>kennethcochran_GameVM</ProjectKey>
-            </Server>
-            <LocalSettings>
-              <Property Name="sonar.cs.vscoveragexml.reportsPaths">coverage.xml</Property>
-              <Property Name="sonar.coverage.exclusions">**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**</Property>
-              <Property Name="sonar.exclusions">**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs</Property>
-            </LocalSettings>
-          </SonarQubeAnalysisConfig>
-          '@ | Out-File -FilePath .sonarqube\conf\SonarQubeAnalysisConfig.xml -Encoding utf8
-          
-          # Verify the file was created
-          Get-ChildItem -Path .sonarqube\conf\ -Recurse | Select-Object FullName
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: pwsh
+        shell: powershell
         run: |
-          # Begin SonarQube analysis
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Build the solution
-          dotnet build --no-incremental
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Run tests with coverage
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+          dotnet build
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Complete the analysis
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token=$env:SONAR_TOKEN
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
