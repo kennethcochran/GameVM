@@ -70,18 +70,27 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: pwsh
+        shell: powershell
         run: |
-          # Run SonarQube analysis with direct parameters
-          .\.sonar\scanner\dotnet-sonarscanner begin \
-            /k:"kennethcochran_GameVM" \
-            /o:"kennethcochran" \
-            /d:sonar.token="$env:SONAR_TOKEN" \
-            /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" \
-            /d:sonar.coverage.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**" \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
-            
+          $sonarParams = @(
+            "/k:kennethcochran_GameVM",
+            "/o:kennethcochran",
+            "/d:sonar.token=$env:SONAR_TOKEN",
+            "/d:sonar.host.url=https://sonarcloud.io",
+            "/d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml",
+            "/d:sonar.coverage.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**",
+            "/d:sonar.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
+          ) -join ' '
+          
+          # Run SonarQube analysis
+          .\.sonar\scanner\dotnet-sonarscanner begin $sonarParams
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
           dotnet build --no-incremental
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
