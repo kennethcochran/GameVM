@@ -72,29 +72,16 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: pwsh
         run: |
-          # Set SonarQube parameters
-          $sonarParams = @{
-              key = 'kennethcochran_GameVM'
-              o = 'kennethcochran'
-              'd:sonar.token' = $env:SONAR_TOKEN
-              'd:sonar.host.url' = 'https://sonarcloud.io'
-              'd:sonar.cs.vscoveragexml.reportsPaths' = 'coverage.xml'
-              'd:sonar.coverage.exclusions' = '**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**'
-              'd:sonar.exclusions' = '**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs'
-          }
-          
-          # Convert parameters to string
-          $sonarArgs = $sonarParams.GetEnumerator() | ForEach-Object { 
-              if ($_.Key -eq 'key') { 
-                  "/k:$($_.Value)" 
-              } 
-              else { 
-                  "/$($_.Key):$($_.Value)" 
-              } 
-          } -join ' '
-          
-          # Run SonarQube analysis
-          .\.sonar\scanner\dotnet-sonarscanner begin $sonarArgs
+          # Run SonarQube analysis with direct parameters
+          .\.sonar\scanner\dotnet-sonarscanner begin \
+            /k:"kennethcochran_GameVM" \
+            /o:"kennethcochran" \
+            /d:sonar.token="$env:SONAR_TOKEN" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" \
+            /d:sonar.coverage.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**" \
+            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
+            
           dotnet build --no-incremental
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
