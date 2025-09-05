@@ -73,7 +73,7 @@ jobs:
         shell: powershell
         run: |
           $sonarParams = @(
-            "/k:kennethcochran_GameVM",
+            "/k:GameVM",
             "/o:kennethcochran",
             "/d:sonar.token=$env:SONAR_TOKEN",
             "/d:sonar.host.url=https://sonarcloud.io",
