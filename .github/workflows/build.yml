@@ -73,41 +73,17 @@ jobs:
         shell: pwsh
         run: |
           # Begin SonarQube analysis
-          Write-Host "Starting SonarQube analysis"
-          .\.sonar\scanner\dotnet-sonarscanner begin "`
-            /k:kennethcochran_GameVM `
-            /o:kennethcochran `
-            /d:sonar.token=$env:SONAR_TOKEN `
-            /d:sonar.host.url=https://sonarcloud.io `
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml `
-            /d:sonar.coverage.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/** `
-            /d:sonar.exclusions=**/bin/**,**/obj/**,**/*.Tests/**,**/*.Specs/**,**/*.g.cs"
-          
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Failed to start SonarQube analysis"
-            exit $LASTEXITCODE 
-          }
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # Build the solution
-          Write-Host "Building solution..."
           dotnet build --no-incremental
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Build failed"
-            exit $LASTEXITCODE 
-          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # Run tests with coverage
-          Write-Host "Running tests with coverage..."
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Tests failed"
-            exit $LASTEXITCODE 
-          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # Complete the analysis
-          Write-Host "Completing SonarQube analysis..."
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Failed to complete SonarQube analysis"
-            exit $LASTEXITCODE 
-          }
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token=$env:SONAR_TOKEN
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
