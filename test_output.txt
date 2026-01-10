@@ -1,0 +1,297 @@
+Build started 1/9/2026 10:23:03 PM.
+     1>Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" on node 1 (Restore target(s)).
+     1>_GetAllRestoreProjectPathItems:
+         Determining projects to restore...
+       Restore:
+         X.509 certificate chain validation will use the fallback certificate bundle at '/usr/share/dotnet/sdk/8.0.416/trustedroots/codesignctl.pem'.
+         X.509 certificate chain validation will use the fallback certificate bundle at '/usr/share/dotnet/sdk/8.0.416/trustedroots/timestampctl.pem'.
+         Assets file has not changed. Skipping assets file writing. Path: /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Core/obj/project.assets.json
+         Assets file has not changed. Skipping assets file writing. Path: /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/obj/project.assets.json
+         Assets file has not changed. Skipping assets file writing. Path: /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/obj/project.assets.json
+         Restored /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj (in 40 ms).
+         Restored /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/GameVM.Compiler.Pascal.csproj (in 40 ms).
+         Restored /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj (in 40 ms).
+         
+         NuGet Config files used:
+             /home/kenneth/.nuget/NuGet/NuGet.Config
+         
+         Feeds used:
+             https://api.nuget.org/v3/index.json
+         All projects are up-to-date for restore.
+     1>Done Building Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (Restore target(s)).
+   1:7>Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" on node 1 (VSTest target(s)).
+     1>BuildProject:
+         Build started, please wait...
+   1:7>Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (1:7) is building "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (1:8) on node 1 (default targets).
+   1:8>Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (1:8) is building "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/GameVM.Compiler.Pascal.csproj" (2:6) on node 1 (default targets).
+     2>Antlr4Compile:
+       Skipping target "Antlr4Compile" because all output files are up-to-date with respect to the input files.
+       Antlr4CompileAddFilesGenerated:
+         Reading the list of files generated from the Antlr Tool.
+         MakeRelativeList input: '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalBaseListener.cs', '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalBaseVisitor.cs', '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalLexer.cs', '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalListener.cs', '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalParser.cs', '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/ANTLR/PascalVisitor.cs'
+         MakeRelativeList working directory: '/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/'
+         MakeRelativeList output is 'ANTLR/PascalBaseListener.cs', 'ANTLR/PascalBaseVisitor.cs', 'ANTLR/PascalLexer.cs', 'ANTLR/PascalListener.cs', 'ANTLR/PascalParser.cs', 'ANTLR/PascalVisitor.cs'
+   1:8>Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (1:8) is building "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj" (3:6) on node 2 (default targets).
+     3>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/GameVM.Compiler.Core.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         GameVM.Compiler.Core -> /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Core/bin/Debug/net8.0/GameVM.Compiler.Core.dll
+     3>Done Building Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj" (default targets).
+     2>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/GameVM.Compiler.Pascal.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         GameVM.Compiler.Pascal -> /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/bin/Debug/net8.0/GameVM.Compiler.Pascal.dll
+     2>Done Building Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal/GameVM.Compiler.Pascal.csproj" (default targets).
+     1>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/GameVM.Compiler.Pascal.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         GameVM.Compiler.Pascal.Tests -> /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/bin/Debug/net8.0/GameVM.Compiler.Pascal.Tests.dll
+     1>Done Building Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (default targets).
+     1>BuildProject:
+         Build completed.
+         
+Test run for /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/bin/Debug/net8.0/GameVM.Compiler.Pascal.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 17.11.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+NUnit Adapter 4.5.0.0: Test execution started
+Running all tests in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/bin/Debug/net8.0/GameVM.Compiler.Pascal.Tests.dll
+   NUnit3TestExecutor discovered 36 of 36 NUnit test cases using Current Discovery mode, Non-Explicit run
+Parse tree: (program (programHeading program (identifier main) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello, World!'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier IntArray) = (type_ (structuredType (unpackedStructuredType (arrayType array [ (typeList (indexType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))) ] of (componentType (type_ (simpleType (typeIdentifier integer))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[ERROR] Expected TypeNode but got ErrorNode in type definition for IntArray
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 5)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+  Passed CreateAdditive_ValidInputs_ReturnsOperatorNode [14 ms]
+  Passed CreateAssignment_ValidInputs_ReturnsAssignmentNode [1 ms]
+  Passed CreateIntegerLiteral_ValidString_ReturnsNodeWithCorrectValue [4 ms]
+  Passed CreateProgram_ValidInput_ReturnsProgramNode [< 1 ms]
+  Passed CreateStringLiteral_WithQuotes_StripsQuotes [< 1 ms]
+  Passed CreateVariable_ValidInput_ReturnsVariableNode [< 1 ms]
+  Passed AST_Builds_Correctly_From_Pascal_Program [93 ms]
+  Failed Test_Array_Type [43 ms]
+  Error Message:
+     Expected: not null
+  But was:  null
+
+  Stack Trace:
+     at GameVM.Compiler.Pascal.Tests.AstTests.Test_Array_Type() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 284
+
+1)    at GameVM.Compiler.Pascal.Tests.AstTests.Test_Array_Type() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 284
+
+
+  Standard Output Messages:
+ Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier IntArray) = (type_ (structuredType (unpackedStructuredType (arrayType array [ (typeList (indexType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))) ] of (componentType (type_ (simpleType (typeIdentifier integer))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+ [ERROR] Expected TypeNode but got ErrorNode in type definition for IntArray
+ AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+
+  Passed Test_Assignment_Statement [4 ms]
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (conditionalStatement (caseStatement case (expression (simpleExpression (term (signedFactor (factor (variable (identifier x))))))) of (caseListElement (constList (constant (unsignedNumber (unsignedInteger 1)))) : (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'One'))))))))) )))))) ; (caseListElement (constList (constant (unsignedNumber (unsignedInteger 2)))) : (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Two'))))))))) )))))) ; else (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Other'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Calculator) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier x) , (identifier y)) : (type_ (simpleType (typeIdentifier integer)))) ; (variableDeclaration (identifierList (identifier result)) : (type_ (simpleType (typeIdentifier real)))) ;) (procedureAndFunctionDeclarationPart (procedureOrFunctionDeclaration (functionDeclaration function (identifier Add) (formalParameterList ( (formalParameterSection (parameterGroup (identifierList (identifier a) , (identifier b)) : (typeIdentifier integer))) )) : (resultType (typeIdentifier integer)) ; (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier Add)) := (expression (simpleExpression (term (signedFactor (factor (variable (identifier a))))) (additiveoperator +) (simpleExpression (term (signedFactor (factor (variable (identifier b)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 5)))))))))))) ; (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier y)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 3)))))))))))) ; (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier result)) := (expression (simpleExpression (term (signedFactor (factor (functionDesignator (identifier Add) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (variable (identifier x)))))))) , (actualParameter (expression (simpleExpression (term (signedFactor (factor (variable (identifier y))))))))) ))))))))))) ; (statement (unlabelledStatement (structuredStatement (conditionalStatement (ifStatement if (expression (simpleExpression (term (signedFactor (factor (variable (identifier result)))))) (relationaloperator >) (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 7))))))))) then (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Large result'))))))))) ))))) else (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Small result'))))))))) )))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier Color) = (type_ (simpleType (scalarType ( (identifierList (identifier Red) , (identifier Green) , (identifier Blue)) ))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[DEBUG] Creating TypeDefinitionNode for Color with type EnumeratedTypeNode
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (repetetiveStatement (forStatement for (identifier i) := (forList (initialValue (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1))))))))) to (finalValue (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 10)))))))))) do (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello'))))))))) )))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (procedureAndFunctionDeclarationPart (procedureOrFunctionDeclaration (functionDeclaration function (identifier Bar) : (resultType (typeIdentifier integer)) ; (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier Bar)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 42)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (conditionalStatement (ifStatement if (expression (simpleExpression (term (signedFactor (factor (variable (identifier x)))))) (relationaloperator >) (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 5))))))))) then (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello'))))))))) )))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (labelDeclarationPart label (label (unsignedInteger 100)) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (gotoStatement goto (label (unsignedInteger 100)))))) ; (statement (label (unsignedInteger 100)) : (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'At label'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier PackedArr) = (type_ (structuredType packed (unpackedStructuredType (arrayType array [ (typeList (indexType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))) ] of (componentType (type_ (simpleType (typeIdentifier integer))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[ERROR] Expected TypeNode but got ErrorNode in type definition for PackedArr
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier IntPtr) = (type_ (pointerType ^ (typeIdentifier integer)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[DEBUG] Creating TypeDefinitionNode for IntPtr with type PointerTypeNode
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+  Failed Test_Case_Statement [8 ms]
+  Error Message:
+     Expected: property Count equal to 2
+  But was:  0
+
+  Stack Trace:
+     at GameVM.Compiler.Pascal.Tests.AstTests.Test_Case_Statement() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 242
+
+1)    at GameVM.Compiler.Pascal.Tests.AstTests.Test_Case_Statement() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 242
+
+
+  Standard Output Messages:
+ Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (conditionalStatement (caseStatement case (expression (simpleExpression (term (signedFactor (factor (variable (identifier x))))))) of (caseListElement (constList (constant (unsignedNumber (unsignedInteger 1)))) : (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'One'))))))))) )))))) ; (caseListElement (constList (constant (unsignedNumber (unsignedInteger 2)))) : (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Two'))))))))) )))))) ; else (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Other'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+ AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+
+  Passed Test_Complete_Program [17 ms]
+  Passed Test_Enumerated_Type [5 ms]
+  Passed Test_For_Loop [4 ms]
+  Passed Test_Function_Declaration [< 1 ms]
+  Passed Test_If_Statement [< 1 ms]
+  Passed Test_Label_And_Goto [2 ms]
+  Failed Test_Packed_Type [1 ms]
+  Error Message:
+     Expected: not null
+  But was:  null
+
+  Stack Trace:
+     at GameVM.Compiler.Pascal.Tests.AstTests.Test_Packed_Type() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 455
+
+1)    at GameVM.Compiler.Pascal.Tests.AstTests.Test_Packed_Type() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 455
+
+
+  Standard Output Messages:
+ Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier PackedArr) = (type_ (structuredType packed (unpackedStructuredType (arrayType array [ (typeList (indexType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))) ] of (componentType (type_ (simpleType (typeIdentifier integer))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+ [ERROR] Expected TypeNode but got ErrorNode in type definition for PackedArr
+ AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+
+  Passed Test_Pointer_Type [1 ms]
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (procedureAndFunctionDeclarationPart (procedureOrFunctionDeclaration (procedureDeclaration procedure (identifier Foo) ; (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+line 7:20 mismatched input 'end' expecting 'CASE'
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier Person) = (type_ (structuredType (unpackedStructuredType (recordType record (fieldList (fixedPart (recordSection (identifierList (identifier name)) : (type_ (simpleType (typeIdentifier string)))) ; (recordSection (identifierList (identifier age)) : (type_ (simpleType (typeIdentifier integer))))) ; variantPart) end))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[DEBUG] BuildRecordTypeNode called for recordType: recordname:string;age:integer;end
+[DEBUG] Returning VariantRecordNode for recordType: recordname:string;age:integer;end
+[DEBUG] Creating TypeDefinitionNode for Person with type VariantRecordNode
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier s)) : (type_ (structuredType (unpackedStructuredType (setType set of (baseType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier s)) := (expression (simpleExpression (term (signedFactor (factor (set_ [ (elementList (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1))))))))) , (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 3)))))))) .. (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 5))))))))) , (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 7)))))))))) ])))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier x)) : (type_ (simpleType (typeIdentifier integer)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+line 8:20 mismatched input 'end' expecting {'CHR', '+', '-', IDENT, STRING_LITERAL, NUM_INT, NUM_REAL}
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier Shape) = (type_ (structuredType (unpackedStructuredType (recordType record (fieldList (variantPart case (tag (identifier kind) : (typeIdentifier integer)) of (variant (constList (constant (unsignedNumber (unsignedInteger 1)))) : ( (fieldList (fixedPart (recordSection (identifierList (identifier radius)) : (type_ (simpleType (typeIdentifier real)))))) )) ; (variant (constList (constant (unsignedNumber (unsignedInteger 2)))) : ( (fieldList (fixedPart (recordSection (identifierList (identifier width) , (identifier height)) : (type_ (simpleType (typeIdentifier real)))))) )) ; (variant (constList constant)))) end))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[DEBUG] BuildRecordTypeNode called for recordType: recordcasekind:integerof1:(radius:real);2:(width,height:real);end
+[DEBUG] Returning VariantRecordNode for recordType: recordcasekind:integerof1:(radius:real);2:(width,height:real);end
+[DEBUG] Creating TypeDefinitionNode for Shape with type VariantRecordNode
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (repetetiveStatement (whileStatement while (expression (simpleExpression (term (signedFactor (factor (variable (identifier x)))))) (relationaloperator <) (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 10))))))))) do (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello'))))))))) )))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier p)) : (type_ (simpleType (typeIdentifier (identifier Person))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (withStatement with (recordVariableList (variable (identifier p))) do (statement (unlabelledStatement (structuredStatement (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier name)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'John'))))))))))) ; (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier age)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 30)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (procedureAndFunctionDeclarationPart (procedureOrFunctionDeclaration (functionDeclaration function (identifier Add) (formalParameterList ( (formalParameterSection (parameterGroup (identifierList (identifier a) , (identifier b)) : (typeIdentifier integer))) )) : (resultType (typeIdentifier integer)) ; (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier Add)) := (expression (simpleExpression (term (signedFactor (factor (variable (identifier a))))) (additiveoperator +) (simpleExpression (term (signedFactor (factor (variable (identifier b)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier Add) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1))))))))) , (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 2)))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+  Passed Test_Procedure_Call [< 1 ms]
+  Passed Test_Procedure_Declaration [1 ms]
+  Passed Test_Record_Type [11 ms]
+  Failed Test_Set [6 ms]
+  Error Message:
+     Expected: property Count equal to 4
+  But was:  3
+
+  Stack Trace:
+     at GameVM.Compiler.Pascal.Tests.AstTests.Test_Set() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 346
+
+1)    at GameVM.Compiler.Pascal.Tests.AstTests.Test_Set() in /home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/AstTests.cs:line 346
+
+
+  Standard Output Messages:
+ Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier s)) : (type_ (structuredType (unpackedStructuredType (setType set of (baseType (simpleType (subrangeType (constant (unsignedNumber (unsignedInteger 1))) .. (constant (unsignedNumber (unsignedInteger 10))))))))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier s)) := (expression (simpleExpression (term (signedFactor (factor (set_ [ (elementList (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1))))))))) , (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 3)))))))) .. (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 5))))))))) , (element (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 7)))))))))) ])))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+ AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+
+  Passed Test_Variable_Declaration [< 1 ms]
+  Passed Test_Variant_Record [11 ms]
+  Passed Test_While_Loop [2 ms]
+  Passed Test_With_Statement [2 ms]
+  Passed Transform_ProgramWithFunction_ReturnsNonNullIR [5 ms]
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier x)) : (type_ (simpleType (typeIdentifier integer)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (conditionalStatement (ifStatement if (expression (simpleExpression (term (signedFactor (factor (variable (identifier x)))))) (relationaloperator >) (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 0))))))))) then (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1)))))))))))) else (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 0))))))))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+line 6:20 mismatched input 'end' expecting 'CASE'
+Parse tree: (program (programHeading program (identifier Test) ;) (block (typeDefinitionPart type (typeDefinition (identifier Point) = (type_ (structuredType (unpackedStructuredType (recordType record (fieldList (fixedPart (recordSection (identifierList (identifier x) , (identifier y)) : (type_ (simpleType (typeIdentifier integer))))) ; variantPart) end))))) ;) (variableDeclarationPart var (variableDeclaration (identifierList (identifier p)) : (type_ (simpleType (typeIdentifier (identifier Point))))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier p) . (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 10)))))))))))) ; (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier p) . (identifier y)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 20)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+[DEBUG] BuildRecordTypeNode called for recordType: recordx,y:integer;end
+[DEBUG] Returning VariantRecordNode for recordType: recordx,y:integer;end
+[DEBUG] Creating TypeDefinitionNode for Point with type VariantRecordNode
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier x)) : (type_ (simpleType (typeIdentifier integer)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 42)))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (variableDeclarationPart var (variableDeclaration (identifierList (identifier x)) : (type_ (simpleType (typeIdentifier integer)))) ;) (compoundStatement begin (statements (statement (unlabelledStatement (structuredStatement (repetetiveStatement (whileStatement while (expression (simpleExpression (term (signedFactor (factor (variable (identifier x)))))) (relationaloperator <) (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 10))))))))) do (statement (unlabelledStatement (simpleStatement (assignmentStatement (variable (identifier x)) := (expression (simpleExpression (term (signedFactor (factor (variable (identifier x))))) (additiveoperator +) (simpleExpression (term (signedFactor (factor (unsignedConstant (unsignedNumber (unsignedInteger 1)))))))))))))))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+
+Parse tree: (program (programHeading program (identifier Test) ;) (block (compoundStatement begin (statements (statement (unlabelledStatement (simpleStatement (procedureStatement (identifier writeln) ( (parameterList (actualParameter (expression (simpleExpression (term (signedFactor (factor (unsignedConstant (string 'Hello, World!'))))))))) ))))) ; (statement (unlabelledStatement (simpleStatement emptyStatement_)))) end)) . <EOF>)
+AST Result: GameVM.Compiler.Pascal.ProgramNode
+HLIR TopLevel items:
+
+NUnit Adapter 4.5.0.0: Test execution complete
+  Passed Transform_ProgramWithIfStatement_ReturnsNonNullIR [1 ms]
+  Passed Transform_ProgramWithRecord_ReturnsNonNullIR [1 ms]
+  Passed Transform_ProgramWithVariable_ReturnsNonNullIR [< 1 ms]
+  Passed Transform_ProgramWithWhileLoop_ReturnsNonNullIR [1 ms]
+  Passed Transform_SimpleProgram_ReturnsNonNullIR [1 ms]
+  Passed AddError_AddsToErrorList [< 1 ms]
+  Passed Constructor_InitializesProperties [< 1 ms]
+  Passed GetOrCreateBasicType_ExistingType_ReturnsCached [< 1 ms]
+  Passed GetOrCreateBasicType_NewType_AddsToCache [1 ms]
+
+Test Run Failed.
+Total tests: 36
+     Passed: 32
+     Failed: 4
+ Total time: 1.0258 Seconds
+       _VSTestConsole:
+         MSB4181: The "VSTestTask" task returned false but did not log an error.
+     1>Done Building Project "/home/kenneth/Projects/GameVM/src/GameVM.Compiler.Pascal.Tests/GameVM.Compiler.Pascal.Tests.csproj" (VSTest target(s)) -- FAILED.
+
+Build FAILED.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.17

@@ -10,10 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <SpecFlowObsoleteCodeBehindFiles Remove="Features\PythonCompilation.feature.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -31,7 +27,6 @@
   <ItemGroup>
     <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
-    <ProjectReference Include="..\GameVM.Compiler.Python\GameVM.Compiler.Python.csproj" />
     <ProjectReference Include="..\GameVM.Compile\GameVM.Compile.csproj" />
   </ItemGroup>
 

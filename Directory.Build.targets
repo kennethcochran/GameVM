@@ -1,0 +1,45 @@
+<!-- Solution-level targets for code coverage aggregation -->
+<Project>
+
+  <!-- Run after test execution to aggregate coverage reports -->
+  <Target Name="AggregateCoverageReports" AfterTargets="VSTest" Condition="'$(IsTestProject)' == 'true'">
+    <PropertyGroup>
+      <CoverageDir>$(SolutionDir)TestResults/coverage</CoverageDir>
+      <HtmlReportDir>$(CoverageDir)/html</HtmlReportDir>
+      <JsonReportDir>$(CoverageDir)/json</JsonReportDir>
+      <CoberturaReportDir>$(CoverageDir)/cobertura</CoberturaReportDir>
+      <CoverageFilePattern>$(SolutionDir)src/**/TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
+    </PropertyGroup>
+
+    <Message Text="Aggregating coverage reports from: $(CoverageFilePattern)" Importance="high" />
+    
+    <ItemGroup>
+      <CoverageFiles Include="$(CoverageFilePattern)" />
+    </ItemGroup>
+
+    <Message Text="Found coverage files: @(CoverageFiles)" Importance="high" />
+
+    <MakeDir Directories="$(CoverageDir)" />
+    
+    <!-- Generate HTML Report (for human viewing) -->
+    <Exec Command="dotnet tool run reportgenerator -reports:&quot;@(CoverageFiles, '&quot;,&quot;')&quot; -targetdir:&quot;$(HtmlReportDir)&quot; -reporttypes:Html" 
+          Condition="'@(CoverageFiles)' != ''" 
+          WorkingDirectory="$(MSBuildThisFileDirectory)" />
+          
+    <!-- Generate JSON Report (for AI/script analysis) -->
+    <Exec Command="dotnet tool run reportgenerator -reports:&quot;@(CoverageFiles, '&quot;,&quot;')&quot; -targetdir:&quot;$(JsonReportDir)&quot; -reporttypes:JsonSummary" 
+          Condition="'@(CoverageFiles)' != ''" 
+          WorkingDirectory="$(MSBuildThisFileDirectory)" />
+          
+    <!-- Generate Cobertura Report (for CI/CD integration) -->
+    <Exec Command="dotnet tool run reportgenerator -reports:&quot;@(CoverageFiles, '&quot;,&quot;')&quot; -targetdir:&quot;$(CoberturaReportDir)&quot; -reporttypes:Cobertura" 
+          Condition="'@(CoverageFiles)' != ''" 
+          WorkingDirectory="$(MSBuildThisFileDirectory)" />
+          
+    <Message Text="Coverage reports generated:" Importance="high" />
+    <Message Text="- HTML: $(HtmlReportDir)/index.html" Importance="high" />
+    <Message Text="- JSON: $(JsonReportDir)/Summary.json" Importance="high" />
+    <Message Text="- Cobertura: $(CoberturaReportDir)/Cobertura.xml" Importance="high" />
+  </Target>
+
+</Project>

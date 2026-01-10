@@ -1,3 +1,12 @@
+---
+title: "High-Level Intermediate Representation (HLIR)"
+description: "Specification for the High-Level Intermediate Representation used in GameVM"
+author: "GameVM Team"
+created: "2025-09-20"
+updated: "2025-09-20"
+version: "1.0.0"
+---
+
 # High-Level Intermediate Representation (HLIR)
 
 ## Overview

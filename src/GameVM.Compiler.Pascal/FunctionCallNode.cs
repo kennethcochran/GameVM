@@ -1,0 +1,10 @@
+using System.Collections.Generic;
+
+namespace GameVM.Compiler.Pascal
+{
+    public class FunctionCallNode : PascalASTNode
+    {
+        public required string Name { get; set; }
+        public required List<PascalASTNode> Arguments { get; set; }
+    }
+}

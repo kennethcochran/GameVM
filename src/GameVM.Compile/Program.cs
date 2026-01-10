@@ -6,7 +6,6 @@ namespace GameVM.Compile
     using GameVM.Compiler.Core.IR.Interfaces;
     using GameVM.Compiler.Core.IR;
     using GameVM.Compiler.Core.IR.Transformers;
-    using GameVM.Compiler.Python;
     using GameVM.Compiler.Services;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
@@ -21,11 +20,6 @@ namespace GameVM.Compile
 
             builder.ConfigureServices(services =>
             {
-                // Register language frontends
-                services.AddSingleton<PythonParseTreeToAst>();
-                services.AddSingleton<PythonASTToHLIR>();
-                services.AddSingleton<ILanguageFrontend, PythonFrontend>();
-
                 // Register optimizers
                 services.AddSingleton<IMidLevelOptimizer, DefaultMidLevelOptimizer>();
                 services.AddSingleton<ILowLevelOptimizer, DefaultLowLevelOptimizer>();

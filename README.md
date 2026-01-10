@@ -22,6 +22,11 @@ dotnet build
 ## Documentation
 
 Comprehensive documentation is available in the [docs](docs/) directory:
+- [Design Documents](docs/design/) - Architecture, compiler design, and implementation details
+- [System References](docs/systems/) - Hardware specifications and platform-specific details
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
+
+For an overview of the project architecture and design principles, start with the [Architecture Overview](docs/design/ArchitectureOverview.md).
 
 ## Development Status
 
