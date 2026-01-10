@@ -48,7 +48,7 @@ jobs:
         shell: powershell
         run: |
 
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           dotnet build
