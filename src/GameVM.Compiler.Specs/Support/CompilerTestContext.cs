@@ -5,7 +5,6 @@ using GameVM.Compiler.Core.CodeGen;
 using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Python;
 using GameVM.Compiler.Services;
 
 namespace GameVM.Compiler.Specs.Support
@@ -19,25 +18,8 @@ namespace GameVM.Compiler.Specs.Support
 
         public CompilerTestContext()
         {
-            // Create the compilation pipeline components
-            var parseTreeToAST = new PythonParseTreeToAst();
-            var frontend = new PythonFrontend(parseTreeToAST);
-            var mlirToLlir = new MidToLowLevelTransformer();
-            var llirToFinal = new LowToFinalTransformer();
-            var codeGenerator = new DefaultCodeGenerator();
-            var midLevelOptimizer = new DefaultMidLevelOptimizer();
-            var lowLevelOptimizer = new DefaultLowLevelOptimizer();
-            var finalOptimizer = new DefaultFinalIROptimizer();
-
-            // Create the main use case
-            CompileUseCase = new CompileUseCase(
-                frontend,
-                midLevelOptimizer,
-                lowLevelOptimizer,
-                finalOptimizer,
-                mlirToLlir,
-                llirToFinal,
-                codeGenerator);
+            // TODO: Update this to use a different language frontend or remove if not needed
+            throw new NotImplementedException("Python compiler has been removed. Please update the test context to use a different language frontend.");
         }
     }
 }

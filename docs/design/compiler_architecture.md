@@ -1,3 +1,12 @@
+---
+title: "Compiler Architecture"
+description: "Architecture and design of the GameVM multi-language compiler"
+author: "GameVM Team"
+created: "2025-09-20"
+updated: "2025-09-20"
+version: "1.0.0"
+---
+
 # Compiler Architecture
 
 ## Overview
@@ -16,21 +25,82 @@ The GameVM compiler is a multi-language compiler that produces ROM images for va
   - (Additional languages to be added)
 
 ### Target Platform Support
-- Compiler switch to specify target console
-- Platform-specific code generation and optimization
+- Compiler switch to specify target console generation (2nd-5th generation)
+- Generation-specific optimizations for each console family
 - ROM image generation following platform specifications
 - Memory map and hardware register management
-- Support for platform-specific features (bank switching, special hardware)
+- Support for generation-specific features:
+  - 2nd Gen: Limited memory, simple graphics
+  - 3rd Gen: Improved graphics, sound chips
+  - 4th Gen: Advanced graphics, more memory
+  - 5th Gen: 3D capabilities, CD-based media
 
 ### Code Generation Options
-- Selectable dispatch technique via compiler switch:
-  - Token Threaded Code (TTC) - Most compact
-  - Indirect Threaded Code (ITC) - Balance of size/speed
-  - Direct Threaded Code (DTC) - Good for retro hardware
-  - Subroutine Threaded Code (STC) - Modern CPU focused
-  - Pure machine code - Maximum performance
-- Platform-specific optimization for each technique
-- Debug information generation option
+
+#### Dispatch Techniques
+The compiler supports multiple dispatch techniques, each with different performance and size characteristics. The technique can be selected via compiler switch:
+
+1. **AOT Compilation (Pure Machine Code)**
+   - Generates native machine code for the target platform
+   - No interpreter overhead - maximum performance
+   - Larger code size
+   - No runtime interpretation
+   - Best for: Performance-critical code on platforms with sufficient ROM
+
+2. **Direct Threaded Code (DTC)**
+   - Each opcode is replaced with the address of its implementation
+   - Fast dispatch using indirect jumps
+   - Good balance of performance and code size
+   - Well-suited for retro hardware with simple branch prediction
+   - Best for: 8-bit and 16-bit systems with limited memory
+
+3. **Indirect Threaded Code (ITC)**
+   - Uses a table of function pointers for opcode dispatch
+   - More compact than DTC
+   - Slightly slower dispatch than DTC
+   - Better code density
+   - Best for: Systems with limited ROM but some CPU headroom
+
+4. **Subroutine Threaded Code (STC)**
+   - Each opcode is implemented as a subroutine
+   - Uses standard call/return instructions
+   - Better performance on modern CPUs with branch prediction
+   - Larger code size due to call/return overhead
+   - Best for: Modern emulation on powerful hardware
+
+5. **Token Threaded Code (TTC)**
+   - Most compact representation
+   - Simple bytecode interpreter
+   - Each opcode is a token (byte or word)
+   - Slower execution but minimal memory footprint
+   - Best for: Very memory-constrained systems
+
+#### Custom Interpreter Generation
+For all interpreted dispatch techniques (TTC, ITC, DTC, STC), the compiler generates a custom interpreter tailored to the specific program:
+
+- **Dead Code Elimination**: Aggressive removal of unused opcode handlers
+- **Superinstructions**: Automatic generation of combined instructions for common sequences
+- **Specialized Variants**: Creation of specialized instruction variants based on usage patterns
+- **Profile-Guided Optimization**: Optional runtime profiling to guide optimization
+
+#### Performance Characteristics
+
+| Technique | Code Size | Speed | Memory Usage | Best For |
+|-----------|-----------|-------|--------------|-----------|
+| AOT       | Large     | ★★★★★ | Medium       | Performance-critical code |
+| DTC       | Medium    | ★★★★☆ | Medium       | 8/16-bit systems |
+| ITC       | Small     | ★★★☆☆ | Low          | ROM-constrained systems |
+| STC       | Large     | ★★★★☆ | Medium       | Modern emulation |
+| TTC       | Smallest  | ★★☆☆☆ | Lowest       | Memory-constrained systems |
+
+#### Platform-Specific Optimization
+- Each dispatch technique has platform-specific optimizations
+- Memory layout optimized for the target hardware
+- Special considerations for:
+  - Cache line alignment
+  - Branch prediction hints
+  - Pipeline optimization
+  - Memory access patterns
 
 ## Compilation Pipeline
 

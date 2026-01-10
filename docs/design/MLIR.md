@@ -1,3 +1,12 @@
+---
+title: "Mid-Level Intermediate Representation (MLIR)"
+description: "Specification for the Mid-Level Intermediate Representation used in GameVM"
+author: "GameVM Team"
+created: "2025-09-20"
+updated: "2025-09-20"
+version: "1.0.0"
+---
+
 # Mid-Level Intermediate Representation (MLIR)
 
 ## Overview

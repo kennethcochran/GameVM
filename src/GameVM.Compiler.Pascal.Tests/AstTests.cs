@@ -1,4 +1,4 @@
-﻿using Antlr4.Runtime;
+using Antlr4.Runtime;
 using GameVM.Compiler.Pascal.ANTLR;
 using NUnit.Framework;
 
@@ -7,7 +7,7 @@ namespace GameVM.Compiler.Pascal.Tests
     [TestFixture]
     internal class AstTests
     {
-        private PascalASTNode ParseProgram(string input)
+        public PascalASTNode ParseProgram(string input)
         {
             var stream = new AntlrInputStream(input);
             var lexer = new PascalLexer(stream);

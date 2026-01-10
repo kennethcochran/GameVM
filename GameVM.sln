@@ -1,12 +1,10 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Core", "src\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj", "{97C05EA7-8356-4207-AC34-F558D046D88D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnitTests", "src\UnitTests\UnitTests.csproj", "{F35168CF-7787-4B60-B723-BDE66ABC6502}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Python", "src\GameVM.Compiler.Python\GameVM.Compiler.Python.csproj", "{609F3D9F-7CAE-46CC-967A-35C00AA25DB7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compile", "src\GameVM.Compile\GameVM.Compile.csproj", "{799E232D-2E79-422E-8E79-8BB40C664802}"
 EndProject
@@ -26,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal.Tests", "src\GameVM.Compiler.Pascal.Tests\GameVM.Compiler.Pascal.Tests.csproj", "{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Core.Tests", "src\GameVM.Compiler.Core.Tests\GameVM.Compiler.Core.Tests.csproj", "{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,10 +40,6 @@ Global
 		{F35168CF-7787-4B60-B723-BDE66ABC6502}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F35168CF-7787-4B60-B723-BDE66ABC6502}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F35168CF-7787-4B60-B723-BDE66ABC6502}.Release|Any CPU.Build.0 = Release|Any CPU
-		{609F3D9F-7CAE-46CC-967A-35C00AA25DB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{609F3D9F-7CAE-46CC-967A-35C00AA25DB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{609F3D9F-7CAE-46CC-967A-35C00AA25DB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{609F3D9F-7CAE-46CC-967A-35C00AA25DB7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{799E232D-2E79-422E-8E79-8BB40C664802}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{799E232D-2E79-422E-8E79-8BB40C664802}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{799E232D-2E79-422E-8E79-8BB40C664802}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -68,6 +64,10 @@ Global
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

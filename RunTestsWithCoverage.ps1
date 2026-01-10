@@ -11,47 +11,11 @@ if (Test-Path $outputDir) {
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 New-Item -ItemType Directory -Force -Path $coverageReportDir | Out-Null
 
-# Install ReportGenerator as a local tool
-Write-Host "Setting up ReportGenerator..."
-if (-not (Test-Path "$PSScriptRoot/.config/dotnet-tools.json")) {
-    & dotnet new tool-manifest
-}
-
-# Install ReportGenerator if not already installed
-$reportGenInstalled = & dotnet tool list | Select-String "reportgenerator"
-if (-not $reportGenInstalled) {
-    & dotnet tool install dotnet-reportgenerator-globaltool
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to install ReportGenerator"
-        exit 1
-    }
-}
-
-# Add coverlet.collector to test projects
-$testProjects = @(
-    (Get-ChildItem -Path "src" -Recurse -Filter "*.Tests.csproj").FullName,
-    (Get-ChildItem -Path "src" -Recurse -Filter "*Specs.csproj").FullName
-) | Where-Object { $_ -ne $null } | Select-Object -Unique
-
-foreach ($project in $testProjects) {
-    & dotnet add $project package coverlet.collector --version 6.0.0
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to add coverlet.collector to $project"
-        exit 1
-    }
-}
-
-# Find test projects again after package restore
-$testProjects = @(
-    (Get-ChildItem -Path "src" -Recurse -Filter "*.Tests.csproj").FullName,
-    (Get-ChildItem -Path "src" -Recurse -Filter "*Specs.csproj").FullName
-) | Where-Object { $_ -ne $null } | Select-Object -Unique
-
 # Find test projects
-$testProjects = @(
-    (Get-ChildItem -Path "src" -Recurse -Filter "*.Tests.csproj").FullName,
-    (Get-ChildItem -Path "src" -Recurse -Filter "*Specs.csproj").FullName
-) | Where-Object { $_ -ne $null } | Select-Object -Unique
+$testProjects = @()
+$testProjects += Get-ChildItem -Path "src" -Recurse -Filter "*.Tests.csproj" | Select-Object -ExpandProperty FullName
+$testProjects += Get-ChildItem -Path "src" -Recurse -Filter "*Specs.csproj" | Select-Object -ExpandProperty FullName
+$testProjects = $testProjects | Where-Object { $_ -ne $null } | Select-Object -Unique
 
 if ($testProjects.Count -eq 0) {
     Write-Error "No test projects found"
@@ -97,7 +61,7 @@ foreach ($project in $testProjects) {
         --logger "trx;LogFileName=$trxPath" `
         --collect:"XPlat Code Coverage" `
         -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura `
-        -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[xunit*]*,[*]Coverlet*,[*]Tests*" `
+        -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[xunit*]*,[*]Coverlet*,[*]Tests*,[*]ANTLR.*" `
         -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeTestAssembly=true `
         -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.IncludeDirectory=src
     

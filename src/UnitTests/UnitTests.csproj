@@ -30,7 +30,6 @@
   <ItemGroup>
     <ProjectReference Include="..\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
-    <ProjectReference Include="..\GameVM.Compiler.Python\GameVM.Compiler.Python.csproj" />
   </ItemGroup>
 
 </Project>
