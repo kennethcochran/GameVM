@@ -2,7 +2,6 @@ namespace GameVM.Compile
 {
     using GameVM.Compiler.Application;
     using GameVM.Compiler.Application.Services;
-    using GameVM.Compiler.Core.CodeGen;
     using GameVM.Compiler.Core.IR.Interfaces;
     using GameVM.Compiler.Core.IR;
     using GameVM.Compiler.Core.IR.Transformers;
@@ -10,7 +9,10 @@ namespace GameVM.Compile
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using GameVM.Compiler.Core.Interfaces;
+    using GameVM.Compiler.Pascal;
+    using GameVM.Compiler.Backend.Atari2600;
     using System.CommandLine;
+    using System.IO;
 
     public static class Program
     {
@@ -29,8 +31,11 @@ namespace GameVM.Compile
                 services.AddSingleton<IIRTransformer<MidLevelIR, LowLevelIR>, MidToLowLevelTransformer>();
                 services.AddSingleton<IIRTransformer<LowLevelIR, FinalIR>, LowToFinalTransformer>();
 
+                // Register frontend
+                services.AddSingleton<ILanguageFrontend, PascalFrontend>();
+
                 // Register code generator
-                services.AddSingleton<ICodeGenerator, DefaultCodeGenerator>();
+                services.AddSingleton<ICodeGenerator, Atari2600CodeGenerator>();
 
                 // Register the main use case
                 services.AddSingleton<ICompileUseCase, CompileUseCase>();
@@ -39,27 +44,45 @@ namespace GameVM.Compile
             var host = builder.Build();
 
             // Command line argument handling
-            var rootCommand = new RootCommand
-                {
-                    new Option<string>(
-                        "--input",
-                        description: "Input file to compile"),
-                    new Option<string>(
-                        "--output",
-                        description: "Output file for the compiled code")
-                };
+            var inputOption = new Option<string>("--input", "Input file to compile");
+            var outputOption = new Option<string>("--output", "Output file for the compiled code");
 
-            rootCommand.SetHandler((string input, string output) =>
+            var rootCommand = new RootCommand
             {
+                inputOption,
+                outputOption
+            };
+
+            rootCommand.SetHandler((string? input, string? output) =>
+            {
+                if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(output))
+                {
+                    Console.WriteLine("Error: Both --input and --output are required.");
+                    return;
+                }
+
                 using (var scope = host.Services.CreateScope())
                 {
+                    var sourceCode = File.ReadAllText(input);
+                    var extension = Path.GetExtension(input);
                     var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
-                    useCase.Execute(input, output, new CompilationOptions
+                    var result = useCase.Execute(sourceCode, extension, new CompilationOptions
                     {
                         // Set any compilation options here
                     });
+
+                    if (result.Success)
+                    {
+                        File.WriteAllBytes(output, result.Code);
+                        Console.WriteLine($"Successfully compiled {input} to {output}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Compilation failed for {input}:");
+                        Console.WriteLine($"- {result.ErrorMessage}");
+                    }
                 }
-            }, new Option<string>("--input"), new Option<string>("--output"));
+            }, inputOption, outputOption);
 
             rootCommand.InvokeAsync(args).Wait();
         }

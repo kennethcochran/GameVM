@@ -23,9 +23,9 @@ namespace GameVM.Compiler.Pascal
         {
             _sourceFile = sourceFile ?? "<unknown>";
             _ir = new HighLevelIR { SourceFile = _sourceFile };
-            
+
             // Initialize context
-            _context = new TransformationContext(_sourceFile);
+            _context = new TransformationContext(_sourceFile, _ir);
 
             // Initialize sub-transformers with context
             _expressionTransformer = new ExpressionTransformer(_context);

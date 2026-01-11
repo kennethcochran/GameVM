@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace GameVM.Compiler.Core.IR
 {
     /// <summary>
@@ -9,8 +11,32 @@ namespace GameVM.Compiler.Core.IR
         /// <summary>
         /// The source file this IR was generated from
         /// </summary>
-        public string SourceFile { get; set; }
+        public string SourceFile { get; set; } = string.Empty;
 
-        // Add additional properties specific to low-level IR
+        public List<LLInstruction> Instructions { get; set; } = new();
+
+        public abstract class LLInstruction { }
+
+        public class LLLoad : LLInstruction
+        {
+            public string Register { get; set; } = string.Empty;
+            public string Value { get; set; } = string.Empty;
+        }
+
+        public class LLStore : LLInstruction
+        {
+            public string Address { get; set; } = string.Empty;
+            public string Register { get; set; } = string.Empty;
+        }
+
+        public class LLCall : LLInstruction
+        {
+            public string Label { get; set; } = string.Empty;
+        }
+
+        public class LLLabel : LLInstruction
+        {
+            public string Name { get; set; } = string.Empty;
+        }
     }
 }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace GameVM.Compiler.Core.IR
 {
     /// <summary>
@@ -9,8 +11,16 @@ namespace GameVM.Compiler.Core.IR
         /// <summary>
         /// The source file this IR was generated from
         /// </summary>
-        public string SourceFile { get; set; }
+        public string SourceFile { get; set; } = string.Empty;
 
-        // Add additional properties specific to final IR
+        /// <summary>
+        /// The final instructions or tokens to be emitted
+        /// </summary>
+        public List<string> AssemblyLines { get; set; } = new();
+
+        /// <summary>
+        /// The actual binary bytecode
+        /// </summary>
+        public byte[] Bytecode { get; set; } = System.Array.Empty<byte>();
     }
 }

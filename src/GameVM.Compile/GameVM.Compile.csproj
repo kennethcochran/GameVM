@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Backend.Atari2600\GameVM.Compiler.Backend.Atari2600.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Interaction\GameVM.Compiler.Interaction.csproj" />
   </ItemGroup>
 

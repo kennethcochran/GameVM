@@ -66,6 +66,9 @@ namespace GameVM.Compiler.Pascal
             var body = new HighLevelIR.Block(_context.SourceFile);
             var procedure = new HighLevelIR.Function(_context.SourceFile, procNode.Name, returnType, body);
 
+            // Register in global IR
+            _context.IR.Functions[procNode.Name] = procedure;
+
             // Push onto function scope stack
             _context.FunctionScope.Push(procedure);
 
@@ -73,12 +76,32 @@ namespace GameVM.Compiler.Pascal
             foreach (var param in procNode.Parameters)
             {
                 var paramType = _context.GetOrCreateBasicType("i32"); // Default to i32 for now
+                var irParam = new HighLevelIR.Parameter(param.Name, paramType, _context.SourceFile);
+                procedure.AddParameter(irParam);
+
                 var symbol = new IRSymbol
                 {
                     Name = param.Name,
-                    Type = paramType
+                    Type = irParam.Type
                 };
                 _context.SymbolTable[param.Name] = symbol;
+            }
+
+            // Process nested block if it exists
+            if (procNode.Block is BlockNode blockNode)
+            {
+                foreach (var stmt in blockNode.Statements)
+                {
+                    if (stmt is ProcedureNode or FunctionNode or VariableDeclarationNode or TypeDefinitionNode)
+                    {
+                        TransformDeclaration(stmt);
+                    }
+                    else
+                    {
+                        // We need a way to add statements to the current function body
+                        // A StatementTransformer can be used here or we can delegate back to PascalAstToHlirTransformer
+                    }
+                }
             }
 
             // Pop from function scope stack
@@ -98,6 +121,9 @@ namespace GameVM.Compiler.Pascal
             var body = new HighLevelIR.Block(_context.SourceFile);
             var function = new HighLevelIR.Function(_context.SourceFile, funcNode.Name, returnType, body);
 
+            // Register in global IR
+            _context.IR.Functions[funcNode.Name] = function;
+
             // Push onto function scope stack
             _context.FunctionScope.Push(function);
 
@@ -105,10 +131,13 @@ namespace GameVM.Compiler.Pascal
             foreach (var param in funcNode.Parameters)
             {
                 var paramType = _context.GetOrCreateBasicType("i32"); // Default to i32 for now
+                var irParam = new HighLevelIR.Parameter(param.Name, paramType, _context.SourceFile);
+                function.AddParameter(irParam);
+
                 var symbol = new IRSymbol
                 {
                     Name = param.Name,
-                    Type = paramType
+                    Type = irParam.Type
                 };
                 _context.SymbolTable[param.Name] = symbol;
             }
@@ -132,6 +161,17 @@ namespace GameVM.Compiler.Pascal
                 Type = varType
             };
             _context.SymbolTable[varDeclNode.Name] = symbol;
+
+            // Also add to global IR if we are at top level (or current function)
+            if (_context.FunctionScope.Count == 0)
+            {
+                _context.IR.Globals[varDeclNode.Name] = symbol;
+            }
+            else
+            {
+                // In HLIR, we might want to track local variables on the function object
+                // but IRFunction currently only has Parameters and Body (Top-level statements/decls)
+            }
         }
 
         /// <summary>

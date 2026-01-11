@@ -417,3 +417,10 @@ coveragereport/
 **/.antlr/
 **/tools/
 !**/tools/packages.config
+
+# SonarQube
+.sonarqube/
+
+# Test Output
+test_output.txt
+.tools/
