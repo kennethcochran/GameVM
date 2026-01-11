@@ -210,23 +210,53 @@ class Program
             }
 
             Console.WriteLine("Extracting MAME...");
-            // If it's an .exe self-extracting zip, we might need to rename it to .zip for ZipFile to handle it
-            string extractionSource = tempFile;
+            
+            // Handle self-extracting .exe (7-Zip SFX) for Windows
             if (tempFile.EndsWith(".exe"))
             {
-                extractionSource = Path.ChangeExtension(tempFile, ".zip");
-                if (File.Exists(extractionSource)) File.Delete(extractionSource);
-                File.Move(tempFile, extractionSource);
-            }
+                // MAME Windows releases are 7-Zip self-extracting archives
+                // Use silent extraction: -y (yes to prompts) -gm2 (hide GUI) -o<path> (output directory)
+                var extractArgs = $"-y -gm2 -o\"{toolsDir}\"";
+                
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = tempFile,
+                    Arguments = extractArgs,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
 
-            try
-            {
-                ZipFile.ExtractToDirectory(extractionSource, toolsDir, overwriteFiles: true);
+                using var process = System.Diagnostics.Process.Start(startInfo);
+                if (process == null)
+                {
+                    Console.WriteLine("Failed to start extraction process.");
+                    File.Delete(tempFile);
+                    return;
+                }
+
+                process.WaitForExit();
+                
+                if (process.ExitCode != 0)
+                {
+                    Console.WriteLine($"Extraction failed with exit code {process.ExitCode}");
+                    var error = await process.StandardError.ReadToEndAsync();
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        Console.WriteLine($"Error: {error}");
+                    }
+                    File.Delete(tempFile);
+                    return;
+                }
+                
+                File.Delete(tempFile);
             }
-            finally
+            else
             {
-                if (File.Exists(extractionSource)) File.Delete(extractionSource);
-                if (File.Exists(tempFile)) File.Delete(tempFile);
+                // Handle ZIP archives (for macOS/Linux if available)
+                ZipFile.ExtractToDirectory(tempFile, toolsDir, overwriteFiles: true);
+                File.Delete(tempFile);
             }
 
             var exe = GetMameExecutable();
