@@ -26,6 +26,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal.Test
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Core.Tests", "src\GameVM.Compiler.Core.Tests\GameVM.Compiler.Core.Tests.csproj", "{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{FC9BB7B7-966E-42C8-8B83-302602214938}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Backend.Atari2600.Tests", "test\GameVM.Compiler.Backend.Atari2600.Tests\GameVM.Compiler.Backend.Atari2600.Tests.csproj", "{E1256B5E-9C30-4906-94C6-53638AE4256C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,11 +72,18 @@ Global
 		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8A7D9B1A-6C91-4F5E-A1E3-7F53DD7F2C3D}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E1256B5E-9C30-4906-94C6-53638AE4256C} = {FC9BB7B7-966E-42C8-8B83-302602214938}
 	EndGlobalSection
 EndGlobal
