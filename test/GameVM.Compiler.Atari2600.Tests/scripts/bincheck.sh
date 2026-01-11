@@ -7,5 +7,15 @@ if [ "$#" -ne 2 ]; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-hexdump -C "$1" | python3 "$SCRIPT_DIR/filecheck.py" "$2"
+# Get the directory of this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Detect python
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+else
+    PYTHON_CMD="python"
+fi
+
+# Convert binary to hex strings and pipe to filecheck
+$PYTHON_CMD "$SCRIPT_DIR/hexdump.py" "$1" | $PYTHON_CMD "$SCRIPT_DIR/filecheck.py" "$2"
