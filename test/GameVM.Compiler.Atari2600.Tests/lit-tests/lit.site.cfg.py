@@ -35,10 +35,9 @@ if not os.path.exists(compiler_dll):
     if os.path.exists(os.path.join(release_bin, 'GameVM.Compile.dll')):
         compiler_dll = os.path.join(release_bin, 'GameVM.Compile.dll')
 
-compiler_cmd = f"dotnet {compiler_dll}"
-
+python_cmd = sys.executable.replace('\\', '/')
 config.substitutions.append(('%compile', compiler_cmd))
-config.substitutions.append(('%FileCheck', f"python3 {filecheck_py}"))
+config.substitutions.append(('%FileCheck', f"{python_cmd} {filecheck_py}"))
 config.substitutions.append(('%bincheck', f"bash {bincheck_sh}"))
 # MAME Execution Verification
 dev_tool_dll = os.path.join(project_root, 'src', 'GameVM.DevTools', 'bin', 'Debug', 'net8.0', 'GameVM.DevTools.dll').replace('\\', '/')

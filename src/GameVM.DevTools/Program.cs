@@ -176,7 +176,7 @@ class Program
 
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     {
-                        if (name.EndsWith("b_x64.zip"))
+                        if (name.Contains("b_x64") && (name.EndsWith(".exe") || name.EndsWith(".zip")))
                         {
                             assetUrl = asset.GetProperty("browser_download_url").GetString();
                             assetName = name;
@@ -210,8 +210,24 @@ class Program
             }
 
             Console.WriteLine("Extracting MAME...");
-            ZipFile.ExtractToDirectory(tempFile, toolsDir, overwriteFiles: true);
-            File.Delete(tempFile);
+            // If it's an .exe self-extracting zip, we might need to rename it to .zip for ZipFile to handle it
+            string extractionSource = tempFile;
+            if (tempFile.EndsWith(".exe"))
+            {
+                extractionSource = Path.ChangeExtension(tempFile, ".zip");
+                if (File.Exists(extractionSource)) File.Delete(extractionSource);
+                File.Move(tempFile, extractionSource);
+            }
+
+            try
+            {
+                ZipFile.ExtractToDirectory(extractionSource, toolsDir, overwriteFiles: true);
+            }
+            finally
+            {
+                if (File.Exists(extractionSource)) File.Delete(extractionSource);
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+            }
 
             var exe = GetMameExecutable();
             if (!string.IsNullOrEmpty(exe))
