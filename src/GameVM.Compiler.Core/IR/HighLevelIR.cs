@@ -70,19 +70,17 @@ namespace GameVM.Compiler.Core.IR
             }
         }
 
-        public class Block : IRNode
+        public class Block : Statement
         {
-            public string SourceFile { get; }
-            private List<Statement> statements = new();
+            public List<Statement> Statements { get; set; } = new();
 
-            public Block(string sourceFile)
+            public Block(string sourceFile) : base(sourceFile)
             {
-                SourceFile = sourceFile;
             }
 
             public void AddStatement(Statement statement)
             {
-                statements.Add(statement);
+                Statements.Add(statement);
             }
         }
 
@@ -99,9 +97,8 @@ namespace GameVM.Compiler.Core.IR
         public class Function : IRFunction
         {
             public string SourceFile { get; }
-            public new string Name { get; }
-            public new HLType ReturnType { get; }
-            public new Block Body { get; set; }
+            public new HLType ReturnType { get => (HLType)base.ReturnType; set => base.ReturnType = value; }
+            public new Block Body { get => (Block)base.Body[0]; set { base.Body.Clear(); base.Body.Add(value); } }
             private List<Parameter> parameters = new();
 
             public Function(string sourceFile, string name, HLType returnType, Block body)
@@ -170,7 +167,7 @@ namespace GameVM.Compiler.Core.IR
             public List<IRNode> ThenBlock { get; }
             public List<IRNode>? ElseBlock { get; }
 
-            public IfStatement(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null) 
+            public IfStatement(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null)
                 : base(condition.SourceFile)
             {
                 Condition = condition;
@@ -230,7 +227,7 @@ namespace GameVM.Compiler.Core.IR
             public Expression Function { get; }
             public IEnumerable<Expression> Arguments { get; }
 
-            public FunctionCall(Expression function, IEnumerable<Expression> arguments) 
+            public FunctionCall(Expression function, IEnumerable<Expression> arguments)
                 : base(function.SourceFile)
             {
                 Function = function;
@@ -244,7 +241,7 @@ namespace GameVM.Compiler.Core.IR
             public Expression Left { get; }
             public Expression Right { get; }
 
-            public BinaryOp(string op, Expression left, Expression right, string sourceFile) 
+            public BinaryOp(string op, Expression left, Expression right, string sourceFile)
                 : base(sourceFile)
             {
                 Operator = op;

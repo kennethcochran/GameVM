@@ -56,13 +56,18 @@ namespace GameVM.Compiler.Pascal
             if (assignNode == null)
                 return CreateErrorStatement("Assignment node is null");
 
-            var target = TransformExpressionNode(assignNode.Left);
+            var targetExpr = TransformExpressionNode(assignNode.Left);
             var value = TransformExpressionNode(assignNode.Right);
 
-            if (target == null || value == null)
+            if (targetExpr == null || value == null)
                 return CreateErrorStatement("Failed to transform assignment operands");
 
-            return new HighLevelIR.Statement(_context.SourceFile);
+            if (targetExpr is HighLevelIR.Identifier identifier)
+            {
+                return new HighLevelIR.Assignment(identifier.Name, value, _context.SourceFile);
+            }
+
+            return CreateErrorStatement("Assignment target must be an identifier");
         }
 
         /// <summary>
@@ -77,19 +82,23 @@ namespace GameVM.Compiler.Pascal
             if (condition == null)
                 return CreateErrorStatement("Failed to transform if condition");
 
-            var thenBlock = TransformStatement(ifNode.ThenBlock);
-            if (thenBlock == null)
+            var thenStmt = TransformStatement(ifNode.ThenBlock);
+            if (thenStmt == null)
                 return CreateErrorStatement("Failed to transform then block");
 
-            HighLevelIR.Statement elseBlock = null;
+            List<IRNode> thenList = thenStmt is HighLevelIR.Block block ? new List<IRNode>(block.Statements) : new List<IRNode> { thenStmt };
+
+            List<IRNode> elseList = null;
             if (ifNode.ElseBlock != null)
             {
-                elseBlock = TransformStatement(ifNode.ElseBlock);
-                if (elseBlock == null)
-                    return CreateErrorStatement("Failed to transform else block");
+                var elseStmt = TransformStatement(ifNode.ElseBlock);
+                if (elseStmt != null)
+                {
+                    elseList = elseStmt is HighLevelIR.Block elseBlock ? new List<IRNode>(elseBlock.Statements) : new List<IRNode> { elseStmt };
+                }
             }
 
-            return new HighLevelIR.Statement(_context.SourceFile);
+            return new HighLevelIR.IfStatement(condition, thenList, elseList);
         }
 
         /// <summary>
@@ -104,11 +113,17 @@ namespace GameVM.Compiler.Pascal
             if (condition == null)
                 return CreateErrorStatement("Failed to transform while condition");
 
-            var loopBody = TransformStatement(whileNode.Block);
-            if (loopBody == null)
+            var loopBodyStmt = TransformStatement(whileNode.Block);
+            if (loopBodyStmt == null)
                 return CreateErrorStatement("Failed to transform while loop body");
 
-            return new HighLevelIR.Statement(_context.SourceFile);
+            HighLevelIR.Block irBlock = loopBodyStmt as HighLevelIR.Block ?? new HighLevelIR.Block(_context.SourceFile);
+            if (loopBodyStmt is not HighLevelIR.Block)
+            {
+                irBlock.AddStatement(loopBodyStmt);
+            }
+
+            return new HighLevelIR.While(condition, irBlock, _context.SourceFile);
         }
 
         /// <summary>
@@ -125,10 +140,13 @@ namespace GameVM.Compiler.Pascal
             if (fromExpr == null || toExpr == null)
                 return CreateErrorStatement("Failed to transform for loop bounds");
 
-            var loopBody = TransformStatement(forNode.Block);
-            if (loopBody == null)
+            var loopBodyStmt = TransformStatement(forNode.Block);
+            if (loopBodyStmt == null)
                 return CreateErrorStatement("Failed to transform for loop body");
 
+            // For now, we'll transform this to a while loop in HLIR or just leave a placeholder
+            // A real for loop would need an iterator variable.
+            // For simplicity in this E2E, we'll just return a basic statement or implement it as while.
             return new HighLevelIR.Statement(_context.SourceFile);
         }
 
@@ -140,14 +158,15 @@ namespace GameVM.Compiler.Pascal
             if (repeatNode == null)
                 return CreateErrorStatement("Repeat node is null");
 
-            var loopBody = TransformStatement(repeatNode.Block);
-            if (loopBody == null)
+            var loopBodyStmt = TransformStatement(repeatNode.Block);
+            if (loopBodyStmt == null)
                 return CreateErrorStatement("Failed to transform repeat loop body");
 
             var condition = TransformExpressionNode(repeatNode.Condition);
             if (condition == null)
                 return CreateErrorStatement("Failed to transform repeat until condition");
 
+            // Transform to while loop or similar
             return new HighLevelIR.Statement(_context.SourceFile);
         }
 
@@ -168,7 +187,9 @@ namespace GameVM.Compiler.Pascal
                 arguments.Add(arg);
             }
 
-            return new HighLevelIR.Statement(_context.SourceFile);
+            var funcExpr = new HighLevelIR.Identifier(procCallNode.Name, _context.GetOrCreateBasicType("void"), _context.SourceFile);
+            var callExpr = new HighLevelIR.FunctionCall(funcExpr, arguments);
+            return new HighLevelIR.ExpressionStatement(callExpr, _context.SourceFile);
         }
 
         /// <summary>
@@ -179,15 +200,15 @@ namespace GameVM.Compiler.Pascal
             if (blockNode == null)
                 return CreateErrorStatement("Block node is null");
 
-            var statements = new List<HighLevelIR.Statement>();
+            var irBlock = new HighLevelIR.Block(_context.SourceFile);
             foreach (var stmt in blockNode.Statements)
             {
                 var transformedStmt = TransformStatement(stmt);
                 if (transformedStmt != null)
-                    statements.Add(transformedStmt);
+                    irBlock.AddStatement(transformedStmt);
             }
 
-            return new HighLevelIR.Statement(_context.SourceFile);
+            return irBlock;
         }
 
         /// <summary>

@@ -69,7 +69,7 @@ namespace GameVM.Compiler.Pascal
             {
                 foreach (var typeDef in context.typeDefinitionPart())
                 {
-                    var node = Visit(typeDef);
+                    var node = _declarationVisitor.Visit(typeDef);
                     if (node is BlockNode)
                     {
                         foreach (var stmt in ((BlockNode)node).Statements)
@@ -89,7 +89,7 @@ namespace GameVM.Compiler.Pascal
             {
                 foreach (var procDecl in context.procedureAndFunctionDeclarationPart())
                 {
-                    var node = Visit(procDecl);
+                    var node = _declarationVisitor.Visit(procDecl);
                     if (node != null)
                     {
                         block.Statements.Add(node);
@@ -103,8 +103,15 @@ namespace GameVM.Compiler.Pascal
                 {
                     foreach (var varDecl in varDeclPart.variableDeclaration())
                     {
-                        var node = Visit(varDecl);
-                        if (node != null)
+                        var node = _declarationVisitor.Visit(varDecl);
+                        if (node is BlockNode b)
+                        {
+                            foreach (var s in b.Statements)
+                            {
+                                block.Statements.Add(s);
+                            }
+                        }
+                        else if (node != null)
                         {
                             block.Statements.Add(node);
                         }

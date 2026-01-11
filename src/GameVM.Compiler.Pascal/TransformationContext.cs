@@ -9,17 +9,19 @@ namespace GameVM.Compiler.Pascal
     /// </summary>
     public class TransformationContext
     {
+        public HighLevelIR IR { get; }
         public string SourceFile { get; }
         public Dictionary<string, HighLevelIR.HLType> TypeCache { get; }
         public Dictionary<string, IRSymbol> SymbolTable { get; }
         public Stack<HighLevelIR.Function> FunctionScope { get; }
         public List<string> Errors { get; }
 
-        public TransformationContext(string sourceFile)
+        public TransformationContext(string sourceFile, HighLevelIR ir)
         {
             SourceFile = sourceFile ?? "<unknown>";
-            TypeCache = new Dictionary<string, HighLevelIR.HLType>();
-            SymbolTable = new Dictionary<string, IRSymbol>();
+            IR = ir ?? throw new ArgumentNullException(nameof(ir));
+            TypeCache = new Dictionary<string, HighLevelIR.HLType>(StringComparer.OrdinalIgnoreCase);
+            SymbolTable = new Dictionary<string, IRSymbol>(StringComparer.OrdinalIgnoreCase);
             FunctionScope = new Stack<HighLevelIR.Function>();
             Errors = new List<string>();
         }

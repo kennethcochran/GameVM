@@ -64,6 +64,36 @@ namespace GameVM.Compiler.Pascal
             return procNode;
         }
 
+        public override PascalASTNode VisitVariableDeclaration(PascalParser.VariableDeclarationContext context)
+        {
+            var identifiers = context.identifierList().identifier();
+            var typeCtx = context.type_();
+            var typeNode = Visit(typeCtx) as TypeNode;
+
+            if (identifiers == null || typeNode == null)
+            {
+                return new ErrorNode("Variable declaration is incomplete");
+            }
+
+            // If there are multiple identifiers, for now we return a block or just handles them in HLIR transformer
+            // But VariableDeclarationNode needs a single name.
+            // Let's create multiple nodes if needed, or return the last one for now?
+            // Cleanest is to change VariableDeclarationNode to support multiple names or use another way.
+            // For now, let's just return a BlockNode with multiple VariableDeclarationNodes.
+            var nodes = new List<PascalASTNode>();
+            foreach (var identifier in identifiers)
+            {
+                nodes.Add(new VariableDeclarationNode
+                {
+                    Name = identifier.GetText(),
+                    Type = typeNode
+                });
+            }
+
+            if (nodes.Count == 1) return nodes[0];
+            return new BlockNode { Statements = nodes };
+        }
+
         public override PascalASTNode VisitFunctionDeclaration(PascalParser.FunctionDeclarationContext context)
         {
             var identifier = context.identifier();
