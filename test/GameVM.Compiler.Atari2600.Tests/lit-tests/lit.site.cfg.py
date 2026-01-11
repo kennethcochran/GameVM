@@ -35,7 +35,9 @@ if not os.path.exists(compiler_dll):
     if os.path.exists(os.path.join(release_bin, 'GameVM.Compile.dll')):
         compiler_dll = os.path.join(release_bin, 'GameVM.Compile.dll')
 
+compiler_cmd = f"dotnet {compiler_dll}"
 python_cmd = sys.executable.replace('\\', '/')
+
 config.substitutions.append(('%compile', compiler_cmd))
 config.substitutions.append(('%FileCheck', f"{python_cmd} {filecheck_py}"))
 config.substitutions.append(('%bincheck', f"bash {bincheck_sh}"))
