@@ -5,7 +5,9 @@ namespace GameVM.Compile
     using GameVM.Compiler.Core.IR.Interfaces;
     using GameVM.Compiler.Core.IR;
     using GameVM.Compiler.Core.IR.Transformers;
-    using GameVM.Compiler.Services;
+    using GameVM.Compiler.Optimizers.MidLevel;
+    using GameVM.Compiler.Optimizers.LowLevel;
+    using GameVM.Compiler.Optimizers.FinalIR;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using GameVM.Compiler.Core.Interfaces;

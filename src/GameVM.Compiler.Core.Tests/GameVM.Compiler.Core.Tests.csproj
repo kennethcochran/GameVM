@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Optimizers.MidLevel\GameVM.Compiler.Optimizers.MidLevel.csproj" />
   </ItemGroup>
 
   <!-- Target to generate HTML report after tests using dotnet-reportgenerator -->
@@ -46,14 +47,11 @@
 
     <MakeDir Directories="$(ReportOutputDir)" />
 
-    <Message Text="Found @(CoverageFiles->Count()) coverage files" Importance="high" />
+    <Message Text="Found @(CoverageFiles-&gt;Count()) coverage files" Importance="high" />
 
-    <Exec
-      Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html"
-      Condition="@(CoverageFiles->Count()) > 0"
-      IgnoreExitCode="true" />
+    <Exec Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" IgnoreExitCode="true" />
 
-    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles->Count()) > 0" />
+    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" />
   </Target>
 
 </Project>

@@ -69,7 +69,14 @@ namespace GameVM.Compiler.Pascal
 
         public override PascalASTNode VisitSignedFactor(PascalParser.SignedFactorContext context)
         {
-            var factor = Visit(context.factor());
+            if (context == null)
+                return new ErrorNode("Null signed factor context");
+
+            var factorCtx = context.factor();
+            if (factorCtx == null)
+                return new ErrorNode("Missing factor");
+
+            var factor = Visit(factorCtx);
             if (factor == null)
             {
                 return new ErrorNode("Invalid factor");

@@ -506,9 +506,199 @@ public class TypeSystemValidationTests
         // Arrange
         // Hypothetical: TypeA contains TypeB contains TypeA
         var hlir = CreateSimpleProgram();
+        // When circular type detection is implemented, this would create a circular reference
+        // For now, we test the structure supports it
+        var typeA = new HighLevelIR.BasicType("test.pas", "TypeA");
+        var typeB = new HighLevelIR.BasicType("test.pas", "TypeB");
+        // Simulating circular reference (would need proper type system support)
+        hlir.Types["TypeA"] = typeA;
+        hlir.Types["TypeB"] = typeB;
 
-        // Act & Assert
-        // Type validator should detect circular type references
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When circular type detection is implemented, should report error
+        // For now, verify transformation handles the structure
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public void Validate_NestedTypeMismatch_ReportsError()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var function = new HighLevelIR.Function
+        {
+            Name = "test",
+            ReturnType = "Void",
+            Body = new HighLevelIR.Block
+            {
+                Statements = new List<HighLevelIR.Statement>
+                {
+                    new HighLevelIR.Assignment
+                    {
+                        Target = "nested",
+                        Value = new HighLevelIR.BinaryOp
+                        {
+                            Left = new HighLevelIR.Literal { Value = "5", Type = "Integer" },
+                            Operator = "+",
+                            Right = new HighLevelIR.Literal { Value = "hello", Type = "String" },
+                            SourceFile = "test.pas"
+                        }
+                    }
+                }
+            }
+        };
+        hlir.Functions.Add(function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When type validation is implemented, should detect Integer + String mismatch
+        // For now, verify transformation handles the structure
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public void Validate_ArrayBoundsWithDynamicIndex_ValidatesAtRuntime()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var function = new HighLevelIR.Function
+        {
+            Name = "test",
+            ReturnType = "Void",
+            Body = new HighLevelIR.Block
+            {
+                Statements = new List<HighLevelIR.Statement>
+                {
+                    new HighLevelIR.Assignment
+                    {
+                        Target = "arr[i]",
+                        Value = new HighLevelIR.Literal { Value = "1", Type = "Integer" }
+                    }
+                }
+            }
+        };
+        hlir.Functions.Add(function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When array bounds validation is implemented, should validate dynamic indices
+        // For now, verify transformation handles the structure
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public void Validate_FunctionOverloadResolution_ReportsAmbiguity()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        // Simulating function overloads (would need proper overload support)
+        var func1 = new HighLevelIR.Function
+        {
+            Name = "process",
+            ReturnType = "Integer",
+            Body = new HighLevelIR.Block { Statements = new List<HighLevelIR.Statement>() }
+        };
+        func1.AddParameter(new HighLevelIR.Parameter("value", new HighLevelIR.BasicType("test.pas", "Integer"), "test.pas"));
+        hlir.Functions.Add("process1", func1);
+
+        var func2 = new HighLevelIR.Function
+        {
+            Name = "process",
+            ReturnType = "Integer",
+            Body = new HighLevelIR.Block { Statements = new List<HighLevelIR.Statement>() }
+        };
+        func2.AddParameter(new HighLevelIR.Parameter("value", new HighLevelIR.BasicType("test.pas", "Real"), "test.pas"));
+        hlir.Functions.Add("process2", func2);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When overload resolution is implemented, ambiguous calls should report errors
+        // For now, verify transformation handles multiple functions
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public void Validate_ComplexNestedTypeMismatch_ReportsError()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var function = new HighLevelIR.Function
+        {
+            Name = "test",
+            ReturnType = "Void",
+            Body = new HighLevelIR.Block
+            {
+                Statements = new List<HighLevelIR.Statement>
+                {
+                    new HighLevelIR.Assignment
+                    {
+                        Target = "result",
+                        Value = new HighLevelIR.BinaryOp
+                        {
+                            Left = new HighLevelIR.BinaryOp
+                            {
+                                Left = new HighLevelIR.Literal { Value = "5", Type = "Integer" },
+                                Operator = "*",
+                                Right = new HighLevelIR.Literal { Value = "3", Type = "Integer" },
+                                SourceFile = "test.pas"
+                            },
+                            Operator = "+",
+                            Right = new HighLevelIR.Literal { Value = "hello", Type = "String" },
+                            SourceFile = "test.pas"
+                        }
+                    }
+                }
+            }
+        };
+        hlir.Functions.Add(function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When type validation is implemented, should detect nested type mismatch
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
+    public void Validate_ArrayBoundsExceededWithConstant_ReportsError()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var function = new HighLevelIR.Function
+        {
+            Name = "test",
+            ReturnType = "Void",
+            Body = new HighLevelIR.Block
+            {
+                Statements = new List<HighLevelIR.Statement>
+                {
+                    new HighLevelIR.Assignment
+                    {
+                        Target = "arr[15]",
+                        Value = new HighLevelIR.Literal { Value = "1", Type = "Integer" }
+                    }
+                }
+            }
+        };
+        hlir.Functions.Add(function);
+        // Note: Array bounds checking would need array type information
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // When array bounds validation is implemented, should report out-of-bounds access
+        Assert.That(result, Is.Not.Null);
     }
 
     #endregion

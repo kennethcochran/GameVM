@@ -6,6 +6,7 @@ namespace GameVM.Compiler.Core.Enums
         NES,
         SNES,
         GBA,
-        N64
+        N64,
+        Atari2600
     }
 }

@@ -1,0 +1,58 @@
+{
+  "projectUnderTest": "GameVM.Compiler.Core.csproj",
+  "testRunner": "nunit",
+  "testProjects": [
+    "src/GameVM.Compiler.Core.Tests/GameVM.Compiler.Core.Tests.csproj"
+  ],
+  "reporters": [
+    "html",
+    "progress"
+  ],
+  "thresholds": {
+    "high": 85,
+    "low": 70,
+    "break": 0
+  },
+  "mutate": [
+    "src/GameVM.Compiler.Core/**/*.cs"
+  ],
+  "excludedMutations": [],
+  "ignoreMethods": [],
+  "ignoreStatements": [],
+  "logLevel": "info",
+  "devMode": false,
+  "maxConcurrentTestRunners": 4,
+  "timeoutMs": 5000,
+  "timeoutAfter": 10000,
+  "dashboardUrl": "https://dashboard.stryker-mutator.io",
+  "dashboardApiKey": null,
+  "dashboardModule": null,
+  "dashboardVersion": null,
+  "dashboardProject": null,
+  "dashboardReport": null,
+  "baseline": {
+    "enabled": false
+  },
+  "coverageAnalysis": "perTest",
+  "disableBail": false,
+  "disableMix": false,
+  "disableTestHints": false,
+  "ignorePattern": [
+    "**/bin/**",
+    "**/obj/**",
+    "**/node_modules/**",
+    "**/TestResults/**"
+  ],
+  "filesToExclude": [],
+  "since": null,
+  "withBaseline": false,
+  "baselineProvider": "disk",
+  "diffIgnoreChanges": [],
+  "breakOnInitialTestFailure": false,
+  "concurrentTestrunners": 4,
+  "mutationLevel": "Standard",
+  "since": {
+    "enabled": false
+  }
+}
+

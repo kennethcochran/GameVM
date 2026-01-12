@@ -53,8 +53,11 @@ public class MidToLowLevelTransformerTests
         Assert.That(storeInstr.Address, Is.EqualTo("$80")); // MyVar maps to $80
     }
 
-    [Test]
-    public void Transform_TIARegisterAssignment_MapsToCorrectAddress()
+    [TestCase("COLUBK", "10", "$09")]
+    [TestCase("COLUPF", "255", "$08")]
+    [TestCase("COLUP0", "128", "$06")]
+    [TestCase("COLUP1", "64", "$07")]
+    public void Transform_TIARegisterAssignment_MapsToCorrectAddress(string register, string value, string expectedAddress)
     {
         // Arrange
         var mlir = new MidLevelIR();
@@ -62,8 +65,8 @@ public class MidToLowLevelTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign
         {
-            Target = "COLUBK",
-            Source = "10"
+            Target = register,
+            Source = value
         });
         module.Functions.Add(function);
         mlir.Modules.Add(module);
@@ -75,57 +78,7 @@ public class MidToLowLevelTransformerTests
         var resultFunction = result.Modules[0].Functions[0];
         var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$09")); // COLUBK maps to $09
-    }
-
-    [Test]
-    public void Transform_COLUPF_Assignment_MapsToCorrectAddress()
-    {
-        // Arrange
-        var mlir = new MidLevelIR();
-        var module = new MidLevelIR.MLModule { Name = "test" };
-        var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign
-        {
-            Target = "COLUPF",
-            Source = "255"
-        });
-        module.Functions.Add(function);
-        mlir.Modules.Add(module);
-
-        // Act
-        var result = _transformer.Transform(mlir);
-
-        // Assert
-        var resultFunction = result.Modules[0].Functions[0];
-        var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
-        Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$08")); // COLUPF maps to $08
-    }
-
-    [Test]
-    public void Transform_COLUP0_Assignment_MapsToCorrectAddress()
-    {
-        // Arrange
-        var mlir = new MidLevelIR();
-        var module = new MidLevelIR.MLModule { Name = "test" };
-        var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign
-        {
-            Target = "COLUP0",
-            Source = "128"
-        });
-        module.Functions.Add(function);
-        mlir.Modules.Add(module);
-
-        // Act
-        var result = _transformer.Transform(mlir);
-
-        // Assert
-        var resultFunction = result.Modules[0].Functions[0];
-        var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
-        Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$06")); // COLUP0 maps to $06
+        Assert.That(storeInstr.Address, Is.EqualTo(expectedAddress));
     }
 
     [Test]
