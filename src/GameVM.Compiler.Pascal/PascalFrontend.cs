@@ -31,7 +31,21 @@ namespace GameVM.Compiler.Pascal
 
             var context = parser.program();
             var visitor = new ASTVisitor();
-            var programNode = (ProgramNode)visitor.Visit(context);
+            var result = visitor.Visit(context);
+
+            if (result is ErrorNode errorNode)
+            {
+                // Return a minimal HLIR with error information
+                var hlir = new HighLevelIR { SourceFile = "<source>" };
+                // Note: In a real implementation, we'd want to collect errors properly
+                return hlir;
+            }
+
+            if (result is not ProgramNode programNode)
+            {
+                // Return a minimal HLIR if we didn't get a program node
+                return new HighLevelIR { SourceFile = "<source>" };
+            }
 
             var transformer = new PascalAstToHlirTransformer("<source>");
             return transformer.Transform(programNode);

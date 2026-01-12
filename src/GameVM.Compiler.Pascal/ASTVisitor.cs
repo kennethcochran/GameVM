@@ -28,13 +28,24 @@ namespace GameVM.Compiler.Pascal
         }
         public override PascalASTNode VisitProgram(PascalParser.ProgramContext context)
         {
+            if (context == null)
+                return new ErrorNode("Null program context");
+
             var programHeading = context.programHeading();
+            if (programHeading == null)
+                return new ErrorNode("Missing program heading");
+
             var identifier = programHeading.identifier();
             if (identifier == null)
-                throw new InvalidOperationException("Program must have a name");
+                return new ErrorNode("Program must have a name");
 
-            var blockNode = VisitBlock(context.block())
-                ?? throw new InvalidOperationException("Block visit returned null");
+            var blockContext = context.block();
+            if (blockContext == null)
+                return new ErrorNode("Missing program block");
+
+            var blockNode = VisitBlock(blockContext);
+            if (blockNode == null || blockNode is ErrorNode)
+                return blockNode ?? new ErrorNode("Block visit returned null");
 
             return new ProgramNode
             {
@@ -46,6 +57,9 @@ namespace GameVM.Compiler.Pascal
 
         public override PascalASTNode VisitBlock(PascalParser.BlockContext context)
         {
+            if (context == null)
+                return new ErrorNode("Null block context");
+
             var block = new BlockNode
             {
                 Statements = new List<PascalASTNode>()
@@ -65,14 +79,15 @@ namespace GameVM.Compiler.Pascal
             // }
 
             // Add type definitions next
-            if (context.typeDefinitionPart() != null)
+            var typeDefinitionPart = context.typeDefinitionPart();
+            if (typeDefinitionPart != null)
             {
-                foreach (var typeDef in context.typeDefinitionPart())
+                foreach (var typeDef in typeDefinitionPart)
                 {
                     var node = _declarationVisitor.Visit(typeDef);
-                    if (node is BlockNode)
+                    if (node is BlockNode blockNode)
                     {
-                        foreach (var stmt in ((BlockNode)node).Statements)
+                        foreach (var stmt in blockNode.Statements)
                         {
                             block.Statements.Add(stmt);
                         }
@@ -85,9 +100,10 @@ namespace GameVM.Compiler.Pascal
             }
 
             // Add procedure/function declarations before variable declarations
-            if (context.procedureAndFunctionDeclarationPart() != null)
+            var procedureAndFunctionPart = context.procedureAndFunctionDeclarationPart();
+            if (procedureAndFunctionPart != null)
             {
-                foreach (var procDecl in context.procedureAndFunctionDeclarationPart())
+                foreach (var procDecl in procedureAndFunctionPart)
                 {
                     var node = _declarationVisitor.Visit(procDecl);
                     if (node != null)
@@ -97,11 +113,15 @@ namespace GameVM.Compiler.Pascal
                 }
             }
 
-            if (context.variableDeclarationPart() != null)
+            var variableDeclarationPart = context.variableDeclarationPart();
+            if (variableDeclarationPart != null)
             {
-                foreach (var varDeclPart in context.variableDeclarationPart())
+                foreach (var varDeclPart in variableDeclarationPart)
                 {
-                    foreach (var varDecl in varDeclPart.variableDeclaration())
+                    var varDecls = varDeclPart?.variableDeclaration();
+                    if (varDecls != null)
+                    {
+                        foreach (var varDecl in varDecls)
                     {
                         var node = _declarationVisitor.Visit(varDecl);
                         if (node is BlockNode b)
@@ -114,6 +134,7 @@ namespace GameVM.Compiler.Pascal
                         else if (node != null)
                         {
                             block.Statements.Add(node);
+                            }
                         }
                     }
                 }

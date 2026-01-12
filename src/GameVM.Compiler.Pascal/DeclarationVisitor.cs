@@ -66,11 +66,25 @@ namespace GameVM.Compiler.Pascal
 
         public override PascalASTNode VisitVariableDeclaration(PascalParser.VariableDeclarationContext context)
         {
-            var identifiers = context.identifierList().identifier();
+            if (context == null)
+                return new ErrorNode("Null variable declaration context");
+
+            var identifierList = context.identifierList();
+            if (identifierList == null)
+                return new ErrorNode("Missing variable identifiers");
+
+            var identifiers = identifierList.identifier();
             var typeCtx = context.type_();
+            
+            if (identifiers == null || identifiers.Length == 0)
+                return new ErrorNode("Missing variable identifiers");
+
+            if (typeCtx == null)
+                return new ErrorNode("Missing type declaration");
+
             var typeNode = Visit(typeCtx) as TypeNode;
 
-            if (identifiers == null || typeNode == null)
+            if (typeNode == null)
             {
                 return new ErrorNode("Variable declaration is incomplete");
             }
@@ -96,16 +110,23 @@ namespace GameVM.Compiler.Pascal
 
         public override PascalASTNode VisitFunctionDeclaration(PascalParser.FunctionDeclarationContext context)
         {
+            if (context == null)
+                return new ErrorNode("Null function declaration context");
+
             var identifier = context.identifier();
             if (identifier == null)
             {
                 return new ErrorNode("Function declaration is missing an identifier");
             }
 
-            var block = (_mainVisitor?.VisitBlock(context.block()) ?? Visit(context.block())) as BlockNode;
+            var blockContext = context.block();
+            if (blockContext == null)
+                return new ErrorNode("Function declaration is missing a block");
+
+            var block = (_mainVisitor?.VisitBlock(blockContext) ?? Visit(blockContext)) as BlockNode;
             if (block == null)
             {
-                return new ErrorNode("Function declaration is missing a block");
+                return new ErrorNode("Function declaration block visit returned null");
             }
 
             var parameters = new List<VariableNode>();

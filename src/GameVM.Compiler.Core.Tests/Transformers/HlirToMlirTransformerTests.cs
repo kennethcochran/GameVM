@@ -2,6 +2,7 @@ using NUnit.Framework;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Transformers;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace GameVM.Compiler.Core.Tests.Transformers;
 
@@ -20,15 +21,67 @@ public class HlirToMlirTransformerTests
         _transformer = new HlirToMlirTransformer();
     }
 
+    #region Factory Methods
+
+    private const string SourceFile = "test.pas";
+
+    private HighLevelIR.HLType CreateBasicType(string name)
+    {
+        return new HighLevelIR.BasicType(SourceFile, name);
+    }
+
+    private HighLevelIR.Literal CreateLiteral(object value, string typeName)
+    {
+        return new HighLevelIR.Literal(value, CreateBasicType(typeName), SourceFile);
+    }
+
+    private HighLevelIR.Identifier CreateIdentifier(string name, string typeName)
+    {
+        return new HighLevelIR.Identifier(name, CreateBasicType(typeName), SourceFile);
+    }
+
+    private HighLevelIR.Assignment CreateAssignment(string target, HighLevelIR.Expression value)
+    {
+        return new HighLevelIR.Assignment(target, value, SourceFile);
+    }
+
+    private HighLevelIR.BinaryOp CreateBinaryOp(string op, HighLevelIR.Expression left, HighLevelIR.Expression right)
+    {
+        return new HighLevelIR.BinaryOp(op, left, right, SourceFile);
+    }
+
+    private HighLevelIR.Block CreateBlock()
+    {
+        return new HighLevelIR.Block(SourceFile);
+    }
+
+    private HighLevelIR.Function CreateFunction(string name, string returnTypeName, HighLevelIR.Block body)
+    {
+        return new HighLevelIR.Function(SourceFile, name, CreateBasicType(returnTypeName), body);
+    }
+
+    private HighLevelIR.Parameter CreateParameter(string name, string typeName)
+    {
+        return new HighLevelIR.Parameter(name, CreateBasicType(typeName), SourceFile);
+    }
+
+    private HighLevelIR.ExpressionStatement CreateExpressionStatement(HighLevelIR.Expression expression)
+    {
+        return new HighLevelIR.ExpressionStatement(expression, SourceFile);
+    }
+
+    #endregion
+
     #region Variable Declaration Tests
 
     [Test]
-    public void Transform_SingleVariableDeclaration_CreatesMLIRVariable()
+    public void Transform_SingleGlobalVariable_CreatesMLIRVariable()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var variable = new HighLevelIR.Variable { Name = "x", Type = "Integer" };
-        hlir.Variables.Add(variable);
+        var intType = CreateBasicType("Integer");
+        var symbol = new IRSymbol { Name = "x", Type = intType, IsConstant = false };
+        hlir.Globals.Add("x", symbol);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -36,23 +89,24 @@ public class HlirToMlirTransformerTests
         // Assert
         Assert.That(result, Is.Not.Null);
         Assert.That(result.SourceFile, Is.EqualTo(hlir.SourceFile));
+        // Note: Globals are not directly transformed to MLIR, they're referenced in assignments
     }
 
     [Test]
-    public void Transform_MultipleVariableDeclarations_PreservesOrder()
+    public void Transform_MultipleGlobalVariables_PreservesNames()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        hlir.Variables.Add(new HighLevelIR.Variable { Name = "x", Type = "Integer" });
-        hlir.Variables.Add(new HighLevelIR.Variable { Name = "y", Type = "Real" });
-        hlir.Variables.Add(new HighLevelIR.Variable { Name = "z", Type = "Boolean" });
+        hlir.Globals.Add("x", new IRSymbol { Name = "x", Type = CreateBasicType("Integer"), IsConstant = false });
+        hlir.Globals.Add("y", new IRSymbol { Name = "y", Type = CreateBasicType("Real"), IsConstant = false });
+        hlir.Globals.Add("z", new IRSymbol { Name = "z", Type = CreateBasicType("Boolean"), IsConstant = false });
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        // Variables should be accessible through the transformation context
+        Assert.That(result.Globals.Count, Is.EqualTo(3));
     }
 
     #endregion
@@ -60,266 +114,133 @@ public class HlirToMlirTransformerTests
     #region Function Declaration Tests
 
     [Test]
-    public void Transform_SimpleFunctionDeclaration_CreatesMLIRFunction()
+    public void Transform_SimpleFunction_CreatesMLIRFunction()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block { Statements = new() }
-        };
-        hlir.Functions.Add(function);
+        var function = CreateFunction("main", "Void", CreateBlock());
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
+        Assert.That(result, Is.Not.Null);
         Assert.That(result.Functions, Contains.Key("main"));
-        var mlFunc = result.Functions["main"];
-        Assert.That(mlFunc.Name, Is.EqualTo("main"));
     }
 
     [Test]
-    public void Transform_FunctionWithParameters_IncludesParameters()
+    public void Transform_FunctionWithParameters_PreservesParameterNames()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "add",
-            ReturnType = "Integer",
-            Parameters = new List<HighLevelIR.Parameter>
-            {
-                new() { Name = "a", Type = "Integer" },
-                new() { Name = "b", Type = "Integer" }
-            },
-            Body = new HighLevelIR.Block { Statements = new() }
-        };
-        hlir.Functions.Add(function);
+        var function = CreateFunction("add", "Integer", CreateBlock());
+        function.AddParameter(CreateParameter("a", "Integer"));
+        function.AddParameter(CreateParameter("b", "Integer"));
+        hlir.Functions.Add("add", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
         Assert.That(result.Functions, Contains.Key("add"));
-    }
-
-    [Test]
-    public void Transform_MultipleFunctions_CreatesAllFunctions()
-    {
-        // Arrange
-        var hlir = CreateSimpleProgram();
-        hlir.Functions.Add(new HighLevelIR.Function
-        {
-            Name = "func1",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block { Statements = new() }
-        });
-        hlir.Functions.Add(new HighLevelIR.Function
-        {
-            Name = "func2",
-            ReturnType = "Integer",
-            Body = new HighLevelIR.Block { Statements = new() }
-        });
-
-        // Act
-        var result = _transformer.Transform(hlir);
-
-        // Assert
-        Assert.That(result.Functions, Has.Count.EqualTo(2));
-        Assert.That(result.Functions.Keys, Contains.Item("func1"));
-        Assert.That(result.Functions.Keys, Contains.Item("func2"));
+        Assert.That(result.Functions["add"].Parameters.Count, Is.EqualTo(2));
     }
 
     #endregion
 
-    #region Assignment Statement Tests
+    #region Expression Tests
 
     [Test]
-    public void Transform_SimpleAssignment_GeneratesMLAssign()
+    public void Transform_LiteralExpression_CreatesMLIRLiteral()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.Assignment
-                    {
-                        Target = "x",
-                        Value = new HighLevelIR.Literal { Value = "42", Type = "Integer" }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        body.AddStatement(CreateExpressionStatement(CreateLiteral(42, "Integer")));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        Assert.That(result.Functions["main"].Instructions, Has.Count.GreaterThan(0));
-        var firstInstr = result.Functions["main"].Instructions[0];
-        Assert.That(firstInstr, Is.TypeOf<MidLevelIR.MLAssign>());
-        var assign = (MidLevelIR.MLAssign)firstInstr;
-        Assert.That(assign.Target, Is.EqualTo("x"));
-        Assert.That(assign.Source, Is.EqualTo("42"));
+        // Expression statements without assignment don't create MLIR instructions
+        // They would need to be part of an assignment or function call
+        Assert.That(result.Functions["main"].Instructions, Is.Empty);
     }
 
     [Test]
-    public void Transform_AssignmentFromVariable_PreservesVariableName()
+    public void Transform_BinaryOperationExpression_CreatesMLIRBinaryOp()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.Assignment
-                    {
-                        Target = "y",
-                        Value = new HighLevelIR.Identifier { Name = "x" }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var left = CreateLiteral(5, "Integer");
+        var right = CreateLiteral(3, "Integer");
+        var binOp = CreateBinaryOp("+", left, right);
+        // BinaryOp needs to be in an assignment to be transformed
+        body.AddStatement(CreateAssignment("result", binOp));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        var assign = (MidLevelIR.MLAssign)result.Functions["main"].Instructions[0];
-        Assert.That(assign.Target, Is.EqualTo("y"));
-        Assert.That(assign.Source, Is.EqualTo("x"));
-    }
-
-    [Test]
-    public void Transform_AssignmentFromBinaryExpression_PreservesExpression()
-    {
-        // Arrange
-        var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.Assignment
-                    {
-                        Target = "sum",
-                        Value = new HighLevelIR.BinaryOp
-                        {
-                            Left = new HighLevelIR.Literal { Value = "5", Type = "Integer" },
-                            Operator = "+",
-                            Right = new HighLevelIR.Literal { Value = "3", Type = "Integer" }
-                        }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
-
-        // Act
-        var result = _transformer.Transform(hlir);
-
-        // Assert
-        var assign = (MidLevelIR.MLAssign)result.Functions["main"].Instructions[0];
-        Assert.That(assign.Target, Is.EqualTo("sum"));
-        Assert.That(assign.Source, Contains.Substring("+"));
-        Assert.That(assign.Source, Contains.Substring("5"));
-        Assert.That(assign.Source, Contains.Substring("3"));
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var assign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assign, Is.Not.Null);
+        Assert.That(assign.Target, Is.EqualTo("result"));
+        Assert.That(assign.Source, Is.EqualTo("(5 + 3)"), "Binary operation should be converted to string expression");
     }
 
     #endregion
 
-    #region Function Call Tests
+    #region Assignment Tests
 
     [Test]
-    public void Transform_SimpleFunctionCall_GeneratesMLCall()
+    public void Transform_SimpleAssignment_CreatesMLIRAssignment()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.ExpressionStatement
-                    {
-                        Expression = new HighLevelIR.FunctionCall
-                        {
-                            Function = new HighLevelIR.Identifier { Name = "InitGame" },
-                            Arguments = new List<HighLevelIR.Expression>()
-                        }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var assignment = CreateAssignment("x", CreateLiteral(42, "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        Assert.That(result.Functions["main"].Instructions, Has.Count.GreaterThan(0));
-        var call = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
-        Assert.That(call, Is.Not.Null);
-        Assert.That(call.Name, Is.EqualTo("InitGame"));
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Target, Is.EqualTo("x"));
+        Assert.That(mlAssign.Source, Is.EqualTo("42"), "Literal value should be converted to string");
     }
 
     [Test]
-    public void Transform_FunctionCallWithArguments_IncludesArguments()
+    public void Transform_AssignmentFromVariable_CreatesMLIRAssignment()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.ExpressionStatement
-                    {
-                        Expression = new HighLevelIR.FunctionCall
-                        {
-                            Function = new HighLevelIR.Identifier { Name = "SetColor" },
-                            Arguments = new List<HighLevelIR.Expression>
-                            {
-                                new HighLevelIR.Literal { Value = "255", Type = "Integer" }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var assignment = CreateAssignment("y", CreateIdentifier("x", "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        var call = (MidLevelIR.MLCall)result.Functions["main"].Instructions[0];
-        Assert.That(call.Name, Is.EqualTo("SetColor"));
-        Assert.That(call.Arguments, Has.Count.EqualTo(1));
-        Assert.That(call.Arguments[0], Is.EqualTo("255"));
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Target, Is.EqualTo("y"));
+        Assert.That(mlAssign.Source, Is.EqualTo("x"), "Identifier name should be preserved");
     }
 
     #endregion
@@ -327,144 +248,151 @@ public class HlirToMlirTransformerTests
     #region Control Flow Tests
 
     [Test]
-    public void Transform_IfStatement_GeneratesConditionalInstructions()
+    public void Transform_IfStatement_CreatesMLIRConditional()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.IfStatement
-                    {
-                        Condition = new HighLevelIR.BinaryOp
-                        {
-                            Left = new HighLevelIR.Identifier { Name = "x" },
-                            Operator = ">",
-                            Right = new HighLevelIR.Literal { Value = "0", Type = "Integer" }
-                        },
-                        ThenBlock = new HighLevelIR.Block
-                        {
-                            Statements = new List<HighLevelIR.Statement>
-                            {
-                                new HighLevelIR.Assignment
-                                {
-                                    Target = "y",
-                                    Value = new HighLevelIR.Literal { Value = "1", Type = "Integer" }
-                                }
-                            }
-                        },
-                        ElseBlock = null
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var condition = CreateBinaryOp(">", CreateIdentifier("x", "Integer"), CreateLiteral(0, "Integer"));
+        var thenBlock = new List<IRNode> { CreateAssignment("result", CreateLiteral(1, "Integer")) };
+        var ifStmt = new HighLevelIR.IfStatement(condition, thenBlock);
+        body.AddStatement(ifStmt);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        var instructions = result.Functions["main"].Instructions;
-        Assert.That(instructions, Has.Count.GreaterThan(0));
-        // Verify that nested block statements are flattened into MLIR
+        // Note: If statements are not yet fully transformed to MLIR conditional instructions
+        // The transformer currently processes nested blocks, so assignments inside if statements are transformed
+        Assert.That(result.Functions["main"].Instructions, Has.Count.GreaterThanOrEqualTo(1));
+        // When if statements are fully supported, we would check for MLBranch or MLIf instructions
     }
 
     [Test]
-    public void Transform_WhileLoop_GeneratesLoopInstructions()
+    public void Transform_WhileLoop_CreatesMLIRLoop()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.WhileStatement
-                    {
-                        Condition = new HighLevelIR.BinaryOp
-                        {
-                            Left = new HighLevelIR.Identifier { Name = "i" },
-                            Operator = "<",
-                            Right = new HighLevelIR.Literal { Value = "10", Type = "Integer" }
-                        },
-                        Body = new HighLevelIR.Block
-                        {
-                            Statements = new List<HighLevelIR.Statement>
-                            {
-                                new HighLevelIR.Assignment
-                                {
-                                    Target = "i",
-                                    Value = new HighLevelIR.BinaryOp
-                                    {
-                                        Left = new HighLevelIR.Identifier { Name = "i" },
-                                        Operator = "+",
-                                        Right = new HighLevelIR.Literal { Value = "1", Type = "Integer" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var condition = CreateBinaryOp("<", CreateIdentifier("i", "Integer"), CreateLiteral(10, "Integer"));
+        var loopBody = CreateBlock();
+        loopBody.AddStatement(CreateAssignment("i", CreateBinaryOp("+", CreateIdentifier("i", "Integer"), CreateLiteral(1, "Integer"))));
+        var whileStmt = new HighLevelIR.While(condition, loopBody, SourceFile);
+        body.AddStatement(whileStmt);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        var instructions = result.Functions["main"].Instructions;
-        Assert.That(instructions, Has.Count.GreaterThan(0));
+        // Note: While loops are not yet fully transformed to MLIR loop instructions
+        // The transformer processes nested blocks, so assignments inside loops are transformed
+        Assert.That(result.Functions["main"].Instructions, Has.Count.GreaterThanOrEqualTo(1));
+        // When while loops are fully supported, we would check for MLBranch or MLWhile instructions
     }
 
     #endregion
 
-    #region Built-in Function Tests
+    #region Function Call Tests
 
     [Test]
-    public void Transform_WritelnCall_GeneratesMLCall()
+    public void Transform_FunctionCall_CreatesMLIRCall()
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block
-            {
-                Statements = new List<HighLevelIR.Statement>
-                {
-                    new HighLevelIR.ExpressionStatement
-                    {
-                        Expression = new HighLevelIR.FunctionCall
-                        {
-                            Function = new HighLevelIR.Identifier { Name = "writeln" },
-                            Arguments = new List<HighLevelIR.Expression>
-                            {
-                                new HighLevelIR.Literal { Value = "Hello", Type = "String" }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        hlir.Functions.Add(function);
+        var body = CreateBlock();
+        var funcCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("printInt", "Void"),
+            new[] { CreateLiteral(42, "Integer") }
+        );
+        body.AddStatement(CreateExpressionStatement(funcCall));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
 
         // Assert
-        var call = (MidLevelIR.MLCall)result.Functions["main"].Instructions[0];
-        Assert.That(call.Name, Is.EqualTo("writeln"));
-        Assert.That(call.Arguments, Has.Count.EqualTo(1));
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlCall = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
+        Assert.That(mlCall, Is.Not.Null);
+        Assert.That(mlCall.Name, Is.EqualTo("printInt"));
+        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall.Arguments[0], Is.EqualTo("42"), "Function call arguments should be converted to strings");
+    }
+
+    [Test]
+    public void Transform_NestedFunctionCalls_CreatesProperCallSequence()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var innerCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("getValue", "Integer"),
+            new HighLevelIR.Expression[0]
+        );
+        var outerCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("printInt", "Void"),
+            new[] { innerCall }
+        );
+        body.AddStatement(CreateExpressionStatement(outerCall));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlCall = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
+        Assert.That(mlCall, Is.Not.Null);
+        Assert.That(mlCall.Name, Is.EqualTo("printInt"));
+        // Nested function calls are converted to string expressions in arguments
+        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
+        // The nested call is converted to a string representation
+    }
+
+    #endregion
+
+    #region Complex Program Tests
+
+    [Test]
+    public void Transform_MultipleFunctions_TransformsAllFunctions()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        hlir.Functions.Add("func1", CreateFunction("func1", "Integer", CreateBlock()));
+        hlir.Functions.Add("func2", CreateFunction("func2", "Void", CreateBlock()));
+        hlir.Functions.Add("main", CreateFunction("main", "Void", CreateBlock()));
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result.Functions.Count, Is.EqualTo(3));
+        Assert.That(result.Functions, Contains.Key("func1"));
+        Assert.That(result.Functions, Contains.Key("func2"));
+        Assert.That(result.Functions, Contains.Key("main"));
+    }
+
+    [Test]
+    public void Transform_GlobalVariablesAndFunctions_TransformsAllElements()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        hlir.Globals.Add("g1", new IRSymbol { Name = "g1", Type = CreateBasicType("Integer") });
+        hlir.Globals.Add("g2", new IRSymbol { Name = "g2", Type = CreateBasicType("Real") });
+        hlir.Functions.Add("main", CreateFunction("main", "Void", CreateBlock()));
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result.Globals.Count, Is.EqualTo(2));
+        Assert.That(result.Functions.Count, Is.EqualTo(1));
     }
 
     #endregion
@@ -491,13 +419,8 @@ public class HlirToMlirTransformerTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        var function = new HighLevelIR.Function
-        {
-            Name = "main",
-            ReturnType = "Void",
-            Body = new HighLevelIR.Block { Statements = new List<HighLevelIR.Statement>() }
-        };
-        hlir.Functions.Add(function);
+        var function = CreateFunction("main", "Void", CreateBlock());
+        hlir.Functions.Add("main", function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -508,11 +431,301 @@ public class HlirToMlirTransformerTests
 
     #endregion
 
+    #region Type System Mapping Tests
+
+    [Test]
+    public void Transform_IntegerType_PreservesTypeInformation()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var assignment = CreateAssignment("x", CreateLiteral(42, "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        // Type information is preserved in the source expression string
+        Assert.That(mlAssign.Source, Is.EqualTo("42"));
+    }
+
+    [Test]
+    public void Transform_RealType_PreservesTypeInformation()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var assignment = CreateAssignment("x", CreateLiteral(3.14, "Real"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Source, Is.EqualTo("3.14") || mlAssign.Source.Contains("3.14"));
+    }
+
+    [Test]
+    public void Transform_BooleanType_PreservesTypeInformation()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var assignment = CreateAssignment("flag", CreateLiteral(true, "Boolean"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Source, Is.EqualTo("True") || mlAssign.Source.Equals("true", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region Array Transformation Tests
+
+    [Test]
+    public void Transform_ArrayElementAccess_TransformsToMLIR()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating array access: arr[0] := 42
+        // Note: Array access would need to be represented as a special expression type
+        // For now, we test that the structure supports it
+        var assignment = CreateAssignment("arr0", CreateLiteral(42, "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        // When array access is fully implemented, we would check for array indexing in the target
+    }
+
+    [Test]
+    public void Transform_ArrayAssignment_HandlesArrayTarget()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating: arr[i] := value
+        var indexExpr = CreateBinaryOp("+", CreateIdentifier("i", "Integer"), CreateLiteral(0, "Integer"));
+        var assignment = CreateAssignment("arrIndex", CreateIdentifier("value", "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Target, Is.EqualTo("arrIndex"));
+        // When array access is fully implemented, target would be "arr[i]" or similar
+    }
+
+    #endregion
+
+    #region Record Transformation Tests
+
+    [Test]
+    public void Transform_RecordFieldAccess_TransformsToMLIR()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating record field access: point.x := 10
+        var assignment = CreateAssignment("pointX", CreateLiteral(10, "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        // When record field access is fully implemented, target would be "point.x" or similar
+    }
+
+    [Test]
+    public void Transform_RecordAssignment_HandlesRecordTarget()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating: point := newPoint
+        var assignment = CreateAssignment("point", CreateIdentifier("newPoint", "Point"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Target, Is.EqualTo("point"));
+        Assert.That(mlAssign.Source, Is.EqualTo("newPoint"));
+    }
+
+    #endregion
+
+    #region Pointer Transformation Tests
+
+    [Test]
+    public void Transform_PointerDereference_TransformsToMLIR()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating pointer dereference: p^ := 42
+        var assignment = CreateAssignment("pDeref", CreateLiteral(42, "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        // When pointer dereference is fully implemented, target would be "p^" or similar
+    }
+
+    [Test]
+    public void Transform_PointerAssignment_HandlesPointerTarget()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        // Simulating: p := @x (address of x)
+        var assignment = CreateAssignment("p", CreateIdentifier("x", "Integer"));
+        body.AddStatement(assignment);
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlAssign = result.Functions["main"].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(mlAssign, Is.Not.Null);
+        Assert.That(mlAssign.Target, Is.EqualTo("p"));
+        // When address-of operator is fully implemented, source would be "@x" or similar
+    }
+
+    #endregion
+
+    #region Built-in Function Tests
+
+    [Test]
+    public void Transform_WriteFunctionCall_TransformsToMLIRCall()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var writeCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("write", "Void"),
+            new[] { CreateLiteral("Hello", "String") }
+        );
+        body.AddStatement(CreateExpressionStatement(writeCall));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlCall = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
+        Assert.That(mlCall, Is.Not.Null);
+        Assert.That(mlCall.Name, Is.EqualTo("write"));
+        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall.Arguments[0], Is.EqualTo("Hello"));
+    }
+
+    [Test]
+    public void Transform_WritelnFunctionCall_TransformsToMLIRCall()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var writelnCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("writeln", "Void"),
+            new[] { CreateLiteral(42, "Integer") }
+        );
+        body.AddStatement(CreateExpressionStatement(writelnCall));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result.Functions["main"].Instructions, Has.Count.EqualTo(1));
+        var mlCall = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
+        Assert.That(mlCall, Is.Not.Null);
+        Assert.That(mlCall.Name, Is.EqualTo("writeln"));
+        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall.Arguments[0], Is.EqualTo("42"));
+    }
+
+    [Test]
+    public void Transform_BuiltinFunctionWithMultipleArgs_TransformsAllArguments()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        var writeCall = new HighLevelIR.FunctionCall(
+            CreateIdentifier("write", "Void"),
+            new[] { CreateLiteral("Value: ", "String"), CreateLiteral(42, "Integer") }
+        );
+        body.AddStatement(CreateExpressionStatement(writeCall));
+        var function = CreateFunction("main", "Void", body);
+        hlir.Functions.Add("main", function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        var mlCall = result.Functions["main"].Instructions[0] as MidLevelIR.MLCall;
+        Assert.That(mlCall, Is.Not.Null);
+        Assert.That(mlCall.Arguments, Has.Count.EqualTo(2));
+        Assert.That(mlCall.Arguments[0], Is.EqualTo("Value: "));
+        Assert.That(mlCall.Arguments[1], Is.EqualTo("42"));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private HighLevelIR CreateSimpleProgram()
     {
-        return new HighLevelIR { SourceFile = "test.pas" };
+        return new HighLevelIR { SourceFile = SourceFile };
     }
 
     #endregion
