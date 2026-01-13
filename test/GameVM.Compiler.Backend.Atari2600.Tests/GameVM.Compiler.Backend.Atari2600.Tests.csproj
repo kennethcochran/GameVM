@@ -25,7 +25,6 @@
     <ProjectReference Include="..\..\src\GameVM.Compiler.Backend.Atari2600\GameVM.Compiler.Backend.Atari2600.csproj" />
     <ProjectReference Include="..\..\src\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
     <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.LowLevel\GameVM.Compiler.Optimizers.LowLevel.csproj" />
-    <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.FinalIR\GameVM.Compiler.Optimizers.FinalIR.csproj" />
   </ItemGroup>
 
 </Project>

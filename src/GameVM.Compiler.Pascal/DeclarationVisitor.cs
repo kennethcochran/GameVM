@@ -46,16 +46,18 @@ namespace GameVM.Compiler.Pascal
             var formalParams = context.formalParameterList()?.formalParameterSection();
             if (formalParams != null)
             {
-                foreach (var param in formalParams)
+                foreach (var paramSection in formalParams)
                 {
-                    var paramGroup = param.parameterGroup();
-                    var identList = paramGroup?.identifierList();
-                    var identifiers = identList?.identifier();
-                    if (identifiers != null)
+                    var paramGroup = paramSection.parameterGroup();
+                    if (paramGroup != null)
                     {
-                        foreach (var id in identifiers)
+                        var identifiers = paramGroup.identifierList()?.identifier();
+                        if (identifiers != null)
                         {
-                            procNode.Parameters.Add(new VariableNode { Name = id.GetText() });
+                            foreach (var id in identifiers)
+                            {
+                                procNode.Parameters.Add(new VariableNode { Name = id.GetText() });
+                            }
                         }
                     }
                 }
@@ -133,16 +135,18 @@ namespace GameVM.Compiler.Pascal
             var formalParams = context.formalParameterList()?.formalParameterSection();
             if (formalParams != null)
             {
-                foreach (var param in formalParams)
+                foreach (var paramSection in formalParams)
                 {
-                    var paramGroup = param.parameterGroup();
-                    var identList = paramGroup?.identifierList();
-                    var identifiers = identList?.identifier();
-                    if (identifiers != null)
+                    var paramGroup = paramSection.parameterGroup();
+                    if (paramGroup != null)
                     {
-                        foreach (var id in identifiers)
+                        var identifiers = paramGroup.identifierList()?.identifier();
+                        if (identifiers != null)
                         {
-                            parameters.Add(new VariableNode { Name = id.GetText() });
+                            foreach (var id in identifiers)
+                            {
+                                parameters.Add(new VariableNode { Name = id.GetText() });
+                            }
                         }
                     }
                 }

@@ -13,6 +13,23 @@ namespace GameVM.Compiler.Core.IR
         /// </summary>
         public string SourceFile { get; set; } = string.Empty;
 
+        /// <summary>
+        /// List of modules in low-level representation
+        /// </summary>
+        public List<LLModule> Modules { get; set; } = new();
+
+        public class LLModule
+        {
+            public string Name { get; set; } = string.Empty;
+            public List<LLFunction> Functions { get; set; } = new();
+        }
+
+        public class LLFunction
+        {
+            public string Name { get; set; } = string.Empty;
+            public List<LLInstruction> Instructions { get; set; } = new();
+        }
+
         public List<LLInstruction> Instructions { get; set; } = new();
 
         public abstract class LLInstruction { }

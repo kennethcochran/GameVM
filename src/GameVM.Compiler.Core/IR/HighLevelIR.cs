@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace GameVM.Compiler.Core.IR
 {
@@ -25,26 +26,93 @@ namespace GameVM.Compiler.Core.IR
         public Dictionary<string, IRSymbol> Globals { get; set; } = new();
 
         /// <summary>
-        /// Function definitions
+        /// List of modules in high-level representation
         /// </summary>
-        public Dictionary<string, IRFunction> Functions { get; set; } = new();
+        public List<HLModule> Modules { get; set; } = new();
 
         /// <summary>
-        /// Type definitions
+        /// Global functions (kept for backward compatibility)
         /// </summary>
-        public Dictionary<string, IRType> Types { get; set; } = new();
+        [System.Obsolete("Use Modules instead")]
+        public Dictionary<string, Function> GlobalFunctions { get; set; } = new();
+        
+        [System.Obsolete("Use Modules instead")]
+        public Dictionary<string, Function> Functions { get => GlobalFunctions; set => GlobalFunctions = value; }
+
+        /// <summary>
+        /// Type definitions (kept for backward compatibility)
+        /// </summary>
+        [System.Obsolete("Use Modules instead")]
+        public Dictionary<string, IRType> GlobalTypes { get; set; } = new();
+
+        [System.Obsolete("Use Modules instead")]
+        public Dictionary<string, IRType> Types { get => GlobalTypes; set => GlobalTypes = value; }
+
+        /// <summary>
+        /// Represents a module in the high-level IR
+        /// </summary>
+        public class HLModule
+        {
+            /// <summary>
+            /// The name of the module
+            /// </summary>
+            public string Name { get; set; } = string.Empty;
+            
+            /// <summary>
+            /// Functions defined in this module
+            /// </summary>
+            public List<Function> Functions { get; set; } = new();
+            
+            /// <summary>
+            /// Type definitions in this module
+            /// </summary>
+            public List<HLType> Types { get; set; } = new();
+
+            /// <summary>
+            /// Global variables in this module
+            /// </summary>
+            public List<Variable> Variables { get; set; } = new();
+        }
+
+        public class Variable : IRSymbol
+        {
+            public string SourceFile { get; set; } = string.Empty;
+            public new HLType Type { get; set; }
+
+            public Variable() { }
+            public Variable(string name, HLType type, string sourceFile)
+            {
+                Name = name;
+                Type = type;
+                SourceFile = sourceFile;
+            }
+
+            public Variable(string name, string typeName, string sourceFile)
+            {
+                Name = name;
+                Type = new BasicType(sourceFile, typeName);
+                SourceFile = sourceFile;
+            }
+
+            public Variable(string name, string typeName) : this(name, typeName, "unknown") { }
+        }
 
         // Nested types for High Level IR
         public class HLType : IRType
         {
-            public new string Name { get; set; }
-            public string SourceFile { get; set; }
+            public new string Name { get; set; } = string.Empty;
+            public string SourceFile { get; set; } = string.Empty;
 
+            public HLType() { }
             public HLType(string sourceFile, string name)
             {
                 SourceFile = sourceFile;
                 Name = name;
             }
+
+            public HLType(string name) : this("unknown", name) { }
+
+            public static implicit operator HLType(string name) => new HLType("unknown", name);
         }
 
         public class BasicType : HLType
@@ -73,9 +141,18 @@ namespace GameVM.Compiler.Core.IR
         public class Block : Statement
         {
             public List<Statement> Statements { get; set; } = new();
+            
+            // For property-based initialization
+            public List<Statement> statements { get => Statements; set => Statements = value; }
 
+            public Block() : base("unknown") { }
             public Block(string sourceFile) : base(sourceFile)
             {
+            }
+
+            public Block(string sourceFile, List<Statement> statements) : base(sourceFile)
+            {
+                Statements = statements;
             }
 
             public void AddStatement(Statement statement)
@@ -86,8 +163,9 @@ namespace GameVM.Compiler.Core.IR
 
         public class Statement : IRNode
         {
-            public string SourceFile { get; }
+            public new string SourceFile { get; set; } = string.Empty;
 
+            public Statement() : base("unknown") { }
             public Statement(string sourceFile)
             {
                 SourceFile = sourceFile;
@@ -96,10 +174,20 @@ namespace GameVM.Compiler.Core.IR
 
         public class Function : IRFunction
         {
-            public string SourceFile { get; }
+            public string SourceFile { get; set; } = string.Empty;
             public new HLType ReturnType { get => (HLType)base.ReturnType; set => base.ReturnType = value; }
             public new Block Body { get => (Block)base.Body[0]; set { base.Body.Clear(); base.Body.Add(value); } }
-            private List<Parameter> parameters = new();
+            public List<Parameter> Parameters { get; set; } = new();
+            
+            // For property-based initialization
+            public string name { get => Name; set => Name = value; }
+            public HLType returnType { get => ReturnType; set => ReturnType = value; }
+            public Block body { get => Body; set => Body = value; }
+
+            public Function()
+            {
+                base.Body.Add(new Block("unknown"));
+            }
 
             public Function(string sourceFile, string name, HLType returnType, Block body)
             {
@@ -109,9 +197,17 @@ namespace GameVM.Compiler.Core.IR
                 Body = body;
             }
 
+            public Function(string name, string sourceFile, string returnTypeName, Block body)
+            {
+                Name = name;
+                SourceFile = sourceFile;
+                ReturnType = new BasicType(sourceFile, returnTypeName);
+                Body = body;
+            }
+
             public void AddParameter(Parameter parameter)
             {
-                parameters.Add(parameter);
+                Parameters.Add(parameter);
             }
         }
 
@@ -127,46 +223,86 @@ namespace GameVM.Compiler.Core.IR
                 Type = type;
                 SourceFile = sourceFile;
             }
+
+            public Parameter(string name, string typeName, string sourceFile)
+            {
+                Name = name;
+                Type = new BasicType(sourceFile, typeName);
+                SourceFile = sourceFile;
+            }
+
+            public Parameter(string name, string typeName) : this(name, typeName, "unknown") { }
         }
 
         public class Expression : IRNode
         {
-            public string SourceFile { get; }
+            public new string SourceFile { get => base.SourceFile; set => base.SourceFile = value; }
 
-            public Expression(string sourceFile)
+            public Expression() : base("unknown") { }
+            public Expression(string sourceFile) : base(sourceFile)
             {
-                SourceFile = sourceFile;
             }
         }
 
         public class Assignment : Statement
         {
-            public string Target { get; }
-            public Expression Value { get; }
+            public string Target { get; set; } = string.Empty;
+            public Expression Value { get; set; }
+            
+            // For property-based initialization
+            public string target { get => Target; set => Target = value; }
+            public Expression value { get => Value; set => Value = value; }
 
+            public Assignment() : base("unknown") { }
             public Assignment(string target, Expression value, string sourceFile) : base(sourceFile)
             {
                 Target = target;
+                Value = value;
+            }
+
+            public Assignment(string target, Expression value) : this(target, value, "unknown") { }
+
+            public Assignment(Expression target, Expression value, string sourceFile) : base(sourceFile)
+            {
+                Target = target.ToString(); // Simplified for now
                 Value = value;
             }
         }
 
         public class Return : Statement
         {
-            public Expression? Value { get; }
+            public Expression? Value { get; set; }
+            
+            // For property-based initialization
+            public Expression? value { get => Value; set => Value = value; }
 
+            public Return() : base("unknown") { }
             public Return(Expression? value) : base(value?.SourceFile ?? string.Empty)
             {
                 Value = value;
             }
         }
+        
+        public class ReturnStatement : Return
+        {
+            public ReturnStatement() { }
+            public ReturnStatement(Expression? value) : base(value) { }
+        }
 
         public class IfStatement : Statement
         {
-            public Expression Condition { get; }
-            public List<IRNode> ThenBlock { get; }
-            public List<IRNode>? ElseBlock { get; }
+            public Expression Condition { get; set; }
+            public List<IRNode> ThenBlock { get; set; } = new();
+            public List<IRNode>? ElseBlock { get; set; }
+            public Block Then { get => new Block(SourceFile, ThenBlock.Cast<Statement>().ToList()); set => ThenBlock = value.Statements.Cast<IRNode>().ToList(); }
+            public Block? Else { get => ElseBlock == null ? null : new Block(SourceFile, ElseBlock.Cast<Statement>().ToList()); set => ElseBlock = value?.Statements.Cast<IRNode>().ToList(); }
+            
+            // For property-based initialization
+            public Expression condition { get => Condition; set => Condition = value; }
+            public Block then { get => Then; set => Then = value; }
+            public Block? @else { get => Else; set => Else = value; }
 
+            public IfStatement() : base("unknown") { }
             public IfStatement(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null)
                 : base(condition.SourceFile)
             {
@@ -175,13 +311,58 @@ namespace GameVM.Compiler.Core.IR
                 ElseBlock = elseBlock;
             }
         }
+        
+        public class If : IfStatement
+        {
+            public If() { }
+            public If(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null)
+                : base(condition, thenBlock, elseBlock) { }
+        }
 
         public class While : Statement
         {
-            public Expression Condition { get; }
-            public Block Body { get; }
+            public Expression Condition { get; set; }
+            public Block Body { get; set; }
+            
+            // For property-based initialization
+            public Expression condition { get => Condition; set => Condition = value; }
+            public Block body { get => Body; set => Body = value; }
 
+            public While() : base("unknown") { }
             public While(Expression condition, Block body, string sourceFile) : base(sourceFile)
+            {
+                Condition = condition;
+                Body = body;
+            }
+        }
+
+        public class ForStatement : Statement
+        {
+            public string Iterator { get; set; } = string.Empty;
+            public Expression InitialValue { get; set; }
+            public Expression LimitValue { get; set; }
+            public bool Ascending { get; set; }
+            public Block Body { get; set; }
+
+            public ForStatement() : base("unknown") { }
+            public ForStatement(string iterator, Expression initial, Expression limit, bool ascending, Block body, string sourceFile)
+                : base(sourceFile)
+            {
+                Iterator = iterator;
+                InitialValue = initial;
+                LimitValue = limit;
+                Ascending = ascending;
+                Body = body;
+            }
+        }
+
+        public class RepeatStatement : Statement
+        {
+            public Expression Condition { get; set; }
+            public Block Body { get; set; }
+
+            public RepeatStatement() : base("unknown") { }
+            public RepeatStatement(Expression condition, Block body, string sourceFile) : base(sourceFile)
             {
                 Condition = condition;
                 Body = body;
@@ -190,8 +371,9 @@ namespace GameVM.Compiler.Core.IR
 
         public class ExpressionStatement : Statement
         {
-            public Expression Expression { get; }
+            public Expression Expression { get; set; }
 
+            public ExpressionStatement() : base("unknown") { }
             public ExpressionStatement(Expression expression, string sourceFile) : base(sourceFile)
             {
                 Expression = expression;
@@ -200,10 +382,21 @@ namespace GameVM.Compiler.Core.IR
 
         public class Literal : Expression
         {
-            public object Value { get; }
-            public HLType Type { get; }
+            public object Value { get; set; }
+            public HLType Type { get; set; }
+            
+            // For property-based initialization
+            public object value { get => Value; set => Value = value; }
+            public HLType type { get => Type; set => Type = value; }
 
+            public Literal() : base("unknown") { }
             public Literal(object value, HLType type, string sourceFile) : base(sourceFile)
+            {
+                Value = value;
+                Type = type;
+            }
+
+            public Literal(string value, HLType type, string sourceFile) : base(sourceFile)
             {
                 Value = value;
                 Type = type;
@@ -212,13 +405,20 @@ namespace GameVM.Compiler.Core.IR
 
         public class Identifier : Expression
         {
-            public string Name { get; }
-            public HLType Type { get; }
+            public string Name { get; set; } = string.Empty;
+            public HLType Type { get; set; }
 
+            public Identifier() : base("unknown") { }
             public Identifier(string name, HLType type, string sourceFile) : base(sourceFile)
             {
                 Name = name;
                 Type = type;
+            }
+
+            public Identifier(string name, string sourceFile) : base(sourceFile)
+            {
+                Name = name;
+                Type = new BasicType(sourceFile, "unknown");
             }
         }
 
@@ -226,27 +426,83 @@ namespace GameVM.Compiler.Core.IR
         {
             public Expression Function { get; }
             public IEnumerable<Expression> Arguments { get; }
+            public string FunctionName { get; }
 
             public FunctionCall(Expression function, IEnumerable<Expression> arguments)
                 : base(function.SourceFile)
             {
                 Function = function;
                 Arguments = arguments;
+                FunctionName = (function as Identifier)?.Name ?? string.Empty;
+            }
+
+            public FunctionCall(string functionName, IEnumerable<Expression> arguments, string sourceFile) : base(sourceFile)
+            {
+                FunctionName = functionName;
+                Function = new Identifier(functionName, sourceFile);
+                Arguments = arguments;
             }
         }
 
         public class BinaryOp : Expression
         {
-            public string Operator { get; }
-            public Expression Left { get; }
-            public Expression Right { get; }
+            public string Operator { get; set; } = string.Empty;
+            public Expression Left { get; set; }
+            public Expression Right { get; set; }
 
+            public BinaryOp() : base("unknown") { }
             public BinaryOp(string op, Expression left, Expression right, string sourceFile)
                 : base(sourceFile)
             {
                 Operator = op;
                 Left = left;
                 Right = right;
+            }
+
+            public BinaryOp(Expression left, string op, Expression right, string sourceFile)
+                : base(sourceFile)
+            {
+                Operator = op;
+                Left = left;
+                Right = right;
+            }
+
+            public BinaryOp(Expression left, string op, Expression right)
+                : base(left?.SourceFile ?? "unknown")
+            {
+                Operator = op;
+                Left = left;
+                Right = right;
+            }
+            
+            // For property-based initialization where "left" might be assigned to "Left" property
+            public Expression left { get => Left; set => Left = value; }
+            public Expression right { get => Right; set => Right = value; }
+            public string op { get => Operator; set => Operator = value; }
+            public string @operator { get => Operator; set => Operator = value; }
+        }
+
+        public class UnaryOp : Expression
+        {
+            public string Operator { get; }
+            public Expression Operand { get; }
+
+            public UnaryOp(string op, Expression operand, string sourceFile) : base(sourceFile)
+            {
+                Operator = op;
+                Operand = operand;
+            }
+        }
+
+        public class ArrayAccess : Expression
+        {
+            public Expression Array { get; }
+            public Expression Index { get; }
+
+            public ArrayAccess(Expression array, Expression index, string sourceFile) : base(sourceFile)
+            {
+                Array = array;
+                Index = index;
             }
         }
     }
@@ -256,6 +512,14 @@ namespace GameVM.Compiler.Core.IR
     /// </summary>
     public abstract class IRNode
     {
+        public string SourceFile { get; set; } = string.Empty;
+
+        public IRNode() { }
+        public IRNode(string sourceFile)
+        {
+            SourceFile = sourceFile;
+        }
+
         /// <summary>
         /// Source location information
         /// </summary>

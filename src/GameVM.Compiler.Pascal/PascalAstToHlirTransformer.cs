@@ -31,6 +31,7 @@ namespace GameVM.Compiler.Pascal
             _expressionTransformer = new ExpressionTransformer(_context);
             _statementTransformer = new StatementTransformer(_context, _expressionTransformer);
             _declarationTransformer = new DeclarationTransformer(_context, _expressionTransformer);
+            _declarationTransformer.StatementTransformer = _statementTransformer;
         }
 
         /// <summary>
@@ -41,17 +42,14 @@ namespace GameVM.Compiler.Pascal
             if (programNode == null)
                 throw new ArgumentNullException(nameof(programNode));
 
-            try
+            ProcessProgram(programNode);
+            
+            if (_context.Errors.Count > 0)
             {
-                ProcessProgram(programNode);
-                return _ir;
+                throw new Exception(string.Join("; ", _context.Errors));
             }
-            catch (Exception ex)
-            {
-                // Log error and return partial IR
-                _context.AddError($"Error transforming program: {ex.Message}");
-                return _ir;
-            }
+
+            return _ir;
         }
 
         /// <summary>
@@ -61,6 +59,22 @@ namespace GameVM.Compiler.Pascal
         {
             if (programNode == null)
                 return;
+
+            // Push scope for program (global scope)
+            _context.PushScope();
+
+            // Register global variables before creating the main function,
+            // so they are truly global and visible everywhere.
+            if (programNode.Block != null)
+            {
+                foreach (var stmt in programNode.Block.Statements)
+                {
+                    if (stmt is VariableDeclarationNode varDecl)
+                    {
+                        _declarationTransformer.TransformVariableDeclaration(varDecl);
+                    }
+                }
+            }
 
             // Create main function for the program
             var returnType = _context.GetOrCreateBasicType("void");
@@ -74,13 +88,35 @@ namespace GameVM.Compiler.Pascal
 
             _context.FunctionScope.Push(mainFunction);
 
-            // Process the program block
+            // Process the program block again for everything else (functions, procedures, statements)
             if (programNode.Block != null)
             {
-                ProcessBlock(programNode.Block, body);
+                foreach (var stmt in programNode.Block.Statements)
+                {
+                    if (stmt is VariableDeclarationNode) continue; // Already processed
+                    
+                    if (stmt is ProcedureNode or FunctionNode or TypeDefinitionNode)
+                    {
+                        _declarationTransformer.TransformDeclaration(stmt);
+                    }
+                    else if (stmt is ErrorNode errorNode)
+                    {
+                        _context.AddError(errorNode.Message);
+                    }
+                    else
+                    {
+                        var transformedStmt = _statementTransformer.TransformStatement(stmt);
+                        if (transformedStmt != null)
+                        {
+                            body.AddStatement(transformedStmt);
+                        }
+                    }
+                }
             }
 
             _context.FunctionScope.Pop();
+
+            // Register main function
             _ir.Functions[mainFunction.Name] = mainFunction;
         }
 

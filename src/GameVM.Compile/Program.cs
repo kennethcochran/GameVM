@@ -7,7 +7,6 @@ namespace GameVM.Compile
     using GameVM.Compiler.Core.IR.Transformers;
     using GameVM.Compiler.Optimizers.MidLevel;
     using GameVM.Compiler.Optimizers.LowLevel;
-    using GameVM.Compiler.Optimizers.FinalIR;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using GameVM.Compiler.Core.Interfaces;
@@ -27,11 +26,9 @@ namespace GameVM.Compile
                 // Register optimizers
                 services.AddSingleton<IMidLevelOptimizer, DefaultMidLevelOptimizer>();
                 services.AddSingleton<ILowLevelOptimizer, DefaultLowLevelOptimizer>();
-                services.AddSingleton<IFinalIROptimizer, DefaultFinalIROptimizer>();
 
                 // Register transformers
                 services.AddSingleton<IIRTransformer<MidLevelIR, LowLevelIR>, MidToLowLevelTransformer>();
-                services.AddSingleton<IIRTransformer<LowLevelIR, FinalIR>, LowToFinalTransformer>();
 
                 // Register frontend
                 services.AddSingleton<ILanguageFrontend, PascalFrontend>();

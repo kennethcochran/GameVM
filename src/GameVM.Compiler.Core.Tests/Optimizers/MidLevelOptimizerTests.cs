@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Optimizers.MidLevel;
 using System.Linq;
 
@@ -27,12 +28,14 @@ public class MidLevelOptimizerTests
     {
         // Arrange
         var mlir = CreateSimpleMidLevelIR();
+        var module = new MidLevelIR.MLModule { Name = "test" };
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
         // Note: MLBranch doesn't exist yet, so we test with what's available
         // When branch support is added, unreachable code after branch should be removed
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "2" });
-        mlir.Functions["main"] = function;
+        module.Functions.Add(function);
+        mlir.Modules.Add(module);
 
         var originalCount = function.Instructions.Count;
 
@@ -41,10 +44,12 @@ public class MidLevelOptimizerTests
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["main"], Is.Not.Null);
+        var resultModule = result.Modules.FirstOrDefault(m => m.Name == "test");
+        Assert.That(resultModule, Is.Not.Null);
+        Assert.That(resultModule.Functions[0], Is.Not.Null);
         // When dead code elimination is implemented, unreachable assignments should be removed
         // For now, we verify the optimizer returns a valid result
-        Assert.That(result.Functions["main"].Instructions, Is.Not.Null);
+        Assert.That(resultModule.Functions[0].Instructions, Is.Not.Null);
     }
 
     [Test]
@@ -55,7 +60,7 @@ public class MidLevelOptimizerTests
         var function = new MidLevelIR.MLFunction { Name = "test" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "unused", Source = "42" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Functions["test"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         var originalCount = function.Instructions.Count;
 
@@ -64,10 +69,10 @@ public class MidLevelOptimizerTests
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["test"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When unused variable elimination is implemented, assignment to "unused" should be removed
         // For now, verify optimizer returns valid result
-        var resultFunc = result.Functions["test"];
+        var resultFunc = result.Modules[0].Functions[0];
         Assert.That(resultFunc.Instructions, Is.Not.Null);
         // Expected: resultFunc.Instructions should not contain assignment to "unused" when optimization is implemented
     }
@@ -84,18 +89,18 @@ public class MidLevelOptimizerTests
         var function = new MidLevelIR.MLFunction { Name = "math" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "a", Source = "5" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "b", Source = "a" });
-        mlir.Functions["math"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["math"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When constant propagation is implemented:
         // - b := a should become b := 5 (if a is constant)
         // - Or the assignment to b should reference "5" directly
-        var resultFunc = result.Functions["math"];
+        var resultFunc = result.Modules[0].Functions[0];
         var bAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
             .FirstOrDefault(a => a.Target == "b");
         // Expected: When implemented, bAssign.Source should be "5" instead of "a"
@@ -109,14 +114,14 @@ public class MidLevelOptimizerTests
         var mlir = CreateSimpleMidLevelIR();
         var function = new MidLevelIR.MLFunction { Name = "math" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "(5 + 3)" });
-        mlir.Functions["math"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
         // Assert
         // Constant expression (5 + 3) should be folded to 8
-        var resultFunc = result.Functions["math"];
+        var resultFunc = result.Modules[0].Functions[0];
         var assignInstrs = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>();
         Assert.That(assignInstrs.Any(a => a.Source == "8"), Is.True);
     }
@@ -133,14 +138,14 @@ public class MidLevelOptimizerTests
         var function = new MidLevelIR.MLFunction { Name = "cse" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "(a + b)" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
-        mlir.Functions["cse"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
 
         // Assert
         // Common subexpression (a + b) should be computed once
-        Assert.That(result.Functions["cse"].Instructions, Has.Count.LessThanOrEqualTo(2));
+        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.LessThanOrEqualTo(2));
     }
 
     [Test]
@@ -151,18 +156,18 @@ public class MidLevelOptimizerTests
         var function = new MidLevelIR.MLFunction { Name = "math" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "(a + b + c)" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
-        mlir.Functions["math"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["math"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When related subexpression optimization is implemented:
         // - (a + b) should be computed once and reused
         // - (a + b + c) should use the result of (a + b)
-        var resultFunc = result.Functions["math"];
+        var resultFunc = result.Modules[0].Functions[0];
         Assert.That(resultFunc.Instructions, Is.Not.Null);
         // Expected: When implemented, instructions should be optimized to compute (a + b) once
     }
@@ -180,18 +185,18 @@ public class MidLevelOptimizerTests
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "c", Source = "(5 + 3)" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "i", Source = "(i + 1)" });
         // Note: Loop structure (label + branch) not yet fully supported
-        mlir.Functions["loop"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["loop"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When loop invariant code motion is implemented:
         // - Constant expression (5 + 3) should be computed once before the loop
         // - Or folded to "8" if constant folding is applied first
-        var resultFunc = result.Functions["loop"];
+        var resultFunc = result.Modules[0].Functions[0];
         var cAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
             .FirstOrDefault(a => a.Target == "c");
         // Expected: When implemented, cAssign.Source should be "8" (folded) or moved outside loop
@@ -209,11 +214,11 @@ public class MidLevelOptimizerTests
         var mlir = CreateSimpleMidLevelIR();
         var smallFunc = new MidLevelIR.MLFunction { Name = "small" };
         smallFunc.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "x" });
-        mlir.Functions["small"] = smallFunc;
+        mlir.Modules[0].Functions.Add(smallFunc);
 
         var mainFunc = new MidLevelIR.MLFunction { Name = "main" };
         mainFunc.Instructions.Add(new MidLevelIR.MLCall { Name = "small" });
-        mlir.Functions["main"] = mainFunc;
+        mlir.Modules[0].Functions.Add(mainFunc);
 
         var originalMainCount = mainFunc.Instructions.Count;
 
@@ -222,11 +227,11 @@ public class MidLevelOptimizerTests
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["main"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When function inlining is implemented:
         // - The call to "small" should be replaced with the function body
         // - mainFunc.Instructions should contain the assignment from smallFunc
-        var resultMainFunc = result.Functions["main"];
+        var resultMainFunc = result.Modules[0].Functions[0];
         // Expected: When implemented, resultMainFunc.Instructions should contain the inlined assignment
         Assert.That(resultMainFunc.Instructions, Is.Not.Null);
     }
@@ -244,7 +249,7 @@ public class MidLevelOptimizerTests
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "unused", Source = "42" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "used", Source = "1" });
         function.Instructions.Add(new MidLevelIR.MLCall { Name = "writeln", Arguments = new List<string> { "used" } });
-        mlir.Functions["test"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         var originalCount = function.Instructions.Count;
 
@@ -253,11 +258,11 @@ public class MidLevelOptimizerTests
 
         // Assert
         Assert.That(result, Is.Not.Null);
-        Assert.That(result.Functions["test"], Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
         // When unused variable elimination is implemented:
         // - Assignment to "unused" should be removed (it's never referenced)
         // - Assignment to "used" should remain (it's referenced in writeln call)
-        var resultFunc = result.Functions["test"];
+        var resultFunc = result.Modules[0].Functions[0];
         var unusedAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
             .FirstOrDefault(a => a.Target == "unused");
         // Expected: When implemented, unusedAssign should be null (removed)
@@ -276,7 +281,7 @@ public class MidLevelOptimizerTests
         var mlir = CreateSimpleMidLevelIR();
         var function = new MidLevelIR.MLFunction { Name = "math" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "(5 + 3)" });
-        mlir.Functions["math"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
@@ -295,8 +300,8 @@ public class MidLevelOptimizerTests
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
         function.Instructions.Add(new MidLevelIR.MLLabel { Name = "loop" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "c", Source = "(5 + 3)" });
-        function.Instructions.Add(new MidLevelIR.MLBranch { Label = "loop" });
-        mlir.Functions["math"] = function;
+        function.Instructions.Add(new MidLevelIR.MLBranch { Target = "loop" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
@@ -315,13 +320,13 @@ public class MidLevelOptimizerTests
         // Arrange
         var mlir = CreateSimpleMidLevelIR();
         var function = new MidLevelIR.MLFunction { Name = "empty" };
-        mlir.Functions["empty"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
         // Assert
-        Assert.That(result.Functions["empty"].Instructions, Is.Empty);
+        Assert.That(result.Modules[0].Functions[0].Instructions, Is.Empty);
     }
 
     [Test]
@@ -331,13 +336,13 @@ public class MidLevelOptimizerTests
         var mlir = CreateSimpleMidLevelIR();
         var function = new MidLevelIR.MLFunction { Name = "single" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Functions["single"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
         // Assert
-        Assert.That(result.Functions["single"].Instructions, Has.Count.EqualTo(1));
+        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
     }
 
     #endregion
@@ -346,7 +351,11 @@ public class MidLevelOptimizerTests
 
     private MidLevelIR CreateSimpleMidLevelIR()
     {
-        return new MidLevelIR { SourceFile = "test.ir" };
+        var mlir = new MidLevelIR { SourceFile = "test.ir" };
+        // Initialize the Modules list
+        mlir.Modules = new List<MidLevelIR.MLModule>();
+        mlir.Modules.Add(new MidLevelIR.MLModule { Name = "default" });
+        return mlir;
     }
 
     #endregion

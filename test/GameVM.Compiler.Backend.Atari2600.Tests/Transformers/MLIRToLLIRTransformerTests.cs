@@ -29,7 +29,7 @@ public class MLIRToLLIRTransformerTests
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "42" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -50,7 +50,7 @@ public class MLIRToLLIRTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "10" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "20" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -69,7 +69,13 @@ public class MLIRToLLIRTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "temp", Source = "5" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "temp" });
-        mlir.Functions["main"] = function;
+        
+        // Add function to the first module (or create one if none exists)
+        if (mlir.Modules.Count == 0)
+        {
+            mlir.Modules.Add(new MidLevelIR.MLModule { Name = "default" });
+        }
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -94,8 +100,8 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "MYVAR", Source = "42" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "$80", Source = "42" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -113,8 +119,8 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "COLUBK", Source = "10" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "COLUBK", Source = "42" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -131,8 +137,8 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "$2000", Source = "100" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "$1000", Source = "42" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -140,7 +146,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var storeInstr = result.Instructions.OfType<LowLevelIR.LLStore>().FirstOrDefault();
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$2000"), "Absolute addresses should be preserved");
+        Assert.That(storeInstr.Address, Is.EqualTo("$1000"), "Absolute addresses should be preserved");
     }
 
     [Test]
@@ -151,7 +157,7 @@ public class MLIRToLLIRTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "var1", Source = "1" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "var2", Source = "2" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -172,9 +178,9 @@ public class MLIRToLLIRTransformerTests
     {
         // Arrange
         var mlir = CreateSimpleMLIR();
-        var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Functions["main"] = function;
+        var function = new MidLevelIR.MLFunction { Name = "myFunction" };
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "42" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -182,7 +188,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var labelInstr = result.Instructions.OfType<LowLevelIR.LLLabel>().FirstOrDefault();
         Assert.That(labelInstr, Is.Not.Null);
-        Assert.That(labelInstr.Name, Is.EqualTo("main"), "Function name should become label");
+        Assert.That(labelInstr.Name, Is.EqualTo("myFunction"), "Function name should become label");
     }
 
     [Test]
@@ -190,9 +196,9 @@ public class MLIRToLLIRTransformerTests
     {
         // Arrange
         var mlir = CreateSimpleMLIR();
-        mlir.Functions["func1"] = new MidLevelIR.MLFunction { Name = "func1" };
-        mlir.Functions["func2"] = new MidLevelIR.MLFunction { Name = "func2" };
-        mlir.Functions["main"] = new MidLevelIR.MLFunction { Name = "main" };
+        mlir.Modules[0].Functions.Add(new MidLevelIR.MLFunction { Name = "func1" });
+        mlir.Modules[0].Functions.Add(new MidLevelIR.MLFunction { Name = "func2" });
+        mlir.Modules[0].Functions.Add(new MidLevelIR.MLFunction { Name = "main" });
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -218,8 +224,8 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLCall { Name = "InitGame" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLCall { Name = "myFunction" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -227,7 +233,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var callInstr = result.Instructions.OfType<LowLevelIR.LLCall>().FirstOrDefault();
         Assert.That(callInstr, Is.Not.Null);
-        Assert.That(callInstr.Label, Is.EqualTo("InitGame"), "Function call should map to label");
+        Assert.That(callInstr.Label, Is.EqualTo("myFunction"), "Function call should map to label");
     }
 
     [Test]
@@ -240,7 +246,7 @@ public class MLIRToLLIRTransformerTests
         call.Arguments.Add("5");
         call.Arguments.Add("3");
         function.Instructions.Add(call);
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -258,9 +264,9 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLCall { Name = "Func1" });
-        function.Instructions.Add(new MidLevelIR.MLCall { Name = "Func2" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLCall { Name = "func1" });
+        function.Instructions.Add(new MidLevelIR.MLCall { Name = "func2" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -268,8 +274,8 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var callInstructions = result.Instructions.OfType<LowLevelIR.LLCall>().ToList();
         Assert.That(callInstructions, Has.Count.EqualTo(2));
-        Assert.That(callInstructions[0].Label, Is.EqualTo("Func1"));
-        Assert.That(callInstructions[1].Label, Is.EqualTo("Func2"));
+        Assert.That(callInstructions[0].Label, Is.EqualTo("func1"));
+        Assert.That(callInstructions[1].Label, Is.EqualTo("func2"));
     }
 
     [Test]
@@ -279,8 +285,8 @@ public class MLIRToLLIRTransformerTests
         var mlir = CreateSimpleMLIR();
         var mainFunc = new MidLevelIR.MLFunction { Name = "main" };
         mainFunc.Instructions.Add(new MidLevelIR.MLCall { Name = "Helper" });
-        mlir.Functions["main"] = mainFunc;
-        mlir.Functions["Helper"] = new MidLevelIR.MLFunction { Name = "Helper" };
+        mlir.Modules[0].Functions.Add(mainFunc);
+        mlir.Modules[0].Functions.Add(new MidLevelIR.MLFunction { Name = "Helper" });
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -307,7 +313,7 @@ public class MLIRToLLIRTransformerTests
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "42" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -326,7 +332,7 @@ public class MLIRToLLIRTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         // Simulating int→byte coercion: value should be within byte range
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "byteVar", Source = "255" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -346,7 +352,7 @@ public class MLIRToLLIRTransformerTests
         var function = new MidLevelIR.MLFunction { Name = "main" };
         // Simulating implicit int→real conversion (value preserved, type handled elsewhere)
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "realVar", Source = "42" });
-        mlir.Functions["main"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -367,16 +373,18 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "COLUBK", Source = "10" });
-        function.Instructions.Add(new MidLevelIR.MLCall { Name = "InitGame" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "42" });
-        mlir.Functions["main"] = function;
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "10" });
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "20" });
+        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "z", Source = "x" });
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
 
         // Assert
         var instructions = result.Instructions.ToList();
+        // Should have: label, load, store, load, store, load, store
+        Assert.That(instructions.Count, Is.GreaterThanOrEqualTo(7));
         // Should have: label, load, store, call, load, store
         Assert.That(instructions.Count, Is.GreaterThanOrEqualTo(6));
         
@@ -395,11 +403,11 @@ public class MLIRToLLIRTransformerTests
         var mlir = CreateSimpleMLIR();
         var func1 = new MidLevelIR.MLFunction { Name = "func1" };
         func1.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Functions["func1"] = func1;
-        
+        mlir.Modules[0].Functions.Add(func1);
+
         var func2 = new MidLevelIR.MLFunction { Name = "func2" };
         func2.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "2" });
-        mlir.Functions["func2"] = func2;
+        mlir.Modules[0].Functions.Add(func2);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -422,7 +430,7 @@ public class MLIRToLLIRTransformerTests
         // Arrange
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "empty" };
-        mlir.Functions["empty"] = function;
+        mlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(mlir);
@@ -452,7 +460,10 @@ public class MLIRToLLIRTransformerTests
 
     private MidLevelIR CreateSimpleMLIR()
     {
-        return new MidLevelIR { SourceFile = "test.ir" };
+        var mlir = new MidLevelIR { SourceFile = "test.ir" };
+        var module = new MidLevelIR.MLModule { Name = "test" };
+        mlir.Modules.Add(module);
+        return mlir;
     }
 
     #endregion

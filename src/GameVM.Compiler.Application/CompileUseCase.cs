@@ -29,26 +29,20 @@ namespace GameVM.Compiler.Application
         private readonly ILanguageFrontend _frontend;
         private readonly IMidLevelOptimizer _midLevelOptimizer;
         private readonly ILowLevelOptimizer _lowLevelOptimizer;
-        private readonly IFinalIROptimizer _finalOptimizer;
         private readonly IIRTransformer<MidLevelIR, LowLevelIR> _mlirToLlir;
-        private readonly IIRTransformer<LowLevelIR, FinalIR> _llirToFinal;
         private readonly ICodeGenerator _codeGenerator;
 
         public CompileUseCase(
             ILanguageFrontend frontend,
             IMidLevelOptimizer midLevelOptimizer,
             ILowLevelOptimizer lowLevelOptimizer,
-            IFinalIROptimizer finalOptimizer,
             IIRTransformer<MidLevelIR, LowLevelIR> mlirToLlir,
-            IIRTransformer<LowLevelIR, FinalIR> llirToFinal,
             ICodeGenerator codeGenerator)
         {
             _frontend = frontend ?? throw new ArgumentNullException(nameof(frontend));
             _midLevelOptimizer = midLevelOptimizer ?? throw new ArgumentNullException(nameof(midLevelOptimizer));
             _lowLevelOptimizer = lowLevelOptimizer ?? throw new ArgumentNullException(nameof(lowLevelOptimizer));
-            _finalOptimizer = finalOptimizer ?? throw new ArgumentNullException(nameof(finalOptimizer));
             _mlirToLlir = mlirToLlir;
-            _llirToFinal = llirToFinal;
             _codeGenerator = codeGenerator;
         }
 
@@ -77,15 +71,6 @@ namespace GameVM.Compiler.Application
                     llir = _lowLevelOptimizer.Optimize(llir, options.OptimizationLevel);
                 }
 
-                // Convert to final IR
-                var finalIR = _llirToFinal.Transform(llir);
-
-                // Optimize final IR
-                if (options.Optimize)
-                {
-                    finalIR = _finalOptimizer.Optimize(finalIR, options.OptimizationLevel);
-                }
-
                 // Generate code and bytecode
                 var codeGenOptions = new CodeGenOptions
                 {
@@ -95,8 +80,8 @@ namespace GameVM.Compiler.Application
                     Optimize = options.Optimize
                 };
 
-                var code = _codeGenerator.Generate(finalIR, codeGenOptions);
-                var bytecode = _codeGenerator.GenerateBytecode(finalIR, codeGenOptions);
+                var code = _codeGenerator.Generate(llir, codeGenOptions);
+                var bytecode = _codeGenerator.GenerateBytecode(llir, codeGenOptions);
 
                 return new CompilationResult
                 {

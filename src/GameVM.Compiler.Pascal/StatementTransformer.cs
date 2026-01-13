@@ -60,7 +60,20 @@ namespace GameVM.Compiler.Pascal
             var value = TransformExpressionNode(assignNode.Right);
 
             if (targetExpr == null || value == null)
+            {
+                // Special case for Pascal return value assignment: Double := x * 2;
+                // Double might not be a variable, but the current function name.
+                if (assignNode.Left is VariableNode varNode)
+                {
+                    if (_context.FunctionScope.Count > 0 && 
+                        _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (value == null) return CreateErrorStatement("Failed to transform assignment value");
+                        return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
+                    }
+                }
                 return CreateErrorStatement("Failed to transform assignment operands");
+            }
 
             if (targetExpr is HighLevelIR.Identifier identifier)
             {
@@ -177,6 +190,23 @@ namespace GameVM.Compiler.Pascal
         {
             if (procCallNode == null)
                 return CreateErrorStatement("Procedure call node is null");
+
+            // Built-in functions
+            if (procCallNode.Name.Equals("write", StringComparison.OrdinalIgnoreCase) || 
+                procCallNode.Name.Equals("writeln", StringComparison.OrdinalIgnoreCase))
+            {
+                var args = new List<HighLevelIR.Expression>();
+                foreach (var argNode in procCallNode.Arguments)
+                {
+                    if (argNode is ExpressionNode expr)
+                    {
+                        var transformedArg = _expressionTransformer.TransformExpression(expr);
+                        if (transformedArg != null) args.Add(transformedArg);
+                    }
+                }
+                var writeFunc = new HighLevelIR.Identifier(procCallNode.Name, _context.GetOrCreateBasicType("void"), _context.SourceFile);
+                return new HighLevelIR.ExpressionStatement(new HighLevelIR.FunctionCall(writeFunc, args), _context.SourceFile);
+            }
 
             var arguments = new List<HighLevelIR.Expression>();
             foreach (var argNode in procCallNode.Arguments)

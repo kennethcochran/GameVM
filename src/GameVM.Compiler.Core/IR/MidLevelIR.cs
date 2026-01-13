@@ -14,9 +14,20 @@ namespace GameVM.Compiler.Core.IR
         public string SourceFile { get; set; } = string.Empty;
 
         /// <summary>
-        /// List of functions in mid-level representation
+        /// List of modules in mid-level representation
         /// </summary>
-        public Dictionary<string, MLFunction> Functions { get; set; } = new();
+        public List<MLModule> Modules { get; set; } = new();
+
+        /// <summary>
+        /// Global variables (kept for backward compatibility)
+        /// </summary>
+        public Dictionary<string, IRSymbol> Globals { get; set; } = new();
+
+        public class MLModule
+        {
+            public string Name { get; set; } = string.Empty;
+            public List<MLFunction> Functions { get; set; } = new();
+        }
 
         public class MLFunction
         {
@@ -25,6 +36,17 @@ namespace GameVM.Compiler.Core.IR
         }
 
         public abstract class MLInstruction { }
+
+        public class MLLabel : MLInstruction
+        {
+            public string Name { get; set; } = string.Empty;
+        }
+
+        public class MLBranch : MLInstruction
+        {
+            public string Target { get; set; } = string.Empty;
+            public string? Condition { get; set; }
+        }
 
         public class MLAssign : MLInstruction
         {

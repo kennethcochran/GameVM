@@ -19,24 +19,23 @@ namespace GameVM.Compiler.Pascal
         /// <summary>
         /// Transforms an expression node to a High-Level IR expression
         /// </summary>
-        public HighLevelIR.Expression TransformExpression(ExpressionNode exprNode)
+        public HighLevelIR.Expression TransformExpression(PascalASTNode astNode)
         {
-            if (exprNode == null)
-                return CreateErrorExpression("Expression node is null");
+            if (astNode == null)
+                return null;
 
             try
             {
-                if (exprNode is VariableNode varNode)
+                if (astNode is VariableNode varNode)
                     return TransformVariable(varNode);
-                if (exprNode is ConstantNode constNode)
+                if (astNode is ConstantNode constNode)
                     return TransformConstant(constNode);
-                if (exprNode is LiteralNode literalNode)
+                if (astNode is LiteralNode literalNode)
                     return TransformLiteral(literalNode);
-                if (exprNode is RelationalOperatorNode relOpNode)
+                if (astNode is FunctionCallNode callNode)
+                    return TransformFunctionCall(callNode);
+                if (astNode is RelationalOperatorNode relOpNode)
                     return TransformRelationalOperator(relOpNode);
-
-                // For operator nodes, cast from PascalASTNode
-                var astNode = exprNode as PascalASTNode;
                 if (astNode is AdditiveOperatorNode addOpNode)
                     return TransformAdditiveOperator(addOpNode);
                 if (astNode is MultiplicativeOperatorNode mulOpNode)
@@ -44,12 +43,35 @@ namespace GameVM.Compiler.Pascal
                 if (astNode is UnaryOperatorNode unaryOpNode)
                     return TransformUnaryOperator(unaryOpNode);
 
-                return CreateErrorExpression($"Unsupported expression type: {exprNode.GetType().Name}");
+                return CreateErrorExpression($"Unsupported expression type: {astNode.GetType().Name}");
             }
             catch (Exception ex)
             {
                 return CreateErrorExpression($"Error transforming expression: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Transforms a function call node to a High-Level IR expression
+        /// </summary>
+        private HighLevelIR.Expression TransformFunctionCall(FunctionCallNode callNode)
+        {
+            if (callNode == null)
+                return CreateErrorExpression("Function call node is null");
+
+            var arguments = new List<HighLevelIR.Expression>();
+            foreach (var argNode in callNode.Arguments)
+            {
+                HighLevelIR.Expression arg = TransformExpression(argNode);
+                
+                if (arg == null)
+                    return CreateErrorExpression("Failed to transform function argument");
+                arguments.Add(arg);
+            }
+
+            var name = callNode.Name;
+            var funcExpr = new HighLevelIR.Identifier(name, _context.GetOrCreateBasicType("i32"), _context.SourceFile);
+            return new HighLevelIR.FunctionCall(funcExpr, arguments);
         }
 
         /// <summary>
@@ -60,13 +82,14 @@ namespace GameVM.Compiler.Pascal
             if (varNode == null)
                 return CreateErrorExpression("Variable node is null");
 
-            // Look up the variable in the symbol table
-            if (_context.SymbolTable.TryGetValue(varNode.Name, out var symbol))
+            // Look up the variable in the symbol table (with scoping)
+            var symbol = _context.LookupSymbol(varNode.Name);
+            if (symbol != null)
             {
                 return new HighLevelIR.Identifier(varNode.Name, (HighLevelIR.HLType)symbol.Type, _context.SourceFile);
             }
 
-            return CreateErrorExpression($"Variable '{varNode.Name}' not declared");
+            return CreateErrorExpression($"Undefined variable: {varNode.Name}");
         }
 
         /// <summary>
@@ -135,8 +158,8 @@ namespace GameVM.Compiler.Pascal
             if (addOpNode == null)
                 return CreateErrorExpression("Additive operator node is null");
 
-            var left = TransformExpression(addOpNode.Left as ExpressionNode);
-            var right = TransformExpression(addOpNode.Right as ExpressionNode);
+            var left = TransformExpression(addOpNode.Left);
+            var right = TransformExpression(addOpNode.Right);
 
             if (left == null || right == null)
                 return CreateErrorExpression("Failed to transform additive operator operands");
@@ -152,8 +175,8 @@ namespace GameVM.Compiler.Pascal
             if (mulOpNode == null)
                 return CreateErrorExpression("Multiplicative operator node is null");
 
-            var left = TransformExpression(mulOpNode.Left as ExpressionNode);
-            var right = TransformExpression(mulOpNode.Right as ExpressionNode);
+            var left = TransformExpression(mulOpNode.Left);
+            var right = TransformExpression(mulOpNode.Right);
 
             if (left == null || right == null)
                 return CreateErrorExpression("Failed to transform multiplicative operator operands");
@@ -169,7 +192,7 @@ namespace GameVM.Compiler.Pascal
             if (unaryOpNode == null)
                 return CreateErrorExpression("Unary operator node is null");
 
-            var operand = TransformExpression(unaryOpNode.Operand as ExpressionNode);
+            var operand = TransformExpression(unaryOpNode.Operand);
             if (operand == null)
                 return CreateErrorExpression("Failed to transform unary operator operand");
 

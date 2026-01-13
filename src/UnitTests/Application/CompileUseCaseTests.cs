@@ -47,7 +47,6 @@ namespace UnitTests.Application
             var hlir = new Mock<HighLevelIR>().Object;
             var mlir = new Mock<MidLevelIR>().Object;
             var llir = new Mock<LowLevelIR>().Object;
-            var finalIr = new Mock<FinalIR>().Object;
             var options = new CompilationOptions
             {
                 Target = Architecture.Genesis,
@@ -66,11 +65,8 @@ namespace UnitTests.Application
             _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
                 .Setup(x => x.Transform(mlir))
                 .Returns(llir);
-            _mocker.GetMock<IIRTransformer<LowLevelIR, FinalIR>>()
-                .Setup(x => x.Transform(llir))
-                .Returns(finalIr);
             _mocker.GetMock<ICodeGenerator>()
-                .Setup(x => x.Generate(finalIr, It.IsAny<CodeGenOptions>()))
+                .Setup(x => x.Generate(llir, It.IsAny<CodeGenOptions>()))
                 .Returns(new byte[] { 1, 2, 3 });
 
             // Act
@@ -93,7 +89,6 @@ namespace UnitTests.Application
             var hlir = new HighLevelIR();
             var mlir = new MidLevelIR();
             var llir = new LowLevelIR();
-            var finalIr = new FinalIR();
             var options = new CompilationOptions
             {
                 Target = Architecture.Genesis,
@@ -110,11 +105,8 @@ namespace UnitTests.Application
             _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
                 .Setup(b => b.Transform(mlir))
                 .Returns(llir);
-            _mocker.GetMock<IIRTransformer<LowLevelIR, FinalIR>>()
-                .Setup(b => b.Transform(llir))
-                .Returns(finalIr);
             _mocker.GetMock<ICodeGenerator>()
-                .Setup(g => g.Generate(finalIr, It.IsAny<CodeGenOptions>()))
+                .Setup(g => g.Generate(llir, It.IsAny<CodeGenOptions>()))
                 .Returns(new byte[0]);
 
             // Act
@@ -413,18 +405,14 @@ namespace UnitTests.Application
             var frontend = new GameVM.Compiler.Pascal.PascalFrontend();
             var midOptimizer = new GameVM.Compiler.Optimizers.MidLevel.DefaultMidLevelOptimizer();
             var lowOptimizer = new GameVM.Compiler.Optimizers.LowLevel.DefaultLowLevelOptimizer();
-            var finalOptimizer = new GameVM.Compiler.Optimizers.FinalIR.DefaultFinalIROptimizer();
             var mlirToLlir = new GameVM.Compiler.Backend.Atari2600.MidToLowLevelTransformer();
-            var llirToFinal = new GameVM.Compiler.Backend.Atari2600.LowToFinalTransformer();
             var codeGenerator = new GameVM.Compiler.Backend.Atari2600.Atari2600CodeGenerator();
 
             return new CompileUseCase(
                 frontend,
                 midOptimizer,
                 lowOptimizer,
-                finalOptimizer,
                 mlirToLlir,
-                llirToFinal,
                 codeGenerator);
         }
 

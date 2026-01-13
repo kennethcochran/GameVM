@@ -8,7 +8,6 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
-using GameVM.Compiler.Optimizers.FinalIR;
 using GameVM.Compiler.Backend.Atari2600;
 
 namespace GameVM.Compiler.Specs.Support
@@ -30,9 +29,7 @@ namespace GameVM.Compiler.Specs.Support
                 new PascalFrontend(),
                 new DefaultMidLevelOptimizer(),
                 new DefaultLowLevelOptimizer(),
-                new DefaultFinalIROptimizer(),
                 new MidToLowLevelTransformer(),
-                new LowToFinalTransformer(),
                 new Atari2600CodeGenerator());
         }
     }
