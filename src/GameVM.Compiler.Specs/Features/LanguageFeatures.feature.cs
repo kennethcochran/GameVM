@@ -100,7 +100,7 @@ namespace GameVM.Compiler.Specs.Features
             {
                 await this.ScenarioStartAsync();
 #line 7
-    await testRunner.GivenAsync("a Pascal program with if/while/for statements", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+    await testRunner.GivenAsync("a Pascal program with control flow statements", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 8
     await testRunner.WhenAsync("I compile the program", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
@@ -166,7 +166,7 @@ namespace GameVM.Compiler.Specs.Features
             {
                 await this.ScenarioStartAsync();
 #line 19
-    await testRunner.GivenAsync("a Pascal program using write/writeln", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+    await testRunner.GivenAsync("a Pascal program using write and writeln", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 20
     await testRunner.WhenAsync("I compile the program", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");

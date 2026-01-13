@@ -28,7 +28,6 @@
     <ProjectReference Include="..\GameVM.Compiler.Interaction\GameVM.Compiler.Interaction.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Optimizers.MidLevel\GameVM.Compiler.Optimizers.MidLevel.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Optimizers.LowLevel\GameVM.Compiler.Optimizers.LowLevel.csproj" />
-    <ProjectReference Include="..\GameVM.Compiler.Optimizers.FinalIR\GameVM.Compiler.Optimizers.FinalIR.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class AdditiveOperatorNode : PascalASTNode
+    public class AdditiveOperatorNode : ExpressionNode
     {
         public required string Operator { get; set; }
         public required PascalASTNode Left { get; set; }

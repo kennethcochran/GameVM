@@ -11,6 +11,7 @@ namespace GameVM.Compiler.Pascal
     {
         private readonly TransformationContext _context;
         private readonly ExpressionTransformer _expressionTransformer;
+        public StatementTransformer StatementTransformer { get; set; }
 
         public DeclarationTransformer(
             TransformationContext context,
@@ -69,6 +70,9 @@ namespace GameVM.Compiler.Pascal
             // Register in global IR
             _context.IR.Functions[procNode.Name] = procedure;
 
+            // Push scope for procedure
+            _context.PushScope();
+
             // Push onto function scope stack
             _context.FunctionScope.Push(procedure);
 
@@ -98,14 +102,20 @@ namespace GameVM.Compiler.Pascal
                     }
                     else
                     {
-                        // We need a way to add statements to the current function body
-                        // A StatementTransformer can be used here or we can delegate back to PascalAstToHlirTransformer
+                        var transformedStmt = StatementTransformer?.TransformStatement(stmt);
+                        if (transformedStmt != null)
+                        {
+                            procedure.Body.AddStatement(transformedStmt);
+                        }
                     }
                 }
             }
 
             // Pop from function scope stack
             _context.FunctionScope.Pop();
+
+            // Pop scope
+            _context.PopScope();
         }
 
         /// <summary>
@@ -123,6 +133,17 @@ namespace GameVM.Compiler.Pascal
 
             // Register in global IR
             _context.IR.Functions[funcNode.Name] = function;
+
+            // Push scope for function
+            _context.PushScope();
+
+            // Register function name as a variable in the local scope for return values (Pascal style)
+            var returnSymbol = new IRSymbol
+            {
+                Name = funcNode.Name,
+                Type = returnType
+            };
+            _context.SymbolTable[funcNode.Name] = returnSymbol;
 
             // Push onto function scope stack
             _context.FunctionScope.Push(function);
@@ -142,14 +163,37 @@ namespace GameVM.Compiler.Pascal
                 _context.SymbolTable[param.Name] = symbol;
             }
 
+            // Process nested block if it exists
+            if (funcNode.Block is BlockNode blockNode)
+            {
+                foreach (var stmt in blockNode.Statements)
+                {
+                    if (stmt is ProcedureNode or FunctionNode or VariableDeclarationNode or TypeDefinitionNode)
+                    {
+                        TransformDeclaration(stmt);
+                    }
+                    else
+                    {
+                        var transformedStmt = StatementTransformer?.TransformStatement(stmt);
+                        if (transformedStmt != null)
+                        {
+                            function.Body.AddStatement(transformedStmt);
+                        }
+                    }
+                }
+            }
+
             // Pop from function scope stack
             _context.FunctionScope.Pop();
+
+            // Pop scope
+            _context.PopScope();
         }
 
         /// <summary>
         /// Transforms a variable declaration
         /// </summary>
-        private void TransformVariableDeclaration(VariableDeclarationNode varDeclNode)
+        public void TransformVariableDeclaration(VariableDeclarationNode varDeclNode)
         {
             if (varDeclNode == null)
                 return;
@@ -162,15 +206,17 @@ namespace GameVM.Compiler.Pascal
             };
             _context.SymbolTable[varDeclNode.Name] = symbol;
 
-            // Also add to global IR if we are at top level (or current function)
-            if (_context.FunctionScope.Count == 0)
+            // Also add to global IR if we are at top level (or current function is main and we only have 1 function scope)
+            if (_context.FunctionScope.Count <= 1)
             {
                 _context.IR.Globals[varDeclNode.Name] = symbol;
             }
             else
             {
-                // In HLIR, we might want to track local variables on the function object
-                // but IRFunction currently only has Parameters and Body (Top-level statements/decls)
+                // Local variable in a function
+                var currentFunction = _context.FunctionScope.Peek();
+                // IRFunction doesn't have a LocalVariables list, but we can add them to some metadata if needed.
+                // For now, they are just in the symbol table which is enough for transformation.
             }
         }
 

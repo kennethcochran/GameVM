@@ -8,24 +8,41 @@ namespace GameVM.Compiler.Backend.Atari2600
         public LowLevelIR Transform(MidLevelIR mlir)
         {
             var llir = new LowLevelIR { SourceFile = mlir.SourceFile };
-
-            foreach (var mlFunc in mlir.Functions.Values)
+            llir.Modules.Clear();
+            
+            // Process each module in the input
+            foreach (var module in mlir.Modules)
             {
-                llir.Instructions.Add(new LowLevelIR.LLLabel { Name = mlFunc.Name });
+                var outputModule = new LowLevelIR.LLModule { Name = module.Name };
 
-                foreach (var instr in mlFunc.Instructions)
+                // Process each function in the input module
+                foreach (var mlFunc in module.Functions)
                 {
-                    if (instr is MidLevelIR.MLAssign assign)
+                    var llFunc = new LowLevelIR.LLFunction { Name = mlFunc.Name };
+                    
+                    // Process each instruction in the function
+                    foreach (var instr in mlFunc.Instructions)
                     {
-                        var targetAddr = MapToAddress(assign.Target);
-                        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = assign.Source });
-                        llir.Instructions.Add(new LowLevelIR.LLStore { Address = targetAddr, Register = "A" });
+                        if (instr is MidLevelIR.MLLabel label)
+                        {
+                            llFunc.Instructions.Add(new LowLevelIR.LLLabel { Name = label.Name });
+                        }
+                        else if (instr is MidLevelIR.MLAssign assign)
+                        {
+                            var targetAddr = MapToAddress(assign.Target);
+                            llFunc.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = assign.Source });
+                            llFunc.Instructions.Add(new LowLevelIR.LLStore { Address = targetAddr, Register = "A" });
+                        }
+                        else if (instr is MidLevelIR.MLCall call)
+                        {
+                            llFunc.Instructions.Add(new LowLevelIR.LLCall { Label = call.Name });
+                        }
                     }
-                    else if (instr is MidLevelIR.MLCall call)
-                    {
-                        llir.Instructions.Add(new LowLevelIR.LLCall { Label = call.Name });
-                    }
+                    
+                    outputModule.Functions.Add(llFunc);
                 }
+                
+                llir.Modules.Add(outputModule);
             }
 
             return llir;

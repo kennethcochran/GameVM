@@ -8,14 +8,14 @@ namespace GameVM.Compiler.Core.IR.Interfaces
     public interface ICodeGenerator
     {
         /// <summary>
-        /// Generate executable code from final IR
+        /// Generate executable code from low-level IR
         /// </summary>
-        byte[] Generate(FinalIR ir, CodeGenOptions options);
+        byte[] Generate(LowLevelIR ir, CodeGenOptions options);
 
         /// <summary>
-        /// Generate bytecode from final IR
+        /// Generate bytecode from low-level IR
         /// </summary>
-        byte[] GenerateBytecode(FinalIR ir, CodeGenOptions options);
+        byte[] GenerateBytecode(LowLevelIR ir, CodeGenOptions options);
     }
 
     /// <summary>

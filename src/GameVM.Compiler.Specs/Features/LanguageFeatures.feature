@@ -4,7 +4,7 @@ Feature: Pascal Language Features
   So that I can write expressive programs
 
   Scenario: Control flow statements
-    Given a Pascal program with if/while/for statements
+    Given a Pascal program with control flow statements
     When I compile the program
     Then the compilation succeeds
     And control flow is compiled correctly
@@ -16,7 +16,7 @@ Feature: Pascal Language Features
     And function calls are handled correctly
 
   Scenario: Built-in functions
-    Given a Pascal program using write/writeln
+    Given a Pascal program using write and writeln
     When I compile the program
     Then the compilation succeeds
     And built-in functions are called correctly

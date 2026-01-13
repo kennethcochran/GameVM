@@ -8,16 +8,37 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     public class Atari2600CodeGenerator : ICodeGenerator
     {
-        private readonly M6502Emitter _emitter = new M6502Emitter();
-
-        public byte[] Generate(FinalIR ir, CodeGenOptions options)
+        public byte[] Generate(LowLevelIR ir, CodeGenOptions options)
         {
             return GenerateBytecode(ir, options);
         }
 
-        public byte[] GenerateBytecode(FinalIR ir, CodeGenOptions options)
+        public byte[] GenerateBytecode(LowLevelIR ir, CodeGenOptions options)
         {
-            var code = _emitter.Emit(ir.AssemblyLines);
+            var assemblyLines = new List<string>();
+
+            foreach (var instr in ir.Instructions)
+            {
+                if (instr is LowLevelIR.LLLoad load)
+                {
+                    assemblyLines.Add($"LDA #{load.Value}");
+                }
+                else if (instr is LowLevelIR.LLStore store)
+                {
+                    assemblyLines.Add($"STA {store.Address}");
+                }
+                else if (instr is LowLevelIR.LLCall call)
+                {
+                    assemblyLines.Add($"JSR {call.Label}");
+                }
+                else if (instr is LowLevelIR.LLLabel label)
+                {
+                    assemblyLines.Add($"{label.Name}:");
+                }
+            }
+
+            var emitter = new M6502Emitter();
+            var code = emitter.Emit(assemblyLines);
             
             var rom = new byte[4096];
             Array.Copy(code, 0, rom, 0, Math.Min(code.Length, rom.Length - 6));

@@ -17,9 +17,20 @@ namespace GameVM.Compiler.Backend.Atari2600
                 if (trimmed.StartsWith("LDA #"))
                 {
                     binary.Add(0xA9);
-                    var valStr = trimmed.Substring(5);
-                    if (byte.TryParse(valStr, out byte b))
+                    var valStr = trimmed.Substring(5).Trim();
+                    
+                    if (valStr.StartsWith("$"))
+                    {
+                        binary.Add((byte)Convert.ToInt32(valStr.Substring(1), 16));
+                    }
+                    else if (byte.TryParse(valStr, out byte b))
+                    {
                         binary.Add(b);
+                    }
+                    else if (int.TryParse(valStr, out int val))
+                    {
+                        binary.Add((byte)val);
+                    }
                 }
                 else if (trimmed.StartsWith("STA "))
                 {

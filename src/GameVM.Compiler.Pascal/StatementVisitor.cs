@@ -206,13 +206,26 @@ namespace GameVM.Compiler.Pascal
         public override PascalASTNode VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
         {
             var name = context.identifier()?.GetText();
-            var arguments = context.parameterList()?.actualParameter()
-                .Select(arg => _expressionVisitor.Visit(arg) as ExpressionNode)
-                .Where(arg => arg != null)
-                .Cast<PascalASTNode>()
-                .ToList();
+            var arguments = new List<PascalASTNode>();
+            
+            var paramList = context.parameterList();
+            if (paramList != null)
+            {
+                var actualParams = paramList.actualParameter();
+                if (actualParams != null)
+                {
+                    foreach (var arg in actualParams)
+                    {
+                        var visitedArg = _expressionVisitor.Visit(arg);
+                        if (visitedArg != null)
+                        {
+                            arguments.Add(visitedArg);
+                        }
+                    }
+                }
+            }
 
-            if (name == null || arguments == null)
+            if (name == null)
             {
                 return new ErrorNode("Incomplete procedure call");
             }

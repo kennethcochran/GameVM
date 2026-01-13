@@ -16,10 +16,5 @@ namespace GameVM.Compiler.Core.Pipeline
         /// Optimize low-level IR
         /// </summary>
         void OptimizeLowLevel(LowLevelIR ir);
-
-        /// <summary>
-        /// Optimize final IR
-        /// </summary>
-        void OptimizeFinal(FinalIR ir);
     }
 }
