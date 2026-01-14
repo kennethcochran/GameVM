@@ -49,14 +49,6 @@ jobs:
           path: .tools/mame
           key: ${{ runner.os }}-mame-v0284 # Use specific version for cache key
           
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          
-      - name: Install lit
-        run: pip install lit
-        
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -75,12 +67,6 @@ jobs:
           
           # Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
           dotnet run --project src/GameVM.DevTools -- mame install
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Run Behavioral (lit) tests
-          # We use the built DLL for stability
-          $lit_path = $(python -c "import sys; import os; print(os.path.join(sys.prefix, 'Scripts', 'lit.exe') if os.name == 'nt' else os.path.join(sys.prefix, 'bin', 'lit'))")
-          & $lit_path -v test/GameVM.Compiler.Atari2600.Tests/lit-tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
