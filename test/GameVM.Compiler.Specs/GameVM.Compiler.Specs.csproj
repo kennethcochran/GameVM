@@ -25,9 +25,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
-    <ProjectReference Include="..\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
-    <ProjectReference Include="..\GameVM.Compile\GameVM.Compile.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Application\GameVM.Compiler.Application.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compile\GameVM.Compile.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.MidLevel\GameVM.Compiler.Optimizers.MidLevel.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.LowLevel\GameVM.Compiler.Optimizers.LowLevel.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Backend.Atari2600\GameVM.Compiler.Backend.Atari2600.csproj" />
   </ItemGroup>
 
   <ItemGroup>

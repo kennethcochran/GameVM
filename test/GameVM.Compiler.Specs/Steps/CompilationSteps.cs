@@ -294,7 +294,7 @@ public class CompilationSteps
         Assert.That(_context.CompilationResult.Success, Is.True);
 
         var projectRoot = FindProjectRoot(AppContext.BaseDirectory);
-        var monitorScript = Path.Combine(projectRoot, "test/GameVM.Compiler.Atari2600.Tests/scripts/monitor.lua");
+        var monitorScript = Path.Combine(projectRoot, "test/GameVM.Compiler.Specs/monitor.lua");
 
         _context.MameOutput = MameRunner.Run(_context.CompilationResult.Code, monitorScript);
     }
