@@ -1,32 +1,45 @@
--- MAME monitor script for GameVM validation
-local frames = 0
-local done = false
+-- GameVM MAME Monitor Script
+-- Dumps CPU state to stdout for verification in tests
 
-emu.register_frame(function()
-    if done then return end
-    frames = frames + 1
+local function dump_state()
+    local cpu = manager.machine.devices[":maincpu"]
     
-    -- Wait for about half a second (30 frames at 60fps)
-    if frames >= 30 then
-        done = true
-        local cpu = manager.machine.devices[":maincpu"]
-        local mem = cpu.spaces["program"]
+    print("--- GAMEVM MAME DUMP ---")
+    -- Use pc(), state() methods or debug interface
+    -- In MAME Lua, cpu.state[name] should work if items is nil, 
+    -- but sometimes it's cpu:state():set_value(name, val) or cpu:state():value(name)
+    
+    -- Let's try to just dump all registers using a more robust way
+    print("CPU state:")
+    -- Use specific register names if pairs fails or returns unexpected objects
+    print("A: " .. string.format("%02X", cpu.state["A"].value))
+    print("X: " .. string.format("%02X", cpu.state["X"].value))
+    print("Y: " .. string.format("%02X", cpu.state["Y"].value))
+    print("PC: " .. string.format("%04X", cpu.state["PC"].value))
+
+    print("TIA/RAM Dump:")
+    -- Dump some zero page
+    -- Use cpu.spaces["program"] and its read methods
+    local mem = cpu.spaces["program"]
+    for i = 0x80, 0x85 do
+        -- MAME Lua 0.2xx+ uses read_u8 or similar
+        local val = 0
+        pcall(function() val = mem:read_u8(i) end)
+        if val == 0 then pcall(function() val = mem:read_byte(i) end) end
         
-        print("--- GAMEVM MAME DUMP ---")
-        print("CPU state:")
-        print(string.format("A: %d", cpu.state["A"].value))
-        print(string.format("PC: %04X", cpu.state["PC"].value))
-        print(string.format("X: %d", cpu.state["X"].value))
-        print(string.format("Y: %d", cpu.state["Y"].value))
-        
-        print("Memory at $F000:")
-        for i=0,7 do
-            print(string.format("%04X: %02X", 0xF000 + i, mem:read_u8(0xF000 + i)))
-        end
-        
-        print("TIA/RAM Dump:")
-        print("Done.")
-        
+        print(string.format("$%02X: %02X", i, val))
+    end
+    print("--- END GAMEVM DUMP ---")
+end
+
+-- Wait for some frames to allow the program to run
+local frames = 0
+local function on_frame()
+    frames = frames + 1
+    if frames == 30 then
+        dump_state()
         manager.machine:exit()
     end
-end)
+end
+
+emu.register_frame(on_frame)
