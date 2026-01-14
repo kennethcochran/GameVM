@@ -1,6 +1,7 @@
 /******************************************************************************
 * This file contains tests for the CompileUseCase class.
 ******************************************************************************/
+using NUnit.Framework;
 using Moq;
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;

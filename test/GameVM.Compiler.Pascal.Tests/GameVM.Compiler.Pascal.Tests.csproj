@@ -18,19 +18,26 @@
 
   <ItemGroup>
     <!-- Test Dependencies -->
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="NUnit" Version="3.14.0" />
-    <PackageReference Include="NUnit.Analyzers" Version="3.9.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    
+    <PackageReference Include="Moq" Version="4.20.72" />
+    
+    <PackageReference Include="Moq.AutoMock" Version="3.5.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.6.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj" />
   </ItemGroup>
 
   <!-- Target to generate HTML report after tests using dotnet-reportgenerator -->
@@ -47,14 +54,11 @@
     
     <MakeDir Directories="$(ReportOutputDir)" />
     
-    <Message Text="Found @(CoverageFiles->Count()) coverage files" Importance="high" />
+    <Message Text="Found @(CoverageFiles-&gt;Count()) coverage files" Importance="high" />
     
-    <Exec 
-      Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html"
-      Condition="@(CoverageFiles->Count()) > 0"
-      IgnoreExitCode="true" />
+    <Exec Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" IgnoreExitCode="true" />
       
-    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles->Count()) > 0" />
+    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" />
   </Target>
 
   <ItemGroup>
