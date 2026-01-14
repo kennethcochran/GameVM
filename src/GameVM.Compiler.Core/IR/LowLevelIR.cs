@@ -51,6 +51,12 @@ namespace GameVM.Compiler.Core.IR
             public string Label { get; set; } = string.Empty;
         }
 
+        public class LLJump : LLInstruction
+        {
+            public string Target { get; set; } = string.Empty;
+            public string? Condition { get; set; }
+        }
+
         public class LLLabel : LLInstruction
         {
             public string Name { get; set; } = string.Empty;

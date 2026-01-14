@@ -70,8 +70,27 @@ namespace GameVM.Compiler.Pascal
             }
 
             var name = callNode.Name;
-            var funcExpr = new HighLevelIR.Identifier(name, _context.GetOrCreateBasicType("i32"), _context.SourceFile);
-            return new HighLevelIR.FunctionCall(funcExpr, arguments);
+            var type = _context.GetOrCreateBasicType("i32");
+
+            // Check if it's a known function to get its return type
+            var symbol = _context.LookupSymbol(name);
+            if (symbol is HighLevelIR.Variable varSymbol)
+            {
+                type = varSymbol.Type;
+            }
+            else if (_context.IR.GlobalFunctions.TryGetValue(name, out var globalFunc))
+            {
+                type = globalFunc.ReturnType;
+            }
+            else if (_context.IR.Functions.TryGetValue(name, out var func))
+            {
+                type = func.ReturnType;
+            }
+
+            var funcExpr = new HighLevelIR.Identifier(name, type, _context.SourceFile);
+            var result = new HighLevelIR.FunctionCall(funcExpr, arguments);
+            result.Type = type;
+            return result;
         }
 
         /// <summary>
@@ -86,7 +105,10 @@ namespace GameVM.Compiler.Pascal
             var symbol = _context.LookupSymbol(varNode.Name);
             if (symbol != null)
             {
-                return new HighLevelIR.Identifier(varNode.Name, (HighLevelIR.HLType)symbol.Type, _context.SourceFile);
+                var type = (HighLevelIR.HLType)symbol.Type;
+                var ident = new HighLevelIR.Identifier(varNode.Name, type, _context.SourceFile);
+                ident.Type = type;
+                return ident;
             }
 
             return CreateErrorExpression($"Undefined variable: {varNode.Name}");
@@ -105,24 +127,36 @@ namespace GameVM.Compiler.Pascal
                 // Try to parse as integer
                 if (int.TryParse(constNode.Value?.ToString(), out int intValue))
                 {
-                    return new HighLevelIR.Literal(intValue, _context.GetOrCreateBasicType("i32"), _context.SourceFile);
+                    var type = _context.GetOrCreateBasicType("i32");
+                    var result = new HighLevelIR.Literal(intValue, type, _context.SourceFile);
+                    result.Type = type;
+                    return result;
                 }
 
                 // Try to parse as double
                 if (double.TryParse(constNode.Value?.ToString(), out double doubleValue))
                 {
-                    return new HighLevelIR.Literal(doubleValue, _context.GetOrCreateBasicType("f64"), _context.SourceFile);
+                    var type = _context.GetOrCreateBasicType("f64");
+                    var result = new HighLevelIR.Literal(doubleValue, type, _context.SourceFile);
+                    result.Type = type;
+                    return result;
                 }
 
                 // Try to parse as boolean
                 if (bool.TryParse(constNode.Value?.ToString(), out bool boolValue))
                 {
-                    return new HighLevelIR.Literal(boolValue, _context.GetOrCreateBasicType("bool"), _context.SourceFile);
+                    var type = _context.GetOrCreateBasicType("bool");
+                    var result = new HighLevelIR.Literal(boolValue, type, _context.SourceFile);
+                    result.Type = type;
+                    return result;
                 }
 
                 if (constNode.Value is string strValue)
                 {
-                    return new HighLevelIR.Literal(strValue, _context.GetOrCreateBasicType("string"), _context.SourceFile);
+                    var type = _context.GetOrCreateBasicType("string");
+                    var result = new HighLevelIR.Literal(strValue, type, _context.SourceFile);
+                    result.Type = type;
+                    return result;
                 }
 
                 return CreateErrorExpression($"Unsupported constant type: {constNode.Value?.GetType().Name}");
@@ -147,7 +181,9 @@ namespace GameVM.Compiler.Pascal
             if (left == null || right == null)
                 return CreateErrorExpression("Failed to transform relational operator operands");
 
-            return new HighLevelIR.BinaryOp(relOpNode.Operator, left, right, _context.SourceFile);
+            var result = new HighLevelIR.BinaryOp(relOpNode.Operator, left, right, _context.SourceFile);
+            result.Type = _context.GetOrCreateBasicType("bool");
+            return result;
         }
 
         /// <summary>
@@ -164,7 +200,9 @@ namespace GameVM.Compiler.Pascal
             if (left == null || right == null)
                 return CreateErrorExpression("Failed to transform additive operator operands");
 
-            return new HighLevelIR.BinaryOp(addOpNode.Operator, left, right, _context.SourceFile);
+            var result = new HighLevelIR.BinaryOp(addOpNode.Operator, left, right, _context.SourceFile);
+            result.Type = left.Type ?? right.Type ?? _context.GetOrCreateBasicType("i32");
+            return result;
         }
 
         /// <summary>
@@ -181,7 +219,9 @@ namespace GameVM.Compiler.Pascal
             if (left == null || right == null)
                 return CreateErrorExpression("Failed to transform multiplicative operator operands");
 
-            return new HighLevelIR.BinaryOp(mulOpNode.Operator, left, right, _context.SourceFile);
+            var result = new HighLevelIR.BinaryOp(mulOpNode.Operator, left, right, _context.SourceFile);
+            result.Type = left.Type ?? right.Type ?? _context.GetOrCreateBasicType("i32");
+            return result;
         }
 
         /// <summary>
@@ -196,7 +236,9 @@ namespace GameVM.Compiler.Pascal
             if (operand == null)
                 return CreateErrorExpression("Failed to transform unary operator operand");
 
-            return new HighLevelIR.Expression(_context.SourceFile);
+            var result = new HighLevelIR.UnaryOp(unaryOpNode.Operator, operand, _context.SourceFile);
+            result.Type = operand.Type;
+            return result;
         }
 
         /// <summary>

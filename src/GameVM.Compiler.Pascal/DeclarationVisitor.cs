@@ -207,6 +207,37 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
+        public override PascalASTNode VisitConstantDefinitionPart(PascalParser.ConstantDefinitionPartContext context)
+        {
+            var nodes = new List<PascalASTNode>();
+            foreach (var constDef in context.constantDefinition())
+            {
+                var node = Visit(constDef);
+                if (node != null)
+                {
+                    nodes.Add(node);
+                }
+            }
+            return new BlockNode { Statements = nodes };
+        }
+
+        public override PascalASTNode VisitConstantDefinition(PascalParser.ConstantDefinitionContext context)
+        {
+            var name = context.identifier()?.GetText();
+            var valueNode = _expressionVisitor.Visit(context.constant());
+
+            if (string.IsNullOrEmpty(name) || valueNode == null)
+            {
+                return new ErrorNode("Constant definition is incomplete");
+            }
+
+            return new ConstantDeclarationNode
+            {
+                Name = name,
+                Value = (ExpressionNode)valueNode
+            };
+        }
+
         public override PascalASTNode VisitType_(PascalParser.Type_Context context)
         {
             if (context.simpleType() != null)

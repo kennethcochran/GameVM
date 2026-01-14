@@ -69,10 +69,30 @@ namespace GameVM.Compiler.Pascal
                         _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         if (value == null) return CreateErrorStatement("Failed to transform assignment value");
+
+                        // Type checking for return value assignment
+                        var returnType = _context.FunctionScope.Peek().ReturnType;
+                        if (returnType != null && value.Type != null)
+                        {
+                            if (!IsCompatible(returnType, value.Type))
+                            {
+                                _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to return type {returnType.Name}");
+                            }
+                        }
+
                         return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
                     }
                 }
                 return CreateErrorStatement("Failed to transform assignment operands");
+            }
+
+            // Basic type checking
+            if (targetExpr.Type != null && value.Type != null)
+            {
+                if (!IsCompatible(targetExpr.Type, value.Type))
+                {
+                    _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to {targetExpr.Type.Name}");
+                }
             }
 
             if (targetExpr is HighLevelIR.Identifier identifier)
@@ -81,6 +101,23 @@ namespace GameVM.Compiler.Pascal
             }
 
             return CreateErrorStatement("Assignment target must be an identifier");
+        }
+
+        private bool IsCompatible(HighLevelIR.HLType targetType, HighLevelIR.HLType valueType)
+        {
+            if (targetType.Name.Equals(valueType.Name, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Allow integer to real conversion
+            if (targetType.Name.Equals("f64", StringComparison.OrdinalIgnoreCase) && 
+                valueType.Name.Equals("i32", StringComparison.OrdinalIgnoreCase))
+                return true;
+            
+            if (targetType.Name.Equals("real", StringComparison.OrdinalIgnoreCase) && 
+                valueType.Name.Equals("integer", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
         }
 
         /// <summary>

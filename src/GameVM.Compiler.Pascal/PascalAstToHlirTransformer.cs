@@ -44,11 +44,9 @@ namespace GameVM.Compiler.Pascal
 
             ProcessProgram(programNode);
             
-            if (_context.Errors.Count > 0)
-            {
-                throw new Exception(string.Join("; ", _context.Errors));
-            }
-
+            // Sync errors to IR
+            _ir.Errors.AddRange(_context.Errors);
+            
             return _ir;
         }
 
@@ -73,6 +71,10 @@ namespace GameVM.Compiler.Pascal
                     {
                         _declarationTransformer.TransformVariableDeclaration(varDecl);
                     }
+                    else if (stmt is ConstantDeclarationNode constDecl)
+                    {
+                        _declarationTransformer.TransformDeclaration(constDecl);
+                    }
                 }
             }
 
@@ -93,7 +95,7 @@ namespace GameVM.Compiler.Pascal
             {
                 foreach (var stmt in programNode.Block.Statements)
                 {
-                    if (stmt is VariableDeclarationNode) continue; // Already processed
+                    if (stmt is VariableDeclarationNode or ConstantDeclarationNode) continue; // Already processed
                     
                     if (stmt is ProcedureNode or FunctionNode or TypeDefinitionNode)
                     {
@@ -131,7 +133,7 @@ namespace GameVM.Compiler.Pascal
             foreach (var stmt in blockNode.Statements)
             {
                 // Delegate to appropriate transformer
-                if (stmt is ProcedureNode or FunctionNode or VariableDeclarationNode or TypeDefinitionNode)
+                if (stmt is ProcedureNode or FunctionNode or VariableDeclarationNode or ConstantDeclarationNode or TypeDefinitionNode)
                 {
                     _declarationTransformer.TransformDeclaration(stmt);
                 }

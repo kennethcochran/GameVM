@@ -196,7 +196,7 @@ public class HlirToMlirTransformerTests
         var assign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(assign, Is.Not.Null);
         Assert.That(assign.Target, Is.EqualTo("result"));
-        Assert.That(assign.Source, Is.EqualTo("(5 + 3)"), "Binary operation should be converted to string expression");
+        Assert.That(assign.Source, Is.EqualTo("8"), "Binary operation should be folded if possible");
     }
 
     #endregion
