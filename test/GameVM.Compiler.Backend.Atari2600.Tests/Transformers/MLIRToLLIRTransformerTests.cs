@@ -374,8 +374,8 @@ public class MLIRToLLIRTransformerTests
         var mlir = CreateSimpleMLIR();
         var function = new MidLevelIR.MLFunction { Name = "main" };
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "10" });
+        function.Instructions.Add(new MidLevelIR.MLCall { Name = "myFunction" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "20" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "z", Source = "x" });
         mlir.Modules[0].Functions.Add(function);
 
         // Act
@@ -383,10 +383,8 @@ public class MLIRToLLIRTransformerTests
 
         // Assert
         var instructions = result.Instructions.ToList();
-        // Should have: label, load, store, load, store, load, store
-        Assert.That(instructions.Count, Is.GreaterThanOrEqualTo(7));
-        // Should have: label, load, store, call, load, store
-        Assert.That(instructions.Count, Is.GreaterThanOrEqualTo(6));
+        // Should have: label (main), load(10), store(x), call(myFunction), load(20), store(y)
+        Assert.That(instructions.Count, Is.EqualTo(6));
         
         Assert.That(instructions[0], Is.TypeOf<LowLevelIR.LLLabel>());
         Assert.That(instructions[1], Is.TypeOf<LowLevelIR.LLLoad>());

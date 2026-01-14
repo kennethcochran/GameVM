@@ -14,6 +14,13 @@ GameVM requires:
   - Options: [Eclipse Temurin](https://adoptium.net/), [Microsoft Build of OpenJDK](https://www.microsoft.com/openjdk), or [Amazon Corretto](https://aws.amazon.com/corretto/)
 - The build process will automatically handle ANTLR tooling
 
+## Testing
+
+GameVM uses several testing strategies to ensure correctness:
+
+- **Unit Tests**: NUnit tests for individual components (found in `src/UnitTests`, `src/GameVM.Compiler.Core.Tests`, etc.).
+- **BDD Tests**: Scenario-based end-to-end tests using Reqnroll (found in `src/GameVM.Compiler.Specs`). These tests cover language features, backend code generation, and behavior validation via MAME execution.
+
 ### Build
 ```pwsh
 dotnet build

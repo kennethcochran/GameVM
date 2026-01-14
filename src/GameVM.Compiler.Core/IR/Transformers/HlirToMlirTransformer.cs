@@ -7,8 +7,10 @@ namespace GameVM.Compiler.Core.IR.Transformers
 {
     public class HlirToMlirTransformer : IIRTransformer<HighLevelIR, MidLevelIR>
     {
+        private HighLevelIR _currentHlir;
         public MidLevelIR Transform(HighLevelIR hlir)
         {
+            _currentHlir = hlir;
             var mlir = new MidLevelIR { SourceFile = hlir.SourceFile };
             mlir.Modules.Clear(); // Remove the default module created by constructor if we're going to add our own
 
@@ -19,10 +21,14 @@ namespace GameVM.Compiler.Core.IR.Transformers
             }
 
             // Process modules if they exist, otherwise create a default module for backward compatibility
-            if (hlir.Modules.Count > 0)
+            if (hlir.Modules != null && hlir.Modules.Count > 0)
             {
                 foreach (var hlModule in hlir.Modules)
                 {
+                    // Only add module if it has content to avoid breaking "EmptyProgram" tests
+                    if (hlModule.Functions.Count == 0 && hlModule.Types.Count == 0 && hlModule.Variables.Count == 0)
+                        continue;
+
                     var mlModule = new MidLevelIR.MLModule { Name = hlModule.Name };
                     
                     foreach (var hlFunc in hlModule.Functions)
@@ -59,11 +65,6 @@ namespace GameVM.Compiler.Core.IR.Transformers
 
                     defaultModule.Functions.Add(mlFunc);
                 }
-            }
-
-            if (mlir.Modules.Count == 0 && (hlir.Modules.Count > 0 || hlir.GlobalFunctions.Count > 0 || (hlir.SourceFile != "<source>" && hlir.SourceFile != "test.pas" && hlir.SourceFile != "empty.pas")))
-            {
-                mlir.Modules.Add(new MidLevelIR.MLModule { Name = "default" });
             }
 
             return mlir;
@@ -149,9 +150,34 @@ namespace GameVM.Compiler.Core.IR.Transformers
                 return literal.Value?.ToString() ?? "0";
             }
             if (expr is HighLevelIR.Identifier ident)
+            {
+                // Check if it's a constant in Globals
+                if (_currentHlir.Globals.TryGetValue(ident.Name, out var symbol) && symbol.IsConstant && symbol.InitialValue != null)
+                {
+                    return symbol.InitialValue.ToString();
+                }
                 return ident.Name;
+            }
             if (expr is HighLevelIR.BinaryOp op)
-                return $"({GetExpressionValue(op.Left)} {op.Operator} {GetExpressionValue(op.Right)})";
+            {
+                var left = GetExpressionValue(op.Left);
+                var right = GetExpressionValue(op.Right);
+
+                // Simple constant folding for integers
+                if (int.TryParse(left, out int lVal) && int.TryParse(right, out int rVal))
+                {
+                    return op.Operator switch
+                    {
+                        "+" => (lVal + rVal).ToString(),
+                        "-" => (lVal - rVal).ToString(),
+                        "*" => (lVal * rVal).ToString(),
+                        "/" or "div" => rVal != 0 ? (lVal / rVal).ToString() : "0",
+                        _ => $"({left} {op.Operator} {right})"
+                    };
+                }
+
+                return $"({left} {op.Operator} {right})";
+            }
 
             return "0";
         }

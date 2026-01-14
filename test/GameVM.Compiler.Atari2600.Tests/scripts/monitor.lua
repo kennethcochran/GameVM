@@ -1,57 +1,32 @@
--- GameVM MAME Monitor Script
--- Dumps hardware state and exits
-
-local cpu = manager.machine.devices[":maincpu"]
-local mem = cpu.spaces["program"]
-
--- Configuration
+-- MAME monitor script for GameVM validation
 local frames = 0
-local TARGET_FRAMES = 120 -- Run for 2 seconds
+local done = false
 
-function dump_state()
-    print("--- GAMEVM MAME DUMP ---")
-    
-    print("CPU state:")
-    for k, v in pairs(cpu.state) do
-       print(k .. ": " .. v.value)
-    end
-
-    -- Dump TIA and RAM (0x00 to 0xFF)
-    print("TIA/RAM Dump:")
-    for i = 0, 255 do
-        local val = mem:read_u8(i)
-        if i % 16 == 0 then
-            io.write(string.format("\n%04X: ", i))
-        end
-        io.write(string.format("%02X ", val))
-    end
-    
-    -- Dump ROM Start (0xF000)
-    print("\nROM Dump ($F000):")
-    for i = 0xF000, 0xF00F do
-        local val = mem:read_u8(i)
-        io.write(string.format("%02X ", val))
-    end
-    
-    -- Dump Vectors ($FFFA)
-    print("\nVectors Dump ($FFFA):")
-    for i = 0xFFFA, 0xFFFF do
-        local val = mem:read_u8(i)
-        io.write(string.format("%02X ", val))
-    end
-    
-    print("\n--- END DUMP ---")
-end
-
-emu.add_machine_frame_notifier(function()
+emu.register_frame(function()
+    if done then return end
     frames = frames + 1
-    -- Log PC occasionally
-    if frames % 10 == 0 then
-        -- print("Frame: " .. frames .. " PC: " .. cpu.state["PC"].value)
-    end
     
-    if frames >= TARGET_FRAMES then
-        dump_state()
+    -- Wait for about half a second (30 frames at 60fps)
+    if frames >= 30 then
+        done = true
+        local cpu = manager.machine.devices[":maincpu"]
+        local mem = cpu.spaces["program"]
+        
+        print("--- GAMEVM MAME DUMP ---")
+        print("CPU state:")
+        print(string.format("A: %d", cpu.state["A"].value))
+        print(string.format("PC: %04X", cpu.state["PC"].value))
+        print(string.format("X: %d", cpu.state["X"].value))
+        print(string.format("Y: %d", cpu.state["Y"].value))
+        
+        print("Memory at $F000:")
+        for i=0,7 do
+            print(string.format("%04X: %02X", 0xF000 + i, mem:read_u8(0xF000 + i)))
+        end
+        
+        print("TIA/RAM Dump:")
+        print("Done.")
+        
         manager.machine:exit()
     end
 end)

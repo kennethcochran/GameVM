@@ -53,6 +53,18 @@ namespace GameVM.Compiler.Application
                 // Parse source code to HLIR
                 var hlir = _frontend.Parse(sourceCode);
 
+                if (hlir.Errors != null && hlir.Errors.Count > 0)
+                {
+                    return new CompilationResult
+                    {
+                        Success = false,
+                        Code = Array.Empty<byte>(),
+                        SourceFile = extension,
+                        Target = options.Target,
+                        ErrorMessage = string.Join("; ", hlir.Errors)
+                    };
+                }
+
                 // Convert HLIR to MLIR
                 var mlir = _frontend.ConvertToMidLevelIR(hlir);
 
@@ -122,6 +134,10 @@ namespace GameVM.Compiler.Application
         /// </summary>
         public CompilationResult Execute(string sourceCode, string extension, CompilationOptions options)
         {
+            if (sourceCode == null)
+            {
+                throw new ArgumentNullException(nameof(sourceCode));
+            }
             return CompileInternal(sourceCode, extension, options);
         }
 

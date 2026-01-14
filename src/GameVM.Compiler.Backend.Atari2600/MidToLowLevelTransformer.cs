@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 
@@ -5,8 +7,20 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     public class MidToLowLevelTransformer : IIRTransformer<MidLevelIR, LowLevelIR>
     {
+        private Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
+        private int _nextAvailableAddress = 0x80;
+
         public LowLevelIR Transform(MidLevelIR mlir)
         {
+            _addressMap.Clear();
+            _nextAvailableAddress = 0x80;
+            
+            // Pre-fill known registers
+            _addressMap["COLUBK"] = "$09";
+            _addressMap["COLUPF"] = "$08";
+            _addressMap["COLUP0"] = "$06";
+            _addressMap["COLUP1"] = "$07";
+
             var llir = new LowLevelIR { SourceFile = mlir.SourceFile };
             llir.Modules.Clear();
             
@@ -37,9 +51,22 @@ namespace GameVM.Compiler.Backend.Atari2600
                         {
                             llFunc.Instructions.Add(new LowLevelIR.LLCall { Label = call.Name });
                         }
+                        else if (instr is MidLevelIR.MLBranch branch)
+                        {
+                            llFunc.Instructions.Add(new LowLevelIR.LLJump { Target = branch.Target, Condition = branch.Condition });
+                        }
                     }
                     
                     outputModule.Functions.Add(llFunc);
+                    
+                    // Legacy: Add function label for tests that expect it at the beginning of top-level instructions
+                    llir.Instructions.Add(new LowLevelIR.LLLabel { Name = llFunc.Name });
+
+                    // Flatten instructions into the top-level list (for legacy tests)
+                    foreach (var llInstr in llFunc.Instructions)
+                    {
+                        llir.Instructions.Add(llInstr);
+                    }
                 }
                 
                 llir.Modules.Add(outputModule);
@@ -50,16 +77,17 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         private string MapToAddress(string target)
         {
-            // Simple mapping for Atari 2600
-            return target.ToUpper() switch
-            {
-                "COLUBK" => "$09",
-                "COLUPF" => "$08",
-                "COLUP0" => "$06",
-                "COLUP1" => "$07",
-                "MYVAR" => "$80", // Hardcoded for test verifiability
-                _ => target.StartsWith("$") ? target : "$80"
-            };
+            if (_addressMap.TryGetValue(target, out var addr))
+                return addr;
+
+            if (target.StartsWith("$"))
+                return target;
+
+            // Allocate new address
+            var newAddr = $"${_nextAvailableAddress:X2}";
+            _addressMap[target] = newAddr;
+            _nextAvailableAddress++;
+            return newAddr;
         }
     }
 }

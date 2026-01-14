@@ -24,7 +24,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameVM.Compiler.Pascal.Tests", "src\GameVM.Compiler.Pascal.Tests\GameVM.Compiler.Pascal.Tests.csproj", "{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Core.Tests", "src\GameVM.Compiler.Core.Tests\GameVM.Compiler.Core.Tests.csproj", "{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameVM.Compiler.Core.Tests", "src\GameVM.Compiler.Core.Tests\GameVM.Compiler.Core.Tests.csproj", "{00000000-0000-0000-0000-000000000000}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{FC9BB7B7-966E-42C8-8B83-302602214938}"
 EndProject
@@ -74,10 +74,6 @@ Global
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4E3A933E-6BAF-4DA3-A180-FCB9E8F1EEBE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5F4B944F-7CBF-4DB4-B191-GCF9E8F2FBCF}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E1256B5E-9C30-4906-94C6-53638AE4256C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -90,6 +86,8 @@ Global
 		{1DA02302-A30E-41C0-A7F3-6DFF78E8052E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1DA02302-A30E-41C0-A7F3-6DFF78E8052E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1DA02302-A30E-41C0-A7F3-6DFF78E8052E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{00000000-0000-0000-0000-000000000000}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{00000000-0000-0000-0000-000000000000}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

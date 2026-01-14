@@ -26,6 +26,11 @@ namespace GameVM.Compiler.Core.IR
         public Dictionary<string, IRSymbol> Globals { get; set; } = new();
 
         /// <summary>
+        /// Errors encountered during transformation
+        /// </summary>
+        public List<string> Errors { get; set; } = new();
+
+        /// <summary>
         /// List of modules in high-level representation
         /// </summary>
         public List<HLModule> Modules { get; set; } = new();
@@ -237,6 +242,7 @@ namespace GameVM.Compiler.Core.IR
         public class Expression : IRNode
         {
             public new string SourceFile { get => base.SourceFile; set => base.SourceFile = value; }
+            public HLType Type { get; set; }
 
             public Expression() : base("unknown") { }
             public Expression(string sourceFile) : base(sourceFile)
@@ -383,7 +389,6 @@ namespace GameVM.Compiler.Core.IR
         public class Literal : Expression
         {
             public object Value { get; set; }
-            public HLType Type { get; set; }
             
             // For property-based initialization
             public object value { get => Value; set => Value = value; }
@@ -406,7 +411,6 @@ namespace GameVM.Compiler.Core.IR
         public class Identifier : Expression
         {
             public string Name { get; set; } = string.Empty;
-            public HLType Type { get; set; }
 
             public Identifier() : base("unknown") { }
             public Identifier(string name, HLType type, string sourceFile) : base(sourceFile)

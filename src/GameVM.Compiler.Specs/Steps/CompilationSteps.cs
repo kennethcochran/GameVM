@@ -59,7 +59,7 @@ public class CompilationSteps
     [Given(@"a Pascal program with a syntax error")]
     public void GivenAPascalProgramWithASyntaxError()
     {
-        _context.SourceCode = "program Test;\nbegin\n  writeln('test')\nend.";
+        _context.SourceCode = "program Test;\nbegin\n  writeln('test';\nend.";
     }
 
     [Given(@"a Pascal program with multiple errors")]
@@ -185,6 +185,12 @@ public class CompilationSteps
             end.";
     }
 
+    [Given(@"the following Pascal program:")]
+    public void GivenTheFollowingPascalProgram(string sourceCode)
+    {
+        _context.SourceCode = sourceCode;
+    }
+
     #endregion
 
     #region When Steps
@@ -281,6 +287,30 @@ public class CompilationSteps
         }
     }
 
+    [When(@"I run the program in MAME")]
+    public void WhenIRunTheProgramInMAME()
+    {
+        Assert.That(_context.CompilationResult, Is.Not.Null);
+        Assert.That(_context.CompilationResult.Success, Is.True);
+
+        var projectRoot = FindProjectRoot(AppContext.BaseDirectory);
+        var monitorScript = Path.Combine(projectRoot, "test/GameVM.Compiler.Atari2600.Tests/scripts/monitor.lua");
+
+        _context.MameOutput = MameRunner.Run(_context.CompilationResult.Code, monitorScript);
+    }
+
+    private string FindProjectRoot(string currentDir)
+    {
+        var dir = new DirectoryInfo(currentDir);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "GameVM.sln")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+        return AppContext.BaseDirectory;
+    }
+
     #endregion
 
     #region Then Steps
@@ -322,8 +352,7 @@ public class CompilationSteps
     public void ThenTheCompilationFails()
     {
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        // Compilation should fail for invalid programs
-        // Note: Current implementation may not detect all errors yet
+        Assert.That(_context.CompilationResult.Success, Is.False, $"Compilation was expected to fail, but it succeeded. Output: {(_context.CompilationResult.Success ? "Success" : _context.CompilationResult.ErrorMessage)}");
     }
 
     [Then(@"the error message contains ""(.*)""")]
@@ -483,6 +512,60 @@ public class CompilationSteps
         }
         Assert.That(_context.CompilationResult, Is.Not.Null);
         Assert.That(_context.CompilationResult.Success, Is.True);
+    }
+
+    [Then(@"the output binary should contain the hex sequence ""(.*)""")]
+    public void ThenTheOutputBinaryShouldContainTheHexSequence(string hexSequence)
+    {
+        Assert.That(_context.CompilationResult, Is.Not.Null);
+        if (!_context.CompilationResult.Success)
+        {
+            throw new Exception($"[DEBUG_LOG] Compilation failed: {_context.CompilationResult.ErrorMessage}");
+        }
+        Assert.That(_context.CompilationResult.Success, Is.True);
+        
+        var expectedBytes = hexSequence.Split(' ')
+            .Select(s => Convert.ToByte(s, 16))
+            .ToArray();
+            
+        var actualBytes = _context.CompilationResult.Code;
+        
+        // Simple subsequence search
+        bool found = false;
+        for (int i = 0; i <= actualBytes.Length - expectedBytes.Length; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < expectedBytes.Length; j++)
+            {
+                if (actualBytes[i + j] != expectedBytes[j])
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match)
+            {
+                found = true;
+                break;
+            }
+        }
+        
+        Assert.That(found, Is.True, $"Could not find hex sequence {hexSequence} in output binary");
+    }
+
+    [Then(@"the output binary should be (.*) bytes long")]
+    public void ThenTheOutputBinaryShouldBeBytesLong(int expectedLength)
+    {
+        Assert.That(_context.CompilationResult, Is.Not.Null);
+        Assert.That(_context.CompilationResult.Code, Is.Not.Null);
+        Assert.That(_context.CompilationResult.Code.Length, Is.EqualTo(expectedLength));
+    }
+
+    [Then(@"MAME execution output should contain ""(.*)""")]
+    public void ThenMameExecutionOutputShouldContain(string expectedText)
+    {
+        Assert.That(_context.MameOutput, Is.Not.Null);
+        Assert.That(_context.MameOutput, Contains.Substring(expectedText));
     }
 
     #endregion

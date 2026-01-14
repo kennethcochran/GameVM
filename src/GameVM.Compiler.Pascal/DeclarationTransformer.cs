@@ -45,12 +45,48 @@ namespace GameVM.Compiler.Pascal
                     case TypeDefinitionNode typeDefNode:
                         TransformTypeDefinition(typeDefNode);
                         break;
+                    case ConstantDeclarationNode constDeclNode:
+                        TransformConstantDeclaration(constDeclNode);
+                        break;
                 }
             }
             catch (Exception ex)
             {
                 // Log error but continue processing
                 _context.AddError($"Error transforming declaration: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Transforms a constant declaration
+        /// </summary>
+        private void TransformConstantDeclaration(ConstantDeclarationNode constDeclNode)
+        {
+            if (constDeclNode == null)
+                return;
+
+            var hlValue = _expressionTransformer.TransformExpression(constDeclNode.Value);
+            object initialValue = null;
+
+            if (hlValue is HighLevelIR.Literal literal)
+            {
+                initialValue = literal.Value;
+            }
+
+            var constType = _context.GetOrCreateBasicType("i32"); // Default for now
+            var symbol = new IRSymbol
+            {
+                Name = constDeclNode.Name,
+                Type = constType,
+                IsConstant = true,
+                InitialValue = initialValue
+            };
+            _context.SymbolTable[constDeclNode.Name] = symbol;
+
+            // Also add to global IR if we are at top level
+            if (_context.FunctionScope.Count <= 1)
+            {
+                _context.IR.Globals[constDeclNode.Name] = symbol;
             }
         }
 

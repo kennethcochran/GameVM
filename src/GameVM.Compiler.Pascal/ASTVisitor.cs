@@ -78,6 +78,27 @@ namespace GameVM.Compiler.Pascal
             //     }
             // }
 
+            // Add constant definitions next
+            var constantDefinitionPart = context.constantDefinitionPart();
+            if (constantDefinitionPart != null)
+            {
+                foreach (var constDefPart in constantDefinitionPart)
+                {
+                    var node = _declarationVisitor.Visit(constDefPart);
+                    if (node is BlockNode blockNode)
+                    {
+                        foreach (var stmt in blockNode.Statements)
+                        {
+                            block.Statements.Add(stmt);
+                        }
+                    }
+                    else if (node != null)
+                    {
+                        block.Statements.Add(node);
+                    }
+                }
+            }
+
             // Add type definitions next
             var typeDefinitionPart = context.typeDefinitionPart();
             if (typeDefinitionPart != null)

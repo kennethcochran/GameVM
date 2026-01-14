@@ -21,6 +21,7 @@ namespace GameVM.Compiler.Specs.Support
         public string SourceCode { get; set; } = string.Empty;
         public CompilationResult? CompilationResult { get; set; }
         public string? ErrorMessage { get; set; }
+        public string? MameOutput { get; set; }
 
         public CompilerTestContext()
         {
