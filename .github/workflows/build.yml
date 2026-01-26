@@ -77,6 +77,9 @@ jobs:
             Write-Host "Warning: Coverage file not found"
           }
           
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
       - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
         shell: powershell
         run: |
@@ -92,8 +95,8 @@ jobs:
             "Authorization" = "Bearer $env:SONAR_TOKEN"
           }
           
-          # Wait a moment for processing
-          Start-Sleep -Seconds 10
+          # Wait for SonarQube processing
+          Start-Sleep -Seconds 30
           
           # Get the latest analysis for the project
           $projectKey = "kennethcochran_GameVM"
