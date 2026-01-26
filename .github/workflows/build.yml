@@ -76,4 +76,6 @@ jobs:
         uses: SonarSource/sonarqube-quality-gate-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .\.sonar\scanner\report-task.txt
         timeout-minutes: 5
