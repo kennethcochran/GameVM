@@ -82,9 +82,9 @@ jobs:
           # Wait a moment for processing
           Start-Sleep -Seconds 10
           
-          # Get the latest analysis
+          # Get the latest analysis for the project
           $projectKey = "kennethcochran_GameVM"
-          $url = "https://sonarcloud.io/api/qualitygates/project_status?analysisKey=latest"
+          $url = "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
           
           try {
             $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
