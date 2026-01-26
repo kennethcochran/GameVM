@@ -61,16 +61,19 @@ jobs:
           dotnet build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-          # Run Unit/BDD tests
-          dotnet-coverage collect "dotnet test" -f cobertura -o "coverage.cobertura.xml"
+          # Run Unit/BDD tests with coverage
+          dotnet test --collect:"XPlat Code Coverage"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-          # Verify coverage file exists
-          if (Test-Path "coverage.cobertura.xml") {
-            Write-Host "Coverage file created successfully"
+          # Find and move coverage file to expected location
+          $coverageFiles = Get-ChildItem -Path . -Recurse -Filter "*.cobertura.xml"
+          if ($coverageFiles.Count -gt 0) {
+            $latestFile = $coverageFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            Copy-Item $latestFile.FullName -Destination "coverage.cobertura.xml"
+            Write-Host "Coverage file copied successfully"
             Get-Item "coverage.cobertura.xml" | Write-Host
           } else {
-            Write-Host "Warning: Coverage file not found"
+            Write-Host "Warning: No coverage files found"
           }
           
           # Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
