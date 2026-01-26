@@ -55,7 +55,7 @@ namespace GameVM.Compiler.Pascal
             {
                 value = value.Substring(1, value.Length - 2);
             }
-            return new StringLiteralNode { Value = value ?? string.Empty };
+            return new StringLiteralNode { Value = value };
         }
 
         public BooleanLiteralNode CreateBooleanLiteral(bool value)
