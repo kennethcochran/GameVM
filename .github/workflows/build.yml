@@ -55,7 +55,7 @@ jobs:
         shell: powershell
         run: |
 
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.coverageReportPaths="coverage.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           dotnet build
@@ -64,6 +64,14 @@ jobs:
           # Run Unit/BDD tests
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
+          # Verify coverage file exists
+          if (Test-Path "coverage.xml") {
+            Write-Host "Coverage file created successfully"
+            Get-Item "coverage.xml" | Write-Host
+          } else {
+            Write-Host "Warning: Coverage file not found"
+          }
           
           # Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
           dotnet run --project src/GameVM.DevTools -- mame install
