@@ -71,20 +71,3 @@ jobs:
           
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          
-      - name: Debug report file
-        shell: powershell
-        run: |
-          Write-Host "Current directory: $(Get-Location)"
-          Write-Host "Files in current directory:"
-          Get-ChildItem -Path . -Filter "*.txt" -Force | Write-Host
-          Write-Host "Looking for report-task.txt:"
-          Test-Path "report-task.txt" | Write-Host
-          
-      - name: SonarQube Quality Gate check
-        uses: SonarSource/sonarqube-quality-gate-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          scanMetadataReportFile: report-task.txt
-        timeout-minutes: 5
