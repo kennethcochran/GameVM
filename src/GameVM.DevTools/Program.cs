@@ -32,8 +32,8 @@ static class Program
         mameCommand.Subcommands.Add(pathCommand);
 
         var runCommand = new Command("run", "Run a ROM in MAME with GameVM monitoring");
-        var romOption = new Option<string>("--rom", "Path to the ROM file");
-        var scriptOption = new Option<string>("--script", "Path to the Lua monitoring script");
+        var romOption = new Option<string>("--rom") { Description = "Path to the ROM file" };
+        var scriptOption = new Option<string>("--script") { Description = "Path to the Lua monitoring script" };
         runCommand.Options.Add(romOption);
         runCommand.Options.Add(scriptOption);
         runCommand.SetAction(parseResult => 
