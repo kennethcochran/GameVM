@@ -120,6 +120,23 @@ namespace GameVM.Compiler.Pascal
                 return new ErrorNode("Function declaration is missing an identifier");
             }
 
+            var blockResult = ValidateFunctionBlock(context);
+            if (blockResult is ErrorNode errorNode)
+                return errorNode;
+
+            var block = (BlockNode)blockResult;
+            var parameters = ExtractFunctionParameters(context);
+
+            return new FunctionNode
+            {
+                Name = identifier.GetText(),
+                Parameters = parameters,
+                Block = block
+            };
+        }
+
+        private PascalAstNode ValidateFunctionBlock(PascalParser.FunctionDeclarationContext context)
+        {
             var blockContext = context.block();
             if (blockContext == null)
                 return new ErrorNode("Function declaration is missing a block");
@@ -129,34 +146,30 @@ namespace GameVM.Compiler.Pascal
             {
                 return new ErrorNode("Function declaration block visit returned null");
             }
+            return block;
+        }
 
+        private static List<VariableNode> ExtractFunctionParameters(PascalParser.FunctionDeclarationContext context)
+        {
             var parameters = new List<VariableNode>();
             var formalParams = context.formalParameterList()?.formalParameterSection();
-            if (formalParams != null)
+            if (formalParams == null) return parameters;
+
+            foreach (var paramSection in formalParams)
             {
-                foreach (var paramSection in formalParams)
+                var paramGroup = paramSection.parameterGroup();
+                if (paramGroup == null) continue;
+
+                var identifiers = paramGroup.identifierList()?.identifier();
+                if (identifiers == null) continue;
+
+                foreach (var id in identifiers)
                 {
-                    var paramGroup = paramSection.parameterGroup();
-                    if (paramGroup != null)
-                    {
-                        var identifiers = paramGroup.identifierList()?.identifier();
-                        if (identifiers != null)
-                        {
-                            foreach (var id in identifiers)
-                            {
-                                parameters.Add(new VariableNode { Name = id.GetText() });
-                            }
-                        }
-                    }
+                    parameters.Add(new VariableNode { Name = id.GetText() });
                 }
             }
 
-            return new FunctionNode
-            {
-                Name = identifier.GetText(),
-                Parameters = parameters,
-                Block = block
-            };
+            return parameters;
         }
 
         public override PascalAstNode VisitTypeDefinitionPart(PascalParser.TypeDefinitionPartContext context)
@@ -504,91 +517,132 @@ namespace GameVM.Compiler.Pascal
         private TypeNode BuildRecordTypeNode(PascalParser.RecordTypeContext recordType)
         {
             Console.WriteLine($"[DEBUG] BuildRecordTypeNode called for recordType: {recordType.GetText()}");
+            
             var record = new RecordTypeNode
             {
                 TypeName = "record",
                 Fields = new List<FieldDeclarationNode>()
             };
-            var fieldList = recordType.fieldList();
-            if (fieldList?.fixedPart()?.recordSection() != null)
+
+            ProcessFixedFields(recordType, record);
+            
+            var variantPart = ExtractVariantPart(recordType);
+            if (variantPart != null)
             {
-                foreach (var section in fieldList.fixedPart().recordSection())
-                {
-                    var identifiers = section.identifierList().identifier();
-                    var typeNode = Visit(section.type_()) as TypeNode;
-                    if (typeNode != null)
-                    {
-                        if (string.IsNullOrEmpty(typeNode.TypeName))
-                        {
-                            typeNode.TypeName = typeNode.GetType().Name.Replace("Node", "").ToLowerInvariant();
-                        }
-                        foreach (var identifier in identifiers)
-                        {
-                            record.Fields.Add(new FieldDeclarationNode
-                            {
-                                Name = identifier.GetText(),
-                                Type = typeNode
-                            });
-                        }
-                    }
-                }
-            }
-            if (fieldList?.variantPart() != null)
-            {
-                var variantPart = fieldList.variantPart();
-                var tag = variantPart.tag();
-                string tagName = tag?.identifier()?.GetText() ?? "";
-                TypeNode tagType = tag?.typeIdentifier() != null
-                    ? new TypeIdentifierNode
-                    {
-                        Name = tag.typeIdentifier().GetText(),
-                        TypeName = tag.typeIdentifier().GetText()
-                    }
-                    : new TypeIdentifierNode { Name = "", TypeName = "" };
-                var variants = new List<VariantCaseNode>();
-                foreach (var variant in variantPart.variant())
-                {
-                    var constList = variant.constList();
-                    var value = constList.constant(0).GetText();
-                    var fields = new List<FieldDeclarationNode>();
-                    var fieldListCtx = variant.fieldList();
-                    if (fieldListCtx?.fixedPart()?.recordSection() != null)
-                    {
-                        foreach (var section in fieldListCtx.fixedPart().recordSection())
-                        {
-                            var ids = section.identifierList().identifier();
-                            var tNode = Visit(section.type_()) as TypeNode;
-                            if (tNode != null)
-                            {
-                                foreach (var id in ids)
-                                {
-                                    fields.Add(new FieldDeclarationNode
-                                    {
-                                        Name = id.GetText(),
-                                        Type = tNode
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    variants.Add(new VariantCaseNode
-                    {
-                        Value = value,
-                        Fields = fields
-                    });
-                }
                 Console.WriteLine($"[DEBUG] Returning VariantRecordNode for recordType: {recordType.GetText()}");
-                return new VariantRecordNode
-                {
-                    TypeName = "variantrecord",
-                    Fields = record.Fields,
-                    VariantFieldName = tagName,
-                    VariantFieldType = tagType,
-                    Variants = variants
-                };
+                return variantPart;
             }
+
             Console.WriteLine($"[DEBUG] Returning RecordTypeNode for recordType: {recordType.GetText()}");
             return record;
+        }
+
+        private static void ProcessFixedFields(PascalParser.RecordTypeContext recordType, RecordTypeNode record)
+        {
+            var fieldList = recordType.fieldList();
+            var fixedPart = fieldList?.fixedPart()?.recordSection();
+            if (fixedPart == null) return;
+
+            foreach (var section in fixedPart)
+            {
+                var identifiers = section.identifierList().identifier();
+                var typeNode = new TypeIdentifierNode { Name = section.type_().GetText(), TypeName = section.type_().GetText() };
+                
+                if (string.IsNullOrEmpty(typeNode.TypeName))
+                {
+                    typeNode.TypeName = typeNode.GetType().Name.Replace("Node", "").ToLowerInvariant();
+                }
+
+                foreach (var identifier in identifiers)
+                {
+                    record.Fields.Add(new FieldDeclarationNode
+                    {
+                        Name = identifier.GetText(),
+                        Type = typeNode
+                    });
+                }
+            }
+        }
+
+        private VariantRecordNode? ExtractVariantPart(PascalParser.RecordTypeContext recordType)
+        {
+            var fieldList = recordType.fieldList();
+            var variantPartContext = fieldList?.variantPart();
+            if (variantPartContext == null) return null;
+
+            var tag = variantPartContext.tag();
+            var tagName = tag?.identifier()?.GetText() ?? "";
+            var tagType = tag != null ? CreateTagType(tag) : new TypeIdentifierNode { Name = "", TypeName = "" };
+
+            var variants = ProcessVariants(variantPartContext);
+            var recordFields = new RecordTypeNode { Fields = new List<FieldDeclarationNode>(), TypeName = "record" };
+            ProcessFixedFields(recordType, recordFields);
+
+            return new VariantRecordNode
+            {
+                TypeName = "variantrecord",
+                Fields = recordFields.Fields,
+                VariantFieldName = tagName,
+                VariantFieldType = tagType,
+                Variants = variants
+            };
+        }
+
+        private static TypeIdentifierNode CreateTagType(PascalParser.TagContext tag)
+        {
+            return tag?.typeIdentifier() != null
+                ? new TypeIdentifierNode
+                {
+                    Name = tag.typeIdentifier().GetText(),
+                    TypeName = tag.typeIdentifier().GetText()
+                }
+                : new TypeIdentifierNode { Name = "", TypeName = "" };
+        }
+
+        private static List<VariantCaseNode> ProcessVariants(PascalParser.VariantPartContext variantPartContext)
+        {
+            var variants = new List<VariantCaseNode>();
+            
+            foreach (var variant in variantPartContext.variant())
+            {
+                var constList = variant.constList();
+                var value = constList.constant(0).GetText();
+                var fields = ExtractVariantFields(variant);
+                
+                variants.Add(new VariantCaseNode
+                {
+                    Value = value,
+                    Fields = fields
+                });
+            }
+
+            return variants;
+        }
+
+        private static List<FieldDeclarationNode> ExtractVariantFields(PascalParser.VariantContext variant)
+        {
+            var fields = new List<FieldDeclarationNode>();
+            var fieldListCtx = variant.fieldList();
+            var fixedPart = fieldListCtx?.fixedPart()?.recordSection();
+            
+            if (fixedPart == null) return fields;
+
+            foreach (var section in fixedPart)
+            {
+                var ids = section.identifierList().identifier();
+                var tNode = new TypeIdentifierNode { Name = section.type_().GetText(), TypeName = section.type_().GetText() };
+                
+                foreach (var id in ids)
+                {
+                    fields.Add(new FieldDeclarationNode
+                    {
+                        Name = id.GetText(),
+                        Type = tNode
+                    });
+                }
+            }
+
+            return fields;
         }
 
         protected override PascalAstNode DefaultResult => null!;
