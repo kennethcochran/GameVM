@@ -65,6 +65,10 @@ jobs:
           dotnet test --collect:"XPlat Code Coverage"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
+          # Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
+          dotnet run --project src/GameVM.DevTools -- mame install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
           # Find and aggregate coverage files
           $coverageFiles = Get-ChildItem -Path . -Recurse -Filter "*.cobertura.xml"
           if ($coverageFiles.Count -gt 0) {
@@ -79,10 +83,6 @@ jobs:
           } else {
             Write-Host "Warning: No coverage files found"
           }
-          
-          # Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
-          dotnet run --project src/GameVM.DevTools -- mame install
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
