@@ -65,12 +65,16 @@ jobs:
           dotnet test --collect:"XPlat Code Coverage"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-          # Find and move coverage file to expected location
+          # Find and aggregate coverage files
           $coverageFiles = Get-ChildItem -Path . -Recurse -Filter "*.cobertura.xml"
           if ($coverageFiles.Count -gt 0) {
+            Write-Host "Found $($coverageFiles.Count) coverage files:"
+            $coverageFiles | ForEach-Object { Write-Host "  $($_.FullName)" }
+            
+            # Use the first coverage file (they should be aggregated by the test runner)
             $latestFile = $coverageFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             Copy-Item $latestFile.FullName -Destination "coverage.cobertura.xml"
-            Write-Host "Coverage file copied successfully"
+            Write-Host "Coverage file copied to root: coverage.cobertura.xml"
             Get-Item "coverage.cobertura.xml" | Write-Host
           } else {
             Write-Host "Warning: No coverage files found"
