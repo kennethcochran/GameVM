@@ -57,27 +57,33 @@ namespace GameVM.Compiler.Pascal
             if (programNode == null)
                 return;
 
-            // Push scope for program (global scope)
             _context.PushScope();
 
-            // Register global variables before creating the main function,
-            // so they are truly global and visible everywhere.
-            if (programNode.Block != null)
+            ProcessGlobalDeclarations(programNode);
+            var mainFunction = CreateMainFunction(programNode);
+            ProcessProgramStatements(programNode, mainFunction);
+            RegisterMainFunction(mainFunction);
+        }
+
+        private void ProcessGlobalDeclarations(ProgramNode programNode)
+        {
+            if (programNode.Block == null) return;
+
+            foreach (var stmt in programNode.Block.Statements)
             {
-                foreach (var stmt in programNode.Block.Statements)
+                if (stmt is VariableDeclarationNode varDecl)
                 {
-                    if (stmt is VariableDeclarationNode varDecl)
-                    {
-                        _declarationTransformer.TransformVariableDeclaration(varDecl);
-                    }
-                    else if (stmt is ConstantDeclarationNode constDecl)
-                    {
-                        _declarationTransformer.TransformDeclaration(constDecl);
-                    }
+                    _declarationTransformer.TransformVariableDeclaration(varDecl);
+                }
+                else if (stmt is ConstantDeclarationNode constDecl)
+                {
+                    _declarationTransformer.TransformDeclaration(constDecl);
                 }
             }
+        }
 
-            // Create main function for the program
+        private HighLevelIR.Function CreateMainFunction(ProgramNode programNode)
+        {
             var returnType = _context.GetOrCreateBasicType("void");
             var body = new HighLevelIR.Block(_sourceFile);
             var mainFunction = new HighLevelIR.Function(
@@ -88,36 +94,45 @@ namespace GameVM.Compiler.Pascal
             );
 
             _context.FunctionScope.Push(mainFunction);
+            return mainFunction;
+        }
 
-            // Process the program block again for everything else (functions, procedures, statements)
-            if (programNode.Block != null)
+        private void ProcessProgramStatements(ProgramNode programNode, HighLevelIR.Function mainFunction)
+        {
+            if (programNode.Block == null) return;
+
+            foreach (var stmt in programNode.Block.Statements)
             {
-                foreach (var stmt in programNode.Block.Statements)
-                {
-                    if (stmt is VariableDeclarationNode or ConstantDeclarationNode) continue; // Already processed
+                ProcessProgramStatement(stmt, mainFunction.Body);
+            }
+        }
 
-                    if (stmt is ProcedureNode or FunctionNode or TypeDefinitionNode)
-                    {
-                        _declarationTransformer.TransformDeclaration(stmt);
-                    }
-                    else if (stmt is ErrorNode errorNode)
-                    {
-                        _context.AddError(errorNode.Message);
-                    }
-                    else
-                    {
-                        var transformedStmt = _statementTransformer.TransformStatement(stmt);
-                        if (transformedStmt != null)
-                        {
-                            body.AddStatement(transformedStmt);
-                        }
-                    }
+        private void ProcessProgramStatement(PascalAstNode stmt, HighLevelIR.Block body)
+        {
+            if (stmt is VariableDeclarationNode or ConstantDeclarationNode) 
+                return; // Already processed
+
+            if (stmt is ProcedureNode or FunctionNode or TypeDefinitionNode)
+            {
+                _declarationTransformer.TransformDeclaration(stmt);
+            }
+            else if (stmt is ErrorNode errorNode)
+            {
+                _context.AddError(errorNode.Message);
+            }
+            else
+            {
+                var transformedStmt = _statementTransformer.TransformStatement(stmt);
+                if (transformedStmt != null)
+                {
+                    body.AddStatement(transformedStmt);
                 }
             }
+        }
 
+        private void RegisterMainFunction(HighLevelIR.Function mainFunction)
+        {
             _context.FunctionScope.Pop();
-
-            // Register main function
             _context.AddGlobalFunction(mainFunction);
         }
 

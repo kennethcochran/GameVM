@@ -103,7 +103,17 @@ static class Program
     {
         try
         {
+            // In CI environments, we can trust the PATH more than in production
+            // Use environment variable to override if needed for additional security
             string whichCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
+            
+            // Allow override of which command location for hardened environments
+            var whichPath = Environment.GetEnvironmentVariable("GAMEVM_WHICH_PATH");
+            if (!string.IsNullOrEmpty(whichPath) && File.Exists(whichPath))
+            {
+                whichCmd = whichPath;
+            }
+            
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = whichCmd,
@@ -123,9 +133,17 @@ static class Program
     {
         try
         {
+            // Allow override of flatpak command location for hardened environments
+            var flatpakCmd = "flatpak";
+            var flatpakPath = Environment.GetEnvironmentVariable("GAMEVM_FLATPAK_PATH");
+            if (!string.IsNullOrEmpty(flatpakPath) && File.Exists(flatpakPath))
+            {
+                flatpakCmd = flatpakPath;
+            }
+            
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "flatpak",
+                FileName = flatpakCmd,
                 Arguments = $"info {FlatpakId}",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,

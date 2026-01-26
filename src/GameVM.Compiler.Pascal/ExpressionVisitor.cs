@@ -151,34 +151,48 @@ namespace GameVM.Compiler.Pascal
             {
                 foreach (var elementCtx in elementList.element())
                 {
-                    // Handle set element ranges (e.g., 3..5) - AstBuilder doesn't support ranges in CreateSet directly yet
-                    // But SetNode expects List<ExpressionNode>.
-                    // If range is an expression, we need SetRangeNode?
-                    // Original code:
-                    if (elementCtx.expression().Length == 2)
-                    {
-                        var low = Visit(elementCtx.expression(0)) as ExpressionNode;
-                        var high = Visit(elementCtx.expression(1)) as ExpressionNode;
-                        if (low != null)
-                        {
-                            elements.Add(low);
-                        }
-                        if (high != null)
-                        {
-                            elements.Add(high);
-                        }
-                    }
-                    else if (elementCtx.expression().Length == 1)
-                    {
-                        var expr = Visit(elementCtx.expression(0)) as ExpressionNode;
-                        if (expr != null)
-                        {
-                            elements.Add(expr);
-                        }
-                    }
+                    ProcessSetElement(elementCtx, elements);
                 }
             }
             return _astBuilder.CreateSet(elements);
+        }
+
+        private void ProcessSetElement(PascalParser.ElementContext elementCtx, List<ExpressionNode> elements)
+        {
+            var expressions = elementCtx.expression();
+            
+            if (expressions.Length == 2)
+            {
+                ProcessRangeElement(expressions, elements);
+            }
+            else if (expressions.Length == 1)
+            {
+                ProcessSingleElement(expressions[0], elements);
+            }
+        }
+
+        private void ProcessRangeElement(PascalParser.ExpressionContext[] expressions, List<ExpressionNode> elements)
+        {
+            var low = Visit(expressions[0]) as ExpressionNode;
+            var high = Visit(expressions[1]) as ExpressionNode;
+            
+            if (low != null)
+            {
+                elements.Add(low);
+            }
+            if (high != null)
+            {
+                elements.Add(high);
+            }
+        }
+
+        private void ProcessSingleElement(PascalParser.ExpressionContext expression, List<ExpressionNode> elements)
+        {
+            var expr = Visit(expression) as ExpressionNode;
+            if (expr != null)
+            {
+                elements.Add(expr);
+            }
         }
 
         public override PascalAstNode VisitConstant(PascalParser.ConstantContext context)
