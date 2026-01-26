@@ -61,6 +61,10 @@ jobs:
           dotnet build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
+          # Install .NET tools (including reportgenerator)
+          dotnet tool restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
           # Run Unit/BDD tests with coverage
           dotnet test --collect:"XPlat Code Coverage"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
