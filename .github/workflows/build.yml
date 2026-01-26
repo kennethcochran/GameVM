@@ -72,8 +72,35 @@ jobs:
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-      - name: Wait for SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        timeout-minutes: 5
+      - name: Check SonarQube Quality Gate
+        shell: powershell
+        run: |
+          $headers = @{
+            "Authorization" = "Bearer $env:SONAR_TOKEN"
+          }
+          
+          # Wait a moment for processing
+          Start-Sleep -Seconds 10
+          
+          # Get the latest analysis
+          $projectKey = "kennethcochran_GameVM"
+          $url = "https://sonarcloud.io/api/qualitygates/project_status?analysisKey=latest"
+          
+          try {
+            $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
+            Write-Host "Quality Gate Status: $($response.projectStatus.status)"
+            
+            if ($response.projectStatus.status -eq "ERROR") {
+              Write-Host "Quality Gate failed!"
+              Write-Host "Failed conditions:"
+              $response.projectStatus.conditions | Where-Object { $_.status -eq "ERROR" } | ForEach-Object {
+                Write-Host "- $($_.metricKey): Expected $($_.errorThreshold), got $($_.actualValue)"
+              }
+              exit 1
+            } else {
+              Write-Host "Quality Gate passed!"
+            }
+          } catch {
+            Write-Host "Error checking quality gate: $($_.Exception.Message)"
+            exit 1
+          }
