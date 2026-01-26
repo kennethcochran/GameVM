@@ -147,38 +147,50 @@ namespace GameVM.Compiler.Pascal
         {
             var elements = new List<ExpressionNode>();
             var elementList = context.elementList();
-            if (elementList != null)
+            if (elementList == null) return _astBuilder.CreateSet(elements);
+
+            foreach (var elementCtx in elementList.element())
             {
-                foreach (var elementCtx in elementList.element())
-                {
-                    // Handle set element ranges (e.g., 3..5) - AstBuilder doesn't support ranges in CreateSet directly yet
-                    // But SetNode expects List<ExpressionNode>.
-                    // If range is an expression, we need SetRangeNode?
-                    // Original code:
-                    if (elementCtx.expression().Length == 2)
-                    {
-                        var low = Visit(elementCtx.expression(0)) as ExpressionNode;
-                        var high = Visit(elementCtx.expression(1)) as ExpressionNode;
-                        if (low != null)
-                        {
-                            elements.Add(low);
-                        }
-                        if (high != null)
-                        {
-                            elements.Add(high);
-                        }
-                    }
-                    else if (elementCtx.expression().Length == 1)
-                    {
-                        var expr = Visit(elementCtx.expression(0)) as ExpressionNode;
-                        if (expr != null)
-                        {
-                            elements.Add(expr);
-                        }
-                    }
-                }
+                ProcessSetElement(elementCtx, elements);
             }
+
             return _astBuilder.CreateSet(elements);
+        }
+
+        private static void ProcessSetElement(PascalParser.ElementContext elementCtx, List<ExpressionNode> elements)
+        {
+            if (elementCtx.expression().Length == 2)
+            {
+                ProcessSetRange(elementCtx, elements);
+            }
+            else if (elementCtx.expression().Length == 1)
+            {
+                ProcessSingleSetElement(elementCtx, elements);
+            }
+        }
+
+        private static void ProcessSetRange(PascalParser.ElementContext elementCtx, List<ExpressionNode> elements)
+        {
+            var low = elementCtx.expression(0);
+            var high = elementCtx.expression(1);
+            
+            if (low != null)
+            {
+                elements.Add(new VariableNode { Name = low.GetText() });
+            }
+            if (high != null)
+            {
+                elements.Add(new VariableNode { Name = high.GetText() });
+            }
+        }
+
+        private static void ProcessSingleSetElement(PascalParser.ElementContext elementCtx, List<ExpressionNode> elements)
+        {
+            var expr = elementCtx.expression(0);
+            if (expr != null)
+            {
+                elements.Add(new VariableNode { Name = expr.GetText() });
+            }
         }
 
         public override PascalAstNode VisitConstant(PascalParser.ConstantContext context)
