@@ -49,6 +49,14 @@ jobs:
           path: .tools/mame
           key: ${{ runner.os }}-mame-v0284 # Use specific version for cache key
           
+      - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
+        shell: powershell
+        run: |
+          # Optional: Use absolute paths for enhanced security (resolves S4036)
+          # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
+          dotnet run --project src/GameVM.DevTools -- mame install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -78,14 +86,6 @@ jobs:
           }
           
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          
-      - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
-        shell: powershell
-        run: |
-          # Optional: Use absolute paths for enhanced security (resolves S4036)
-          # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
-          dotnet run --project src/GameVM.DevTools -- mame install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
       - name: Check SonarQube Quality Gate
