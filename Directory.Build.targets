@@ -31,8 +31,8 @@
           Condition="'@(CoverageFiles)' != ''" 
           WorkingDirectory="$(MSBuildThisFileDirectory)" />
           
-    <!-- Generate Cobertura Report (for CI/CD integration) -->
-    <Exec Command="dotnet tool run reportgenerator -reports:&quot;@(CoverageFiles, '&quot;,&quot;')&quot; -targetdir:&quot;$(CoberturaReportDir)&quot; -reporttypes:Cobertura" 
+    <!-- Generate SonarQube Report (for SonarQube integration) -->
+    <Exec Command="dotnet tool run reportgenerator -reports:&quot;@(CoverageFiles, '&quot;,&quot;')&quot; -targetdir:&quot;$(CoberturaReportDir)&quot; -reporttypes:SonarQube" 
           Condition="'@(CoverageFiles)' != ''" 
           WorkingDirectory="$(MSBuildThisFileDirectory)" />
           

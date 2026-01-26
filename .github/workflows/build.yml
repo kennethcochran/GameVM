@@ -55,7 +55,7 @@ jobs:
         shell: powershell
         run: |
 
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.coverageReportPaths="TestResults/**/*.cobertura.xml"
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.coverageReportPaths="TestResults/coverage/cobertura/SonarQube.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           dotnet build
