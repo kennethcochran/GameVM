@@ -140,7 +140,11 @@ static class Program
     {
         try
         {
-            string whichCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
+            // Use absolute paths for which/where commands to avoid S4036
+            string whichCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+                ? @"C:\Windows\System32\where.exe" 
+                : "/usr/bin/which";
+                
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = whichCmd,
