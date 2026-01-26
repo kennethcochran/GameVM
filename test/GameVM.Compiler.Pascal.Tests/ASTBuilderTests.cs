@@ -55,6 +55,27 @@ namespace GameVM.Compiler.Pascal.Tests
         }
 
         [Test]
+        public void CreateStringLiteral_EmptyString_ReturnsEmptyStringNode()
+        {
+            // This test documents the current behavior for empty strings
+            // The SonarQube issue is that the null check is unreachable
+            var node = _builder.CreateStringLiteral("''");
+
+            Assert.That(node, Is.Not.Null);
+            Assert.That(node.Value, Is.EqualTo(""));
+        }
+
+        [Test]
+        public void CreateStringLiteral_WithoutQuotes_ReturnsUnmodifiedValue()
+        {
+            // Test case where string doesn't have quotes
+            var node = _builder.CreateStringLiteral("hello");
+
+            Assert.That(node, Is.Not.Null);
+            Assert.That(node.Value, Is.EqualTo("hello"));
+        }
+
+        [Test]
         public void CreateAssignment_ValidInputs_ReturnsAssignmentNode()
         {
             var left = new VariableNode { Name = "x" };

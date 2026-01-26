@@ -43,7 +43,7 @@ namespace GameVM.Compiler.Pascal
             return procNode;
         }
 
-        private List<VariableNode> ProcessParameters(PascalParser.ProcedureDeclarationContext context)
+        private static List<VariableNode> ProcessParameters(PascalParser.ProcedureDeclarationContext context)
         {
             var parameters = new List<VariableNode>();
             var formalParams = context.formalParameterList()?.formalParameterSection();
@@ -564,7 +564,7 @@ namespace GameVM.Compiler.Pascal
             }
         }
 
-        private VariantRecordNode? ExtractVariantPart(PascalParser.RecordTypeContext recordType)
+        private static VariantRecordNode? ExtractVariantPart(PascalParser.RecordTypeContext recordType)
         {
             var fieldList = recordType.fieldList();
             var variantPartContext = fieldList?.variantPart();
