@@ -61,97 +61,93 @@ namespace GameVM.Compiler.Pascal
                 Statements = new List<PascalAstNode>()
             };
 
-
-            var constantDefinitionPart = context.constantDefinitionPart();
-            if (constantDefinitionPart != null)
-            {
-                foreach (var constDefPart in constantDefinitionPart)
-                {
-                    var node = _declarationVisitor.Visit(constDefPart);
-                    if (node is BlockNode blockNode)
-                    {
-                        foreach (var stmt in blockNode.Statements)
-                        {
-                            block.Statements.Add(stmt);
-                        }
-                    }
-                    else if (node != null)
-                    {
-                        block.Statements.Add(node);
-                    }
-                }
-            }
-
-            var typeDefinitionPart = context.typeDefinitionPart();
-            if (typeDefinitionPart != null)
-            {
-                foreach (var typeDef in typeDefinitionPart)
-                {
-                    var node = _declarationVisitor.Visit(typeDef);
-                    if (node is BlockNode blockNode)
-                    {
-                        foreach (var stmt in blockNode.Statements)
-                        {
-                            block.Statements.Add(stmt);
-                        }
-                    }
-                    else if (node != null)
-                    {
-                        block.Statements.Add(node);
-                    }
-                }
-            }
-
-            var procedureAndFunctionPart = context.procedureAndFunctionDeclarationPart();
-            if (procedureAndFunctionPart != null)
-            {
-                foreach (var procDecl in procedureAndFunctionPart)
-                {
-                    var node = _declarationVisitor.Visit(procDecl);
-                    if (node != null)
-                    {
-                        block.Statements.Add(node);
-                    }
-                }
-            }
-
-            var variableDeclarationPart = context.variableDeclarationPart();
-            if (variableDeclarationPart != null)
-            {
-                foreach (var varDeclPart in variableDeclarationPart)
-                {
-                    var varDecls = varDeclPart?.variableDeclaration();
-                    if (varDecls != null)
-                    {
-                        foreach (var varDecl in varDecls)
-                    {
-                        var node = _declarationVisitor.Visit(varDecl);
-                        if (node is BlockNode b)
-                        {
-                            foreach (var s in b.Statements)
-                            {
-                                block.Statements.Add(s);
-                            }
-                        }
-                        else if (node != null)
-                        {
-                            block.Statements.Add(node);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (context.compoundStatement() != null)
-            {
-                var compoundNode = Visit(context.compoundStatement());
-                if (compoundNode != null)
-                {
-                    block.Statements.Add(compoundNode);
-                }
-            }
+            ProcessConstantDefinitions(context, block);
+            ProcessTypeDefinitions(context, block);
+            ProcessProceduresAndFunctions(context, block);
+            ProcessVariableDeclarations(context, block);
+            ProcessCompoundStatement(context, block);
 
             return block;
+        }
+
+        private void ProcessConstantDefinitions(PascalParser.BlockContext context, BlockNode block)
+        {
+            var constantDefinitionPart = context.constantDefinitionPart();
+            if (constantDefinitionPart == null) return;
+
+            foreach (var constDefPart in constantDefinitionPart)
+            {
+                AddNodeToBlock(_declarationVisitor.Visit(constDefPart), block);
+            }
+        }
+
+        private void ProcessTypeDefinitions(PascalParser.BlockContext context, BlockNode block)
+        {
+            var typeDefinitionPart = context.typeDefinitionPart();
+            if (typeDefinitionPart == null) return;
+
+            foreach (var typeDef in typeDefinitionPart)
+            {
+                AddNodeToBlock(_declarationVisitor.Visit(typeDef), block);
+            }
+        }
+
+        private void ProcessProceduresAndFunctions(PascalParser.BlockContext context, BlockNode block)
+        {
+            var procedureAndFunctionPart = context.procedureAndFunctionDeclarationPart();
+            if (procedureAndFunctionPart == null) return;
+
+            foreach (var procDecl in procedureAndFunctionPart)
+            {
+                var node = _declarationVisitor.Visit(procDecl);
+                if (node != null)
+                {
+                    block.Statements.Add(node);
+                }
+            }
+        }
+
+        private void ProcessVariableDeclarations(PascalParser.BlockContext context, BlockNode block)
+        {
+            var variableDeclarationPart = context.variableDeclarationPart();
+            if (variableDeclarationPart == null) return;
+
+            foreach (var varDeclPart in variableDeclarationPart)
+            {
+                var varDecls = varDeclPart?.variableDeclaration();
+                if (varDecls == null) continue;
+
+                foreach (var varDecl in varDecls)
+                {
+                    AddNodeToBlock(_declarationVisitor.Visit(varDecl), block);
+                }
+            }
+        }
+
+        private void ProcessCompoundStatement(PascalParser.BlockContext context, BlockNode block)
+        {
+            if (context.compoundStatement() == null) return;
+
+            var compoundNode = Visit(context.compoundStatement());
+            if (compoundNode != null)
+            {
+                block.Statements.Add(compoundNode);
+            }
+        }
+
+        private static void AddNodeToBlock(PascalAstNode node, BlockNode block)
+        {
+            if (node is BlockNode blockNode)
+            {
+                foreach (var stmt in blockNode.Statements)
+                {
+                    block.Statements.Add(stmt);
+                }
+            }
+            else if (node != null)
+            {
+                block.Statements.Add(node);
+            }
         }
 
         public override PascalAstNode VisitCompoundStatement(PascalParser.CompoundStatementContext context)
