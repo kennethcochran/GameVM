@@ -8,14 +8,14 @@ namespace GameVM.Compiler.Pascal
     /// Builder for creating AST nodes.
     /// Standardizes AST creation and reduces coupling in visitors.
     /// </summary>
-    public class ASTBuilder
+    public class AstBuilder
     {
         public ProgramNode CreateProgram(string name, BlockNode block)
         {
-            return new ProgramNode { Name = name, Block = block, UsesUnits = new List<PascalASTNode>() };
+            return new ProgramNode { Name = name, Block = block, UsesUnits = new List<PascalAstNode>() };
         }
 
-        public BlockNode CreateBlock(List<PascalASTNode> statements)
+        public BlockNode CreateBlock(List<PascalAstNode> statements)
         {
             return new BlockNode { Statements = statements };
         }
@@ -51,11 +51,11 @@ namespace GameVM.Compiler.Pascal
         public StringLiteralNode CreateStringLiteral(string value)
         {
             // Remove quotes if present
-            if (value != null && value.Length >= 2 && value.StartsWith("'") && value.EndsWith("'"))
+            if (value.Length >= 2 && value.StartsWith('\'') && value.EndsWith('\''))
             {
                 value = value.Substring(1, value.Length - 2);
             }
-            return new StringLiteralNode { Value = value };
+            return new StringLiteralNode { Value = value ?? string.Empty };
         }
 
         public BooleanLiteralNode CreateBooleanLiteral(bool value)
@@ -63,37 +63,37 @@ namespace GameVM.Compiler.Pascal
             return new BooleanLiteralNode { Value = value };
         }
 
-        public AssignmentNode CreateAssignment(PascalASTNode left, PascalASTNode right)
+        public AssignmentNode CreateAssignment(PascalAstNode left, PascalAstNode right)
         {
             return new AssignmentNode { Left = left, Right = right };
         }
 
-        public IfNode CreateIf(PascalASTNode condition, PascalASTNode thenBlock, PascalASTNode elseBlock = null)
+        public IfNode CreateIf(PascalAstNode condition, PascalAstNode thenBlock, PascalAstNode? elseBlock = null)
         {
             return new IfNode { Condition = condition, ThenBlock = thenBlock, ElseBlock = elseBlock };
         }
 
-        public WhileNode CreateWhile(PascalASTNode condition, PascalASTNode block)
+        public WhileNode CreateWhile(PascalAstNode condition, PascalAstNode block)
         {
             return new WhileNode { Condition = condition, Block = block };
         }
 
-        public RepeatNode CreateRepeat(PascalASTNode block, PascalASTNode condition)
+        public RepeatNode CreateRepeat(PascalAstNode block, PascalAstNode condition)
         {
             return new RepeatNode { Block = block, Condition = condition };
         }
 
-        public ForNode CreateFor(PascalASTNode variable, PascalASTNode fromExpr, PascalASTNode toExpr, PascalASTNode block)
+        public ForNode CreateFor(PascalAstNode variable, PascalAstNode fromExpr, PascalAstNode toExpr, PascalAstNode block)
         {
             return new ForNode { Variable = variable, FromExpression = fromExpr, ToExpression = toExpr, Block = block };
         }
 
-        public ProcedureCallNode CreateProcedureCall(string name, List<PascalASTNode> arguments)
+        public ProcedureCallNode CreateProcedureCall(string name, List<PascalAstNode> arguments)
         {
             return new ProcedureCallNode { Name = name, Arguments = arguments };
         }
 
-        public FunctionCallNode CreateFunctionCall(string name, List<PascalASTNode> arguments)
+        public FunctionCallNode CreateFunctionCall(string name, List<PascalAstNode> arguments)
         {
             return new FunctionCallNode { Name = name, Arguments = arguments };
         }

@@ -8,25 +8,21 @@ using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Pascal
 {
-    /// <summary>
-    /// Main AST Visitor that orchestrates expression, statement, and declaration visitors
-    /// </summary>
-    public class ASTVisitor : PascalBaseVisitor<PascalASTNode>
+    public class AstVisitor : PascalBaseVisitor<PascalAstNode>
     {
-        private readonly ASTBuilder _astBuilder;
         private readonly ExpressionVisitor _expressionVisitor;
         private readonly StatementVisitor _statementVisitor;
         private readonly DeclarationVisitor _declarationVisitor;
 
-        public ASTVisitor()
+        public AstVisitor()
         {
-            _astBuilder = new ASTBuilder();
-            _expressionVisitor = new ExpressionVisitor(_astBuilder);
-            _statementVisitor = new StatementVisitor(_expressionVisitor, _astBuilder);
-            _declarationVisitor = new DeclarationVisitor(_expressionVisitor, _astBuilder);
+            var astBuilder = new AstBuilder();
+            _expressionVisitor = new ExpressionVisitor(astBuilder);
+            _statementVisitor = new StatementVisitor(_expressionVisitor, astBuilder);
+            _declarationVisitor = new DeclarationVisitor(_expressionVisitor, astBuilder);
             _declarationVisitor.SetMainVisitor(this);
         }
-        public override PascalASTNode VisitProgram(PascalParser.ProgramContext context)
+        public override PascalAstNode VisitProgram(PascalParser.ProgramContext context)
         {
             if (context == null)
                 return new ErrorNode("Null program context");
@@ -51,34 +47,21 @@ namespace GameVM.Compiler.Pascal
             {
                 Name = identifier.GetText(),
                 Block = (BlockNode)blockNode,
-                UsesUnits = new List<PascalASTNode>()
+                UsesUnits = new List<PascalAstNode>()
             };
         }
 
-        public override PascalASTNode VisitBlock(PascalParser.BlockContext context)
+        public override PascalAstNode VisitBlock(PascalParser.BlockContext context)
         {
             if (context == null)
                 return new ErrorNode("Null block context");
 
             var block = new BlockNode
             {
-                Statements = new List<PascalASTNode>()
+                Statements = new List<PascalAstNode>()
             };
 
-            // Do NOT add label declarations to Statements list (to match test expectations)
-            // if (context.labelDeclarationPart() != null)
-            // {
-            //     foreach (var labelDecl in context.labelDeclarationPart())
-            //     {
-            //         var node = Visit(labelDecl);
-            //         if (node != null)
-            //         {
-            //             block.Statements.Add(node);
-            //         }
-            //     }
-            // }
 
-            // Add constant definitions next
             var constantDefinitionPart = context.constantDefinitionPart();
             if (constantDefinitionPart != null)
             {
@@ -99,7 +82,6 @@ namespace GameVM.Compiler.Pascal
                 }
             }
 
-            // Add type definitions next
             var typeDefinitionPart = context.typeDefinitionPart();
             if (typeDefinitionPart != null)
             {
@@ -120,7 +102,6 @@ namespace GameVM.Compiler.Pascal
                 }
             }
 
-            // Add procedure/function declarations before variable declarations
             var procedureAndFunctionPart = context.procedureAndFunctionDeclarationPart();
             if (procedureAndFunctionPart != null)
             {
@@ -173,201 +154,201 @@ namespace GameVM.Compiler.Pascal
             return block;
         }
 
-        public override PascalASTNode VisitCompoundStatement(PascalParser.CompoundStatementContext context)
+        public override PascalAstNode VisitCompoundStatement(PascalParser.CompoundStatementContext context)
         {
             return _statementVisitor.VisitCompoundStatement(context);
         }
 
-        public override PascalASTNode VisitStatement(PascalParser.StatementContext context)
+        public override PascalAstNode VisitStatement(PascalParser.StatementContext context)
         {
             return _statementVisitor.VisitStatement(context);
         }
 
-        public override PascalASTNode VisitAssignmentStatement(PascalParser.AssignmentStatementContext context)
+        public override PascalAstNode VisitAssignmentStatement(PascalParser.AssignmentStatementContext context)
         {
             return _statementVisitor.VisitAssignmentStatement(context);
         }
 
-        public override PascalASTNode VisitVariable(PascalParser.VariableContext context)
+        public override PascalAstNode VisitVariable(PascalParser.VariableContext context)
         {
             return _expressionVisitor.VisitVariable(context);
         }
 
-        public override PascalASTNode VisitExpression(PascalParser.ExpressionContext context)
+        public override PascalAstNode VisitExpression(PascalParser.ExpressionContext context)
         {
             return _expressionVisitor.VisitExpression(context);
         }
 
-        public override PascalASTNode VisitSimpleExpression(PascalParser.SimpleExpressionContext context)
+        public override PascalAstNode VisitSimpleExpression(PascalParser.SimpleExpressionContext context)
         {
             return _expressionVisitor.VisitSimpleExpression(context);
         }
 
-        public override PascalASTNode VisitTerm(PascalParser.TermContext context)
+        public override PascalAstNode VisitTerm(PascalParser.TermContext context)
         {
             return _expressionVisitor.VisitTerm(context);
         }
 
-        public override PascalASTNode VisitSignedFactor(PascalParser.SignedFactorContext context)
+        public override PascalAstNode VisitSignedFactor(PascalParser.SignedFactorContext context)
         {
             return _expressionVisitor.VisitSignedFactor(context);
         }
 
-        public override PascalASTNode VisitFactor(PascalParser.FactorContext context)
+        public override PascalAstNode VisitFactor(PascalParser.FactorContext context)
         {
             return _expressionVisitor.VisitFactor(context);
         }
 
-        public override PascalASTNode VisitProcedureDeclaration(PascalParser.ProcedureDeclarationContext context)
+        public override PascalAstNode VisitProcedureDeclaration(PascalParser.ProcedureDeclarationContext context)
         {
             return _declarationVisitor.VisitProcedureDeclaration(context);
         }
 
-        public override PascalASTNode VisitFunctionDeclaration(PascalParser.FunctionDeclarationContext context)
+        public override PascalAstNode VisitFunctionDeclaration(PascalParser.FunctionDeclarationContext context)
         {
             return _declarationVisitor.VisitFunctionDeclaration(context);
         }
 
-        public override PascalASTNode VisitForStatement(PascalParser.ForStatementContext context)
+        public override PascalAstNode VisitForStatement(PascalParser.ForStatementContext context)
         {
             return _statementVisitor.VisitForStatement(context);
         }
 
-        public override PascalASTNode VisitArrayType(PascalParser.ArrayTypeContext context)
+        public override PascalAstNode VisitArrayType(PascalParser.ArrayTypeContext context)
         {
             return _declarationVisitor.VisitArrayType(context);
         }
 
-        public override PascalASTNode VisitSetType(PascalParser.SetTypeContext context)
+        public override PascalAstNode VisitSetType(PascalParser.SetTypeContext context)
         {
             return _declarationVisitor.VisitSetType(context);
         }
 
-        public override PascalASTNode VisitIfStatement(PascalParser.IfStatementContext context)
+        public override PascalAstNode VisitIfStatement(PascalParser.IfStatementContext context)
         {
             return _statementVisitor.VisitIfStatement(context);
         }
 
-        public override PascalASTNode VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
+        public override PascalAstNode VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
         {
             return _statementVisitor.VisitProcedureStatement(context);
         }
 
-        public override PascalASTNode VisitSimpleType(PascalParser.SimpleTypeContext context)
+        public override PascalAstNode VisitSimpleType(PascalParser.SimpleTypeContext context)
         {
             return _declarationVisitor.VisitSimpleType(context);
         }
 
-        public override PascalASTNode VisitSubrangeType(PascalParser.SubrangeTypeContext context)
+        public override PascalAstNode VisitSubrangeType(PascalParser.SubrangeTypeContext context)
         {
             return _declarationVisitor.VisitSubrangeType(context);
         }
 
-        public override PascalASTNode VisitInitialValue(PascalParser.InitialValueContext context)
+        public override PascalAstNode VisitInitialValue(PascalParser.InitialValueContext context)
         {
             return _statementVisitor.VisitInitialValue(context);
         }
 
-        public override PascalASTNode VisitFinalValue(PascalParser.FinalValueContext context)
+        public override PascalAstNode VisitFinalValue(PascalParser.FinalValueContext context)
         {
             return _statementVisitor.VisitFinalValue(context);
         }
 
-        public override PascalASTNode VisitIndexType(PascalParser.IndexTypeContext context)
+        public override PascalAstNode VisitIndexType(PascalParser.IndexTypeContext context)
         {
             return _declarationVisitor.VisitIndexType(context);
         }
 
-        public override PascalASTNode VisitProcedureAndFunctionDeclarationPart(PascalParser.ProcedureAndFunctionDeclarationPartContext context)
+        public override PascalAstNode VisitProcedureAndFunctionDeclarationPart(PascalParser.ProcedureAndFunctionDeclarationPartContext context)
         {
-            return _declarationVisitor.VisitProcedureAndFunctionDeclarationPart(context);
+            return _declarationVisitor.VisitProcedureAndFunctionDeclarationPart(context) ?? new ErrorNode("Invalid procedure and function declaration part");
         }
 
-        public override PascalASTNode VisitIdentifier(PascalParser.IdentifierContext context)
+        public override PascalAstNode VisitIdentifier(PascalParser.IdentifierContext context)
         {
             return _statementVisitor.VisitIdentifier(context);
         }
 
-        public override PascalASTNode VisitCaseStatement(PascalParser.CaseStatementContext context)
+        public override PascalAstNode VisitCaseStatement(PascalParser.CaseStatementContext context)
         {
             return _statementVisitor.VisitCaseStatement(context);
         }
 
-        public override PascalASTNode VisitCaseListElement(PascalParser.CaseListElementContext context)
+        public override PascalAstNode VisitCaseListElement(PascalParser.CaseListElementContext context)
         {
             return _statementVisitor.VisitCaseListElement(context);
         }
 
-        public override PascalASTNode VisitWhileStatement(PascalParser.WhileStatementContext context)
+        public override PascalAstNode VisitWhileStatement(PascalParser.WhileStatementContext context)
         {
             return _statementVisitor.VisitWhileStatement(context);
         }
 
-        public override PascalASTNode VisitTypeDefinitionPart(PascalParser.TypeDefinitionPartContext context)
+        public override PascalAstNode VisitTypeDefinitionPart(PascalParser.TypeDefinitionPartContext context)
         {
             return _declarationVisitor.VisitTypeDefinitionPart(context);
         }
 
-        public override PascalASTNode VisitTypeDefinition(PascalParser.TypeDefinitionContext context)
+        public override PascalAstNode VisitTypeDefinition(PascalParser.TypeDefinitionContext context)
         {
             return _declarationVisitor.VisitTypeDefinition(context);
         }
 
-        public override PascalASTNode VisitType_(PascalParser.Type_Context context)
+        public override PascalAstNode VisitType_(PascalParser.Type_Context context)
         {
             return _declarationVisitor.VisitType_(context);
         }
 
-        public override PascalASTNode VisitConstant(PascalParser.ConstantContext context)
+        public override PascalAstNode VisitConstant(PascalParser.ConstantContext context)
         {
             return _expressionVisitor.VisitConstant(context);
         }
 
-        public override PascalASTNode VisitPointerType(PascalParser.PointerTypeContext context)
+        public override PascalAstNode VisitPointerType(PascalParser.PointerTypeContext context)
         {
             return _declarationVisitor.VisitPointerType(context);
         }
 
-        public override PascalASTNode VisitLabelDeclarationPart(PascalParser.LabelDeclarationPartContext context)
+        public override PascalAstNode VisitLabelDeclarationPart(PascalParser.LabelDeclarationPartContext context)
         {
             return _declarationVisitor.VisitLabelDeclarationPart(context);
         }
 
-        public override PascalASTNode VisitGotoStatement(PascalParser.GotoStatementContext context)
+        public override PascalAstNode VisitGotoStatement(PascalParser.GotoStatementContext context)
         {
             return _statementVisitor.VisitGotoStatement(context);
         }
 
-        public override PascalASTNode VisitScalarType(PascalParser.ScalarTypeContext context)
+        public override PascalAstNode VisitScalarType(PascalParser.ScalarTypeContext context)
         {
             return _declarationVisitor.VisitScalarType(context);
         }
 
-        public override PascalASTNode VisitStructuredType(PascalParser.StructuredTypeContext context)
+        public override PascalAstNode VisitStructuredType(PascalParser.StructuredTypeContext context)
         {
             return _declarationVisitor.VisitStructuredType(context);
         }
 
-        public override PascalASTNode VisitFileType(PascalParser.FileTypeContext context)
+        public override PascalAstNode VisitFileType(PascalParser.FileTypeContext context)
         {
             return _declarationVisitor.VisitFileType(context);
         }
 
-        public override PascalASTNode VisitWithStatement(PascalParser.WithStatementContext context)
+        public override PascalAstNode VisitWithStatement(PascalParser.WithStatementContext context)
         {
             return _statementVisitor.VisitWithStatement(context);
         }
 
-        public override PascalASTNode VisitUnpackedStructuredType(PascalParser.UnpackedStructuredTypeContext context)
+        public override PascalAstNode VisitUnpackedStructuredType(PascalParser.UnpackedStructuredTypeContext context)
         {
             return _declarationVisitor.VisitUnpackedStructuredType(context);
         }
 
-        public override PascalASTNode VisitSet_(PascalParser.Set_Context context)
+        public override PascalAstNode VisitSet_(PascalParser.Set_Context context)
         {
             return _expressionVisitor.VisitSet_(context);
         }
 
-        protected override PascalASTNode DefaultResult => null!;
+        protected override PascalAstNode DefaultResult => null!;
     }
 }

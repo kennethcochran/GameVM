@@ -7,10 +7,10 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     public class MidToLowLevelTransformer : IIRTransformer<MidLevelIR, LowLevelIR>
     {
-        private Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
         private int _nextAvailableAddress = 0x80;
 
-        public LowLevelIR Transform(MidLevelIR mlir)
+        private void InitializeAddressMap()
         {
             _addressMap.Clear();
             _nextAvailableAddress = 0x80;
@@ -20,59 +20,97 @@ namespace GameVM.Compiler.Backend.Atari2600
             _addressMap["COLUPF"] = "$08";
             _addressMap["COLUP0"] = "$06";
             _addressMap["COLUP1"] = "$07";
+        }
 
+        public LowLevelIR Transform(MidLevelIR mlir)
+        {
+            // Always start with a fresh address map for each compilation
+            InitializeAddressMap();
+            
             var llir = new LowLevelIR { SourceFile = mlir.SourceFile };
             llir.Modules.Clear();
             
             // Process each module in the input
             foreach (var module in mlir.Modules)
             {
-                var outputModule = new LowLevelIR.LLModule { Name = module.Name };
-
-                // Process each function in the input module
-                foreach (var mlFunc in module.Functions)
+                var outputModule = ProcessModule(module);
+                llir.Modules.Add(outputModule);
+                
+                // Flatten all function instructions to top level for test compatibility
+                foreach (var function in outputModule.Functions)
                 {
-                    var llFunc = new LowLevelIR.LLFunction { Name = mlFunc.Name };
+                    // Add function label to top level
+                    llir.Instructions.Add(new LowLevelIR.LLLabel { Name = function.Name });
                     
-                    // Process each instruction in the function
-                    foreach (var instr in mlFunc.Instructions)
+                    // Add function instructions to top level
+                    foreach (var instr in function.Instructions)
                     {
-                        if (instr is MidLevelIR.MLLabel label)
-                        {
-                            llFunc.Instructions.Add(new LowLevelIR.LLLabel { Name = label.Name });
-                        }
-                        else if (instr is MidLevelIR.MLAssign assign)
-                        {
-                            var targetAddr = MapToAddress(assign.Target);
-                            llFunc.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = assign.Source });
-                            llFunc.Instructions.Add(new LowLevelIR.LLStore { Address = targetAddr, Register = "A" });
-                        }
-                        else if (instr is MidLevelIR.MLCall call)
-                        {
-                            llFunc.Instructions.Add(new LowLevelIR.LLCall { Label = call.Name });
-                        }
-                        else if (instr is MidLevelIR.MLBranch branch)
-                        {
-                            llFunc.Instructions.Add(new LowLevelIR.LLJump { Target = branch.Target, Condition = branch.Condition });
-                        }
-                    }
-                    
-                    outputModule.Functions.Add(llFunc);
-                    
-                    // Legacy: Add function label for tests that expect it at the beginning of top-level instructions
-                    llir.Instructions.Add(new LowLevelIR.LLLabel { Name = llFunc.Name });
-
-                    // Flatten instructions into the top-level list (for legacy tests)
-                    foreach (var llInstr in llFunc.Instructions)
-                    {
-                        llir.Instructions.Add(llInstr);
+                        llir.Instructions.Add(instr);
                     }
                 }
-                
-                llir.Modules.Add(outputModule);
+            }
+            
+            return llir;
+        }
+
+        private LowLevelIR.LLModule ProcessModule(MidLevelIR.MLModule module)
+        {
+            var outputModule = new LowLevelIR.LLModule { Name = module.Name };
+
+            // Process each function in the input module
+            foreach (var mlFunc in module.Functions)
+            {
+                var llFunc = ProcessFunction(mlFunc);
+                outputModule.Functions.Add(llFunc);
             }
 
-            return llir;
+            return outputModule;
+        }
+
+        private LowLevelIR.LLFunction ProcessFunction(MidLevelIR.MLFunction mlFunc)
+        {
+            var llFunc = new LowLevelIR.LLFunction { Name = mlFunc.Name };
+            
+            // Process each instruction in the function
+            foreach (var instr in mlFunc.Instructions)
+            {
+                ProcessInstruction(instr, llFunc);
+            }
+            
+            return llFunc;
+        }
+
+        private void ProcessInstruction(MidLevelIR.MLInstruction instr, LowLevelIR.LLFunction llFunc)
+        {
+            LowLevelIR.LLInstruction? llInstr = null;
+            
+            switch (instr)
+            {
+                case MidLevelIR.MLLabel label:
+                    llInstr = new LowLevelIR.LLLabel { Name = label.Name };
+                    break;
+                case MidLevelIR.MLAssign assign:
+                    ProcessAssignment(assign, llFunc);
+                    return; // Assignment adds multiple instructions, handled separately
+                case MidLevelIR.MLCall call:
+                    llInstr = new LowLevelIR.LLCall { Label = call.Name };
+                    break;
+                case MidLevelIR.MLBranch branch:
+                    llInstr = new LowLevelIR.LLJump { Target = branch.Target, Condition = branch.Condition };
+                    break;
+            }
+            
+            if (llInstr != null)
+            {
+                llFunc.Instructions.Add(llInstr);
+            }
+        }
+
+        private void ProcessAssignment(MidLevelIR.MLAssign assign, LowLevelIR.LLFunction llFunc)
+        {
+            var targetAddr = MapToAddress(assign.Target);
+            llFunc.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = assign.Source });
+            llFunc.Instructions.Add(new LowLevelIR.LLStore { Address = targetAddr, Register = "A" });
         }
 
         private string MapToAddress(string target)
@@ -80,7 +118,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             if (_addressMap.TryGetValue(target, out var addr))
                 return addr;
 
-            if (target.StartsWith("$"))
+            if (target.StartsWith('$'))
                 return target;
 
             // Allocate new address

@@ -1,10 +1,10 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class ForNode : PascalASTNode
+    public class ForNode : PascalAstNode
     {
-        public required PascalASTNode Variable { get; set; }
-        public required PascalASTNode FromExpression { get; set; }
-        public required PascalASTNode ToExpression { get; set; }
-        public required PascalASTNode Block { get; set; }
+        public required PascalAstNode Variable { get; set; }
+        public required PascalAstNode FromExpression { get; set; }
+        public required PascalAstNode ToExpression { get; set; }
+        public required PascalAstNode Block { get; set; }
     }
 }

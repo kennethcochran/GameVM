@@ -7,7 +7,7 @@ namespace GameVM.Compiler.Pascal.Tests
     [TestFixture]
     internal class AstTests
     {
-        public PascalASTNode ParseProgram(string input)
+        public static PascalAstNode ParseProgram(string input)
         {
             var stream = new AntlrInputStream(input);
             var lexer = new PascalLexer(stream);
@@ -15,7 +15,7 @@ namespace GameVM.Compiler.Pascal.Tests
             var parser = new PascalParser(tokens);
             var tree = parser.program();
             Console.WriteLine("Parse tree: " + tree.ToStringTree(parser)); // Debug log
-            var visitor = new ASTVisitor();
+            var visitor = new AstVisitor();
             var result = visitor.Visit(tree);
             Console.WriteLine("AST Result: " + result); // Debug log
             return result;
@@ -260,12 +260,12 @@ namespace GameVM.Compiler.Pascal.Tests
             var program = (ProgramNode)result;
             var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
             Assert.That(typeDef, Is.Not.Null);
-            Assert.That(typeDef.Name, Is.EqualTo("Person"));
-            var record = typeDef.Type as RecordTypeNode;
+            Assert.That(typeDef!.Name, Is.EqualTo("Person"));
+            var record = typeDef!.Type as RecordTypeNode;
             Assert.That(record, Is.Not.Null);
-            Assert.That(record.Fields, Has.Count.EqualTo(2));
-            Assert.That(record.Fields[0].Name, Is.EqualTo("name"));
-            Assert.That(record.Fields[1].Name, Is.EqualTo("age"));
+            Assert.That(record!.Fields, Has.Count.EqualTo(2));
+            Assert.That(record!.Fields[0].Name, Is.EqualTo("name"));
+            Assert.That(record!.Fields[1].Name, Is.EqualTo("age"));
         }
 
         [Test]
@@ -282,11 +282,11 @@ namespace GameVM.Compiler.Pascal.Tests
             var program = (ProgramNode)result;
             var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
             Assert.That(typeDef, Is.Not.Null);
-            Assert.That(typeDef.Name, Is.EqualTo("IntArray"));
-            var arrayType = typeDef.Type as ArrayTypeNode;
+            Assert.That(typeDef!.Name, Is.EqualTo("IntArray"));
+            var arrayType = typeDef!.Type as ArrayTypeNode;
             Assert.That(arrayType, Is.Not.Null);
-            Assert.That(arrayType.Dimensions, Has.Count.EqualTo(1));
-            Assert.That(arrayType.ElementType, Is.Not.Null);
+            Assert.That(arrayType!.Dimensions, Has.Count.EqualTo(1));
+            Assert.That(arrayType!.ElementType, Is.Not.Null);
             Assert.That(arrayType.ElementType.TypeName, Is.EqualTo("integer"));
         }
 
@@ -434,8 +434,8 @@ namespace GameVM.Compiler.Pascal.Tests
             var program = (ProgramNode)result;
             var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
             Assert.That(typeDef, Is.Not.Null);
-            Assert.That(typeDef.Name, Is.EqualTo("Shape"));
-            var variant = typeDef.Type as VariantRecordNode;
+            Assert.That(typeDef!.Name, Is.EqualTo("Shape"));
+            var variant = typeDef!.Type as VariantRecordNode;
             Assert.That(variant, Is.Not.Null);
             // Further checks for variant fields can be added here
         }
@@ -453,8 +453,8 @@ namespace GameVM.Compiler.Pascal.Tests
             var program = (ProgramNode)result;
             var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
             Assert.That(typeDef, Is.Not.Null);
-            Assert.That(typeDef.Name, Is.EqualTo("PackedArr"));
-            var packed = typeDef.Type as PackedTypeNode;
+            Assert.That(typeDef!.Name, Is.EqualTo("PackedArr"));
+            var packed = typeDef!.Type as PackedTypeNode;
             Assert.That(packed, Is.Not.Null);
             // Further checks for packed.InnerType can be added here
         }
@@ -472,10 +472,10 @@ namespace GameVM.Compiler.Pascal.Tests
             var program = (ProgramNode)result;
             var typeDef = program.Block.Statements[0] as TypeDefinitionNode;
             Assert.That(typeDef, Is.Not.Null);
-            Assert.That(typeDef.Name, Is.EqualTo("Color"));
-            var enumType = typeDef.Type as EnumeratedTypeNode;
+            Assert.That(typeDef!.Name, Is.EqualTo("Color"));
+            var enumType = typeDef!.Type as EnumeratedTypeNode;
             Assert.That(enumType, Is.Not.Null);
-            Assert.That(enumType.Members, Is.EquivalentTo(new[] { "Red", "Green", "Blue" }));
+            Assert.That(enumType!.Members, Is.EquivalentTo(new[] { "Red", "Green", "Blue" }));
         }
     }
 }

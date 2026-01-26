@@ -25,22 +25,22 @@ namespace GameVM.Compiler.Interaction
                 Optimize = true
             };
 
-            var result = _compileUseCase.Execute(sourceFile.FullName, options);
+            _compileUseCase.Execute(sourceFile.FullName, options);
         }
 
-        public async Task<int> Run(string[] args)
+        public Task<int> Run(string[] args)
         {
             if (args.Length == 0)
             {
                 System.Console.WriteLine("Error: No input file specified");
-                return 1;
+                return Task.FromResult(1);
             }
 
             var sourceFile = new FileInfo(args[0]);
             if (!sourceFile.Exists)
             {
                 System.Console.WriteLine($"Error: File not found: {args[0]}");
-                return 1;
+                return Task.FromResult(1);
             }
 
             var options = new CompilationOptions
@@ -52,7 +52,7 @@ namespace GameVM.Compiler.Interaction
             };
 
             var result = _compileUseCase.Execute(sourceFile.FullName, options);
-            return result.Success ? 0 : 1;
+            return Task.FromResult(result.Success ? 0 : 1);
         }
     }
 }

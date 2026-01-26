@@ -2,8 +2,8 @@ using System.Collections.Generic;
 
 namespace GameVM.Compiler.Pascal
 {
-    public class BlockNode : PascalASTNode
+    public class BlockNode : PascalAstNode
     {
-        public required List<PascalASTNode> Statements { get; set; } = new();
+        public required List<PascalAstNode> Statements { get; set; } = new();
     }
 }

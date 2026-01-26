@@ -4,9 +4,6 @@ using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Pascal
 {
-    /// <summary>
-    /// Transforms statement AST nodes to High-Level IR statements
-    /// </summary>
     public class StatementTransformer
     {
         private readonly TransformationContext _context;
@@ -20,10 +17,7 @@ namespace GameVM.Compiler.Pascal
             _expressionTransformer = expressionTransformer ?? throw new ArgumentNullException(nameof(expressionTransformer));
         }
 
-        /// <summary>
-        /// Transforms a statement node to a High-Level IR statement
-        /// </summary>
-        public HighLevelIR.Statement TransformStatement(PascalASTNode stmtNode)
+        public HighLevelIR.Statement TransformStatement(PascalAstNode stmtNode)
         {
             if (stmtNode == null)
                 return CreateErrorStatement("Statement node is null");
@@ -33,6 +27,7 @@ namespace GameVM.Compiler.Pascal
                 return stmtNode switch
                 {
                     AssignmentNode assignNode => TransformAssignment(assignNode),
+                    ExpressionStatementNode exprStmtNode => TransformExpressionStatement(exprStmtNode),
                     IfNode ifNode => TransformIfStatement(ifNode),
                     WhileNode whileNode => TransformWhileLoop(whileNode),
                     ForNode forNode => TransformForLoop(forNode),
@@ -48,9 +43,6 @@ namespace GameVM.Compiler.Pascal
             }
         }
 
-        /// <summary>
-        /// Transforms an assignment statement
-        /// </summary>
         private HighLevelIR.Statement TransformAssignment(AssignmentNode assignNode)
         {
             if (assignNode == null)
@@ -61,38 +53,22 @@ namespace GameVM.Compiler.Pascal
 
             if (targetExpr == null || value == null)
             {
-                // Special case for Pascal return value assignment: Double := x * 2;
-                // Double might not be a variable, but the current function name.
-                if (assignNode.Left is VariableNode varNode)
+                if (assignNode.Left is VariableNode varNode && _context.FunctionScope.Count > 0 && _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase) && value != null)
                 {
-                    if (_context.FunctionScope.Count > 0 && 
-                        _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase))
+                    var returnType = _context.FunctionScope.Peek().ReturnType;
+                    if (returnType != null && value.Type != null && !IsCompatible(returnType, value.Type))
                     {
-                        if (value == null) return CreateErrorStatement("Failed to transform assignment value");
-
-                        // Type checking for return value assignment
-                        var returnType = _context.FunctionScope.Peek().ReturnType;
-                        if (returnType != null && value.Type != null)
-                        {
-                            if (!IsCompatible(returnType, value.Type))
-                            {
-                                _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to return type {returnType.Name}");
-                            }
-                        }
-
-                        return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
+                        _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to return type {returnType.Name}");
                     }
+
+                    return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
                 }
                 return CreateErrorStatement("Failed to transform assignment operands");
             }
 
-            // Basic type checking
-            if (targetExpr.Type != null && value.Type != null)
+            if (targetExpr.Type != null && value.Type != null && !IsCompatible(targetExpr.Type, value.Type))
             {
-                if (!IsCompatible(targetExpr.Type, value.Type))
-                {
-                    _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to {targetExpr.Type.Name}");
-                }
+                _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to {targetExpr.Type.Name}");
             }
 
             if (targetExpr is HighLevelIR.Identifier identifier)
@@ -103,12 +79,11 @@ namespace GameVM.Compiler.Pascal
             return CreateErrorStatement("Assignment target must be an identifier");
         }
 
-        private bool IsCompatible(HighLevelIR.HLType targetType, HighLevelIR.HLType valueType)
+        private static bool IsCompatible(HighLevelIR.HlType targetType, HighLevelIR.HlType valueType)
         {
             if (targetType.Name.Equals(valueType.Name, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Allow integer to real conversion
             if (targetType.Name.Equals("f64", StringComparison.OrdinalIgnoreCase) && 
                 valueType.Name.Equals("i32", StringComparison.OrdinalIgnoreCase))
                 return true;
@@ -120,9 +95,6 @@ namespace GameVM.Compiler.Pascal
             return false;
         }
 
-        /// <summary>
-        /// Transforms an if statement
-        /// </summary>
         private HighLevelIR.Statement TransformIfStatement(IfNode ifNode)
         {
             if (ifNode == null)
@@ -138,7 +110,7 @@ namespace GameVM.Compiler.Pascal
 
             List<IRNode> thenList = thenStmt is HighLevelIR.Block block ? new List<IRNode>(block.Statements) : new List<IRNode> { thenStmt };
 
-            List<IRNode> elseList = null;
+            List<IRNode>? elseList = null;
             if (ifNode.ElseBlock != null)
             {
                 var elseStmt = TransformStatement(ifNode.ElseBlock);
@@ -151,9 +123,6 @@ namespace GameVM.Compiler.Pascal
             return new HighLevelIR.IfStatement(condition, thenList, elseList);
         }
 
-        /// <summary>
-        /// Transforms a while loop statement
-        /// </summary>
         private HighLevelIR.Statement TransformWhileLoop(WhileNode whileNode)
         {
             if (whileNode == null)
@@ -173,12 +142,9 @@ namespace GameVM.Compiler.Pascal
                 irBlock.AddStatement(loopBodyStmt);
             }
 
-            return new HighLevelIR.While(condition, irBlock, _context.SourceFile);
+            return new HighLevelIR.While { Condition = condition, Body = irBlock, SourceFile = _context.SourceFile };
         }
 
-        /// <summary>
-        /// Transforms a for loop statement
-        /// </summary>
         private HighLevelIR.Statement TransformForLoop(ForNode forNode)
         {
             if (forNode == null)
@@ -194,15 +160,9 @@ namespace GameVM.Compiler.Pascal
             if (loopBodyStmt == null)
                 return CreateErrorStatement("Failed to transform for loop body");
 
-            // For now, we'll transform this to a while loop in HLIR or just leave a placeholder
-            // A real for loop would need an iterator variable.
-            // For simplicity in this E2E, we'll just return a basic statement or implement it as while.
             return new HighLevelIR.Statement(_context.SourceFile);
         }
 
-        /// <summary>
-        /// Transforms a repeat-until loop statement
-        /// </summary>
         private HighLevelIR.Statement TransformRepeatLoop(RepeatNode repeatNode)
         {
             if (repeatNode == null)
@@ -216,19 +176,14 @@ namespace GameVM.Compiler.Pascal
             if (condition == null)
                 return CreateErrorStatement("Failed to transform repeat until condition");
 
-            // Transform to while loop or similar
             return new HighLevelIR.Statement(_context.SourceFile);
         }
 
-        /// <summary>
-        /// Transforms a procedure call statement
-        /// </summary>
         private HighLevelIR.Statement TransformProcedureCall(ProcedureCallNode procCallNode)
         {
             if (procCallNode == null)
                 return CreateErrorStatement("Procedure call node is null");
 
-            // Built-in functions
             if (procCallNode.Name.Equals("write", StringComparison.OrdinalIgnoreCase) || 
                 procCallNode.Name.Equals("writeln", StringComparison.OrdinalIgnoreCase))
             {
@@ -242,7 +197,7 @@ namespace GameVM.Compiler.Pascal
                     }
                 }
                 var writeFunc = new HighLevelIR.Identifier(procCallNode.Name, _context.GetOrCreateBasicType("void"), _context.SourceFile);
-                return new HighLevelIR.ExpressionStatement(new HighLevelIR.FunctionCall(writeFunc, args), _context.SourceFile);
+                return new HighLevelIR.ExpressionStatement { Expression = new HighLevelIR.FunctionCall(writeFunc, args), SourceFile = _context.SourceFile };
             }
 
             var arguments = new List<HighLevelIR.Expression>();
@@ -256,12 +211,9 @@ namespace GameVM.Compiler.Pascal
 
             var funcExpr = new HighLevelIR.Identifier(procCallNode.Name, _context.GetOrCreateBasicType("void"), _context.SourceFile);
             var callExpr = new HighLevelIR.FunctionCall(funcExpr, arguments);
-            return new HighLevelIR.ExpressionStatement(callExpr, _context.SourceFile);
+            return new HighLevelIR.ExpressionStatement { Expression = callExpr, SourceFile = _context.SourceFile };
         }
 
-        /// <summary>
-        /// Transforms a block (compound statement)
-        /// </summary>
         private HighLevelIR.Statement TransformBlock(BlockNode blockNode)
         {
             if (blockNode == null)
@@ -278,19 +230,27 @@ namespace GameVM.Compiler.Pascal
             return irBlock;
         }
 
-        /// <summary>
-        /// Transforms a generic PascalASTNode that might be an expression
-        /// </summary>
-        private HighLevelIR.Expression TransformExpressionNode(PascalASTNode node)
+        private HighLevelIR.Expression? TransformExpressionNode(PascalAstNode node)
         {
             if (node is ExpressionNode exprNode)
                 return _expressionTransformer.TransformExpression(exprNode);
             return null;
         }
 
-        /// <summary>
-        /// Creates an error statement
-        /// </summary>
+        private HighLevelIR.Statement TransformExpressionStatement(ExpressionStatementNode exprStmtNode)
+        {
+            if (exprStmtNode?.Expression == null)
+                return CreateErrorStatement("Expression statement node is null");
+
+            if (exprStmtNode.Expression is AssignmentNode assignNode)
+                return TransformAssignment(assignNode);
+            
+            if (exprStmtNode.Expression is ProcedureCallNode procCallNode)
+                return TransformProcedureCall(procCallNode);
+
+            return CreateErrorStatement($"Unsupported expression type in statement: {exprStmtNode.Expression.GetType().Name}");
+        }
+
         private HighLevelIR.Statement CreateErrorStatement(string message)
         {
             _context.AddError(message);

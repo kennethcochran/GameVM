@@ -13,7 +13,7 @@ namespace GameVM.Compiler.Core.Tests.Transformers;
 [TestFixture]
 public class HlirToMlirTransformerTests
 {
-    private HlirToMlirTransformer _transformer;
+    private HlirToMlirTransformer _transformer = null!;
 
     [SetUp]
     public void Setup()
@@ -25,49 +25,49 @@ public class HlirToMlirTransformerTests
 
     private const string SourceFile = "test.pas";
 
-    private HighLevelIR.HLType CreateBasicType(string name)
+    private static HighLevelIR.HlType CreateBasicType(string name)
     {
-        return new HighLevelIR.BasicType(SourceFile, name);
+        return new HighLevelIR.BasicType("test.pas", name);
     }
 
-    private HighLevelIR.Literal CreateLiteral(object value, string typeName)
+    private static HighLevelIR.Literal CreateLiteral(object value, string typeName)
     {
-        return new HighLevelIR.Literal(value, CreateBasicType(typeName), SourceFile);
+        return new HighLevelIR.Literal(value, CreateBasicType(typeName), "test.pas");
     }
 
-    private HighLevelIR.Identifier CreateIdentifier(string name, string typeName)
+    private static HighLevelIR.Identifier CreateIdentifier(string name, string typeName)
     {
-        return new HighLevelIR.Identifier(name, CreateBasicType(typeName), SourceFile);
+        return new HighLevelIR.Identifier(name, CreateBasicType(typeName), "test.pas");
     }
 
-    private HighLevelIR.Assignment CreateAssignment(string target, HighLevelIR.Expression value)
+    private static HighLevelIR.Assignment CreateAssignment(string target, HighLevelIR.Expression value)
     {
-        return new HighLevelIR.Assignment(target, value, SourceFile);
+        return new HighLevelIR.Assignment(target, value, "test.pas");
     }
 
-    private HighLevelIR.BinaryOp CreateBinaryOp(string op, HighLevelIR.Expression left, HighLevelIR.Expression right)
+    private static HighLevelIR.BinaryOp CreateBinaryOp(string op, HighLevelIR.Expression left, HighLevelIR.Expression right)
     {
-        return new HighLevelIR.BinaryOp(op, left, right, SourceFile);
+        return new HighLevelIR.BinaryOp(op, left, right, "test.pas");
     }
 
-    private HighLevelIR.Block CreateBlock()
+    private static HighLevelIR.Block CreateBlock()
     {
-        return new HighLevelIR.Block(SourceFile);
+        return new HighLevelIR.Block("test.pas");
     }
 
-    private HighLevelIR.Function CreateFunction(string name, string returnTypeName, HighLevelIR.Block body)
+    private static HighLevelIR.Function CreateFunction(string name, string returnTypeName, HighLevelIR.Block body)
     {
-        return new HighLevelIR.Function(SourceFile, name, CreateBasicType(returnTypeName), body);
+        return new HighLevelIR.Function("test.pas", name, CreateBasicType(returnTypeName), body);
     }
 
-    private HighLevelIR.Parameter CreateParameter(string name, string typeName)
+    private static HighLevelIR.Parameter CreateParameter(string name, string typeName)
     {
-        return new HighLevelIR.Parameter(name, CreateBasicType(typeName), SourceFile);
+        return new HighLevelIR.Parameter(name, CreateBasicType(typeName), "test.pas");
     }
 
-    private HighLevelIR.ExpressionStatement CreateExpressionStatement(HighLevelIR.Expression expression)
+    private static HighLevelIR.ExpressionStatement CreateExpressionStatement(HighLevelIR.Expression expression)
     {
-        return new HighLevelIR.ExpressionStatement(expression, SourceFile);
+        return new HighLevelIR.ExpressionStatement { Expression = expression, SourceFile = "test.pas" };
     }
 
     #endregion
@@ -119,7 +119,7 @@ public class HlirToMlirTransformerTests
         // Arrange
         var hlir = CreateSimpleProgram();
         var function = CreateFunction("main", "Void", CreateBlock());
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -127,7 +127,7 @@ public class HlirToMlirTransformerTests
         // Assert
         Assert.That(result, Is.Not.Null);
         Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
-        Assert.That(result.Modules[0].Functions.First().Name, Is.EqualTo("main"));
+        Assert.That(result.Modules[0].Functions[0].Name, Is.EqualTo("main"));
     }
 
     [Test]
@@ -138,7 +138,7 @@ public class HlirToMlirTransformerTests
         var function = CreateFunction("add", "Integer", CreateBlock());
         function.AddParameter(CreateParameter("a", "Integer"));
         function.AddParameter(CreateParameter("b", "Integer"));
-        hlir.Functions.Add("add", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -163,7 +163,7 @@ public class HlirToMlirTransformerTests
         var body = CreateBlock();
         body.AddStatement(CreateExpressionStatement(CreateLiteral(42, "Integer")));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -186,7 +186,7 @@ public class HlirToMlirTransformerTests
         // BinaryOp needs to be in an assignment to be transformed
         body.AddStatement(CreateAssignment("result", binOp));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -195,8 +195,8 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var assign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(assign, Is.Not.Null);
-        Assert.That(assign.Target, Is.EqualTo("result"));
-        Assert.That(assign.Source, Is.EqualTo("8"), "Binary operation should be folded if possible");
+        Assert.That(assign!.Target, Is.EqualTo("result"));
+        Assert.That(assign!.Source, Is.EqualTo("8"), "Binary operation should be folded if possible");
     }
 
     #endregion
@@ -212,7 +212,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("x", CreateLiteral(42, "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -221,8 +221,8 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Target, Is.EqualTo("x"));
-        Assert.That(mlAssign.Source, Is.EqualTo("42"), "Literal value should be converted to string");
+        Assert.That(mlAssign!.Target, Is.EqualTo("x"));
+        Assert.That(mlAssign!.Source, Is.EqualTo("42"), "Literal value should be converted to string");
     }
 
     [Test]
@@ -234,7 +234,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("y", CreateIdentifier("x", "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -243,8 +243,8 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Target, Is.EqualTo("y"));
-        Assert.That(mlAssign.Source, Is.EqualTo("x"), "Identifier name should be preserved");
+        Assert.That(mlAssign!.Target, Is.EqualTo("y"));
+        Assert.That(mlAssign!.Source, Is.EqualTo("x"), "Identifier name should be preserved");
     }
 
     #endregion
@@ -262,7 +262,7 @@ public class HlirToMlirTransformerTests
         var ifStmt = new HighLevelIR.IfStatement(condition, thenBlock);
         body.AddStatement(ifStmt);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -283,10 +283,10 @@ public class HlirToMlirTransformerTests
         var condition = CreateBinaryOp("<", CreateIdentifier("i", "Integer"), CreateLiteral(10, "Integer"));
         var loopBody = CreateBlock();
         loopBody.AddStatement(CreateAssignment("i", CreateBinaryOp("+", CreateIdentifier("i", "Integer"), CreateLiteral(1, "Integer"))));
-        var whileStmt = new HighLevelIR.While(condition, loopBody, SourceFile);
+        var whileStmt = new HighLevelIR.While { Condition = condition, Body = loopBody, SourceFile = SourceFile };
         body.AddStatement(whileStmt);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -314,7 +314,7 @@ public class HlirToMlirTransformerTests
         );
         body.AddStatement(CreateExpressionStatement(funcCall));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -323,9 +323,9 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlCall = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLCall;
         Assert.That(mlCall, Is.Not.Null);
-        Assert.That(mlCall.Name, Is.EqualTo("printInt"));
-        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
-        Assert.That(mlCall.Arguments[0], Is.EqualTo("42"), "Function call arguments should be converted to strings");
+        Assert.That(mlCall!.Name, Is.EqualTo("printInt"));
+        Assert.That(mlCall!.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall!.Arguments[0], Is.EqualTo("42"), "Function call arguments should be converted to strings");
     }
 
     [Test]
@@ -344,7 +344,7 @@ public class HlirToMlirTransformerTests
         );
         body.AddStatement(CreateExpressionStatement(outerCall));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -353,9 +353,9 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlCall = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLCall;
         Assert.That(mlCall, Is.Not.Null);
-        Assert.That(mlCall.Name, Is.EqualTo("printInt"));
+        Assert.That(mlCall!.Name, Is.EqualTo("printInt"));
         // Nested function calls are converted to string expressions in arguments
-        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall!.Arguments, Has.Count.EqualTo(1));
         // The nested call is converted to a string representation
     }
 
@@ -368,9 +368,9 @@ public class HlirToMlirTransformerTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        hlir.Functions.Add("func1", CreateFunction("func1", "Integer", CreateBlock()));
-        hlir.Functions.Add("func2", CreateFunction("func2", "Void", CreateBlock()));
-        hlir.Functions.Add("main", CreateFunction("main", "Void", CreateBlock()));
+        hlir.Modules[0].Functions.Add(CreateFunction("func1", "Integer", CreateBlock()));
+        hlir.Modules[0].Functions.Add(CreateFunction("func2", "Void", CreateBlock()));
+        hlir.Modules[0].Functions.Add(CreateFunction("main", "Void", CreateBlock()));
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -389,7 +389,7 @@ public class HlirToMlirTransformerTests
         var hlir = CreateSimpleProgram();
         hlir.Globals.Add("g1", new IRSymbol { Name = "g1", Type = CreateBasicType("Integer") });
         hlir.Globals.Add("g2", new IRSymbol { Name = "g2", Type = CreateBasicType("Real") });
-        hlir.Functions.Add("main", CreateFunction("main", "Void", CreateBlock()));
+        hlir.Modules[0].Functions.Add(CreateFunction("main", "Void", CreateBlock()));
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -424,7 +424,7 @@ public class HlirToMlirTransformerTests
         // Arrange
         var hlir = CreateSimpleProgram();
         var function = CreateFunction("main", "Void", CreateBlock());
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -446,7 +446,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("x", CreateLiteral(42, "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -455,7 +455,7 @@ public class HlirToMlirTransformerTests
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
         // Type information is preserved in the source expression string
-        Assert.That(mlAssign.Source, Is.EqualTo("42"));
+        Assert.That(mlAssign!.Source, Is.EqualTo("42"));
     }
 
     [Test]
@@ -467,7 +467,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("x", CreateLiteral(3.14, "Real"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -475,7 +475,7 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Source, Is.EqualTo("3.14").Or.Contains("3.14"));
+        Assert.That(mlAssign!.Source, Is.EqualTo("3.14").Or.Contains("3.14"));
     }
 
     [Test]
@@ -487,7 +487,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("flag", CreateLiteral(true, "Boolean"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -495,7 +495,7 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Source, Is.EqualTo("True").IgnoreCase);
+        Assert.That(mlAssign!.Source, Is.EqualTo("True").IgnoreCase);
     }
 
     #endregion
@@ -514,7 +514,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("arr0", CreateLiteral(42, "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -532,11 +532,10 @@ public class HlirToMlirTransformerTests
         var hlir = CreateSimpleProgram();
         var body = CreateBlock();
         // Simulating: arr[i] := value
-        var indexExpr = CreateBinaryOp("+", CreateIdentifier("i", "Integer"), CreateLiteral(0, "Integer"));
         var assignment = CreateAssignment("arrIndex", CreateIdentifier("value", "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -544,7 +543,7 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Target, Is.EqualTo("arrIndex"));
+        Assert.That(mlAssign!.Target, Is.EqualTo("arrIndex"));
         // When array access is fully implemented, target would be "arr[i]" or similar
     }
 
@@ -562,7 +561,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("pointX", CreateLiteral(10, "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -583,7 +582,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("point", CreateIdentifier("newPoint", "Point"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -591,8 +590,8 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Target, Is.EqualTo("point"));
-        Assert.That(mlAssign.Source, Is.EqualTo("newPoint"));
+        Assert.That(mlAssign!.Target, Is.EqualTo("point"));
+        Assert.That(mlAssign!.Source, Is.EqualTo("newPoint"));
     }
 
     #endregion
@@ -609,7 +608,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("pDeref", CreateLiteral(42, "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -630,7 +629,7 @@ public class HlirToMlirTransformerTests
         var assignment = CreateAssignment("p", CreateIdentifier("x", "Integer"));
         body.AddStatement(assignment);
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -638,7 +637,7 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlAssign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
         Assert.That(mlAssign, Is.Not.Null);
-        Assert.That(mlAssign.Target, Is.EqualTo("p"));
+        Assert.That(mlAssign!.Target, Is.EqualTo("p"));
         // When address-of operator is fully implemented, source would be "@x" or similar
     }
 
@@ -658,7 +657,7 @@ public class HlirToMlirTransformerTests
         );
         body.AddStatement(CreateExpressionStatement(writeCall));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -667,9 +666,9 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlCall = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLCall;
         Assert.That(mlCall, Is.Not.Null);
-        Assert.That(mlCall.Name, Is.EqualTo("write"));
-        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
-        Assert.That(mlCall.Arguments[0], Is.EqualTo("Hello"));
+        Assert.That(mlCall!.Name, Is.EqualTo("write"));
+        Assert.That(mlCall!.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall!.Arguments[0], Is.EqualTo("Hello"));
     }
 
     [Test]
@@ -684,7 +683,7 @@ public class HlirToMlirTransformerTests
         );
         body.AddStatement(CreateExpressionStatement(writelnCall));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -693,9 +692,9 @@ public class HlirToMlirTransformerTests
         Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
         var mlCall = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLCall;
         Assert.That(mlCall, Is.Not.Null);
-        Assert.That(mlCall.Name, Is.EqualTo("writeln"));
-        Assert.That(mlCall.Arguments, Has.Count.EqualTo(1));
-        Assert.That(mlCall.Arguments[0], Is.EqualTo("42"));
+        Assert.That(mlCall!.Name, Is.EqualTo("writeln"));
+        Assert.That(mlCall!.Arguments, Has.Count.EqualTo(1));
+        Assert.That(mlCall!.Arguments[0], Is.EqualTo("42"));
     }
 
     [Test]
@@ -710,7 +709,7 @@ public class HlirToMlirTransformerTests
         );
         body.AddStatement(CreateExpressionStatement(writeCall));
         var function = CreateFunction("main", "Void", body);
-        hlir.Functions.Add("main", function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -718,9 +717,9 @@ public class HlirToMlirTransformerTests
         // Assert
         var mlCall = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLCall;
         Assert.That(mlCall, Is.Not.Null);
-        Assert.That(mlCall.Arguments, Has.Count.EqualTo(2));
-        Assert.That(mlCall.Arguments[0], Is.EqualTo("Value: "));
-        Assert.That(mlCall.Arguments[1], Is.EqualTo("42"));
+        Assert.That(mlCall!.Arguments, Has.Count.EqualTo(2));
+        Assert.That(mlCall!.Arguments[0], Is.EqualTo("Value: "));
+        Assert.That(mlCall!.Arguments[1], Is.EqualTo("42"));
     }
 
     #endregion
@@ -731,8 +730,8 @@ public class HlirToMlirTransformerTests
     {
         var hlir = new HighLevelIR { SourceFile = SourceFile };
         // Initialize the Modules list and add a default module
-        hlir.Modules = new List<HighLevelIR.HLModule>();
-        var module = new HighLevelIR.HLModule { Name = "default" };
+        hlir.Modules = new List<HighLevelIR.HlModule>();
+        var module = new HighLevelIR.HlModule { Name = "default" };
         hlir.Modules.Add(module);
         return hlir;
     }

@@ -7,11 +7,11 @@ namespace GameVM.Compiler.Pascal
     /// <summary>
     /// Visitor for expression-related AST nodes in Pascal
     /// </summary>
-    public class ExpressionVisitor : PascalBaseVisitor<PascalASTNode>
+    public class ExpressionVisitor : PascalBaseVisitor<PascalAstNode>
     {
-        private readonly ASTBuilder _astBuilder;
+        private readonly AstBuilder _astBuilder;
 
-        public ExpressionVisitor(ASTBuilder astBuilder)
+        public ExpressionVisitor(AstBuilder astBuilder)
         {
             _astBuilder = astBuilder ?? throw new ArgumentNullException(nameof(astBuilder));
         }
@@ -19,7 +19,7 @@ namespace GameVM.Compiler.Pascal
         // Constructor for backward compatibility if needed, or update call sites
         // Eliminating default constructor to enforce dependency injection
 
-        public override PascalASTNode VisitExpression(PascalParser.ExpressionContext context)
+        public override PascalAstNode VisitExpression(PascalParser.ExpressionContext context)
         {
             if (context.relationaloperator() != null)
             {
@@ -35,7 +35,7 @@ namespace GameVM.Compiler.Pascal
             return simpleExpression ?? new ErrorNode("Invalid simple expression");
         }
 
-        public override PascalASTNode VisitSimpleExpression(PascalParser.SimpleExpressionContext context)
+        public override PascalAstNode VisitSimpleExpression(PascalParser.SimpleExpressionContext context)
         {
             if (context.additiveoperator() != null)
             {
@@ -51,7 +51,7 @@ namespace GameVM.Compiler.Pascal
             return term ?? new ErrorNode("Invalid term");
         }
 
-        public override PascalASTNode VisitTerm(PascalParser.TermContext context)
+        public override PascalAstNode VisitTerm(PascalParser.TermContext context)
         {
             if (context.multiplicativeoperator() != null)
             {
@@ -67,7 +67,7 @@ namespace GameVM.Compiler.Pascal
             return signedFactor ?? new ErrorNode("Invalid signed factor");
         }
 
-        public override PascalASTNode VisitSignedFactor(PascalParser.SignedFactorContext context)
+        public override PascalAstNode VisitSignedFactor(PascalParser.SignedFactorContext context)
         {
             if (context == null)
                 return new ErrorNode("Null signed factor context");
@@ -81,7 +81,13 @@ namespace GameVM.Compiler.Pascal
             {
                 return new ErrorNode("Invalid factor");
             }
-            var sign = context.PLUS() != null ? "+" : context.MINUS() != null ? "-" : null;
+            string? sign;
+            if (context.PLUS() != null)
+                sign = "+";
+            else if (context.MINUS() != null)
+                sign = "-";
+            else
+                sign = null;
             if (factor is ErrorNode)
             {
                 return factor; // Propagate the error
@@ -93,7 +99,7 @@ namespace GameVM.Compiler.Pascal
             return factor;
         }
 
-        public override PascalASTNode VisitFactor(PascalParser.FactorContext context)
+        public override PascalAstNode VisitFactor(PascalParser.FactorContext context)
         {
             if (context.variable() != null)
             {
@@ -127,7 +133,7 @@ namespace GameVM.Compiler.Pascal
             return new ErrorNode("Unknown factor");
         }
 
-        public override PascalASTNode VisitVariable(PascalParser.VariableContext context)
+        public override PascalAstNode VisitVariable(PascalParser.VariableContext context)
         {
             var identifier = context.identifier();
             if (identifier == null || identifier.Length == 0)
@@ -137,7 +143,7 @@ namespace GameVM.Compiler.Pascal
             return _astBuilder.CreateVariable(identifier[0].GetText());
         }
 
-        public override PascalASTNode VisitSet_(PascalParser.Set_Context context)
+        public override PascalAstNode VisitSet_(PascalParser.Set_Context context)
         {
             var elements = new List<ExpressionNode>();
             var elementList = context.elementList();
@@ -145,7 +151,7 @@ namespace GameVM.Compiler.Pascal
             {
                 foreach (var elementCtx in elementList.element())
                 {
-                    // Handle set element ranges (e.g., 3..5) - ASTBuilder doesn't support ranges in CreateSet directly yet
+                    // Handle set element ranges (e.g., 3..5) - AstBuilder doesn't support ranges in CreateSet directly yet
                     // But SetNode expects List<ExpressionNode>.
                     // If range is an expression, we need SetRangeNode?
                     // Original code:
@@ -175,7 +181,7 @@ namespace GameVM.Compiler.Pascal
             return _astBuilder.CreateSet(elements);
         }
 
-        public override PascalASTNode VisitConstant(PascalParser.ConstantContext context)
+        public override PascalAstNode VisitConstant(PascalParser.ConstantContext context)
         {
             // Handle numeric constants
             if (context.unsignedNumber() != null)
@@ -187,12 +193,12 @@ namespace GameVM.Compiler.Pascal
             }
             // Handle other constant types
             var text = context.GetText();
-            if (text.StartsWith("'"))
+            if (text.StartsWith('\''))
                 return _astBuilder.CreateStringLiteral(text);
 
             return _astBuilder.CreateConstant(text);
         }
 
-        protected override PascalASTNode DefaultResult => null!;
+        protected override PascalAstNode DefaultResult => null!;
     }
 }

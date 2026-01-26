@@ -1,6 +1,7 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class EndNode : PascalASTNode
+    public class EndNode : PascalAstNode
     {
+        public override string ToString() => GetType().Name;
     }
 }

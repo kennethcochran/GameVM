@@ -35,7 +35,10 @@ namespace GameVM.Compiler.Core.IR
             public List<MLInstruction> Instructions { get; set; } = new();
         }
 
-        public abstract class MLInstruction { }
+        public abstract class MLInstruction
+        {
+            public virtual string OpCode => GetType().Name;
+        }
 
         public class MLLabel : MLInstruction
         {

@@ -17,28 +17,25 @@ namespace GameVM.Compiler.Backend.Atari2600
         {
             var assemblyLines = new List<string>();
 
+            // Process top-level instructions
             foreach (var instr in ir.Instructions)
             {
-                if (instr is LowLevelIR.LLLoad load)
+                ProcessInstruction(instr, assemblyLines);
+            }
+
+            // Process instructions within modules and functions
+            foreach (var module in ir.Modules)
+            {
+                foreach (var function in module.Functions)
                 {
-                    assemblyLines.Add($"LDA #{load.Value}");
-                }
-                else if (instr is LowLevelIR.LLStore store)
-                {
-                    assemblyLines.Add($"STA {store.Address}");
-                }
-                else if (instr is LowLevelIR.LLCall call)
-                {
-                    assemblyLines.Add($"JSR {call.Label}");
-                }
-                else if (instr is LowLevelIR.LLLabel label)
-                {
-                    assemblyLines.Add($"{label.Name}:");
+                    foreach (var instr in function.Instructions)
+                    {
+                        ProcessInstruction(instr, assemblyLines);
+                    }
                 }
             }
 
-            var emitter = new M6502Emitter();
-            var code = emitter.Emit(assemblyLines);
+            var code = M6502Emitter.Emit(assemblyLines);
             
             var rom = new byte[4096];
             Array.Copy(code, 0, rom, 0, Math.Min(code.Length, rom.Length - 6));
@@ -52,6 +49,26 @@ namespace GameVM.Compiler.Backend.Atari2600
             rom[4095] = 0xF0;
 
             return rom;
+        }
+
+        private static void ProcessInstruction(LowLevelIR.LLInstruction instr, List<string> assemblyLines)
+        {
+            if (instr is LowLevelIR.LLLoad load)
+            {
+                assemblyLines.Add($"LDA #{load.Value}");
+            }
+            else if (instr is LowLevelIR.LLStore store)
+            {
+                assemblyLines.Add($"STA {store.Address}");
+            }
+            else if (instr is LowLevelIR.LLCall call)
+            {
+                assemblyLines.Add($"JSR {call.Label}");
+            }
+            else if (instr is LowLevelIR.LLLabel label)
+            {
+                assemblyLines.Add($"{label.Name}:");
+            }
         }
     }
 }

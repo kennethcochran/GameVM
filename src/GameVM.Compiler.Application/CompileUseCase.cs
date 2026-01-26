@@ -53,7 +53,7 @@ namespace GameVM.Compiler.Application
                 // Parse source code to HLIR
                 var hlir = _frontend.Parse(sourceCode);
 
-                if (hlir.Errors != null && hlir.Errors.Count > 0)
+                if (hlir.Errors.Count > 0)
                 {
                     return new CompilationResult
                     {
@@ -93,7 +93,6 @@ namespace GameVM.Compiler.Application
                 };
 
                 var code = _codeGenerator.Generate(llir, codeGenOptions);
-                var bytecode = _codeGenerator.GenerateBytecode(llir, codeGenOptions);
 
                 return new CompilationResult
                 {

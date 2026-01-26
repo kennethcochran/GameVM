@@ -1,6 +1,6 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class ErrorNode : PascalASTNode
+    public class ErrorNode : PascalAstNode
     {
         public string Message { get; set; }
 

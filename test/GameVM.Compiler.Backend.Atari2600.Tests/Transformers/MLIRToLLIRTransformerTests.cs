@@ -12,7 +12,7 @@ namespace GameVM.Compiler.Backend.Atari2600.Tests.Transformers;
 [TestFixture]
 public class MLIRToLLIRTransformerTests
 {
-    private MidToLowLevelTransformer _transformer;
+    private MidToLowLevelTransformer _transformer = null!;
 
     [SetUp]
     public void Setup()
@@ -38,8 +38,8 @@ public class MLIRToLLIRTransformerTests
         Assert.That(result.Instructions, Is.Not.Empty);
         var loadInstr = result.Instructions.OfType<LowLevelIR.LLLoad>().FirstOrDefault();
         Assert.That(loadInstr, Is.Not.Null);
-        Assert.That(loadInstr.Register, Is.EqualTo("A"), "Should use accumulator register A");
-        Assert.That(loadInstr.Value, Is.EqualTo("42"));
+        Assert.That(loadInstr!.Register, Is.EqualTo("A"), "Should use accumulator register A");
+        Assert.That(loadInstr!.Value, Is.EqualTo("42"));
     }
 
     [Test]
@@ -109,8 +109,8 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var storeInstr = result.Instructions.OfType<LowLevelIR.LLStore>().FirstOrDefault();
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$80"), "MYVAR should map to zero-page address $80");
-        Assert.That(storeInstr.Address.StartsWith("$"), Is.True, "Address should be in hex format");
+        Assert.That(storeInstr!.Address, Is.EqualTo("$80"), "MYVAR should map to zero-page address $80");
+        Assert.That(storeInstr!.Address.StartsWith('$'), Is.True, "Address should be in hex format");
     }
 
     [Test]
@@ -128,7 +128,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var storeInstr = result.Instructions.OfType<LowLevelIR.LLStore>().FirstOrDefault();
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$09"), "COLUBK should map to TIA register $09");
+        Assert.That(storeInstr!.Address, Is.EqualTo("$09"), "COLUBK should map to TIA register $09");
     }
 
     [Test]
@@ -146,7 +146,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var storeInstr = result.Instructions.OfType<LowLevelIR.LLStore>().FirstOrDefault();
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$1000"), "Absolute addresses should be preserved");
+        Assert.That(storeInstr!.Address, Is.EqualTo("$1000"), "Absolute addresses should be preserved");
     }
 
     [Test]
@@ -166,7 +166,7 @@ public class MLIRToLLIRTransformerTests
         var storeInstructions = result.Instructions.OfType<LowLevelIR.LLStore>().ToList();
         Assert.That(storeInstructions, Has.Count.EqualTo(2));
         // Both should map to zero-page (default $80 for unknown vars)
-        Assert.That(storeInstructions.All(s => s.Address.StartsWith("$")), Is.True);
+        Assert.That(storeInstructions.All(s => s.Address.StartsWith('$')), Is.True);
     }
 
     #endregion
@@ -188,7 +188,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var labelInstr = result.Instructions.OfType<LowLevelIR.LLLabel>().FirstOrDefault();
         Assert.That(labelInstr, Is.Not.Null);
-        Assert.That(labelInstr.Name, Is.EqualTo("myFunction"), "Function name should become label");
+        Assert.That(labelInstr!.Name, Is.EqualTo("myFunction"), "Function name should become label");
     }
 
     [Test]
@@ -233,7 +233,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var callInstr = result.Instructions.OfType<LowLevelIR.LLCall>().FirstOrDefault();
         Assert.That(callInstr, Is.Not.Null);
-        Assert.That(callInstr.Label, Is.EqualTo("myFunction"), "Function call should map to label");
+        Assert.That(callInstr!.Label, Is.EqualTo("myFunction"), "Function call should map to label");
     }
 
     [Test]
@@ -254,7 +254,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var callInstr = result.Instructions.OfType<LowLevelIR.LLCall>().FirstOrDefault();
         Assert.That(callInstr, Is.Not.Null);
-        Assert.That(callInstr.Label, Is.EqualTo("Add"));
+        Assert.That(callInstr!.Label, Is.EqualTo("Add"));
         // Note: Argument handling would be implemented in the transformer when needed
     }
 
@@ -321,7 +321,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var loadInstr = result.Instructions.OfType<LowLevelIR.LLLoad>().FirstOrDefault();
         Assert.That(loadInstr, Is.Not.Null);
-        Assert.That(loadInstr.Value, Is.EqualTo("42"), "Integer literal should be preserved as string");
+        Assert.That(loadInstr!.Value, Is.EqualTo("42"), "Integer literal should be preserved as string");
     }
 
     [Test]
@@ -340,7 +340,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var loadInstr = result.Instructions.OfType<LowLevelIR.LLLoad>().FirstOrDefault();
         Assert.That(loadInstr, Is.Not.Null);
-        Assert.That(loadInstr.Value, Is.EqualTo("255"));
+        Assert.That(loadInstr!.Value, Is.EqualTo("255"));
         // Note: Actual byte coercion would be validated in type checking phase
     }
 
@@ -360,7 +360,7 @@ public class MLIRToLLIRTransformerTests
         // Assert
         var loadInstr = result.Instructions.OfType<LowLevelIR.LLLoad>().FirstOrDefault();
         Assert.That(loadInstr, Is.Not.Null);
-        Assert.That(loadInstr.Value, Is.EqualTo("42"), "Implicit conversion should preserve source value");
+        Assert.That(loadInstr!.Value, Is.EqualTo("42"), "Implicit conversion should preserve source value");
     }
 
     #endregion

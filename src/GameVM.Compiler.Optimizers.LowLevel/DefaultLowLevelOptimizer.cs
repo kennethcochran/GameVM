@@ -22,8 +22,7 @@ namespace GameVM.Compiler.Optimizers.LowLevel
         /// <returns>The optimized low-level IR</returns>
         public LowLevelIR Optimize(LowLevelIR ir, OptimizationLevel optimizationLevel)
         {
-            if (ir == null)
-                throw new ArgumentNullException(nameof(ir));
+            ArgumentNullException.ThrowIfNull(ir);
 
             // Create a copy to avoid mutating input
             var optimized = new LowLevelIR
@@ -49,16 +48,17 @@ namespace GameVM.Compiler.Optimizers.LowLevel
 
         /// <summary>
         /// Removes redundant load/store sequences where a register is loaded
-        /// and immediately stored without being used.
+        /// and immediately stored to the same address without being used.
         /// </summary>
-        private List<LowLevelIR.LLInstruction> RemoveRedundantLoadStores(List<LowLevelIR.LLInstruction> instructions)
+        private static List<LowLevelIR.LLInstruction> RemoveRedundantLoadStores(List<LowLevelIR.LLInstruction> instructions)
         {
             if (instructions == null || instructions.Count == 0)
                 return new List<LowLevelIR.LLInstruction>();
 
             var result = new List<LowLevelIR.LLInstruction>();
 
-            for (int i = 0; i < instructions.Count; i++)
+            int i = 0;
+            while (i < instructions.Count)
             {
                 var instruction = instructions[i];
 
@@ -66,16 +66,20 @@ namespace GameVM.Compiler.Optimizers.LowLevel
                 if (instruction is LowLevelIR.LLLoad load && i + 1 < instructions.Count)
                 {
                     var next = instructions[i + 1];
-                    if (next is LowLevelIR.LLStore store && store.Register == load.Register)
+                    if (next is LowLevelIR.LLStore store && 
+                        store.Register == load.Register && 
+                        store.Address == load.Value)
                     {
-                        // Skip the load, keep only the store
+                        // This is redundant: Load from address X, Store back to same address X
+                        // Replace with just the store (with direct addressing)
                         result.Add(store);
-                        i++; // Skip the next instruction as we've already processed it
+                        i += 2; // Skip both instructions
                         continue;
                     }
                 }
 
                 result.Add(instruction);
+                i++; // Always advance to next instruction
             }
 
             return result;

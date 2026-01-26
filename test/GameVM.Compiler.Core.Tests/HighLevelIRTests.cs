@@ -21,7 +21,7 @@ namespace GameVM.Compiler.Core.Tests
             Assert.That(type, Is.Not.Null);
             Assert.That(type.SourceFile, Is.EqualTo(TestSourceFile));
             Assert.That(type.Name, Is.EqualTo("integer"));
-            Assert.That(type, Is.InstanceOf<HighLevelIR.HLType>());
+            Assert.That(type, Is.InstanceOf<HighLevelIR.HlType>());
         }
 
         [Test]
@@ -30,10 +30,10 @@ namespace GameVM.Compiler.Core.Tests
             // Arrange
             var returnType = new HighLevelIR.BasicType(TestSourceFile, "integer");
             var body = new HighLevelIR.Block(TestSourceFile);
-            
+
             // Act
             var function = new HighLevelIR.Function(TestSourceFile, "test", returnType, body);
-            
+
             // Assert
             Assert.That(function, Is.Not.Null);
             Assert.That(function.SourceFile, Is.EqualTo(TestSourceFile));
@@ -48,10 +48,10 @@ namespace GameVM.Compiler.Core.Tests
             // Arrange
             var block = new HighLevelIR.Block(TestSourceFile);
             var statement = new HighLevelIR.Statement(TestSourceFile);
-            
+
             // Act
             block.AddStatement(statement);
-            
+
             // Assert - We can't directly access the private statements list,
             // so we'll test the behavior through the public API when possible
             // For now, we'll just verify the block was created
@@ -64,18 +64,17 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange & Act
             var hlir = new HighLevelIR { SourceFile = TestSourceFile };
-            
+
             // Assert
             Assert.That(hlir, Is.Not.Null);
             Assert.That(hlir.SourceFile, Is.EqualTo(TestSourceFile));
             Assert.That(hlir.TopLevel, Is.Not.Null);
             Assert.That(hlir.TopLevel, Is.Empty);
+            Assert.That(hlir.TopLevel, Is.Empty);
             Assert.That(hlir.Globals, Is.Not.Null);
             Assert.That(hlir.Globals, Is.Empty);
-            Assert.That(hlir.Functions, Is.Not.Null);
-            Assert.That(hlir.Functions, Is.Empty);
-            Assert.That(hlir.Types, Is.Not.Null);
-            Assert.That(hlir.Types, Is.Empty);
+            Assert.That(hlir.Modules, Is.Not.Null);
+            Assert.That(hlir.Modules, Is.Empty); // Default is empty list
         }
 
         [Test]
@@ -83,7 +82,7 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange & Act
             var module = new HighLevelIR.Module(TestSourceFile, "TestModule");
-            
+
             // Assert
             Assert.That(module, Is.Not.Null);
             Assert.That(module.SourceFile, Is.EqualTo(TestSourceFile));
@@ -95,7 +94,7 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange & Act
             var statement = new HighLevelIR.Statement(TestSourceFile);
-            
+
             // Assert
             Assert.That(statement, Is.Not.Null);
             Assert.That(statement.SourceFile, Is.EqualTo(TestSourceFile));
@@ -106,14 +105,14 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange
             var type = new HighLevelIR.BasicType(TestSourceFile, "integer");
-            
+
             // Act
             var symbol = new IRSymbol
             {
                 Name = "counter",
                 Type = type
             };
-            
+
             // Assert
             Assert.That(symbol, Is.Not.Null);
             Assert.That(symbol.Name, Is.EqualTo("counter"));
@@ -125,14 +124,10 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange
             var type = new HighLevelIR.BasicType(TestSourceFile, "integer");
-            
+
             // Act
-            var param = new IRParameter
-            {
-                Name = "count",
-                Type = type
-            };
-            
+            var param = new HighLevelIR.Parameter("count", type, TestSourceFile);
+
             // Assert
             Assert.That(param, Is.Not.Null);
             Assert.That(param.Name, Is.EqualTo("count"));
@@ -144,7 +139,7 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange & Act
             var irType = new IRType { Name = "MyType" };
-            
+
             // Assert
             Assert.That(irType, Is.Not.Null);
             Assert.That(irType.Name, Is.EqualTo("MyType"));
@@ -155,14 +150,14 @@ namespace GameVM.Compiler.Core.Tests
         {
             // Arrange
             var type = new HighLevelIR.BasicType(TestSourceFile, "string");
-            
+
             // Act
             var field = new IRField
             {
                 Name = "name",
                 Type = type
             };
-            
+
             // Assert
             Assert.That(field, Is.Not.Null);
             Assert.That(field.Name, Is.EqualTo("name"));
@@ -179,7 +174,7 @@ namespace GameVM.Compiler.Core.Tests
                 Line = 10,
                 Column = 5
             };
-            
+
             // Assert
             Assert.That(sourceLocation, Is.Not.Null);
             Assert.That(sourceLocation.File, Is.EqualTo("test.pas"));
@@ -195,13 +190,14 @@ namespace GameVM.Compiler.Core.Tests
             var returnType = new HighLevelIR.BasicType(TestSourceFile, "integer");
             var body = new HighLevelIR.Block(TestSourceFile);
             var function = new HighLevelIR.Function(TestSourceFile, "testFunc", returnType, body);
-            
+
             // Act
-            hlir.Functions[function.Name] = function;
-            
+            hlir.Modules = new System.Collections.Generic.List<HighLevelIR.HlModule> { new HighLevelIR.HlModule { Name = "default" } };
+            hlir.Modules[0].Functions.Add(function);
+
             // Assert
-            Assert.That(hlir.Functions.ContainsKey("testFunc"), Is.True);
-            Assert.That(hlir.Functions["testFunc"], Is.SameAs(function));
+            Assert.That(hlir.Modules[0].Functions.Count, Is.EqualTo(1));
+            Assert.That(hlir.Modules[0].Functions[0], Is.SameAs(function));
         }
 
         [Test]
@@ -211,10 +207,11 @@ namespace GameVM.Compiler.Core.Tests
             var hlir = new HighLevelIR { SourceFile = TestSourceFile };
             var type = new HighLevelIR.BasicType(TestSourceFile, "integer");
             var global = new IRSymbol { Name = "globalVar", Type = type };
-            
+
             // Act
+            // Note: Globals property is just a Dictionary, not part of the Module structure yet in HLIR
             hlir.Globals[global.Name] = global;
-            
+
             // Assert
             Assert.That(hlir.Globals.ContainsKey("globalVar"), Is.True);
             Assert.That(hlir.Globals["globalVar"], Is.SameAs(global));
@@ -226,13 +223,19 @@ namespace GameVM.Compiler.Core.Tests
             // Arrange
             var hlir = new HighLevelIR { SourceFile = TestSourceFile };
             var customType = new HighLevelIR.BasicType(TestSourceFile, "MyCustomType");
-            
+
             // Act
+            // Types collection is deprecated but still used in some paths.
+            // When moving to modules, type definitions should be in modules or global table.
+#pragma warning disable CS0618
             hlir.Types[customType.Name] = customType;
-            
+#pragma warning restore CS0618
+
             // Assert
+#pragma warning disable CS0618
             Assert.That(hlir.Types.ContainsKey("MyCustomType"), Is.True);
             Assert.That(hlir.Types["MyCustomType"], Is.SameAs(customType));
+#pragma warning restore CS0618
         }
 
         [Test]
@@ -243,12 +246,12 @@ namespace GameVM.Compiler.Core.Tests
             var returnType = new HighLevelIR.BasicType(TestSourceFile, "void");
             var body = new HighLevelIR.Block(TestSourceFile);
             var function = new HighLevelIR.Function(TestSourceFile, "moduleFunc", returnType, body);
-            
+
             // Act - Using reflection to access the private functions list
-            var addMethod = typeof(HighLevelIR.Module).GetMethod("AddFunction", 
+            var addMethod = typeof(HighLevelIR.Module).GetMethod("AddFunction",
                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            addMethod.Invoke(module, new object[] { function });
-            
+            addMethod!.Invoke(module, new object[] { function });
+
             // Assert - Verify the function was added (indirectly)
             Assert.That(module, Is.Not.Null);
         }
@@ -259,10 +262,10 @@ namespace GameVM.Compiler.Core.Tests
             // Arrange
             var block = new HighLevelIR.Block(TestSourceFile);
             var statement = new HighLevelIR.Statement(TestSourceFile);
-            
+
             // Act
             block.AddStatement(statement);
-            
+
             // Assert - We can't directly access the private statements list,
             // but we can verify the method was called without exceptions
             Assert.That(block, Is.Not.Null);

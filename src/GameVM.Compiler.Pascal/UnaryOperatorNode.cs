@@ -1,8 +1,8 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class UnaryOperatorNode : PascalASTNode
+    public class UnaryOperatorNode : PascalAstNode
     {
         public required string Operator { get; set; }
-        public required PascalASTNode Operand { get; set; }
+        public required PascalAstNode Operand { get; set; }
     }
 }

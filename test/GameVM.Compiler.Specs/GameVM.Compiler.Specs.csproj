@@ -1,27 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    
+    <!-- Code Coverage Settings -->
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+    <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage</ExcludeByAttribute>
+    <Exclude>[*]GameVM.Compiler.Specs.*</Exclude>
+    <IncludeTestAssembly>false</IncludeTestAssembly>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-    <PackageReference Include="NUnit" Version="4.3.2" />
-    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
-    <PackageReference Include="Reqnroll" Version="2.2.1" />
-    <PackageReference Include="Reqnroll.NUnit" Version="2.2.1" />
-    <PackageReference Include="Reqnroll.SpecFlowCompatibility" Version="2.2.1" />
-    <PackageReference Include="Reqnroll.Tools.MsBuild.Generation" Version="2.2.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="NUnit" Version="4.4.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="6.1.0" />
+    <PackageReference Include="Reqnroll" Version="3.3.2" />
+    <PackageReference Include="Reqnroll.NUnit" Version="3.3.2" />
+    <PackageReference Include="Reqnroll.SpecFlowCompatibility" Version="3.3.2" />
+    <PackageReference Include="Reqnroll.Tools.MsBuild.Generation" Version="3.3.2" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.18.0.131500">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -39,5 +51,26 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <!-- Target to generate HTML report after tests using dotnet-reportgenerator -->
+  <Target Name="GenerateCoverageReport" AfterTargets="VSTest">
+    <PropertyGroup>
+      <CoverageReportDir>$(MSBuildProjectDirectory)/TestResults/coverage</CoverageReportDir>
+      <ReportOutputDir>$(CoverageReportDir)/html</ReportOutputDir>
+      <CoverageFilePattern>$(MSBuildProjectDirectory)/TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <CoverageFiles Include="$(CoverageFilePattern)" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(ReportOutputDir)" />
+
+    <Message Text="Found @(CoverageFiles-&gt;Count()) coverage files" Importance="high" />
+
+    <Exec Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" IgnoreExitCode="true" />
+
+    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" />
+  </Target>
 
 </Project>

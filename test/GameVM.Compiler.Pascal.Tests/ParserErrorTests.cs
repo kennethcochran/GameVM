@@ -12,7 +12,7 @@ namespace GameVM.Compiler.Pascal.Tests;
 [TestFixture]
 public class ParserErrorTests
 {
-    private PascalFrontend _frontend;
+    private PascalFrontend _frontend = null!;
 
     [SetUp]
     public void Setup()

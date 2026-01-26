@@ -7,7 +7,7 @@ namespace GameVM.Compiler.Backend.Atari2600.Tests;
 [TestFixture]
 public class MidToLowLevelTransformerTests
 {
-    private MidToLowLevelTransformer _transformer;
+    private MidToLowLevelTransformer _transformer = null!;
 
     [SetUp]
     public void Setup()
@@ -44,13 +44,13 @@ public class MidToLowLevelTransformerTests
         
         var loadInstr = resultFunction.Instructions[0] as LowLevelIR.LLLoad;
         Assert.That(loadInstr, Is.Not.Null);
-        Assert.That(loadInstr.Register, Is.EqualTo("A"));
-        Assert.That(loadInstr.Value, Is.EqualTo("42"));
+        Assert.That(loadInstr!.Register, Is.EqualTo("A"));
+        Assert.That(loadInstr!.Value, Is.EqualTo("42"));
         
         var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Register, Is.EqualTo("A"));
-        Assert.That(storeInstr.Address, Is.EqualTo("$80")); // MyVar maps to $80
+        Assert.That(storeInstr!.Register, Is.EqualTo("A"));
+        Assert.That(storeInstr!.Address, Is.EqualTo("$80")); // MyVar maps to $80
     }
 
     [TestCase("COLUBK", "10", "$09")]
@@ -78,7 +78,7 @@ public class MidToLowLevelTransformerTests
         var resultFunction = result.Modules[0].Functions[0];
         var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo(expectedAddress));
+        Assert.That(storeInstr!.Address, Is.EqualTo(expectedAddress));
     }
 
     [Test]
@@ -103,7 +103,7 @@ public class MidToLowLevelTransformerTests
         var resultFunction = result.Modules[0].Functions[0];
         var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$80")); // Default address
+        Assert.That(storeInstr!.Address, Is.EqualTo("$80")); // Default address
     }
 
     [Test]
@@ -128,7 +128,7 @@ public class MidToLowLevelTransformerTests
         var resultFunction = result.Modules[0].Functions[0];
         var storeInstr = resultFunction.Instructions[1] as LowLevelIR.LLStore;
         Assert.That(storeInstr, Is.Not.Null);
-        Assert.That(storeInstr.Address, Is.EqualTo("$FF"));
+        Assert.That(storeInstr!.Address, Is.EqualTo("$FF"));
     }
 
     #endregion
@@ -158,7 +158,7 @@ public class MidToLowLevelTransformerTests
         
         var callInstr = resultFunction.Instructions[0] as LowLevelIR.LLCall;
         Assert.That(callInstr, Is.Not.Null);
-        Assert.That(callInstr.Label, Is.EqualTo("InitGame"));
+        Assert.That(callInstr!.Label, Is.EqualTo("InitGame"));
     }
 
     #endregion

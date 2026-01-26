@@ -11,30 +11,14 @@ namespace GameVM.Compiler.Pascal.Tests
     [TestFixture]
     public class HlirTransformationTests
     {
-        private HighLevelIR TransformProgram(string programText)
+        private static HighLevelIR TransformProgram(string programText)
         {
-            var ast = new AstTests().ParseProgram(programText);
+            var ast = AstTests.ParseProgram(programText);
             var transformer = new PascalAstToHlirTransformer("test.pas");
             return transformer.Transform((ProgramNode)ast);
         }
 
         // Helper method to get private field value using reflection
-        private T GetPrivateField<T>(object obj, string fieldName)
-        {
-            var field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
-            if (field == null)
-            {
-                throw new ArgumentException($"Field '{fieldName}' not found in type {obj.GetType().Name}");
-            }
-            return (T)field.GetValue(obj);
-        }
-
-        // Helper method to get statements from a Block
-        private List<HighLevelIR.Statement> GetBlockStatements(HighLevelIR.Block block)
-        {
-            return GetPrivateField<List<HighLevelIR.Statement>>(block, "statements");
-        }
-
         [Test]
         public void Transform_SimpleProgram_ReturnsNonNullIR()
         {

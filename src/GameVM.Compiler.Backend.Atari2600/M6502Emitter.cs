@@ -3,23 +3,23 @@ using System.Collections.Generic;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
-    public class M6502Emitter
+    public static class M6502Emitter
     {
-        public byte[] Emit(List<string> assembly)
+        public static byte[] Emit(List<string> assembly)
         {
             var binary = new List<byte>();
 
             foreach (var line in assembly)
             {
                 var trimmed = line.Trim();
-                if (trimmed.EndsWith(":")) continue; // Skip labels for now
+                if (trimmed.EndsWith(':')) continue; // Skip labels for now
 
-                if (trimmed.StartsWith("LDA #"))
+                if (trimmed.StartsWith('L') && trimmed.StartsWith("LDA #"))
                 {
                     binary.Add(0xA9);
                     var valStr = trimmed.Substring(5).Trim();
                     
-                    if (valStr.StartsWith("$"))
+                    if (valStr.StartsWith('$'))
                     {
                         binary.Add((byte)Convert.ToInt32(valStr.Substring(1), 16));
                     }
@@ -32,12 +32,12 @@ namespace GameVM.Compiler.Backend.Atari2600
                         binary.Add((byte)val);
                     }
                 }
-                else if (trimmed.StartsWith("STA "))
+                else if (trimmed.StartsWith('S') && trimmed.StartsWith("STA "))
                 {
                     var addrStr = trimmed.Substring(4).Trim();
                     int addr = 0;
 
-                    if (addrStr.StartsWith("$"))
+                    if (addrStr.StartsWith('$'))
                     {
                         addr = Convert.ToInt32(addrStr.Substring(1), 16);
                     }
