@@ -15,16 +15,16 @@ namespace UnitTests.Application
 {
     public class CompileUseCaseTests
     {
-        private AutoMocker _mocker;
-        private CompileUseCase _compileUseCase;
-        private string _tempFilePath;
+        private AutoMocker _mocker = null!;
+        private CompileUseCase _compileUseCase = null!;
+        private string _tempFilePath = null!;
 
         [SetUp]
         public void Setup()
         {
             _mocker = new AutoMocker();
             _compileUseCase = _mocker.CreateInstance<CompileUseCase>();
-            
+
             // Create a temporary file for testing
             _tempFilePath = System.IO.Path.GetTempFileName();
             System.IO.File.WriteAllText(_tempFilePath, "test content");
@@ -87,7 +87,7 @@ namespace UnitTests.Application
         {
             // Arrange
             var frontend = _mocker.GetMock<ILanguageFrontend>();
-            var hlir = new HighLevelIR();
+            var hlir = new HighLevelIR { SourceFile = "unknown" };
             var mlir = new MidLevelIR();
             var llir = new LowLevelIR();
             var options = new CompilationOptions
@@ -137,8 +137,11 @@ namespace UnitTests.Application
             var result = _compileUseCase.Execute(nonExistentFile, options);
 
             // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.ErrorMessage, Is.Not.Empty);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Success, Is.False);
+                Assert.That(result.ErrorMessage, Is.Not.Empty);
+            });
         }
 
         #region Real Compilation Tests (No Mocks)
@@ -352,7 +355,7 @@ namespace UnitTests.Application
         {
             // Arrange
             var realCompiler = CreateRealCompiler();
-            string sourceCode = null;
+            string? sourceCode = null;
             var options = new CompilationOptions
             {
                 Target = Architecture.Atari2600,
@@ -365,7 +368,7 @@ namespace UnitTests.Application
             // Should throw ArgumentNullException or handle gracefully
             Assert.Throws<ArgumentNullException>(() =>
             {
-                realCompiler.Execute(sourceCode, ".pas", options);
+                realCompiler.Execute(sourceCode!, ".pas", options);
             });
         }
 
@@ -400,7 +403,7 @@ namespace UnitTests.Application
 
         #region Helper Methods
 
-        private CompileUseCase CreateRealCompiler()
+        private static CompileUseCase CreateRealCompiler()
         {
             // Create real compiler with actual dependencies (no mocks)
             var frontend = new GameVM.Compiler.Pascal.PascalFrontend();

@@ -13,7 +13,7 @@ namespace GameVM.Compiler.Pascal
     {
         private readonly HlirToMlirTransformer _hlirToMlir = new HlirToMlirTransformer();
 
-        private class PascalErrorListener : BaseErrorListener
+        private sealed class PascalErrorListener : BaseErrorListener
         {
             public List<string> Errors { get; } = new();
             public override void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol, int line, int charPositionInLine, string msg, RecognitionException e)
@@ -53,7 +53,7 @@ namespace GameVM.Compiler.Pascal
                 return hlir;
             }
 
-            var visitor = new ASTVisitor();
+            var visitor = new AstVisitor();
             var result = visitor.Visit(context);
 
             if (result is ErrorNode errorNode)

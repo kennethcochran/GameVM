@@ -11,7 +11,7 @@ namespace GameVM.Compiler.Pascal.Tests
         [Test]
         public void Constructor_InitializesProperties()
         {
-            var context = new TransformationContext("test.pas", new HighLevelIR());
+            var context = new TransformationContext("test.pas", new HighLevelIR { SourceFile = "test.pas" });
 
             Assert.That(context.SourceFile, Is.EqualTo("test.pas"));
             Assert.That(context.TypeCache, Is.Not.Null);
@@ -24,7 +24,7 @@ namespace GameVM.Compiler.Pascal.Tests
         [Test]
         public void GetOrCreateBasicType_NewType_AddsToCache()
         {
-            var context = new TransformationContext("test.pas", new HighLevelIR());
+            var context = new TransformationContext("test.pas", new HighLevelIR { SourceFile = "test.pas" });
             var typeName = "integer";
 
             var type = context.GetOrCreateBasicType(typeName);
@@ -38,7 +38,7 @@ namespace GameVM.Compiler.Pascal.Tests
         [Test]
         public void GetOrCreateBasicType_ExistingType_ReturnsCached()
         {
-            var context = new TransformationContext("test.pas", new HighLevelIR());
+            var context = new TransformationContext("test.pas", new HighLevelIR { SourceFile = "test.pas" });
             var typeName = "integer";
             var firstCall = context.GetOrCreateBasicType(typeName);
 
@@ -50,7 +50,7 @@ namespace GameVM.Compiler.Pascal.Tests
         [Test]
         public void AddError_AddsToErrorList()
         {
-            var context = new TransformationContext("test.pas", new HighLevelIR());
+            var context = new TransformationContext("test.pas", new HighLevelIR { SourceFile = "test.pas" });
             var errorMessage = "Something went wrong";
 
             context.AddError(errorMessage);

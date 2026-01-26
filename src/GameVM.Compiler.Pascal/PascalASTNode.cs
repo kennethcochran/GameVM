@@ -3,8 +3,8 @@
     /// <summary>
     /// Base class for all AST nodes in the Pascal compiler.
     /// </summary>
-    public class PascalASTNode
+    public class PascalAstNode
     {
-        public virtual IList<PascalASTNode> Children => new List<PascalASTNode>();
+        public virtual IList<PascalAstNode> Children => new List<PascalAstNode>();
     }
 }

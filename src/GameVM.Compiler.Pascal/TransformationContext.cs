@@ -11,9 +11,9 @@ namespace GameVM.Compiler.Pascal
     {
         public HighLevelIR IR { get; }
         public string SourceFile { get; }
-        public Dictionary<string, HighLevelIR.HLType> TypeCache { get; }
+        public Dictionary<string, HighLevelIR.HlType> TypeCache { get; }
         private readonly List<Dictionary<string, IRSymbol>> _symbolTables;
-        public Dictionary<string, IRSymbol> SymbolTable => _symbolTables.Last();
+        public Dictionary<string, IRSymbol> SymbolTable => _symbolTables[_symbolTables.Count - 1];
         public Stack<HighLevelIR.Function> FunctionScope { get; }
         public List<string> Errors { get; }
 
@@ -21,7 +21,7 @@ namespace GameVM.Compiler.Pascal
         {
             SourceFile = sourceFile ?? "<unknown>";
             IR = ir ?? throw new ArgumentNullException(nameof(ir));
-            TypeCache = new Dictionary<string, HighLevelIR.HLType>(StringComparer.OrdinalIgnoreCase);
+            TypeCache = new Dictionary<string, HighLevelIR.HlType>(StringComparer.OrdinalIgnoreCase);
             _symbolTables = new List<Dictionary<string, IRSymbol>> { new(StringComparer.OrdinalIgnoreCase) };
             FunctionScope = new Stack<HighLevelIR.Function>();
             Errors = new List<string>();
@@ -40,12 +40,13 @@ namespace GameVM.Compiler.Pascal
             }
         }
 
-        public bool TryGetSymbol(string name, out IRSymbol symbol)
+        public bool TryGetSymbol(string name, out IRSymbol? symbol)
         {
             for (int i = _symbolTables.Count - 1; i >= 0; i--)
             {
-                if (_symbolTables[i].TryGetValue(name, out symbol))
+                if (_symbolTables[i].TryGetValue(name, out var foundSymbol))
                 {
+                    symbol = foundSymbol;
                     return true;
                 }
             }
@@ -53,7 +54,7 @@ namespace GameVM.Compiler.Pascal
             return false;
         }
 
-        public IRSymbol LookupSymbol(string name)
+        public IRSymbol? LookupSymbol(string name)
         {
             for (int i = _symbolTables.Count - 1; i >= 0; i--)
             {
@@ -63,12 +64,28 @@ namespace GameVM.Compiler.Pascal
             return null;
         }
 
-        public HighLevelIR.HLType GetOrCreateBasicType(string typeName)
+        public void AddGlobalFunction(HighLevelIR.Function function)
+        {
+            var module = IR.Modules.FirstOrDefault();
+            if (module == null)
+            {
+                module = new HighLevelIR.HlModule { Name = "default" };
+                IR.Modules.Add(module);
+            }
+            module.Functions.Add(function);
+        }
+
+        public HighLevelIR.HlType GetOrCreateBasicType(string typeName)
         {
             if (!TypeCache.TryGetValue(typeName, out var type))
             {
                 type = new HighLevelIR.BasicType(SourceFile, typeName);
+                System.Diagnostics.Debug.WriteLine($"Created new BasicType: Name='{type.Name}', Type='{type.GetType().Name}'");
                 TypeCache[typeName] = type;
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Retrieved cached type: Name='{type.Name}', Type='{type.GetType().Name}'");
             }
             return type;
         }

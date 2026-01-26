@@ -3,7 +3,7 @@ namespace GameVM.Compiler.Core.IR.Interfaces
     /// <summary>
     /// Interface for transforming one IR type to another
     /// </summary>
-    public interface IIRTransformer<TInput, TOutput>
+    public interface IIRTransformer<in TInput, out TOutput>
         where TInput : IIntermediateRepresentation
         where TOutput : IIntermediateRepresentation
     {

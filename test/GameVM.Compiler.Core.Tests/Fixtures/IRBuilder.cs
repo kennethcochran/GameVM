@@ -7,7 +7,7 @@ namespace GameVM.Compiler.Core.Tests.Fixtures;
 /// Builder for creating IR structures in tests.
 /// Simplifies IR construction for test scenarios.
 /// </summary>
-public class IRBuilder
+public static class IRBuilder
 {
     private const string DefaultSourceFile = "test.pas";
 
@@ -19,7 +19,7 @@ public class IRBuilder
     public static HighLevelIR.Function CreateFunction(
         string name,
         string returnTypeName = "Void",
-        HighLevelIR.Block body = null,
+        HighLevelIR.Block? body = null,
         string sourceFile = DefaultSourceFile)
     {
         body ??= new HighLevelIR.Block(sourceFile);
@@ -43,7 +43,7 @@ public class IRBuilder
             Name = name,
             Type = CreateBasicType(typeName, sourceFile),
             IsConstant = false,
-            InitialValue = null
+            InitialValue = string.Empty
         };
     }
 
@@ -93,7 +93,7 @@ public class IRBuilder
     public static HighLevelIR.IfStatement CreateIfStatement(
         HighLevelIR.Expression condition,
         List<IRNode> thenBlock,
-        List<IRNode> elseBlock = null,
+        List<IRNode>? elseBlock = null,
         string sourceFile = DefaultSourceFile)
     {
         return new HighLevelIR.IfStatement(condition, thenBlock, elseBlock);
@@ -104,7 +104,7 @@ public class IRBuilder
         HighLevelIR.Block body,
         string sourceFile = DefaultSourceFile)
     {
-        return new HighLevelIR.While(condition, body, sourceFile);
+        return new HighLevelIR.While { Condition = condition, Body = body, SourceFile = sourceFile };
     }
 
     public static HighLevelIR.FunctionCall CreateFunctionCall(
@@ -119,14 +119,14 @@ public class IRBuilder
         HighLevelIR.Expression expression,
         string sourceFile = DefaultSourceFile)
     {
-        return new HighLevelIR.ExpressionStatement(expression, sourceFile);
+        return new HighLevelIR.ExpressionStatement { Expression = expression, SourceFile = sourceFile };
     }
 
     public static IRSymbol CreateSymbol(
         string name,
         string typeName,
         bool isConstant = false,
-        object initialValue = null,
+        object? initialValue = null,
         string sourceFile = DefaultSourceFile)
     {
         return new IRSymbol
@@ -134,7 +134,7 @@ public class IRBuilder
             Name = name,
             Type = CreateBasicType(typeName, sourceFile),
             IsConstant = isConstant,
-            InitialValue = initialValue
+            InitialValue = initialValue ?? string.Empty
         };
     }
 }

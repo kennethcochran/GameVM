@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Pascal
@@ -19,7 +20,7 @@ namespace GameVM.Compiler.Pascal
         /// <summary>
         /// Transforms an expression node to a High-Level IR expression
         /// </summary>
-        public HighLevelIR.Expression TransformExpression(PascalASTNode astNode)
+        public HighLevelIR.Expression? TransformExpression(PascalAstNode astNode)
         {
             if (astNode == null)
                 return null;
@@ -62,7 +63,7 @@ namespace GameVM.Compiler.Pascal
             var arguments = new List<HighLevelIR.Expression>();
             foreach (var argNode in callNode.Arguments)
             {
-                HighLevelIR.Expression arg = TransformExpression(argNode);
+                HighLevelIR.Expression? arg = TransformExpression(argNode);
                 
                 if (arg == null)
                     return CreateErrorExpression("Failed to transform function argument");
@@ -78,13 +79,31 @@ namespace GameVM.Compiler.Pascal
             {
                 type = varSymbol.Type;
             }
+#pragma warning disable CS0618 // GlobalFunctions is obsolete but used for backward compatibility
             else if (_context.IR.GlobalFunctions.TryGetValue(name, out var globalFunc))
             {
                 type = globalFunc.ReturnType;
             }
-            else if (_context.IR.Functions.TryGetValue(name, out var func))
+#pragma warning restore CS0618
+            else
             {
-                type = func.ReturnType;
+                // Search for the function in all modules
+                var func = _context.IR.Modules
+                    .SelectMany(m => m.Functions)
+                    .FirstOrDefault(f => f.Name == name);
+                
+                if (func != null)
+                {
+                    type = func.ReturnType;
+                }
+                else
+                {
+                    // Use GlobalFunctions instead of deprecated Functions property
+                    if (_context.IR.GlobalFunctions.TryGetValue(name, out var globalFunction))
+                    {
+                        type = globalFunction.ReturnType;
+                    }
+                }
             }
 
             var funcExpr = new HighLevelIR.Identifier(name, type, _context.SourceFile);
@@ -105,7 +124,7 @@ namespace GameVM.Compiler.Pascal
             var symbol = _context.LookupSymbol(varNode.Name);
             if (symbol != null)
             {
-                var type = (HighLevelIR.HLType)symbol.Type;
+                var type = (HighLevelIR.HlType)symbol.Type;
                 var ident = new HighLevelIR.Identifier(varNode.Name, type, _context.SourceFile);
                 ident.Type = type;
                 return ident;
@@ -255,7 +274,13 @@ namespace GameVM.Compiler.Pascal
             else if (literalNode is BooleanLiteralNode) type = _context.GetOrCreateBasicType("bool");
             else if (literalNode is StringLiteralNode) type = _context.GetOrCreateBasicType("string");
 
-            return new HighLevelIR.Literal(literalNode.Value, type, _context.SourceFile);
+            var result = new HighLevelIR.Literal(literalNode.Value, type, _context.SourceFile);
+            result.Type = type; // Set the Literal.Type property
+            
+            // Also set the base Expression.Type property for consistency
+            ((HighLevelIR.Expression)result).Type = type;
+            
+            return result;
         }
 
         /// <summary>

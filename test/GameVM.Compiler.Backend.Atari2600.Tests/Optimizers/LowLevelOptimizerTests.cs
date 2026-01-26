@@ -13,7 +13,7 @@ namespace GameVM.Compiler.Backend.Atari2600.Tests.Optimizers;
 [TestFixture]
 public class LowLevelOptimizerTests
 {
-    private DefaultLowLevelOptimizer _optimizer;
+    private DefaultLowLevelOptimizer _optimizer = null!;
 
     [SetUp]
     public void Setup()
@@ -41,7 +41,7 @@ public class LowLevelOptimizerTests
         Assert.That(result, Is.Not.Null);
         Assert.That(result.Instructions, Is.Not.Null);
         // When register allocation is implemented, X and Y registers should be used effectively
-        Assert.That(result.Instructions.Count, Is.GreaterThanOrEqualTo(0));
+        Assert.That(result.Instructions, Has.Count.GreaterThanOrEqualTo(0));
     }
 
     [Test]
@@ -182,26 +182,6 @@ public class LowLevelOptimizerTests
     #endregion
 
     #region Memory Access Optimization Tests
-
-    [Test]
-    public void Optimize_SequentialMemoryAccess_Combines()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "2" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$81" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Is.Not.Null);
-        // When memory access optimization is implemented, sequential accesses might be optimized
-        Assert.That(result.Instructions.Count, Is.GreaterThanOrEqualTo(0));
-    }
 
     [Test]
     public void Optimize_ZeroPageAccess_PreferredOverAbsolute()

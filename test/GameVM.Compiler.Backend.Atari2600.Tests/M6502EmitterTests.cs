@@ -6,12 +6,10 @@ namespace GameVM.Compiler.Backend.Atari2600.Tests;
 [TestFixture]
 public class M6502EmitterTests
 {
-    private M6502Emitter _emitter;
-
     [SetUp]
     public void Setup()
     {
-        _emitter = new M6502Emitter();
+        // M6502Emitter is now static, no instance needed
     }
 
     #region LDA (Load Accumulator) Tests
@@ -23,7 +21,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "LDA #$2A" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -38,7 +36,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "LDA #42" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -53,7 +51,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "LDA #$00" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -68,7 +66,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "LDA #$FF" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -87,7 +85,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "STA $80" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -102,7 +100,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "STA $09" }; // COLUBK
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(2));
@@ -117,7 +115,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "STA $0900" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(3));
@@ -133,7 +131,7 @@ public class M6502EmitterTests
         var instructions = new List<string> { "STA $F000" };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(3));
@@ -157,7 +155,7 @@ public class M6502EmitterTests
         };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(4));
@@ -180,7 +178,7 @@ public class M6502EmitterTests
         };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(9));
@@ -210,7 +208,7 @@ public class M6502EmitterTests
         var instructions = new List<string>();
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Is.Empty);
@@ -227,7 +225,7 @@ public class M6502EmitterTests
         };
 
         // Act
-        var result = _emitter.Emit(instructions);
+        var result = M6502Emitter.Emit(instructions);
 
         // Assert
         Assert.That(result, Has.Length.EqualTo(4));

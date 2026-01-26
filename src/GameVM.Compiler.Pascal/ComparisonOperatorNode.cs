@@ -1,9 +1,9 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class ComparisonOperatorNode : PascalASTNode
+    public class ComparisonOperatorNode : PascalAstNode
     {
         public required string Operator { get; set; }
-        public required PascalASTNode Left { get; set; }
-        public required PascalASTNode Right { get; set; }
+        public required PascalAstNode Left { get; set; }
+        public required PascalAstNode Right { get; set; }
     }
 }

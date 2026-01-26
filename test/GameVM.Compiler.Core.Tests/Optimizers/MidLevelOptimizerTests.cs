@@ -13,7 +13,7 @@ namespace GameVM.Compiler.Core.Tests.Optimizers;
 [TestFixture]
 public class MidLevelOptimizerTests
 {
-    private DefaultMidLevelOptimizer _optimizer;
+    private DefaultMidLevelOptimizer _optimizer = null!;
 
     [SetUp]
     public void Setup()
@@ -37,8 +37,6 @@ public class MidLevelOptimizerTests
         module.Functions.Add(function);
         mlir.Modules.Add(module);
 
-        var originalCount = function.Instructions.Count;
-
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
@@ -46,10 +44,10 @@ public class MidLevelOptimizerTests
         Assert.That(result, Is.Not.Null);
         var resultModule = result.Modules.FirstOrDefault(m => m.Name == "test");
         Assert.That(resultModule, Is.Not.Null);
-        Assert.That(resultModule.Functions[0], Is.Not.Null);
+        Assert.That(resultModule!.Functions[0], Is.Not.Null);
         // When dead code elimination is implemented, unreachable assignments should be removed
         // For now, we verify the optimizer returns a valid result
-        Assert.That(resultModule.Functions[0].Instructions, Is.Not.Null);
+        Assert.That(resultModule!.Functions[0].Instructions, Is.Not.Null);
     }
 
     [Test]
@@ -61,8 +59,6 @@ public class MidLevelOptimizerTests
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "unused", Source = "42" });
         function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
         mlir.Modules[0].Functions.Add(function);
-
-        var originalCount = function.Instructions.Count;
 
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
@@ -220,8 +216,6 @@ public class MidLevelOptimizerTests
         mainFunc.Instructions.Add(new MidLevelIR.MLCall { Name = "small" });
         mlir.Modules[0].Functions.Add(mainFunc);
 
-        var originalMainCount = mainFunc.Instructions.Count;
-
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
 
@@ -251,8 +245,6 @@ public class MidLevelOptimizerTests
         function.Instructions.Add(new MidLevelIR.MLCall { Name = "writeln", Arguments = new List<string> { "used" } });
         mlir.Modules[0].Functions.Add(function);
 
-        var originalCount = function.Instructions.Count;
-
         // Act
         var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
 
@@ -263,9 +255,7 @@ public class MidLevelOptimizerTests
         // - Assignment to "unused" should be removed (it's never referenced)
         // - Assignment to "used" should remain (it's referenced in writeln call)
         var resultFunc = result.Modules[0].Functions[0];
-        var unusedAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
-            .FirstOrDefault(a => a.Target == "unused");
-        // Expected: When implemented, unusedAssign should be null (removed)
+        // Expected: When implemented, unused assignment should be removed
         // For now, verify optimizer returns valid result
         Assert.That(resultFunc.Instructions, Is.Not.Null);
     }
@@ -308,6 +298,9 @@ public class MidLevelOptimizerTests
 
         // Assert
         // Aggressive optimization should reduce code size significantly
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
+        // When aggressive optimizations are implemented, we should see reduced instruction count
     }
 
     #endregion

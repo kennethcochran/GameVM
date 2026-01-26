@@ -5,7 +5,7 @@ namespace GameVM.Compiler.Specs.Support;
 
 public static class MameRunner
 {
-    public static string Run(byte[] rom, string monitorScriptPath)
+    public static async Task<string> Run(byte[] rom, string monitorScriptPath)
     {
         var root = FindProjectRoot(AppContext.BaseDirectory);
         var testOutputDir = Path.Combine(root, "test_output");
@@ -14,7 +14,7 @@ public static class MameRunner
             Directory.CreateDirectory(testOutputDir);
         }
         var tempRomPath = Path.Combine(testOutputDir, "gamevm_test.bin");
-        File.WriteAllBytes(tempRomPath, rom);
+        await File.WriteAllBytesAsync(tempRomPath, rom);
 
         var mameExe = GetMameExecutable();
         if (string.IsNullOrEmpty(mameExe))
@@ -49,9 +49,30 @@ public static class MameRunner
             throw new Exception("Failed to start MAME.");
         }
 
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        // Read output with timeout to prevent hanging
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        
+        // Wait for process to complete with timeout
+        bool exited = process.WaitForExit(30000); // 30 second timeout
+        
+        if (!exited)
+        {
+            try
+            {
+                process.Kill();
+                process.WaitForExit(5000); // Give it 5 seconds to terminate
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+            throw new Exception("MAME process timed out after 30 seconds.");
+        }
+
+        // Get the output
+        string output = await outputTask;
+        string error = await errorTask;
 
         File.Delete(tempRomPath);
 
@@ -72,10 +93,7 @@ public static class MameRunner
 
         if (IsCommandInPath(binaryName)) return binaryName;
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            if (IsFlatpakInstalled()) return "flatpak";
-        }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && IsFlatpakInstalled()) return "flatpak";
 
         return null;
     }
@@ -106,8 +124,24 @@ public static class MameRunner
                 CreateNoWindow = true
             };
             using var process = Process.Start(startInfo);
-            process?.WaitForExit();
-            return process?.ExitCode == 0;
+            if (process != null)
+            {
+                bool exited = process.WaitForExit(5000); // 5 second timeout
+                if (!exited)
+                {
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(1000);
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
+                }
+                return process.ExitCode == 0;
+            }
+            return false;
         }
         catch { return false; }
     }
@@ -125,8 +159,24 @@ public static class MameRunner
                 CreateNoWindow = true
             };
             using var process = Process.Start(startInfo);
-            process?.WaitForExit();
-            return process?.ExitCode == 0;
+            if (process != null)
+            {
+                bool exited = process.WaitForExit(5000); // 5 second timeout
+                if (!exited)
+                {
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(1000);
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
+                }
+                return process.ExitCode == 0;
+            }
+            return false;
         }
         catch { return false; }
     }

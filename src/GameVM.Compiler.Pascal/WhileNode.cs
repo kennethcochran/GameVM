@@ -1,8 +1,8 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class WhileNode : PascalASTNode
+    public class WhileNode : PascalAstNode
     {
-        public required PascalASTNode Condition { get; set; }
-        public required PascalASTNode Block { get; set; }
+        public required PascalAstNode Condition { get; set; }
+        public required PascalAstNode Block { get; set; }
     }
 }

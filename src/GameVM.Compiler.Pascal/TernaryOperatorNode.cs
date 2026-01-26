@@ -1,9 +1,9 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class TernaryOperatorNode : PascalASTNode
+    public class TernaryOperatorNode : PascalAstNode
     {
-        public required PascalASTNode Condition { get; set; }
-        public required PascalASTNode TrueExpression { get; set; }
-        public required PascalASTNode FalseExpression { get; set; }
+        public required PascalAstNode Condition { get; set; }
+        public required PascalAstNode TrueExpression { get; set; }
+        public required PascalAstNode FalseExpression { get; set; }
     }
 }

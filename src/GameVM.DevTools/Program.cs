@@ -1,12 +1,13 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.CommandLine.Invocation;
 
 namespace GameVM.DevTools;
 
-class Program
+static class Program
 {
     private static readonly HttpClient HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
     private const string MameOrg = "mamedev";
@@ -20,25 +21,38 @@ class Program
         var rootCommand = new RootCommand("GameVM Developer Tools");
 
         var mameCommand = new Command("mame", "Manage MAME emulator dependencies");
-        rootCommand.AddCommand(mameCommand);
+        rootCommand.Subcommands.Add(mameCommand);
 
         var installCommand = new Command("install", "Install the latest MAME version locally");
-        installCommand.SetHandler(InstallMameAsync);
-        mameCommand.AddCommand(installCommand);
+        installCommand.SetAction(_ => { InstallMameAsync().Wait(); });
+        mameCommand.Subcommands.Add(installCommand);
 
         var pathCommand = new Command("path", "Display the path to the local MAME binary");
-        pathCommand.SetHandler(PrintMamePath);
-        mameCommand.AddCommand(pathCommand);
+        pathCommand.SetAction(_ => { PrintMamePath(); });
+        mameCommand.Subcommands.Add(pathCommand);
 
         var runCommand = new Command("run", "Run a ROM in MAME with GameVM monitoring");
-        var romOption = new Option<string>("--rom", "Path to the ROM file") { IsRequired = true };
+        var romOption = new Option<string>("--rom", "Path to the ROM file");
         var scriptOption = new Option<string>("--script", "Path to the Lua monitoring script");
-        runCommand.AddOption(romOption);
-        runCommand.AddOption(scriptOption);
-        runCommand.SetHandler(RunMameAsync, romOption, scriptOption);
-        mameCommand.AddCommand(runCommand);
+        runCommand.Options.Add(romOption);
+        runCommand.Options.Add(scriptOption);
+        runCommand.SetAction(parseResult => 
+        {
+            var romPath = parseResult.GetValue(romOption);
+            var scriptPath = parseResult.GetValue(scriptOption);
+            if (romPath != null && scriptPath != null)
+            {
+                RunMameAsync(romPath, scriptPath).Wait();
+            }
+            else
+            {
+                Console.Error.WriteLine("Both --rom and --script options are required.");
+            }
+        });
+        mameCommand.Subcommands.Add(runCommand);
 
-        return await rootCommand.InvokeAsync(args);
+        var parseResult = rootCommand.Parse(args);
+        return await parseResult.InvokeAsync();
     }
 
     private static string GetToolsDirectory()
@@ -80,10 +94,7 @@ class Program
         }
 
         // 3. Fallback to Flatpak on Linux
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            if (IsFlatpakInstalled()) return "flatpak";
-        }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && IsFlatpakInstalled()) return "flatpak";
 
         return null;
     }
@@ -175,6 +186,7 @@ class Program
                     if (string.IsNullOrEmpty(name)) continue;
 
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        if (name.Contains("b_x64") && (name.EndsWith(".exe") || name.EndsWith(".zip")))
                     {
                         if (name.Contains("b_x64") && (name.EndsWith(".exe") || name.EndsWith(".zip")))
                         {
@@ -183,14 +195,12 @@ class Program
                             break;
                         }
                     }
-                    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+                             name.Contains("mac") && name.EndsWith(".zip"))
                     {
-                        if (name.Contains("mac") && name.EndsWith(".zip"))
-                        {
-                            assetUrl = asset.GetProperty("browser_download_url").GetString();
-                            assetName = name;
-                            break;
-                        }
+                        assetUrl = asset.GetProperty("browser_download_url").GetString();
+                        assetName = name;
+                        break;
                     }
                 }
             }
@@ -236,7 +246,7 @@ class Program
                     return;
                 }
 
-                process.WaitForExit();
+                await process.WaitForExitAsync();
                 
                 if (process.ExitCode != 0)
                 {
@@ -255,7 +265,7 @@ class Program
             else
             {
                 // Handle ZIP archives (for macOS/Linux if available)
-                ZipFile.ExtractToDirectory(tempFile, toolsDir, overwriteFiles: true);
+                await ZipFile.ExtractToDirectoryAsync(tempFile, toolsDir, overwriteFiles: true);
                 File.Delete(tempFile);
             }
 
@@ -321,7 +331,7 @@ class Program
 
         string output = await process.StandardOutput.ReadToEndAsync();
         string error = await process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        await process.WaitForExitAsync();
 
         Console.WriteLine(output);
         if (!string.IsNullOrEmpty(error))

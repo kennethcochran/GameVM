@@ -1,7 +1,7 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class ExpressionStatementNode : PascalASTNode
+    public class ExpressionStatementNode : PascalAstNode
     {
-        public required PascalASTNode Expression { get; set; }
+        public required PascalAstNode Expression { get; set; }
     }
 }

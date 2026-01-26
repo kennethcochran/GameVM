@@ -11,7 +11,7 @@ namespace GameVM.Compiler.Pascal
     {
         private readonly TransformationContext _context;
         private readonly ExpressionTransformer _expressionTransformer;
-        public StatementTransformer StatementTransformer { get; set; }
+        public StatementTransformer? StatementTransformer { get; set; }
 
         public DeclarationTransformer(
             TransformationContext context,
@@ -24,7 +24,7 @@ namespace GameVM.Compiler.Pascal
         /// <summary>
         /// Transforms a declaration node
         /// </summary>
-        public void TransformDeclaration(PascalASTNode declNode)
+        public void TransformDeclaration(PascalAstNode declNode)
         {
             if (declNode == null)
                 return;
@@ -66,7 +66,7 @@ namespace GameVM.Compiler.Pascal
                 return;
 
             var hlValue = _expressionTransformer.TransformExpression(constDeclNode.Value);
-            object initialValue = null;
+            object? initialValue = null;
 
             if (hlValue is HighLevelIR.Literal literal)
             {
@@ -79,7 +79,7 @@ namespace GameVM.Compiler.Pascal
                 Name = constDeclNode.Name,
                 Type = constType,
                 IsConstant = true,
-                InitialValue = initialValue
+                InitialValue = initialValue!
             };
             _context.SymbolTable[constDeclNode.Name] = symbol;
 
@@ -104,7 +104,7 @@ namespace GameVM.Compiler.Pascal
             var procedure = new HighLevelIR.Function(_context.SourceFile, procNode.Name, returnType, body);
 
             // Register in global IR
-            _context.IR.Functions[procNode.Name] = procedure;
+            _context.AddGlobalFunction(procedure);
 
             // Push scope for procedure
             _context.PushScope();
@@ -113,18 +113,24 @@ namespace GameVM.Compiler.Pascal
             _context.FunctionScope.Push(procedure);
 
             // Process procedure parameters
-            foreach (var param in procNode.Parameters)
+            var procedureParameters = procNode.Parameters.Select(param => 
             {
                 var paramType = _context.GetOrCreateBasicType("i32"); // Default to i32 for now
                 var irParam = new HighLevelIR.Parameter(param.Name, paramType, _context.SourceFile);
-                procedure.AddParameter(irParam);
-
+                
                 var symbol = new IRSymbol
                 {
                     Name = param.Name,
                     Type = irParam.Type
                 };
                 _context.SymbolTable[param.Name] = symbol;
+                
+                return irParam;
+            });
+            
+            foreach (var irParam in procedureParameters)
+            {
+                procedure.AddParameter(irParam);
             }
 
             // Process nested block if it exists
@@ -168,7 +174,7 @@ namespace GameVM.Compiler.Pascal
             var function = new HighLevelIR.Function(_context.SourceFile, funcNode.Name, returnType, body);
 
             // Register in global IR
-            _context.IR.Functions[funcNode.Name] = function;
+            _context.AddGlobalFunction(function);
 
             // Push scope for function
             _context.PushScope();
@@ -185,18 +191,24 @@ namespace GameVM.Compiler.Pascal
             _context.FunctionScope.Push(function);
 
             // Process function parameters
-            foreach (var param in funcNode.Parameters)
+            var functionParameters = funcNode.Parameters.Select(param => 
             {
                 var paramType = _context.GetOrCreateBasicType("i32"); // Default to i32 for now
                 var irParam = new HighLevelIR.Parameter(param.Name, paramType, _context.SourceFile);
-                function.AddParameter(irParam);
-
+                
                 var symbol = new IRSymbol
                 {
                     Name = param.Name,
                     Type = irParam.Type
                 };
                 _context.SymbolTable[param.Name] = symbol;
+                
+                return irParam;
+            });
+            
+            foreach (var irParam in functionParameters)
+            {
+                function.AddParameter(irParam);
             }
 
             // Process nested block if it exists
@@ -250,7 +262,6 @@ namespace GameVM.Compiler.Pascal
             else
             {
                 // Local variable in a function
-                var currentFunction = _context.FunctionScope.Peek();
                 // IRFunction doesn't have a LocalVariables list, but we can add them to some metadata if needed.
                 // For now, they are just in the symbol table which is enough for transformation.
             }

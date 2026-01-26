@@ -1,8 +1,8 @@
 namespace GameVM.Compiler.Pascal
 {
-    public class RepeatNode : PascalASTNode
+    public class RepeatNode : PascalAstNode
     {
-        public required PascalASTNode Block { get; set; }
-        public required PascalASTNode Condition { get; set; }
+        public required PascalAstNode Block { get; set; }
+        public required PascalAstNode Condition { get; set; }
     }
 }

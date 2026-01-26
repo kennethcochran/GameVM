@@ -15,8 +15,10 @@ namespace GameVM.Compiler.Specs.Support
     /// <summary>
     /// Provides a shared context for compiler-related BDD tests
     /// </summary>
-    public class CompilerTestContext
+    public class CompilerTestContext : IDisposable
     {
+        private bool _disposed = false;
+        
         public ICompileUseCase CompileUseCase { get; }
         public string SourceCode { get; set; } = string.Empty;
         public CompilationResult? CompilationResult { get; set; }
@@ -32,6 +34,32 @@ namespace GameVM.Compiler.Specs.Support
                 new DefaultLowLevelOptimizer(),
                 new MidToLowLevelTransformer(),
                 new Atari2600CodeGenerator());
+        }
+
+        /// <summary>
+        /// Cleanup method to prevent memory leaks between test scenarios
+        /// </summary>
+        public void Cleanup()
+        {
+            SourceCode = string.Empty;
+            CompilationResult = null;
+            ErrorMessage = null;
+            MameOutput = null;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                Cleanup();
+                _disposed = true;
+            }
         }
     }
 }

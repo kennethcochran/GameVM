@@ -12,7 +12,7 @@ namespace GameVM.Compiler.Core.Tests;
 [TestFixture]
 public class TypeSystemValidationTests
 {
-    private HlirToMlirTransformer _transformer;
+    private HlirToMlirTransformer _transformer = null!;
 
     [SetUp]
     public void Setup()
@@ -32,17 +32,17 @@ public class TypeSystemValidationTests
         var stringType = new HighLevelIR.BasicType("test.pas", "String");
 
         var function = new HighLevelIR.Function("test.pas", "test", voidType, new HighLevelIR.Block("test.pas"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "message", 
+            "message",
             new HighLevelIR.Literal("42", intType, "test.pas"),
             "test.pas"
         ));
-        
+
         // Add variable to the module
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "message", Type = stringType });
-        
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "message", Type = stringType, SourceFile = "test.pas" });
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -62,16 +62,16 @@ public class TypeSystemValidationTests
         var intType = new HighLevelIR.BasicType("test.pas", "Integer");
         var stringType = new HighLevelIR.BasicType("test.pas", "String");
 
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "count", Type = intType });
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "count", Type = intType, SourceFile = "test.pas" });
         var function = new HighLevelIR.Function("test.pas", "test", voidType, new HighLevelIR.Block("test.pas"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "count", 
+            "count",
             new HighLevelIR.Literal("hello", stringType, "test.pas"),
             "test.pas"
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -91,16 +91,16 @@ public class TypeSystemValidationTests
         var intType = new HighLevelIR.BasicType("test.pas", "Integer");
         var boolType = new HighLevelIR.BasicType("test.pas", "Boolean");
 
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "count", Type = intType });
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "count", Type = intType, SourceFile = "test.pas" });
         var function = new HighLevelIR.Function("test.pas", "test", voidType, new HighLevelIR.Block("test.pas"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "count", 
+            "count",
             new HighLevelIR.Literal("true", boolType, "test.pas"),
             "test.pas"
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -122,14 +122,14 @@ public class TypeSystemValidationTests
         var hlir = CreateSimpleProgram();
         var voidType = new HighLevelIR.BasicType("test.pas", "Void");
         var function = new HighLevelIR.Function("test.pas", "test", voidType, new HighLevelIR.Block("test.pas"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "result", 
+            "result",
             new HighLevelIR.Identifier("undefined_var", "test.pas"),
             "test.pas"
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -147,10 +147,10 @@ public class TypeSystemValidationTests
         var hlir = CreateSimpleProgram();
         var voidType = new HighLevelIR.BasicType("test.pas", "Void");
         var function = new HighLevelIR.Function("test.pas", "test", voidType, new HighLevelIR.Block("test.pas"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "x", 
+            "x",
             new HighLevelIR.BinaryOp(
                 new HighLevelIR.Identifier("undefined1", "test.pas"),
                 "+",
@@ -159,7 +159,7 @@ public class TypeSystemValidationTests
             ),
             "test.pas"
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -179,34 +179,34 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Create the add function
         var addFunction = new HighLevelIR.Function(
-            "add", 
-            "test.pas", 
-            "Integer", 
+            "add",
+            "test.pas",
+            "Integer",
             new HighLevelIR.Block("test.pas")
         );
-        
+
         // Add parameters to the add function
         addFunction.Parameters.Add(new HighLevelIR.Parameter("a", "Integer", "test.pas"));
         addFunction.Parameters.Add(new HighLevelIR.Parameter("b", "Integer", "test.pas"));
-        
+
         // Add the add function to the module
         hlir.Modules[0].Functions.Add(addFunction);
 
         // Create the main function
         var mainFunction = new HighLevelIR.Function("main", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Add a function call with wrong number of arguments
         var functionCall = new HighLevelIR.FunctionCall("add", new List<HighLevelIR.Expression>
         {
-            new HighLevelIR.Literal("5", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas")
+            new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas")
         }, "test.pas");
-        
+
         // Add the function call to the main function's body
-        mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement(functionCall, "test.pas"));
-        
+        mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement { Expression = functionCall, SourceFile = "test.pas" });
+
         // Add the main function to the module
         hlir.Modules[0].Functions.Add(mainFunction);
 
@@ -222,33 +222,33 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Create the process function
         var processFunction = new HighLevelIR.Function(
-            "process", 
-            "test.pas", 
-            "Integer", 
+            "process",
+            "test.pas",
+            "Integer",
             new HighLevelIR.Block("test.pas")
         );
-        
+
         // Add parameter to the process function
         processFunction.Parameters.Add(new HighLevelIR.Parameter("value", "Integer", "test.pas"));
-        
+
         // Add the process function to the module
         hlir.Modules[0].Functions.Add(processFunction);
 
         // Create the main function
         var mainFunction = new HighLevelIR.Function("main", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Add a function call with wrong argument type
         var functionCall = new HighLevelIR.FunctionCall("process", new List<HighLevelIR.Expression>
         {
-            new HighLevelIR.Literal("hello", new HighLevelIR.HLType("test.pas", "String"), "test.pas")
+            new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test.pas")
         }, "test.pas");
-        
+
         // Add the function call to the main function's body
-        mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement(functionCall, "test.pas"));
-        
+        mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement { Expression = functionCall, SourceFile = "test.pas" });
+
         // Add the main function to the module
         hlir.Modules[0].Functions.Add(mainFunction);
 
@@ -268,38 +268,40 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Create array variable
-        var arrayVar = new HighLevelIR.Variable("arr", "Array[0..9] of Integer");
-        
+        var arrayVar = new HighLevelIR.Variable { Name = "arr", Type = new HighLevelIR.BasicType("test.pas", "Array[0..9] of Integer") { Name = "Array[0..9] of Integer" }, SourceFile = "test.pas" };
+
         // Add array variable to the module
         hlir.Modules[0].Variables.Add(arrayVar);
 
         // Create function
         var function = new HighLevelIR.Function("test", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Create array access expression
         var arrayAccess = new HighLevelIR.ArrayAccess(
             new HighLevelIR.Identifier("arr", "test.pas"),
-            new HighLevelIR.Literal("15", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+            new HighLevelIR.Literal("15", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
             "test.pas"
         );
-        
+
         // Create assignment statement
         var assignment = new HighLevelIR.Assignment(
             arrayAccess,
-            new HighLevelIR.Literal("1", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+            new HighLevelIR.Literal("1", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
             "test.pas"
         );
-        
+
         // Add assignment to function body
         function.Body.Statements.Add(assignment);
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should report array bounds exceed
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     [Test]
@@ -307,38 +309,40 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Create array variable
-        var arrayVar = new HighLevelIR.Variable("arr", "Array[0..9] of Integer");
-        
+        var arrayVar = new HighLevelIR.Variable { Name = "arr", Type = new HighLevelIR.BasicType("test.pas", "Array[0..9] of Integer") { Name = "Array[0..9] of Integer" }, SourceFile = "test.pas" };
+
         // Add array variable to the module
         hlir.Modules[0].Variables.Add(arrayVar);
 
         // Create function
         var function = new HighLevelIR.Function("test", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Create array access with non-integer index
         var arrayAccess = new HighLevelIR.ArrayAccess(
             new HighLevelIR.Identifier("arr", "test.pas"),
             new HighLevelIR.Identifier("hello", "test.pas"),
             "test.pas"
         );
-        
+
         // Create assignment statement
         var assignment = new HighLevelIR.Assignment(
             arrayAccess,
-            new HighLevelIR.Literal("1", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+            new HighLevelIR.Literal("1", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
             "test.pas"
         );
-        
+
         // Add assignment to function body
         function.Body.Statements.Add(assignment);
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should report non-integer array index
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     #endregion
@@ -350,28 +354,30 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Add variable to the module
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable("x", "Real"));
-        
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "x", Type = new HighLevelIR.BasicType("test.pas", "Real") { Name = "Real" }, SourceFile = "test.pas" });
+
         // Create function
         var function = new HighLevelIR.Function("test", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Create assignment with implicit conversion
         var assignment = new HighLevelIR.Assignment(
             "x",
-            new HighLevelIR.Literal("42", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+            new HighLevelIR.Literal("42", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
             "test.pas"
         );
-        
+
         // Add assignment to function body
         function.Body.Statements.Add(assignment);
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should allow Integer → Real conversion
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     [Test]
@@ -379,28 +385,30 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Add variable to the module
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable("count", "Integer"));
-        
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "count", Type = new HighLevelIR.BasicType("test.pas", "Integer") { Name = "Integer" }, SourceFile = "test.pas" });
+
         // Create function
         var function = new HighLevelIR.Function("test", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Create assignment with implicit conversion that should not be allowed
         var assignment = new HighLevelIR.Assignment(
             "count",
-            new HighLevelIR.Literal("3.14", new HighLevelIR.HLType("test.pas", "Real"), "test.pas"),
+            new HighLevelIR.Literal("3.14", new HighLevelIR.HlType("test.pas", "Real"), "test.pas"),
             "test.pas"
         );
-        
+
         // Add assignment to function body
         function.Body.Statements.Add(assignment);
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should NOT allow Real → Integer implicit conversion
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     #endregion
@@ -412,26 +420,28 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        
+
         // Create function
         var function = new HighLevelIR.Function("test", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
-        
+
         // Create a binary operation with incompatible types
         var binaryOp = new HighLevelIR.BinaryOp(
-            new HighLevelIR.Literal("5", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+            new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
             "+",
-            new HighLevelIR.Literal("hello", new HighLevelIR.HLType("test.pas", "String"), "test.pas"),
+            new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test.pas"),
             "test.pas"
         );
-        
+
         // Add the binary operation to the function body
-        function.Body.Statements.Add(new HighLevelIR.ExpressionStatement(binaryOp, "test.pas"));
-        
+        function.Body.Statements.Add(new HighLevelIR.ExpressionStatement { Expression = binaryOp, SourceFile = "test.pas" });
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should report wrong argument type
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     [Test]
@@ -442,7 +452,8 @@ public class TypeSystemValidationTests
         var function = new HighLevelIR.Function
         {
             Name = "test",
-            ReturnType = "Void",
+            SourceFile = "test.pas",
+            ReturnType = new HighLevelIR.BasicType("test.pas", "Void"),
             Body = new HighLevelIR.Block("test.pas")
             {
                 Statements = new List<HighLevelIR.Statement>
@@ -451,12 +462,10 @@ public class TypeSystemValidationTests
                     {
                         Condition = new HighLevelIR.BinaryOp
                         {
-                            Left = new HighLevelIR.Literal("5", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+                            Left = new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
                             Operator = ">",
-                            Right = new HighLevelIR.Literal { Value = "hello", Type = "String" }
-                        },
-                        Then = new HighLevelIR.Block("test.pas") { Statements = new() },
-                        Else = null
+                            Right = new HighLevelIR.Literal { Value = "hello", Type = new HighLevelIR.BasicType("test.pas", "String"), SourceFile = "test.pas" }
+                        }
                     }
                 }
             }
@@ -482,22 +491,25 @@ public class TypeSystemValidationTests
         var function = new HighLevelIR.Function
         {
             Name = "getInt",
-            ReturnType = "Integer",
+            SourceFile = "test.pas",
+            ReturnType = new HighLevelIR.BasicType("test.pas", "Integer"),
             Body = new HighLevelIR.Block
             {
                 Statements = new List<HighLevelIR.Statement>
                 {
                     new HighLevelIR.ReturnStatement
                     {
-                        Value = new HighLevelIR.Literal { Value = "hello", Type = "String" }
+                        Value = new HighLevelIR.Literal { Value = "hello", Type = new HighLevelIR.BasicType("test.pas", "String"), SourceFile = "test.pas" }
                     }
                 }
             }
         };
-        hlir.Functions.Add(function.Name, function);
+        hlir.Modules[0].Functions.Add(function);
 
         // Act & Assert
         // Type validator should report mismatched return type
+        var result = _transformer.Transform(hlir);
+        Assert.That(result, Is.Not.Null);
     }
 
     #endregion
@@ -515,8 +527,10 @@ public class TypeSystemValidationTests
         var typeA = new HighLevelIR.BasicType("test.pas", "TypeA");
         var typeB = new HighLevelIR.BasicType("test.pas", "TypeB");
         // Simulating circular reference (would need proper type system support)
+#pragma warning disable CS0618
         hlir.Types["TypeA"] = typeA;
         hlir.Types["TypeB"] = typeB;
+#pragma warning restore CS0618
 
         // Act
         var result = _transformer.Transform(hlir);
@@ -545,9 +559,9 @@ public class TypeSystemValidationTests
                         Target = "nested",
                         Value = new HighLevelIR.BinaryOp
                         {
-                            Left = new HighLevelIR.Literal("5", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas"),
+                            Left = new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas"),
                             Operator = "+",
-                            Right = new HighLevelIR.Literal("hello", new HighLevelIR.HLType("test.pas", "String"), "test.pas"),
+                            Right = new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test.pas"),
                             SourceFile = "test.pas"
                         }
                     }
@@ -556,21 +570,21 @@ public class TypeSystemValidationTests
         };
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
-        
+
         // Create a new function for the nested test
         var nestedFunction = new HighLevelIR.Function("test_nested", "test", "Void", new HighLevelIR.Block("test"));
-        
+
         var block = nestedFunction.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "nested", 
+            "nested",
             new HighLevelIR.BinaryOp(
-                new HighLevelIR.Literal(5, new HighLevelIR.HLType("test.pas", "Integer"), "test"),
+                new HighLevelIR.Literal(5, new HighLevelIR.HlType("test.pas", "Integer"), "test"),
                 "+",
-                new HighLevelIR.Literal("hello", new HighLevelIR.HLType("test.pas", "String"), "test"),
+                new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test"),
                 "test"
             )
         ));
-        
+
         // Add the nested function to the module
         hlir.Modules[0].Functions.Add(nestedFunction);
 
@@ -588,13 +602,13 @@ public class TypeSystemValidationTests
         // Arrange
         var hlir = CreateSimpleProgram();
         var function = new HighLevelIR.Function("test", "test", "Void", new HighLevelIR.Block("test"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "arr[i]", 
-            new HighLevelIR.Literal(1, new HighLevelIR.HLType("Integer"), "test")
+            "arr[i]",
+            new HighLevelIR.Literal(1, new HighLevelIR.HlType("Integer"), "test")
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -635,23 +649,23 @@ public class TypeSystemValidationTests
         // Arrange
         var hlir = CreateSimpleProgram();
         var function = new HighLevelIR.Function("test", "test", "Void", new HighLevelIR.Block("test"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "result", 
+            "result",
             new HighLevelIR.BinaryOp(
                 new HighLevelIR.BinaryOp(
-                    new HighLevelIR.Literal(5, new HighLevelIR.HLType("test.pas", "Integer"), "test"),
+                    new HighLevelIR.Literal(5, new HighLevelIR.HlType("test.pas", "Integer"), "test"),
                     "*",
-                    new HighLevelIR.Literal(3, new HighLevelIR.HLType("test.pas", "Integer"), "test"),
+                    new HighLevelIR.Literal(3, new HighLevelIR.HlType("test.pas", "Integer"), "test"),
                     "test"
                 ),
                 "+",
-                new HighLevelIR.Literal("hello", new HighLevelIR.HLType("test.pas", "String"), "test"),
+                new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test"),
                 "test"
             )
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -669,13 +683,13 @@ public class TypeSystemValidationTests
         // Arrange
         var hlir = CreateSimpleProgram();
         var function = new HighLevelIR.Function("test", "test", "Void", new HighLevelIR.Block("test"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "arr[15]", 
-            new HighLevelIR.Literal(1, new HighLevelIR.HLType("Integer"), "test")
+            "arr[15]",
+            new HighLevelIR.Literal(1, new HighLevelIR.HlType("Integer"), "test")
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
         // Note: Array bounds checking would need array type information
@@ -688,7 +702,7 @@ public class TypeSystemValidationTests
         Assert.That(result, Is.Not.Null);
     }
 
-        #endregion
+    #endregion
 
     #region Edge Cases
 
@@ -710,16 +724,17 @@ public class TypeSystemValidationTests
     {
         // Arrange
         var hlir = CreateSimpleProgram();
-        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "x", Type = "Integer" });
-        
+
+        hlir.Modules[0].Variables.Add(new HighLevelIR.Variable { Name = "x", Type = new HighLevelIR.BasicType("test.pas", "Integer"), SourceFile = "test.pas" });
+
         var function = new HighLevelIR.Function("test", "test", "Void", new HighLevelIR.Block("test"));
-        
+
         var block = function.Body;
         block.Statements.Add(new HighLevelIR.Assignment(
-            "x", 
-            new HighLevelIR.Literal("42", new HighLevelIR.HLType("test.pas", "Integer"), "test.pas")
+            "x",
+            new HighLevelIR.Literal("42", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas")
         ));
-        
+
         // Add function to the module
         hlir.Modules[0].Functions.Add(function);
 
@@ -738,9 +753,9 @@ public class TypeSystemValidationTests
     {
         var hlir = new HighLevelIR { SourceFile = "test.pas" };
         // Initialize with a default module
-        hlir.Modules = new List<HighLevelIR.HLModule>
+        hlir.Modules = new List<HighLevelIR.HlModule>
         {
-            new HighLevelIR.HLModule { Name = "default" }
+            new HighLevelIR.HlModule { Name = "default" }
         };
         return hlir;
     }

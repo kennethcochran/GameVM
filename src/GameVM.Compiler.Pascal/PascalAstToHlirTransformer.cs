@@ -15,11 +15,10 @@ namespace GameVM.Compiler.Pascal
         private readonly TransformationContext _context;
 
         // Sub-transformers
-        private readonly ExpressionTransformer _expressionTransformer;
         private readonly StatementTransformer _statementTransformer;
         private readonly DeclarationTransformer _declarationTransformer;
 
-        public PascalAstToHlirTransformer(string sourceFile = null)
+        public PascalAstToHlirTransformer(string? sourceFile = null)
         {
             _sourceFile = sourceFile ?? "<unknown>";
             _ir = new HighLevelIR { SourceFile = _sourceFile };
@@ -28,9 +27,9 @@ namespace GameVM.Compiler.Pascal
             _context = new TransformationContext(_sourceFile, _ir);
 
             // Initialize sub-transformers with context
-            _expressionTransformer = new ExpressionTransformer(_context);
-            _statementTransformer = new StatementTransformer(_context, _expressionTransformer);
-            _declarationTransformer = new DeclarationTransformer(_context, _expressionTransformer);
+            var expressionTransformer = new ExpressionTransformer(_context);
+            _statementTransformer = new StatementTransformer(_context, expressionTransformer);
+            _declarationTransformer = new DeclarationTransformer(_context, expressionTransformer);
             _declarationTransformer.StatementTransformer = _statementTransformer;
         }
 
@@ -43,10 +42,10 @@ namespace GameVM.Compiler.Pascal
                 throw new ArgumentNullException(nameof(programNode));
 
             ProcessProgram(programNode);
-            
+
             // Sync errors to IR
             _ir.Errors.AddRange(_context.Errors);
-            
+
             return _ir;
         }
 
@@ -96,7 +95,7 @@ namespace GameVM.Compiler.Pascal
                 foreach (var stmt in programNode.Block.Statements)
                 {
                     if (stmt is VariableDeclarationNode or ConstantDeclarationNode) continue; // Already processed
-                    
+
                     if (stmt is ProcedureNode or FunctionNode or TypeDefinitionNode)
                     {
                         _declarationTransformer.TransformDeclaration(stmt);
@@ -119,33 +118,8 @@ namespace GameVM.Compiler.Pascal
             _context.FunctionScope.Pop();
 
             // Register main function
-            _ir.Functions[mainFunction.Name] = mainFunction;
+            _context.AddGlobalFunction(mainFunction);
         }
 
-        /// <summary>
-        /// Processes a block node
-        /// </summary>
-        private void ProcessBlock(BlockNode blockNode, HighLevelIR.Block irBlock)
-        {
-            if (blockNode == null || irBlock == null)
-                return;
-
-            foreach (var stmt in blockNode.Statements)
-            {
-                // Delegate to appropriate transformer
-                if (stmt is ProcedureNode or FunctionNode or VariableDeclarationNode or ConstantDeclarationNode or TypeDefinitionNode)
-                {
-                    _declarationTransformer.TransformDeclaration(stmt);
-                }
-                else
-                {
-                    var transformedStmt = _statementTransformer.TransformStatement(stmt);
-                    if (transformedStmt != null)
-                    {
-                        irBlock.AddStatement(transformedStmt);
-                    }
-                }
-            }
-        }
     }
 }

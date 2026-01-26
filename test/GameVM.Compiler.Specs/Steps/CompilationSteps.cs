@@ -16,6 +16,18 @@ public class CompilationSteps
         _context = context;
     }
 
+    [BeforeScenario]
+    public void BeforeScenario()
+    {
+        _context.Cleanup();
+    }
+
+    [AfterScenario]
+    public void AfterScenario()
+    {
+        _context.Cleanup();
+    }
+
     #region Given Steps
 
     [Given(@"a Pascal program with a single write statement")]
@@ -288,18 +300,18 @@ public class CompilationSteps
     }
 
     [When(@"I run the program in MAME")]
-    public void WhenIRunTheProgramInMAME()
+    public async Task WhenIRunTheProgramInMAME()
     {
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
 
         var projectRoot = FindProjectRoot(AppContext.BaseDirectory);
         var monitorScript = Path.Combine(projectRoot, "test/GameVM.Compiler.Specs/monitor.lua");
 
-        _context.MameOutput = MameRunner.Run(_context.CompilationResult.Code, monitorScript);
+        _context.MameOutput = await MameRunner.Run(_context.CompilationResult.Code, monitorScript);
     }
 
-    private string FindProjectRoot(string currentDir)
+    private static string FindProjectRoot(string currentDir)
     {
         var dir = new DirectoryInfo(currentDir);
         while (dir != null)
@@ -352,7 +364,7 @@ public class CompilationSteps
     public void ThenTheCompilationFails()
     {
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.False, $"Compilation was expected to fail, but it succeeded. Output: {(_context.CompilationResult.Success ? "Success" : _context.CompilationResult.ErrorMessage)}");
+        Assert.That(_context.CompilationResult!.Success, Is.False, $"Compilation was expected to fail, but it succeeded. Output: {(_context.CompilationResult.Success ? "Success" : _context.CompilationResult.ErrorMessage)}");
     }
 
     [Then(@"the error message contains ""(.*)""")]
@@ -478,7 +490,7 @@ public class CompilationSteps
             throw new Exception($"[DEBUG_LOG] ControlFlow Compilation failed: {_context.CompilationResult.ErrorMessage}");
         }
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
     }
 
     [Then(@"function calls are handled correctly")]
@@ -489,7 +501,7 @@ public class CompilationSteps
             throw new Exception($"[DEBUG_LOG] FunctionCalls Compilation failed: {_context.CompilationResult.ErrorMessage}");
         }
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
     }
 
     [Then(@"built-in functions are called correctly")]
@@ -497,10 +509,10 @@ public class CompilationSteps
     {
         if (_context.CompilationResult?.Success == false)
         {
-            throw new Exception($"[DEBUG_LOG] BuiltInFunctions Compilation failed: {_context.CompilationResult.ErrorMessage}");
+            throw new Exception($"[DEBUG_LOG] BuiltInFunctions Compilation failed: {_context.CompilationResult?.ErrorMessage ?? "Unknown error"}");
         }
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
     }
 
     [Then(@"variable scope is handled correctly")]
@@ -508,21 +520,21 @@ public class CompilationSteps
     {
         if (_context.CompilationResult?.Success == false)
         {
-            throw new Exception($"[DEBUG_LOG] VariableScope Compilation failed: {_context.CompilationResult.ErrorMessage}");
+            throw new Exception($"[DEBUG_LOG] VariableScope Compilation failed: {_context.CompilationResult?.ErrorMessage ?? "Unknown error"}");
         }
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
     }
 
     [Then(@"the output binary should contain the hex sequence ""(.*)""")]
     public void ThenTheOutputBinaryShouldContainTheHexSequence(string hexSequence)
     {
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        if (!_context.CompilationResult.Success)
+        if (!_context.CompilationResult!.Success)
         {
             throw new Exception($"[DEBUG_LOG] Compilation failed: {_context.CompilationResult.ErrorMessage}");
         }
-        Assert.That(_context.CompilationResult.Success, Is.True);
+        Assert.That(_context.CompilationResult!.Success, Is.True);
         
         var expectedBytes = hexSequence.Split(' ')
             .Select(s => Convert.ToByte(s, 16))
@@ -557,7 +569,7 @@ public class CompilationSteps
     public void ThenTheOutputBinaryShouldBeBytesLong(int expectedLength)
     {
         Assert.That(_context.CompilationResult, Is.Not.Null);
-        Assert.That(_context.CompilationResult.Code, Is.Not.Null);
+        Assert.That(_context.CompilationResult!.Code, Is.Not.Null);
         Assert.That(_context.CompilationResult.Code.Length, Is.EqualTo(expectedLength));
     }
 

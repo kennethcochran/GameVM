@@ -32,7 +32,10 @@ namespace GameVM.Compiler.Core.IR
 
         public List<LLInstruction> Instructions { get; set; } = new();
 
-        public abstract class LLInstruction { }
+        public abstract class LLInstruction
+        {
+            public virtual string OpCode => GetType().Name;
+        }
 
         public class LLLoad : LLInstruction
         {

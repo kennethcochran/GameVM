@@ -8,18 +8,18 @@ namespace GameVM.Compiler.Pascal.Tests
     [TestFixture]
     public class ASTBuilderTests
     {
-        private ASTBuilder _builder;
+        private AstBuilder _builder = null!;
 
         [SetUp]
         public void Setup()
         {
-            _builder = new ASTBuilder();
+            _builder = new AstBuilder();
         }
 
         [Test]
         public void CreateProgram_ValidInput_ReturnsProgramNode()
         {
-            var block = new BlockNode { Statements = new List<PascalASTNode>() };
+            var block = new BlockNode { Statements = new List<PascalAstNode>() };
             var node = _builder.CreateProgram("Test", block);
 
             Assert.That(node, Is.Not.Null);

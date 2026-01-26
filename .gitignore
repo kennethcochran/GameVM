@@ -424,3 +424,11 @@ coveragereport/
 # Test Output
 test_output.txt
 .tools/
+
+# Temporary build and development files
+build_warnings.txt
+dev_warnings.txt
+.output.txt
+
+# Generated Reqnroll/SpecFlow files
+*.feature.cs

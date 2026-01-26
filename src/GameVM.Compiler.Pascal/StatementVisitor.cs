@@ -4,23 +4,18 @@ using System.Linq;
 
 namespace GameVM.Compiler.Pascal
 {
-    /// <summary>
-    /// Visitor for statement-related AST nodes in Pascal
-    /// </summary>
-    public class StatementVisitor : PascalBaseVisitor<PascalASTNode>
+    public class StatementVisitor : PascalBaseVisitor<PascalAstNode>
     {
         private readonly ExpressionVisitor _expressionVisitor;
-        private readonly ASTBuilder _astBuilder;
 
-        public StatementVisitor(ExpressionVisitor expressionVisitor, ASTBuilder astBuilder = null)
+        public StatementVisitor(ExpressionVisitor expressionVisitor, AstBuilder? astBuilder = null)
         {
             _expressionVisitor = expressionVisitor;
-            _astBuilder = astBuilder ?? new ASTBuilder();
         }
 
-        public override PascalASTNode VisitCompoundStatement(PascalParser.CompoundStatementContext context)
+        public override PascalAstNode VisitCompoundStatement(PascalParser.CompoundStatementContext context)
         {
-            var statements = new List<PascalASTNode>();
+            var statements = new List<PascalAstNode>();
 
             foreach (var stmt in context.statements().statement())
             {
@@ -34,7 +29,7 @@ namespace GameVM.Compiler.Pascal
             return new BlockNode { Statements = statements! };
         }
 
-        public override PascalASTNode VisitStatement(PascalParser.StatementContext context)
+        public override PascalAstNode VisitStatement(PascalParser.StatementContext context)
         {
             if (context.unlabelledStatement() != null)
                 return Visit(context.unlabelledStatement());
@@ -42,7 +37,7 @@ namespace GameVM.Compiler.Pascal
             return base.VisitStatement(context);
         }
 
-        public override PascalASTNode VisitAssignmentStatement(PascalParser.AssignmentStatementContext context)
+        public override PascalAstNode VisitAssignmentStatement(PascalParser.AssignmentStatementContext context)
         {
             var left = Visit(context.variable()) as VariableNode;
             var right = _expressionVisitor.Visit(context.expression());
@@ -57,7 +52,7 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitIfStatement(PascalParser.IfStatementContext context)
+        public override PascalAstNode VisitIfStatement(PascalParser.IfStatementContext context)
         {
             var condition = _expressionVisitor.Visit(context.expression()) as ExpressionNode;
             var thenBlock = Visit(context.statement(0)); // Removed strict casting to BlockNode
@@ -76,7 +71,7 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitWhileStatement(PascalParser.WhileStatementContext context)
+        public override PascalAstNode VisitWhileStatement(PascalParser.WhileStatementContext context)
         {
             var condition = _expressionVisitor.Visit(context.expression()) as ExpressionNode;
             var block = Visit(context.statement()); // Remove strict casting to BlockNode
@@ -93,7 +88,7 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitForStatement(PascalParser.ForStatementContext context)
+        public override PascalAstNode VisitForStatement(PascalParser.ForStatementContext context)
         {
             var variable = Visit(context.identifier()) as VariableNode;
             var fromExpression = _expressionVisitor.Visit(context.forList().initialValue()) as ExpressionNode;
@@ -107,7 +102,7 @@ namespace GameVM.Compiler.Pascal
             var block = Visit(context.statement()) as BlockNode;
             if (block == null)
             {
-                block = new BlockNode { Statements = new List<PascalASTNode>() };
+                block = new BlockNode { Statements = new List<PascalAstNode>() };
             }
 
             return new ForNode
@@ -119,7 +114,7 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitCaseStatement(PascalParser.CaseStatementContext context)
+        public override PascalAstNode VisitCaseStatement(PascalParser.CaseStatementContext context)
         {
             var selector = _expressionVisitor.Visit(context.expression()) as ExpressionNode;
             if (selector == null)
@@ -129,7 +124,6 @@ namespace GameVM.Compiler.Pascal
 
             var branches = new List<CaseBranchNode>();
 
-            // Process the case list elements
             foreach (var caseListElement in context.caseListElement())
             {
                 var branch = Visit(caseListElement) as CaseBranchNode;
@@ -139,11 +133,10 @@ namespace GameVM.Compiler.Pascal
                 }
             }
 
-            // Process the else part if it exists
-            PascalASTNode? elseBlock = null;
+            PascalAstNode? elseBlock = null;
             if (context.statements() != null)
             {
-                var statements = new List<PascalASTNode>();
+                var statements = new List<PascalAstNode>();
                 foreach (var stmt in context.statements().statement())
                 {
                     var stmtNode = Visit(stmt);
@@ -167,7 +160,7 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitCaseListElement(PascalParser.CaseListElementContext context)
+        public override PascalAstNode VisitCaseListElement(PascalParser.CaseListElementContext context)
         {
             var constList = context.constList();
             if (constList == null)
@@ -203,10 +196,10 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
+        public override PascalAstNode VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
         {
             var name = context.identifier()?.GetText();
-            var arguments = new List<PascalASTNode>();
+            var arguments = new List<PascalAstNode>();
             
             var paramList = context.parameterList();
             if (paramList != null)
@@ -237,9 +230,8 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitWithStatement(PascalParser.WithStatementContext context)
+        public override PascalAstNode VisitWithStatement(PascalParser.WithStatementContext context)
         {
-            // Parse the record variable list
             var recordVars = new List<VariableNode>();
             var recordVarList = context.recordVariableList();
             if (recordVarList != null)
@@ -252,7 +244,6 @@ namespace GameVM.Compiler.Pascal
                 }
             }
 
-            // Parse the block (statement)
             var block = Visit(context.statement());
             if (recordVars.Count == 0 || block == null)
             {
@@ -266,9 +257,8 @@ namespace GameVM.Compiler.Pascal
             };
         }
 
-        public override PascalASTNode VisitGotoStatement(PascalParser.GotoStatementContext context)
+        public override PascalAstNode VisitGotoStatement(PascalParser.GotoStatementContext context)
         {
-            // gotoStatement: GOTO label;
             var labelCtx = context.label();
             if (labelCtx == null)
                 return new ErrorNode("Goto statement missing label");
@@ -277,7 +267,7 @@ namespace GameVM.Compiler.Pascal
             return new GotoNode { TargetLabel = labelValue };
         }
 
-        public override PascalASTNode VisitIdentifier(PascalParser.IdentifierContext context)
+        public override PascalAstNode VisitIdentifier(PascalParser.IdentifierContext context)
         {
             if (context == null || string.IsNullOrEmpty(context.GetText()))
             {
@@ -287,7 +277,7 @@ namespace GameVM.Compiler.Pascal
             return new VariableNode { Name = context.GetText() };
         }
 
-        public override PascalASTNode VisitVariable(PascalParser.VariableContext context)
+        public override PascalAstNode VisitVariable(PascalParser.VariableContext context)
         {
             var identifier = context.identifier();
             if (identifier == null || identifier.Length == 0)
@@ -297,18 +287,16 @@ namespace GameVM.Compiler.Pascal
             return new VariableNode { Name = identifier[0].GetText() };
         }
 
-        // Custom implementation for VisitInitialValue
-        public override PascalASTNode VisitInitialValue(PascalParser.InitialValueContext context)
+        public override PascalAstNode VisitInitialValue(PascalParser.InitialValueContext context)
         {
             return _expressionVisitor.Visit(context.expression()) ?? new ErrorNode("Invalid initial value in for loop");
         }
 
-        // Custom implementation for VisitFinalValue
-        public override PascalASTNode VisitFinalValue(PascalParser.FinalValueContext context)
+        public override PascalAstNode VisitFinalValue(PascalParser.FinalValueContext context)
         {
             return _expressionVisitor.Visit(context.expression()) ?? new ErrorNode("Invalid final value in for loop");
         }
 
-        protected override PascalASTNode DefaultResult => null!;
+        protected override PascalAstNode DefaultResult => null!;
     }
 }
