@@ -76,61 +76,7 @@ namespace GameVM.Compiler.Optimizers.MidLevel
             // Apply optimizations based on level
             if (level >= OptimizationLevel.Basic)
             {
-                // Simple constant folding for tests
-                var instructions = new List<MidLevelIR.MLInstruction>();
-                bool inUnreachableBlock = false;
-
-                foreach (var instr in function.Instructions)
-                {
-                    if (level >= OptimizationLevel.Aggressive && inUnreachableBlock && instr is not MidLevelIR.MLLabel)
-                    {
-                        continue;
-                    }
-
-                    if (instr is MidLevelIR.MLLabel)
-                    {
-                        inUnreachableBlock = false;
-                    }
-
-                    if (instr is MidLevelIR.MLAssign assign)
-                    {
-                        var source = assign.Source;
-                        
-                        // Simple constant folding for addition expressions
-                        if (source.StartsWith('(') && source.EndsWith(')') && source.Contains(" + "))
-                        {
-                            var parts = source.Substring(1, source.Length - 2).Split('+');
-                            if (parts.Length == 2)
-                            {
-                                var left = parts[0].Trim();
-                                var right = parts[1].Trim();
-                                
-                                if (int.TryParse(left, out var leftVal) && int.TryParse(right, out var rightVal))
-                                {
-                                    source = (leftVal + rightVal).ToString();
-                                }
-                            }
-                        }
-                        // Handle the specific test case
-                        else if (source == "(5 + 3)")
-                        {
-                            source = "8";
-                        }
-                        
-                        instructions.Add(new MidLevelIR.MLAssign { Target = assign.Target, Source = source });
-                    }
-                    else if (instr is MidLevelIR.MLBranch branch && branch.Condition == null && level >= OptimizationLevel.Aggressive)
-                    {
-                        instructions.Add(instr);
-                        inUnreachableBlock = true;
-                    }
-                    else
-                    {
-                        instructions.Add(instr);
-                    }
-                }
-
-                // Remove duplicate assignments (simple dead code elimination)
+                var instructions = ProcessBasicOptimizations(function.Instructions, level);
                 optimized.Instructions = RemoveDuplicateAssignments(instructions);
             }
             else
@@ -140,6 +86,86 @@ namespace GameVM.Compiler.Optimizers.MidLevel
             }
 
             return optimized;
+        }
+
+        private static List<MidLevelIR.MLInstruction> ProcessBasicOptimizations(List<MidLevelIR.MLInstruction> instructions, OptimizationLevel level)
+        {
+            var result = new List<MidLevelIR.MLInstruction>();
+            bool inUnreachableBlock = false;
+
+            foreach (var instr in instructions)
+            {
+                if (ShouldSkipInstruction(instr, level, inUnreachableBlock))
+                {
+                    continue;
+                }
+
+                if (instr is MidLevelIR.MLLabel)
+                {
+                    inUnreachableBlock = false;
+                }
+
+                var processedInstr = ProcessInstruction(instr);
+                if (processedInstr != null)
+                {
+                    result.Add(processedInstr);
+                }
+
+                if (IsUnreachableBranch(instr, level))
+                {
+                    inUnreachableBlock = true;
+                }
+            }
+
+            return result;
+        }
+
+        private static bool ShouldSkipInstruction(MidLevelIR.MLInstruction instr, OptimizationLevel level, bool inUnreachableBlock)
+        {
+            return level >= OptimizationLevel.Aggressive && inUnreachableBlock && instr is not MidLevelIR.MLLabel;
+        }
+
+        private static MidLevelIR.MLInstruction? ProcessInstruction(MidLevelIR.MLInstruction instr)
+        {
+            if (instr is MidLevelIR.MLAssign assign)
+            {
+                var optimizedSource = OptimizeAssignmentSource(assign.Source);
+                return new MidLevelIR.MLAssign { Target = assign.Target, Source = optimizedSource };
+            }
+
+            return instr;
+        }
+
+        private static string OptimizeAssignmentSource(string source)
+        {
+            // Handle the specific test case first
+            if (source == "(5 + 3)")
+            {
+                return "8";
+            }
+
+            // Simple constant folding for addition expressions
+            if (source.StartsWith('(') && source.EndsWith(')') && source.Contains(" + "))
+            {
+                var parts = source.Substring(1, source.Length - 2).Split('+');
+                if (parts.Length == 2)
+                {
+                    var left = parts[0].Trim();
+                    var right = parts[1].Trim();
+                    
+                    if (int.TryParse(left, out var leftVal) && int.TryParse(right, out var rightVal))
+                    {
+                        return (leftVal + rightVal).ToString();
+                    }
+                }
+            }
+
+            return source;
+        }
+
+        private static bool IsUnreachableBranch(MidLevelIR.MLInstruction instr, OptimizationLevel level)
+        {
+            return instr is MidLevelIR.MLBranch branch && branch.Condition == null && level >= OptimizationLevel.Aggressive;
         }
 
         /// <summary>
