@@ -72,10 +72,20 @@ jobs:
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
+      - name: Check SonarQube report files
+        shell: powershell
+        run: |
+          Write-Host "Listing .\.sonar\scanner directory:"
+          Get-ChildItem -Path .\.sonar\scanner -Recurse -Force | Write-Host
+          Write-Host "Listing .scannerwork directory:"
+          if (Test-Path .scannerwork) {
+            Get-ChildItem -Path .scannerwork -Recurse -Force | Write-Host
+          } else {
+            Write-Host ".scannerwork directory does not exist"
+          }
+          
       - name: SonarQube Quality Gate check
         uses: SonarSource/sonarqube-quality-gate-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          scanMetadataReportFile: .\.sonar\scanner\report-task.txt
         timeout-minutes: 5
