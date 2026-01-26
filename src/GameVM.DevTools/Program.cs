@@ -103,21 +103,28 @@ static class Program
     {
         try
         {
-            // In CI environments, we can trust the PATH more than in production
-            // Use environment variable to override if needed for additional security
-            string whichCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
-            
-            // Allow override of which command location for hardened environments
-            var whichPath = Environment.GetEnvironmentVariable("GAMEVM_WHICH_PATH");
-            if (!string.IsNullOrEmpty(whichPath) && File.Exists(whichPath))
+            // Resolve absolute path to avoid S4036 security issue
+            var commandPath = GetAbsolutePath(command);
+            return !string.IsNullOrEmpty(commandPath) && File.Exists(commandPath);
+        }
+        catch { return false; }
+    }
+
+    private static bool IsFlatpakInstalled()
+    {
+        try
+        {
+            // First, resolve the absolute path of flatpak to avoid S4036 security issue
+            var flatpakPath = GetAbsolutePath("flatpak");
+            if (string.IsNullOrEmpty(flatpakPath))
             {
-                whichCmd = whichPath;
+                return false; // flatpak not found in PATH
             }
             
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = whichCmd,
-                Arguments = command,
+                FileName = flatpakPath,
+                Arguments = $"info {FlatpakId}",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -129,31 +136,34 @@ static class Program
         catch { return false; }
     }
 
-    private static bool IsFlatpakInstalled()
+    private static string? GetAbsolutePath(string command)
     {
         try
         {
-            // Allow override of flatpak command location for hardened environments
-            var flatpakCmd = "flatpak";
-            var flatpakPath = Environment.GetEnvironmentVariable("GAMEVM_FLATPAK_PATH");
-            if (!string.IsNullOrEmpty(flatpakPath) && File.Exists(flatpakPath))
-            {
-                flatpakCmd = flatpakPath;
-            }
-            
+            string whichCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = flatpakCmd,
-                Arguments = $"info {FlatpakId}",
+                FileName = whichCmd,
+                Arguments = command,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
             using var process = System.Diagnostics.Process.Start(startInfo);
             process?.WaitForExit();
-            return process?.ExitCode == 0;
+            
+            if (process?.ExitCode == 0)
+            {
+                var output = process.StandardOutput.ReadToEnd();
+                var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length > 0)
+                {
+                    return lines[0].Trim();
+                }
+            }
+            return null;
         }
-        catch { return false; }
+        catch { return null; }
     }
 
     private static void PrintMamePath()
