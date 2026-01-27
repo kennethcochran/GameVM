@@ -20,4 +20,4 @@
 #echo 'Husky.Net is awesome!'
 
 # Run CRAP score quality gate
-dotnet husky run --name crap-score-quality-gate
+dotnet husky run --name crap-score-quality-gate && dotnet husky run --name crap-score-check
