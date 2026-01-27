@@ -423,6 +423,11 @@ docs/html/
 
 # Test Output
 test_output.txt
+test_output/
+TestResults/
+*TestResults/
+*.log
+*.trx
 .tools/
 
 # Temporary build and development files
