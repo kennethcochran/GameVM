@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "generatedon": "2026-01-27T19:55:21Z",
+    "parser": "MultiReport (3x Cobertura)",
+    "assemblies": 3,
+    "classes": 28,
+    "files": 19,
+    "coveredlines": 534,
+    "uncoveredlines": 344,
+    "coverablelines": 878,
+    "totallines": 1651,
+    "linecoverage": 60.8,
+    "coveredbranches": 115,
+    "totalbranches": 194,
+    "branchcoverage": 59.2,
+    "coveredmethods": 214,
+    "fullcoveredmethods": 191,
+    "totalmethods": 325,
+    "methodcoverage": 65.8,
+    "fullmethodcoverage": 58.7
+ },
+  "coverage": {
+    "assemblies": [
+      { "name": "GameVM.Compiler.Application", "classes": 4, "coverage": 0, "coveredlines": 0, "coverablelines": 117, "totallines": 732, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 14, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 15, "classesinassembly": [
+        { "name": "GameVM.Compiler.Application.CompilationOptions", "coverage": 0, "coveredlines": 0, "coverablelines": 5, "totallines": 243, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 },
+        { "name": "GameVM.Compiler.Application.CompilationResult", "coverage": 0, "coveredlines": 0, "coverablelines": 5, "totallines": 243, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 },
+        { "name": "GameVM.Compiler.Application.CompileRequest", "coverage": 0, "coveredlines": 0, "coverablelines": 1, "totallines": 3, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Application.CompileUseCase", "coverage": 0, "coveredlines": 0, "coverablelines": 106, "totallines": 243, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 14, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 } ] },
+      { "name": "GameVM.Compiler.Core", "classes": 23, "coverage": 67.3, "coveredlines": 439, "coverablelines": 652, "totallines": 5153, "branchcoverage": 53.2, "coveredbranches": 65, "totalbranches": 122, "methodcoverage": 68.7, "fullmethodcoverage": 61.8, "coveredmethods": 211, "fullcoveredmethods": 190, "totalmethods": 307, "classesinassembly": [
+        { "name": "GameVM.Compiler.Core.CodeGen.DefaultCodeGenerator", "coverage": 0, "coveredlines": 0, "coverablelines": 15, "totallines": 29, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 6, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
+        { "name": "GameVM.Compiler.Core.Exceptions.CompilerException", "coverage": 100, "coveredlines": 6, "coverablelines": 6, "totallines": 14, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
+        { "name": "GameVM.Compiler.Core.Exceptions.ParserException", "coverage": 0, "coveredlines": 0, "coverablelines": 6, "totallines": 14, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 },
+        { "name": "GameVM.Compiler.Core.IR.FinalIR", "coverage": 0, "coveredlines": 0, "coverablelines": 1, "totallines": 13, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.FinalIRBuilder", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.HighLevelIR", "coverage": 70, "coveredlines": 225, "coverablelines": 321, "totallines": 566, "branchcoverage": 14.2, "coveredbranches": 4, "totalbranches": 28, "methodcoverage": 74.8, "fullmethodcoverage": 66.4, "coveredmethods": 134, "fullcoveredmethods": 119, "totalmethods": 179 },
+        { "name": "GameVM.Compiler.Core.IR.Interfaces.CodeGenOptions", "coverage": 0, "coveredlines": 0, "coverablelines": 4, "totallines": 46, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
+        { "name": "GameVM.Compiler.Core.IR.IRField", "coverage": 66.6, "coveredlines": 4, "coverablelines": 6, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 66.6, "fullmethodcoverage": 66.6, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 6 },
+        { "name": "GameVM.Compiler.Core.IR.IRFunction", "coverage": 77.7, "coveredlines": 7, "coverablelines": 9, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 77.7, "fullmethodcoverage": 77.7, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 9 },
+        { "name": "GameVM.Compiler.Core.IR.IRNode", "coverage": 87.5, "coveredlines": 7, "coverablelines": 8, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 80, "fullmethodcoverage": 80, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 5 },
+        { "name": "GameVM.Compiler.Core.IR.IRParameter", "coverage": 66.6, "coveredlines": 6, "coverablelines": 9, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 66.6, "fullmethodcoverage": 66.6, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 9 },
+        { "name": "GameVM.Compiler.Core.IR.IRSourceLocation", "coverage": 100, "coveredlines": 6, "coverablelines": 6, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
+        { "name": "GameVM.Compiler.Core.IR.IRSymbol", "coverage": 75, "coveredlines": 6, "coverablelines": 8, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 75, "fullmethodcoverage": 75, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 8 },
+        { "name": "GameVM.Compiler.Core.IR.IRType", "coverage": 75, "coveredlines": 6, "coverablelines": 8, "totallines": 566, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 75, "fullmethodcoverage": 75, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 8 },
+        { "name": "GameVM.Compiler.Core.IR.LlirBuilder", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 21, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.LLIRBuilder", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.LowLevelIR", "coverage": 0, "coveredlines": 0, "coverablelines": 17, "totallines": 68, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 17 },
+        { "name": "GameVM.Compiler.Core.IR.MidLevelIR", "coverage": 87.5, "coveredlines": 14, "coverablelines": 16, "totallines": 66, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 87.5, "fullmethodcoverage": 87.5, "coveredmethods": 14, "fullcoveredmethods": 14, "totalmethods": 16 },
+        { "name": "GameVM.Compiler.Core.IR.MlirBuilder", "coverage": 0, "coveredlines": 0, "coverablelines": 4, "totallines": 13, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.MLIRBuilder", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.Transformers.HlirToMlirTransformer", "coverage": 80, "coveredlines": 152, "coverablelines": 190, "totallines": 281, "branchcoverage": 69.3, "coveredbranches": 61, "totalbranches": 88, "methodcoverage": 91.6, "fullmethodcoverage": 66.6, "coveredmethods": 22, "fullcoveredmethods": 16, "totalmethods": 24 },
+        { "name": "GameVM.Compiler.Core.IR.Transformers.LowToFinalTransformer", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 },
+        { "name": "GameVM.Compiler.Core.IR.Transformers.MidToLowLevelTransformer", "coverage": 0, "coveredlines": 0, "coverablelines": 3, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
+      { "name": "GameVM.Compiler.Optimizers.MidLevel", "classes": 1, "coverage": 87.1, "coveredlines": 95, "coverablelines": 109, "totallines": 214, "branchcoverage": 86.2, "coveredbranches": 50, "totalbranches": 58, "methodcoverage": 100, "fullmethodcoverage": 33.3, "coveredmethods": 3, "fullcoveredmethods": 1, "totalmethods": 3, "classesinassembly": [
+        { "name": "GameVM.Compiler.Optimizers.MidLevel.DefaultMidLevelOptimizer", "coverage": 87.1, "coveredlines": 95, "coverablelines": 109, "totallines": 214, "branchcoverage": 86.2, "coveredbranches": 50, "totalbranches": 58, "methodcoverage": 100, "fullmethodcoverage": 33.3, "coveredmethods": 3, "fullcoveredmethods": 1, "totalmethods": 3 } ] } ]
+  }
+}
