@@ -20,20 +20,4 @@
 #echo 'Husky.Net is awesome!'
 
 # Run CRAP score quality gate
-echo "🔍 Running CRAP Score Quality Gate..."
-dotnet test --collect:"XPlat Code Coverage" --logger:"trx;LogFileName=crap-check.trx" --results-directory ./TestResults --no-build
-
-if [ $? -eq 0 ]; then
-    echo "✅ Tests passed, checking CRAP scores..."
-    dotnet tool run reportgenerator -reports:"TestResults/**/coverage.cobertura.xml" -targetdir:"TestResults/crap-check" -reporttypes:JsonSummary
-    
-    if [ -f "TestResults/crap-check/Summary.json" ]; then
-        pwsh scripts/Check-CrapGate.ps1 -ReportPath "TestResults/crap-check/Summary.json" -Threshold 30
-    else
-        echo "❌ Coverage report not generated"
-        exit 1
-    fi
-else
-    echo "❌ Tests failed, skipping CRAP check"
-    exit 1
-fi
+dotnet husky run --name crap-score-quality-gate
