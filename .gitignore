@@ -45,10 +45,10 @@ bld/
 # Visual Studio 2017 auto generated files
 Generated\ Files/
 
-# Test coverage and results
-coverage/
-*.coverage
-*.coveragexml
+# Test coverage and results (temporarily allowed for coverage analysis)
+# coverage/
+# *.coverage
+# *.coveragexml
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
@@ -412,8 +412,8 @@ docs/_build/
 docs/api/
 docs/html/
 
-# Project specific folders
-coveragereport/
+# Project specific folders (temporarily allowed for coverage analysis)
+# coveragereport/
 **/.antlr/
 **/tools/
 !**/tools/packages.config
