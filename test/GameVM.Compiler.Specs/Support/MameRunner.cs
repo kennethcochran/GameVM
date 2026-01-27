@@ -8,7 +8,7 @@ public static class MameRunner
     public static async Task<string> Run(byte[] rom, string monitorScriptPath)
     {
         var root = FindProjectRoot(AppContext.BaseDirectory);
-        var testOutputDir = Path.Combine(root, "test_output");
+        var testOutputDir = Path.Combine(root, "TestResults", "MameExecution");
         if (!Directory.Exists(testOutputDir))
         {
             Directory.CreateDirectory(testOutputDir);
