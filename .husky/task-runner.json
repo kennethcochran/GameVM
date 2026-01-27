@@ -2,12 +2,18 @@
    "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
    "tasks": [
       {
-         "name": "welcome-message-example",
-         "command": "bash",
-         "args": [ "-c", "echo Husky.Net is awesome!" ],
+         "name": "crap-score-quality-gate",
+         "command": "pwsh",
+         "args": [
+            "-Command",
+            "dotnet test --collect:'XPlat Code Coverage' --logger:'trx;LogFileName=crap-check.trx' --results-directory ./TestResults --no-build; if ($LASTEXITCODE -eq 0) { dotnet tool run reportgenerator -reports:'TestResults/**/coverage.cobertura.xml' -targetdir:'TestResults/crap-check' -reporttypes:JsonSummary; pwsh scripts/Check-CrapGate.ps1 -ReportPath 'TestResults/crap-check/Summary.json' -Threshold 30 } else { exit 1 }"
+         ],
          "windows": {
-            "command": "cmd",
-            "args": ["/c", "echo Husky.Net is awesome!" ]
+            "command": "pwsh",
+            "args": [
+               "-Command",
+               "dotnet test --collect:'XPlat Code Coverage' --logger:'trx;LogFileName=crap-check.trx' --results-directory ./TestResults --no-build; if ($LASTEXITCODE -eq 0) { dotnet tool run reportgenerator -reports:'TestResults/**/coverage.cobertura.xml' -targetdir:'TestResults/crap-check' -reporttypes:JsonSummary; pwsh scripts/Check-CrapGate.ps1 -ReportPath 'TestResults/crap-check/Summary.json' -Threshold 30 } else { exit 1 }"
+            ]
          }
       }
    ]
