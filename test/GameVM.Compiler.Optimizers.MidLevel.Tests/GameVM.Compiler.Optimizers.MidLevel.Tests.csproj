@@ -44,9 +44,9 @@
   <!-- Target to generate HTML report after tests using dotnet-reportgenerator -->
   <Target Name="GenerateCoverageReport" AfterTargets="VSTest">
     <PropertyGroup>
-      <CoverageReportDir>$(MSBuildProjectDirectory)/TestResults/coverage</CoverageReportDir>
+      <CoverageReportDir>$(SolutionDir)TestResults/coverage</CoverageReportDir>
       <ReportOutputDir>$(CoverageReportDir)/html</ReportOutputDir>
-      <CoverageFilePattern>$(MSBuildProjectDirectory)/TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
+      <CoverageFilePattern>$(SolutionDir)TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
     </PropertyGroup>
 
     <ItemGroup>
