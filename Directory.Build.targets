@@ -8,7 +8,7 @@
       <HtmlReportDir>$(CoverageDir)/html</HtmlReportDir>
       <JsonReportDir>$(CoverageDir)/json</JsonReportDir>
       <CoberturaReportDir>$(CoverageDir)/cobertura</CoberturaReportDir>
-      <CoverageFilePattern>$(SolutionDir)TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
+      <CoverageFilePattern>$(SolutionDir)test/**/TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
     </PropertyGroup>
 
     <Message Text="Aggregating coverage reports from: $(CoverageFilePattern)" Importance="high" />
