@@ -20,9 +20,12 @@ namespace GameVM.Compiler.Core.Tests.IR
             var variable = new HighLevelIR.Variable("counter", type, "test.pas");
 
             // Assert
-            Assert.That(variable.Name, Is.EqualTo("counter"));
-            Assert.That(variable.Type, Is.SameAs(type));
-            Assert.That(variable.SourceFile, Is.EqualTo("test.pas"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(variable.Name, Is.EqualTo("counter"));
+                Assert.That(variable.Type, Is.SameAs(type));
+                Assert.That(variable.SourceFile, Is.EqualTo("test.pas"));
+            });
         }
 
         #endregion
@@ -36,9 +39,12 @@ namespace GameVM.Compiler.Core.Tests.IR
             var type = new HighLevelIR.HlType { Name = "unknown" };
 
             // Assert
-            Assert.That(type, Is.Not.Null);
-            Assert.That(type.Name, Is.EqualTo("unknown"));
-            Assert.That(type.SourceFile, Is.EqualTo(string.Empty));
+            Assert.Multiple(() =>
+            {
+                Assert.That(type, Is.Not.Null);
+                Assert.That(type.Name, Is.EqualTo("unknown"));
+                Assert.That(type.SourceFile, Is.EqualTo(string.Empty));
+            });
         }
 
         [Test]
@@ -48,8 +54,11 @@ namespace GameVM.Compiler.Core.Tests.IR
             var type = new HighLevelIR.HlType("test.pas", "MyType");
 
             // Assert
-            Assert.That(type.SourceFile, Is.EqualTo("test.pas"));
-            Assert.That(type.Name, Is.EqualTo("MyType"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(type.SourceFile, Is.EqualTo("test.pas"));
+                Assert.That(type.Name, Is.EqualTo("MyType"));
+            });
         }
 
         [Test]
@@ -59,8 +68,11 @@ namespace GameVM.Compiler.Core.Tests.IR
             var type = new HighLevelIR.HlType("MyType");
 
             // Assert
-            Assert.That(type.Name, Is.EqualTo("MyType"));
-            Assert.That(type.SourceFile, Is.EqualTo("unknown"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(type.Name, Is.EqualTo("MyType"));
+                Assert.That(type.SourceFile, Is.EqualTo("unknown"));
+            });
         }
 
         [Test]
@@ -70,8 +82,11 @@ namespace GameVM.Compiler.Core.Tests.IR
             HighLevelIR.HlType type = "MyType";
 
             // Assert
-            Assert.That(type.Name, Is.EqualTo("MyType"));
-            Assert.That(type.SourceFile, Is.EqualTo("unknown"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(type.Name, Is.EqualTo("MyType"));
+                Assert.That(type.SourceFile, Is.EqualTo("unknown"));
+            });
         }
 
         #endregion
