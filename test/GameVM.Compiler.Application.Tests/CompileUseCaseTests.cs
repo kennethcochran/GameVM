@@ -30,6 +30,29 @@ namespace UnitTests.Application
             System.IO.File.WriteAllText(_tempFilePath, "test content");
         }
 
+        // RED PHASE: One failing test at a time for CompileUseCase constructor - null frontend
+        [Test]
+        public void Constructor_NullFrontend_ShouldThrowArgumentNullException()
+        {
+            // Arrange - Test null validation for frontend parameter
+            var midLevelOptimizer = _mocker.GetMock<IMidLevelOptimizer>();
+            var lowLevelOptimizer = _mocker.GetMock<ILowLevelOptimizer>();
+            var mlirToLlir = _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>();
+            var codeGenerator = _mocker.GetMock<ICodeGenerator>();
+            var capabilityProvider = _mocker.GetMock<ICapabilityProvider>();
+            var capabilityValidator = _mocker.GetMock<ICapabilityValidatorService>();
+
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => new CompileUseCase(
+                null!, // null frontend
+                midLevelOptimizer.Object,
+                lowLevelOptimizer.Object,
+                mlirToLlir.Object,
+                codeGenerator.Object,
+                capabilityProvider.Object,
+                capabilityValidator.Object));
+        }
+
         [TearDown]
         public void TearDown()
         {
@@ -412,12 +435,16 @@ namespace UnitTests.Application
             var mlirToLlir = new GameVM.Compiler.Backend.Atari2600.MidToLowLevelTransformer();
             var codeGenerator = new GameVM.Compiler.Backend.Atari2600.Atari2600CodeGenerator();
 
+            var capabilityValidator = new GameVM.Compiler.Capabilities.CapabilityValidatorService();
+
             return new CompileUseCase(
                 frontend,
                 midOptimizer,
                 lowOptimizer,
                 mlirToLlir,
-                codeGenerator);
+                codeGenerator,
+                codeGenerator, // Use same instance for ICapabilityProvider
+                capabilityValidator);
         }
 
         #endregion

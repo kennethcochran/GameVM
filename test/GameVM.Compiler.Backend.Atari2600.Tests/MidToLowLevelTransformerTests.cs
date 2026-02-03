@@ -161,6 +161,36 @@ public class MidToLowLevelTransformerTests
         Assert.That(callInstr!.Label, Is.EqualTo("InitGame"));
     }
 
+    // RED PHASE: One failing test at a time for ProcessInstruction - MLLabel case
+    [Test]
+    public void Transform_LabelInstruction_GeneratesCorrectLabel()
+    {
+        // Arrange - Test the MLLabel case in ProcessInstruction (line 89-91)
+        var mlir = new MidLevelIR();
+        var module = new MidLevelIR.MLModule { Name = "test" };
+        var function = new MidLevelIR.MLFunction { Name = "main" };
+        function.Instructions.Add(new MidLevelIR.MLLabel { Name = "LOOP_START" });
+        module.Functions.Add(function);
+        mlir.Modules.Add(module);
+
+        // Act
+        var result = _transformer.Transform(mlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules.Count, Is.EqualTo(1));
+        
+        var resultModule = result.Modules[0];
+        Assert.That(resultModule.Functions.Count, Is.EqualTo(1));
+        
+        var resultFunction = resultModule.Functions[0];
+        Assert.That(resultFunction.Instructions.Count, Is.EqualTo(1));
+        
+        var labelInstr = resultFunction.Instructions[0] as LowLevelIR.LLLabel;
+        Assert.That(labelInstr, Is.Not.Null);
+        Assert.That(labelInstr!.Name, Is.EqualTo("LOOP_START"));
+    }
+
     #endregion
 
     #region Multiple Instruction Tests

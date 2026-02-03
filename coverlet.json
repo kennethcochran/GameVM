@@ -1,15 +1,29 @@
 {
-  "include": ["GameVM.Compiler.Pascal"],
+  "include": ["GameVM.Compiler.Pascal", "GameVM.DevTools"],
   "exclude": [
     "[xunit.*]*",
     "[coverlet.*]*",
-    "[*]GameVM.Compiler.Pascal.Tests*"
+    "[*]GameVM.Compiler.Pascal.Tests*",
+    "[*]*.ANTLR*",
+    "[*]*Lexer*",
+    "[*]*Parser*",
+    "[*]*Visitor*",
+    "[*]*Listener*",
+    "[*]*BaseVisitor*",
+    "[*]*BaseListener*"
   ],
   "excludeByAttribute": [
     "System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage"
   ],
   "excludeByFile": [
     "**/obj/**/*.cs",
-    "**/bin/**/*.cs"
+    "**/bin/**/*.cs",
+    "**/ANTLR/**/*.cs",
+    "**/*Lexer.cs",
+    "**/*Parser.cs",
+    "**/*Visitor.cs",
+    "**/*Listener.cs",
+    "**/*BaseVisitor.cs",
+    "**/*BaseListener.cs"
   ]
 }

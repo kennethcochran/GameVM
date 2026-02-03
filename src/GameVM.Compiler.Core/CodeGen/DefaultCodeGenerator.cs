@@ -7,6 +7,7 @@ namespace GameVM.Compiler.Core.CodeGen
     /// <summary>
     /// Default implementation of ICodeGenerator that generates executable code and bytecode
     /// from final IR
+    /// Follows Interface Segregation Principle - implements only ICodeGenerator
     /// </summary>
     public class DefaultCodeGenerator : ICodeGenerator
     {

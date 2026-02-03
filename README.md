@@ -9,7 +9,7 @@ A virtual machine specifically designed for video games, making retro console de
 ### Prerequisites
 
 GameVM requires:
-- .NET 8 SDK (LTS) ([download](https://dotnet.microsoft.com/download/dotnet/8.0))
+- .NET 10 SDK ([download](https://dotnet.microsoft.com/download/dotnet/10.0))
 - Java Development Kit (JDK) 21 or later (required for ANTLR tooling)
   - Options: [Eclipse Temurin](https://adoptium.net/), [Microsoft Build of OpenJDK](https://www.microsoft.com/openjdk), or [Amazon Corretto](https://aws.amazon.com/corretto/)
 - The build process will automatically handle ANTLR tooling
@@ -29,11 +29,12 @@ dotnet build
 ## Documentation
 
 Comprehensive documentation is available in the [docs](docs/) directory:
-- [Design Documents](docs/design/) - Architecture, compiler design, and implementation details
-- [System References](docs/systems/) - Hardware specifications and platform-specific details
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
+- [Compiler Design](docs/compiler/) - Toolchain, IRs, and implementation
+- [Standard Library & HAL](docs/api/) - Developer APIs and libraries
+- [System References](docs/platforms/specs/) - Hardware specs and platforms
+- [Architecture](docs/architecture/) - Strategy, testing, and lifecycle
 
-For an overview of the project architecture and design principles, start with the [Architecture Overview](docs/design/ArchitectureOverview.md).
+For an overview of the project architecture and design principles, start with the [Architecture Overview](docs/architecture/ArchitectureOverview.md).
 
 ## Development Status
 

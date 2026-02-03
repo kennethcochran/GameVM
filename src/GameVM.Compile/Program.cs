@@ -34,6 +34,7 @@ namespace GameVM.Compile
 
                 // Register code generator
                 services.AddSingleton<ICodeGenerator, Atari2600CodeGenerator>();
+                services.AddSingleton<ICapabilityProvider, Atari2600CodeGenerator>();
 
                 // Register the main use case
                 services.AddSingleton<ICompileUseCase, CompileUseCase>();
@@ -42,8 +43,10 @@ namespace GameVM.Compile
             var host = builder.Build();
 
             // Command line argument handling
-            var inputOption = new Option<string>("--input", "Input file to compile");
-            var outputOption = new Option<string>("--output", "Output file for the compiled code");
+            var inputOption = new Option<string>("--input");
+            inputOption.Description = "Input file to compile";
+            var outputOption = new Option<string>("--output");
+            outputOption.Description = "Output file for the compiled code";
 
             var rootCommand = new RootCommand("GameVM Compiler");
             rootCommand.Options.Add(inputOption);

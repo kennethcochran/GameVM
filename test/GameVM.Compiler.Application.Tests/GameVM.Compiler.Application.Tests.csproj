@@ -43,27 +43,8 @@
     <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.MidLevel\GameVM.Compiler.Optimizers.MidLevel.csproj" />
     <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.LowLevel\GameVM.Compiler.Optimizers.LowLevel.csproj" />
     <ProjectReference Include="..\..\src\GameVM.Compiler.Backend.Atari2600\GameVM.Compiler.Backend.Atari2600.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Capabilities\GameVM.Compiler.Capabilities.csproj" />
   </ItemGroup>
 
-  <!-- Target to generate HTML report after tests using dotnet-reportgenerator -->
-  <Target Name="GenerateCoverageReport" AfterTargets="VSTest">
-    <PropertyGroup>
-      <CoverageReportDir>$(SolutionDir)TestResults/coverage</CoverageReportDir>
-      <ReportOutputDir>$(CoverageReportDir)/html</ReportOutputDir>
-      <CoverageFilePattern>$(SolutionDir)TestResults/**/coverage.cobertura.xml</CoverageFilePattern>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <CoverageFiles Include="$(CoverageFilePattern)" />
-    </ItemGroup>
-
-    <MakeDir Directories="$(ReportOutputDir)" />
-
-    <Message Text="Found @(CoverageFiles-&gt;Count()) coverage files" Importance="high" />
-
-    <Exec Command="dotnet tool run reportgenerator -- -reports:&quot;@(CoverageFiles)&quot; -targetdir:&quot;$(ReportOutputDir)&quot; -reporttypes:Html" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" IgnoreExitCode="true" />
-
-    <Message Text="Coverage report generated at: $(ReportOutputDir)/index.html" Importance="high" Condition="@(CoverageFiles-&gt;Count()) &gt; 0" />
-  </Target>
 
 </Project>

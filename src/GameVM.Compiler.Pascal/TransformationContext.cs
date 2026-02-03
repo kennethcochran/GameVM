@@ -69,7 +69,7 @@ namespace GameVM.Compiler.Pascal
             var module = IR.Modules.FirstOrDefault();
             if (module == null)
             {
-                module = new HighLevelIR.HlModule { Name = "default" };
+                module = new HlModule { Name = "default" };
                 IR.Modules.Add(module);
             }
             module.Functions.Add(function);

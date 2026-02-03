@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics.CodeAnalysis;
+using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Core.IR
 {
@@ -12,7 +13,7 @@ namespace GameVM.Compiler.Core.IR
     {
         private const string UnknownSourceFile = "unknown";
         private const string UnknownType = "unknown";
-        
+
         /// <summary>
         /// The source file this IR was generated from
         /// </summary>
@@ -49,32 +50,6 @@ namespace GameVM.Compiler.Core.IR
         /// Global functions (kept for backward compatibility)
         /// </summary>
         public Dictionary<string, Function> GlobalFunctions { get; set; } = new();
-
-        /// <summary>
-        /// Represents a module in the high-level IR
-        /// </summary>
-        public class HlModule
-        {
-            /// <summary>
-            /// The name of the module
-            /// </summary>
-            public string Name { get; set; } = string.Empty;
-            
-            /// <summary>
-            /// Functions defined in this module
-            /// </summary>
-            public List<Function> Functions { get; set; } = new();
-            
-            /// <summary>
-            /// Type definitions in this module
-            /// </summary>
-            public List<HlType> Types { get; set; } = new();
-
-            /// <summary>
-            /// Global variables in this module
-            /// </summary>
-            public List<Variable> Variables { get; set; } = new();
-        }
 
         public class Variable : IRSymbol
         {
@@ -181,6 +156,16 @@ namespace GameVM.Compiler.Core.IR
             public new Block Body { get => (Block)base.Body[0]; set { base.Body.Clear(); base.Body.Add(value); } }
             public new List<Parameter> Parameters { get; set; } = new();
 
+            /// <summary>
+            /// The minimum capability level required by this function.
+            /// </summary>
+            public CapabilityLevel RequiredLevel { get; set; } = CapabilityLevel.L1;
+
+            /// <summary>
+            /// The hardware extension (if any) required by this function.
+            /// </summary>
+            public string? RequiredExtensionId { get; set; }
+
             public Function()
             {
                 base.Body.Add(new Block(UnknownSourceFile));
@@ -273,7 +258,7 @@ namespace GameVM.Compiler.Core.IR
                 Value = value;
             }
         }
-        
+
         public class ReturnStatement : Return
         {
             public ReturnStatement() { }
@@ -305,7 +290,7 @@ namespace GameVM.Compiler.Core.IR
                 SetElseBlock(elseBlock);
             }
         }
-        
+
         public class If : IfStatement
         {
             public If() { }
@@ -478,89 +463,28 @@ namespace GameVM.Compiler.Core.IR
     }
 
     /// <summary>
-    /// Base class for all IR nodes
+    /// Represents a module in the high-level IR
     /// </summary>
-    public abstract class IRNode
+    public class HlModule
     {
-        public string SourceFile { get; set; } = string.Empty;
-
-        protected IRNode() { }
-        protected IRNode(string sourceFile)
-        {
-            SourceFile = sourceFile;
-        }
+        /// <summary>
+        /// The name of the module
+        /// </summary>
+        public string Name { get; set; } = string.Empty;
 
         /// <summary>
-        /// Source location information
+        /// Functions defined in this module
         /// </summary>
-        public IRSourceLocation Location { get; set; } = new IRSourceLocation { File = string.Empty, Line = 1, Column = 1 };
-    }
+        public List<HighLevelIR.Function> Functions { get; set; } = new();
 
-    /// <summary>
-    /// Source code location information
-    /// </summary>
-    public class IRSourceLocation
-    {
-        public string File { get; set; } = string.Empty;
-        public int Line { get; set; } = 1;
-        public int Column { get; set; } = 1;
-    }
+        /// <summary>
+        /// Type definitions in this module
+        /// </summary>
+        public List<HighLevelIR.HlType> Types { get; set; } = new();
 
-    /// <summary>
-    /// Symbol information for variables and constants
-    /// </summary>
-    public class IRSymbol : IRNode
-    {
-        public string Name { get; set; } = string.Empty;
-        public IRType Type { get; set; } = null!;
-        public bool IsConstant { get; set; }
-        public object InitialValue { get; set; } = null!;
-    }
-
-    /// <summary>
-    /// Function definition in IR
-    /// </summary>
-    public class IRFunction : IRNode
-    {
-        public string Name { get; set; } = string.Empty;
-        public IRType ReturnType { get; set; } = null!;
-        public List<IRParameter> Parameters { get; set; } = new();
-        public List<IRNode> Body { get; set; } = new();
-
-        protected IRFunction() { }
-    }
-
-    /// <summary>
-    /// Function parameter
-    /// </summary>
-    public class IRParameter : IRNode
-    {
-        public string Name { get; set; } = string.Empty;
-        public IRType Type { get; set; } = null!;
-        public bool HasDefaultValue { get; set; }
-        public object DefaultValue { get; set; } = null!;
-
-        protected IRParameter() { }
-    }
-
-    /// <summary>
-    /// Type information in IR
-    /// </summary>
-    public class IRType : IRNode
-    {
-        public required string Name { get; set; }
-        public bool IsBuiltin { get; set; }
-        public List<IRField> Fields { get; set; } = new();
-        public List<IRFunction> Methods { get; set; } = new();
-    }
-
-    /// <summary>
-    /// Field in a type definition
-    /// </summary>
-    public class IRField : IRNode
-    {
-        public required string Name { get; set; }
-        public required IRType Type { get; set; }
-        public bool IsStatic { get; set; }
+        /// <summary>
+        /// Global variables in this module
+        /// </summary>
+        public List<HighLevelIR.Variable> Variables { get; set; } = new();
     }
 }

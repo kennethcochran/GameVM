@@ -1,13 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
-    public class Atari2600CodeGenerator : ICodeGenerator
+    /// <summary>
+    /// Atari 2600 specific code generator
+    /// Follows Interface Segregation Principle - implements both ICodeGenerator and ICapabilityProvider
+    /// </summary>
+    public class Atari2600CodeGenerator : ICodeGenerator, ICapabilityProvider
     {
+        // ICodeGenerator implementation
         public byte[] Generate(LowLevelIR ir, CodeGenOptions options)
         {
             return GenerateBytecode(ir, options);
@@ -49,6 +55,34 @@ namespace GameVM.Compiler.Backend.Atari2600
             rom[4095] = 0xF0;
 
             return rom;
+        }
+
+        // ICapabilityProvider implementation
+        public CapabilityProfile GetCapabilityProfile()
+        {
+            return new CapabilityProfile
+            {
+                BaseLevel = CapabilityLevel.L1,
+                Extensions = new HashSet<string> 
+                { 
+                    "Ext.Math.Fast",      // DPC chip math acceleration
+                    "Ext.Snd.Polyphonic"  // DPC chip polyphonic audio
+                },
+                InjectedCapabilities = new Dictionary<string, CapabilityLevel>
+                {
+                    { "Ext.Math.Fast", CapabilityLevel.L3 },  // Fast math operations
+                    { "Ext.Snd.Polyphonic", CapabilityLevel.L4 }  // Multi-channel audio
+                }
+            };
+        }
+
+        public IEnumerable<string> GetSupportedExtensions()
+        {
+            return new[] 
+            { 
+                "Ext.Math.Fast",      // DPC chip math acceleration
+                "Ext.Snd.Polyphonic"  // DPC chip polyphonic audio
+            };
         }
 
         private static void ProcessInstruction(LowLevelIR.LLInstruction instr, List<string> assemblyLines)

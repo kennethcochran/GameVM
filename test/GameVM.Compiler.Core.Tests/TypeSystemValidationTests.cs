@@ -753,9 +753,9 @@ public class TypeSystemValidationTests
     {
         var hlir = new HighLevelIR { SourceFile = "test.pas" };
         // Initialize with a default module
-        hlir.Modules = new List<HighLevelIR.HlModule>
+        hlir.Modules = new List<HlModule>
         {
-            new HighLevelIR.HlModule { Name = "default" }
+            new HlModule { Name = "default" }
         };
         return hlir;
     }

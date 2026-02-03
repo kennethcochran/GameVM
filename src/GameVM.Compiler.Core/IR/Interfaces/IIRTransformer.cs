@@ -1,3 +1,5 @@
+using GameVM.Compiler.Core.IR;
+
 namespace GameVM.Compiler.Core.IR.Interfaces
 {
     /// <summary>

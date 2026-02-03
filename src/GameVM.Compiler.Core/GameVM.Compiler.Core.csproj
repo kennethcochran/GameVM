@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InternalsVisibleTo>GameVM.Compiler.Core.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>

@@ -60,56 +60,47 @@ namespace GameVM.Compiler.Pascal
             if (callNode == null)
                 return CreateErrorExpression("Function call node is null");
 
-            var arguments = new List<HighLevelIR.Expression>();
-            foreach (var argNode in callNode.Arguments)
-            {
-                HighLevelIR.Expression? arg = TransformExpression(argNode);
-                
-                if (arg == null)
-                    return CreateErrorExpression("Failed to transform function argument");
-                arguments.Add(arg);
-            }
+            var arguments = TransformFunctionArguments(callNode.Arguments);
+            if (arguments == null)
+                return CreateErrorExpression("Failed to transform function arguments");
 
-            var name = callNode.Name;
-            var type = _context.GetOrCreateBasicType("i32");
-
-            // Check if it's a known function to get its return type
-            var symbol = _context.LookupSymbol(name);
-            if (symbol is HighLevelIR.Variable varSymbol)
-            {
-                type = varSymbol.Type;
-            }
-#pragma warning disable CS0618 // GlobalFunctions is obsolete but used for backward compatibility
-            else if (_context.IR.GlobalFunctions.TryGetValue(name, out var globalFunc))
-            {
-                type = globalFunc.ReturnType;
-            }
-#pragma warning restore CS0618
-            else
-            {
-                // Search for the function in all modules
-                var func = _context.IR.Modules
-                    .SelectMany(m => m.Functions)
-                    .FirstOrDefault(f => f.Name == name);
-                
-                if (func != null)
-                {
-                    type = func.ReturnType;
-                }
-                else
-                {
-                    // Use GlobalFunctions instead of deprecated Functions property
-                    if (_context.IR.GlobalFunctions.TryGetValue(name, out var globalFunction))
-                    {
-                        type = globalFunction.ReturnType;
-                    }
-                }
-            }
-
-            var funcExpr = new HighLevelIR.Identifier(name, type, _context.SourceFile);
+            var type = ResolveFunctionReturnType(callNode.Name);
+            var funcExpr = new HighLevelIR.Identifier(callNode.Name, type, _context.SourceFile);
             var result = new HighLevelIR.FunctionCall(funcExpr, arguments);
             result.Type = type;
             return result;
+        }
+
+        private List<HighLevelIR.Expression>? TransformFunctionArguments(List<PascalAstNode> argumentNodes)
+        {
+            var arguments = new List<HighLevelIR.Expression>();
+            foreach (var argNode in argumentNodes)
+            {
+                var arg = TransformExpression(argNode);
+                if (arg == null)
+                    return null;
+                arguments.Add(arg);
+            }
+            return arguments;
+        }
+
+        private HighLevelIR.HlType ResolveFunctionReturnType(string functionName)
+        {
+            // Check if it's a known symbol
+            var symbol = _context.LookupSymbol(functionName);
+            if (symbol is HighLevelIR.Variable varSymbol)
+                return varSymbol.Type;
+
+            // Check global functions
+            if (_context.IR.GlobalFunctions.TryGetValue(functionName, out var globalFunc))
+                return globalFunc.ReturnType;
+
+            // Search for the function in all modules
+            var func = _context.IR.Modules
+                .SelectMany(m => m.Functions)
+                .FirstOrDefault(f => f.Name == functionName);
+            
+            return func?.ReturnType ?? _context.GetOrCreateBasicType("i32");
         }
 
         /// <summary>
@@ -143,47 +134,46 @@ namespace GameVM.Compiler.Pascal
 
             try
             {
-                // Try to parse as integer
-                if (int.TryParse(constNode.Value?.ToString(), out int intValue))
-                {
-                    var type = _context.GetOrCreateBasicType("i32");
-                    var result = new HighLevelIR.Literal(intValue, type, _context.SourceFile);
-                    result.Type = type;
-                    return result;
-                }
-
-                // Try to parse as double
-                if (double.TryParse(constNode.Value?.ToString(), out double doubleValue))
-                {
-                    var type = _context.GetOrCreateBasicType("f64");
-                    var result = new HighLevelIR.Literal(doubleValue, type, _context.SourceFile);
-                    result.Type = type;
-                    return result;
-                }
-
-                // Try to parse as boolean
-                if (bool.TryParse(constNode.Value?.ToString(), out bool boolValue))
-                {
-                    var type = _context.GetOrCreateBasicType("bool");
-                    var result = new HighLevelIR.Literal(boolValue, type, _context.SourceFile);
-                    result.Type = type;
-                    return result;
-                }
-
-                if (constNode.Value is string strValue)
-                {
-                    var type = _context.GetOrCreateBasicType("string");
-                    var result = new HighLevelIR.Literal(strValue, type, _context.SourceFile);
-                    result.Type = type;
-                    return result;
-                }
-
-                return CreateErrorExpression($"Unsupported constant type: {constNode.Value?.GetType().Name}");
+                return TryTransformConstantValue(constNode.Value);
             }
             catch (Exception ex)
             {
                 return CreateErrorExpression($"Error transforming constant: {ex.Message}");
             }
+        }
+
+        private HighLevelIR.Expression TryTransformConstantValue(object? value)
+        {
+            if (value == null)
+                return CreateErrorExpression("Constant value is null");
+
+            var stringValue = value.ToString();
+            
+            // Try integer
+            if (int.TryParse(stringValue, out int intValue))
+                return CreateTypedLiteral(intValue, "i32");
+
+            // Try double
+            if (double.TryParse(stringValue, out double doubleValue))
+                return CreateTypedLiteral(doubleValue, "f64");
+
+            // Try boolean
+            if (bool.TryParse(stringValue, out bool boolValue))
+                return CreateTypedLiteral(boolValue, "bool");
+
+            // Handle string
+            if (value is string strValue)
+                return CreateTypedLiteral(strValue, "string");
+
+            return CreateErrorExpression($"Unsupported constant type: {value.GetType().Name}");
+        }
+
+        private HighLevelIR.Expression CreateTypedLiteral(object value, string typeName)
+        {
+            var type = _context.GetOrCreateBasicType(typeName);
+            var result = new HighLevelIR.Literal(value, type, _context.SourceFile);
+            result.Type = type;
+            return result;
         }
 
         /// <summary>

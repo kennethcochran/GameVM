@@ -77,6 +77,27 @@ namespace GameVM.Compiler.Core.Tests
             Assert.That(hlir.Modules, Is.Empty); // Default is empty list
         }
 
+        // RED PHASE: One failing test at a time for HighLevelIR constructor - Types property getter/setter
+        [Test]
+        public void HighLevelIR_TypesProperty_ShouldDelegateToGlobalTypes()
+        {
+            // Arrange & Act - Test the Types property getter/setter logic (line 46: get => GlobalTypes; set => GlobalTypes = value)
+            var hlir = new HighLevelIR { SourceFile = TestSourceFile };
+            
+            // Test getter - should return GlobalTypes
+            var typesViaGetter = hlir.Types;
+            Assert.That(typesViaGetter, Is.SameAs(hlir.GlobalTypes), "Types getter should return GlobalTypes instance");
+            
+            // Test setter - should set GlobalTypes
+            var newTypes = new System.Collections.Generic.Dictionary<string, IRType>();
+            hlir.Types = newTypes;
+            Assert.That(hlir.GlobalTypes, Is.SameAs(newTypes), "Types setter should set GlobalTypes");
+            
+            // Verify the property works both ways
+            hlir.GlobalTypes.Add("TestType", new IRType { Name = "TestType", IsBuiltin = false });
+            Assert.That(hlir.Types.ContainsKey("TestType"), Is.True, "Changes to GlobalTypes should be reflected in Types");
+        }
+
         [Test]
         public void CreateModule_WithName_StoresName()
         {
@@ -192,7 +213,7 @@ namespace GameVM.Compiler.Core.Tests
             var function = new HighLevelIR.Function(TestSourceFile, "testFunc", returnType, body);
 
             // Act
-            hlir.Modules = new System.Collections.Generic.List<HighLevelIR.HlModule> { new HighLevelIR.HlModule { Name = "default" } };
+            hlir.Modules = new System.Collections.Generic.List<HlModule> { new HlModule { Name = "default" } };
             hlir.Modules[0].Functions.Add(function);
 
             // Assert

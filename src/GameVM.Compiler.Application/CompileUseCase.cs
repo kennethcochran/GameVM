@@ -18,6 +18,8 @@ using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Interfaces;
+using GameVM.Compiler.Core;
+using System.Linq;
 
 namespace GameVM.Compiler.Application
 {
@@ -31,19 +33,25 @@ namespace GameVM.Compiler.Application
         private readonly ILowLevelOptimizer _lowLevelOptimizer;
         private readonly IIRTransformer<MidLevelIR, LowLevelIR> _mlirToLlir;
         private readonly ICodeGenerator _codeGenerator;
+        private readonly ICapabilityProvider _capabilityProvider;
+        private readonly ICapabilityValidatorService _capabilityValidator;
 
         public CompileUseCase(
             ILanguageFrontend frontend,
             IMidLevelOptimizer midLevelOptimizer,
             ILowLevelOptimizer lowLevelOptimizer,
             IIRTransformer<MidLevelIR, LowLevelIR> mlirToLlir,
-            ICodeGenerator codeGenerator)
+            ICodeGenerator codeGenerator,
+            ICapabilityProvider capabilityProvider,
+            ICapabilityValidatorService capabilityValidator)
         {
             _frontend = frontend ?? throw new ArgumentNullException(nameof(frontend));
             _midLevelOptimizer = midLevelOptimizer ?? throw new ArgumentNullException(nameof(midLevelOptimizer));
             _lowLevelOptimizer = lowLevelOptimizer ?? throw new ArgumentNullException(nameof(lowLevelOptimizer));
             _mlirToLlir = mlirToLlir;
-            _codeGenerator = codeGenerator;
+            _codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
+            _capabilityProvider = capabilityProvider ?? throw new ArgumentNullException(nameof(capabilityProvider));
+            _capabilityValidator = capabilityValidator ?? throw new ArgumentNullException(nameof(capabilityValidator));
         }
 
         private CompilationResult CompileInternal(string sourceCode, string extension, CompilationOptions options)
@@ -63,6 +71,42 @@ namespace GameVM.Compiler.Application
                         Target = options.Target,
                         ErrorMessage = string.Join("; ", hlir.Errors)
                     };
+                }
+
+                // Validate Capability Profile
+                if (options.Enforcement == EnforcementLevel.Strict)
+                {
+                    // First, validate that the backend supports the requested profile and extensions
+                    var backendProfile = _capabilityProvider.GetCapabilityProfile();
+                    var backendExtensions = _capabilityProvider.GetSupportedExtensions();
+                    
+                    var backendViolations = ValidateBackendCapabilities(options, backendProfile, backendExtensions);
+                    if (backendViolations.Any())
+                    {
+                        return new CompilationResult
+                        {
+                            Success = false,
+                            Code = Array.Empty<byte>(),
+                            SourceFile = extension,
+                            Target = options.Target,
+                            ErrorMessage = $"Backend capability violations: {string.Join("; ", backendViolations)}"
+                        };
+                    }
+
+                    // Then validate the code against the backend's actual capabilities
+                    var violations = _capabilityValidator.Validate(hlir, backendProfile.BaseLevel, backendProfile.Extensions.ToList());
+
+                    if (violations.Any())
+                    {
+                        return new CompilationResult
+                        {
+                            Success = false,
+                            Code = Array.Empty<byte>(),
+                            SourceFile = extension,
+                            Target = options.Target,
+                            ErrorMessage = $"Capability violations: {string.Join("; ", violations)}"
+                        };
+                    }
                 }
 
                 // Convert HLIR to MLIR
@@ -100,6 +144,7 @@ namespace GameVM.Compiler.Application
                     Code = code,
                     SourceFile = extension,
                     Target = options.Target,
+                    Profile = options.Profile,
                     ErrorMessage = string.Empty
                 };
             }
@@ -126,6 +171,31 @@ namespace GameVM.Compiler.Application
                     ErrorMessage = error
                 };
             }
+        }
+
+        /// <summary>
+        /// Validates that the requested compilation options are supported by the backend
+        /// </summary>
+        private static IEnumerable<string> ValidateBackendCapabilities(CompilationOptions options, CapabilityProfile backendProfile, IEnumerable<string> backendExtensions)
+        {
+            var violations = new List<string>();
+
+            // Check if requested profile exceeds backend's base capability level
+            if (options.Profile > backendProfile.BaseLevel)
+            {
+                violations.Add($"Requested profile {options.Profile} exceeds backend base capability {backendProfile.BaseLevel}");
+            }
+
+            // Check if requested extensions are supported by backend
+            var backendExtensionSet = new HashSet<string>(backendExtensions);
+            var unsupportedExtensions = options.SystemExtensions.Where(ext => !backendExtensionSet.Contains(ext));
+            
+            foreach (var unsupportedExtension in unsupportedExtensions)
+            {
+                violations.Add($"Backend does not support extension '{unsupportedExtension}'");
+            }
+
+            return violations;
         }
 
         /// <summary>
@@ -208,6 +278,21 @@ namespace GameVM.Compiler.Application
         /// Optimization level to use
         /// </summary>
         public OptimizationLevel OptimizationLevel { get; set; }
+
+        /// <summary>
+        /// The hardware capability profile to target
+        /// </summary>
+        public CapabilityLevel Profile { get; set; } = CapabilityLevel.L1;
+
+        /// <summary>
+        /// How strictly to enforce the capability profile
+        /// </summary>
+        public EnforcementLevel Enforcement { get; set; } = EnforcementLevel.Strict;
+
+        /// <summary>
+        /// Hardware extensions (injections) enabled for this project
+        /// </summary>
+        public List<string> SystemExtensions { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -234,6 +319,11 @@ namespace GameVM.Compiler.Application
         /// Target architecture
         /// </summary>
         public Architecture Target { get; set; }
+
+        /// <summary>
+        /// The profile used for this compilation
+        /// </summary>
+        public CapabilityLevel Profile { get; set; }
 
         /// <summary>
         /// Error message if compilation failed

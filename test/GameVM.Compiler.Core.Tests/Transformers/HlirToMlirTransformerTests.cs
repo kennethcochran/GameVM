@@ -3,6 +3,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Transformers;
 using System.Linq;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace GameVM.Compiler.Core.Tests.Transformers;
 
@@ -169,9 +170,72 @@ public class HlirToMlirTransformerTests
         var result = _transformer.Transform(hlir);
 
         // Assert
-        // Expression statements without assignment don't create MLIR instructions
-        // They would need to be part of an assignment or function call
-        Assert.That(result.Modules[0].Functions[0].Instructions, Is.Empty);
+        // Expression statements with literals now create a temporary assignment
+        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
+        Assert.That(result.Modules[0].Functions[0].Instructions[0], Is.InstanceOf<MidLevelIR.MLAssign>());
+        var assign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assign!.Target, Is.EqualTo("_temp"));
+        Assert.That(assign.Source, Is.EqualTo("42"));
+    }
+
+    // RED PHASE: One failing test at a time for GetLiteralValue - basic non-null case
+    [Test]
+    public void Transform_BasicLiteralValue_ShouldReturnLiteralString()
+    {
+        // Arrange - Test the basic non-null literal value path in GetLiteralValue (line 263: literal.Value?.ToString() ?? "0")
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        
+        // Create a literal with a non-null value to test the main path
+        var literal = new HighLevelIR.Literal("123", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("result", literal, SourceFile);
+        body.AddStatement(assignment);
+        
+        var function = CreateFunction("main", "Void", body);
+        hlir.Modules[0].Functions.Add(function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should return the literal value as string
+        Assert.That(assignInstr.Source, Is.EqualTo("123"));
+    }
+
+    // RED PHASE: One failing test at a time for GetLiteralValue - null value case
+    [Test]
+    public void Transform_NullLiteralValue_ShouldUseDefaultValue()
+    {
+        // Arrange - Test the null literal value path in GetLiteralValue (line 263: literal.Value?.ToString() ?? "0")
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        
+        // Create a literal with null value to test the fallback behavior
+        var nullLiteral = new HighLevelIR.Literal(null!, CreateBasicType("Integer"), SourceFile);
+        body.AddStatement(CreateExpressionStatement(nullLiteral));
+        
+        var function = CreateFunction("main", "Void", body);
+        hlir.Modules[0].Functions.Add(function);
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        // Should handle null literal value gracefully by using "0" as fallback
+        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
+        Assert.That(result.Modules[0].Functions[0].Instructions[0], Is.InstanceOf<MidLevelIR.MLAssign>());
+        var assign = result.Modules[0].Functions[0].Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assign!.Target, Is.EqualTo("_temp"));
+        Assert.That(assign.Source, Is.EqualTo("0")); // Should use fallback value "0"
     }
 
     [Test]
@@ -724,14 +788,1004 @@ public class HlirToMlirTransformerTests
 
     #endregion
 
+    #region Constant Folding Tests
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_Addition_WorksCorrectly()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        // Create a binary operation with two literals that should be folded
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "5" },
+                Right = new HighLevelIR.Literal { Value = "3" },
+                Operator = "+"
+            }
+        };
+        
+        // Add to program - Function has a Body which is a Block with Statements
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert - The constant folding should have occurred during transformation
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules, Has.Count.EqualTo(1));
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_Subtraction_WorksCorrectly()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "10" },
+                Right = new HighLevelIR.Literal { Value = "4" },
+                Operator = "-"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_Multiplication_WorksCorrectly()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "6" },
+                Right = new HighLevelIR.Literal { Value = "7" },
+                Operator = "*"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_Division_WorksCorrectly()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "20" },
+                Right = new HighLevelIR.Literal { Value = "4" },
+                Operator = "/"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    // RED PHASE: One failing test at a time for SafeDivide - successful division case
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_Division_VerifiesResult()
+    {
+        // Arrange - Test the successful division path in SafeDivide (line 353: divisor != 0 case)
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "20" },
+                Right = new HighLevelIR.Literal { Value = "4" },
+                Operator = "/"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should be folded to "5" (20 / 4 = 5)
+        Assert.That(assignInstr.Source, Is.EqualTo("5"));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_DivisionByZero_ReturnsZero()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "10" },
+                Right = new HighLevelIR.Literal { Value = "0" },
+                Operator = "/"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    // RED PHASE: One failing test at a time for PerformOperation - "div" operator case
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_DivOperator_WorksCorrectly()
+    {
+        // Arrange - Test the "div" operator path in PerformOperation (line 331: "/" or "div" case)
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "20" },
+                Right = new HighLevelIR.Literal { Value = "4" },
+                Operator = "div" // Test the "div" operator specifically
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should be folded to "5" (20 div 4 = 5)
+        Assert.That(assignInstr.Source, Is.EqualTo("5"));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_NonConstants_NoFolding()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Identifier { Name = "x" },
+                Right = new HighLevelIR.Identifier { Name = "y" },
+                Operator = "+"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Transform_BinaryOperation_ConstantFolding_UnsupportedOperator_NoFolding()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = new HighLevelIR.BinaryOp
+            {
+                Left = new HighLevelIR.Literal { Value = "5" },
+                Right = new HighLevelIR.Literal { Value = "3" },
+                Operator = "%"
+            }
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+    }
+
+    // RED PHASE: One failing test at a time for ProcessStatement
+    [Test]
+    public void Transform_ShouldHandleAssignmentStatement()
+    {
+        // Arrange
+        var hlir = CreateSimpleProgram();
+        var assignment = new HighLevelIR.Assignment("x", new HighLevelIR.Literal("42", CreateBasicType("i32"), SourceFile), SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        Assert.That(mlFunction.Instructions[0], Is.InstanceOf<MidLevelIR.MLAssign>());
+    }
+
+    // RED PHASE: One failing test at a time for ProcessStatement - WhileStatement case
+    [Test]
+    public void Transform_ShouldHandleWhileStatement()
+    {
+        // Arrange - Create a WhileStatement which should trigger ProcessWhileStatement (line 127-128)
+        var hlir = CreateSimpleProgram();
+        var condition = new HighLevelIR.Literal("1", CreateBasicType("i32"), SourceFile); // Always true
+        var loopBody = new HighLevelIR.Block(SourceFile)
+        {
+            Statements = new List<HighLevelIR.Statement> 
+            { 
+                new HighLevelIR.Assignment("counter", new HighLevelIR.Literal("0", CreateBasicType("i32"), SourceFile), SourceFile)
+            }
+        };
+        var whileStmt = new HighLevelIR.While 
+        { 
+            Condition = condition, 
+            Body = loopBody,
+            SourceFile = SourceFile
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { whileStmt }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // Should have instructions for the while loop structure
+        Assert.That(mlFunction.Instructions.Any(), Is.True);
+    }
+
+    // RED PHASE: One failing test at a time for ProcessStatement - ReturnStatement case
+    [Test]
+    public void Transform_ShouldHandleReturnStatement()
+    {
+        // Arrange - Create a ReturnStatement which should trigger ProcessReturnStatement (line 130-131)
+        var hlir = CreateSimpleProgram();
+        var returnValue = new HighLevelIR.Literal("42", CreateBasicType("i32"), SourceFile);
+        var returnStmt = new HighLevelIR.ReturnStatement { Value = returnValue, SourceFile = SourceFile };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { returnStmt }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        // ProcessReturnStatement is static and doesn't add instructions (ignores return values)
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(0));
+    }
+
+    // RED PHASE: One failing test at a time for GetExpressionValue - default case
+    [Test]
+    public void Transform_ShouldHandleUnsupportedExpressionType()
+    {
+        // Arrange - Create an expression type that's not handled by GetExpressionValue
+        var hlir = CreateSimpleProgram();
+        
+        // Use UnaryOp which is not handled by GetExpressionValue (only Literal, Identifier, BinaryOp are handled)
+        var unaryOp = new HighLevelIR.UnaryOp("-", new HighLevelIR.Literal("42", CreateBasicType("i32"), SourceFile), SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", unaryOp, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The assignment should use the default value ("0") for unsupported UnaryOp expression
+    }
+
+    // RED PHASE: One failing test at a time for GetIdentifierValue - non-constant case
+    [Test]
+    public void Transform_ShouldHandleNonConstantIdentifier()
+    {
+        // Arrange - Create an identifier that is NOT a constant
+        var hlir = CreateSimpleProgram();
+        var identifier = new HighLevelIR.Identifier("variableName", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", identifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The assignment should use the identifier name "variableName" since it's not a constant
+    }
+
+    // RED PHASE: One failing test at a time for TryConstantFolding - null return path
+    [Test]
+    public void Transform_BinaryOperation_WithNonNumericOperands_ShouldReturnNullFromConstantFolding()
+    {
+        // Arrange - Test the TryConstantFolding null return path (line 311-312: !TryParseOperands returns null)
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        // Create binary operation with non-numeric operands that can't be parsed
+        var binaryOp = new HighLevelIR.BinaryOp
+        {
+            Left = new HighLevelIR.Literal { Value = "hello" }, // Non-numeric
+            Right = new HighLevelIR.Literal { Value = "world" }, // Non-numeric
+            Operator = "+"
+        };
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = binaryOp
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should not fold, should return expression as string since TryConstantFolding returns null
+        Assert.That(assignInstr.Source, Is.EqualTo("(hello + world)"));
+    }
+
+    // RED PHASE: One failing test at a time for GetIdentifierValue - constant case
+    [Test]
+    public void Transform_ShouldHandleConstantIdentifier()
+    {
+        // Arrange - Create an identifier that IS a constant
+        var hlir = CreateSimpleProgram();
+        
+        // Add a constant to the HLIR globals to make TryGetConstantValue return true
+        hlir.Globals["PI"] = new HighLevelIR.Variable { Name = "PI", Type = CreateBasicType("f64") };
+        
+        var constantIdentifier = new HighLevelIR.Identifier("PI", CreateBasicType("f64"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", constantIdentifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The assignment should use the constant value for "PI" since it's defined as a constant
+    }
+
+    // RED PHASE: One failing test at a time for TryGetConstantValue - _currentHlir null case
+    [Test]
+    public void Transform_WithNullCurrentHlir_ShouldHandleIdentifierGracefully()
+    {
+        // Arrange - Test the _currentHlir == null path in TryGetConstantValue (line 284-285)
+        // This is a tricky case since _currentHlir is set during Transform, but we need to test this edge case
+        var hlir = CreateSimpleProgram();
+        var body = CreateBlock();
+        
+        // Create an identifier that would normally be looked up as a constant
+        var identifier = new HighLevelIR.Identifier("someConstant", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("result", identifier, SourceFile);
+        body.AddStatement(assignment);
+        
+        var function = CreateFunction("main", "Void", body);
+        hlir.Modules[0].Functions.Add(function);
+
+        // Act - The transformer should handle this gracefully even if _currentHlir were null internally
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should fall back to identifier name when constant lookup fails
+        Assert.That(assignInstr.Source, Is.EqualTo("someConstant"));
+    }
+
+    // RED PHASE: One failing test at a time for TryGetConstantValue - null InitialValue case
+    [Test]
+    public void Transform_ConstantWithNullInitialValue_ShouldUseIdentifierName()
+    {
+        // Arrange - Test the symbol.InitialValue == null path in TryGetConstantValue (line 293-294)
+        var hlir = CreateSimpleProgram();
+        
+        // Add a constant with null InitialValue to test this specific path
+        var constantSymbol = new HighLevelIR.Variable 
+        { 
+            Name = "NULL_CONSTANT", 
+            Type = CreateBasicType("i32"),
+            IsConstant = true
+            // InitialValue is null by default
+        };
+        hlir.Globals["NULL_CONSTANT"] = constantSymbol;
+        
+        var identifier = new HighLevelIR.Identifier("NULL_CONSTANT", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("result", identifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should fall back to identifier name when constant has null InitialValue
+        Assert.That(assignInstr.Source, Is.EqualTo("NULL_CONSTANT"));
+    }
+
+    // RED PHASE: One failing test at a time for TryGetConstantValue - non-constant symbol case
+    [Test]
+    public void Transform_NonConstantSymbol_ShouldUseIdentifierName()
+    {
+        // Arrange - Test the !symbol.IsConstant path in TryGetConstantValue (line 290-291)
+        var hlir = CreateSimpleProgram();
+        
+        // Add a symbol that is NOT a constant (IsConstant = false)
+        var variableSymbol = new HighLevelIR.Variable 
+        { 
+            Name = "VARIABLE_NOT_CONSTANT", 
+            Type = CreateBasicType("i32"),
+            IsConstant = false, // This is the key - it's not a constant
+            InitialValue = "42"
+        };
+        hlir.Globals["VARIABLE_NOT_CONSTANT"] = variableSymbol;
+        
+        var identifier = new HighLevelIR.Identifier("VARIABLE_NOT_CONSTANT", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("result", identifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should fall back to identifier name when symbol exists but is not a constant
+        Assert.That(assignInstr.Source, Is.EqualTo("VARIABLE_NOT_CONSTANT"));
+    }
+
+    // RED PHASE: One failing test at a time for GetIdentifierValue - constant with null ToString() case
+    [Test]
+    public void Transform_ConstantWithNullToString_ShouldReturnEmptyString()
+    {
+        // Arrange - Test the constantValue ?? string.Empty path in GetIdentifierValue (line 275)
+        // This happens when TryGetConstantValue returns true but constantValue is null
+        var hlir = CreateSimpleProgram();
+        
+        // Create a mock object that will return null from ToString()
+        var mockInitialValue = new MockObjectWithNullToString();
+        
+        // Add a constant where InitialValue.ToString() returns null
+        var constantSymbol = new HighLevelIR.Variable 
+        { 
+            Name = "NULL_TOSTRING_CONSTANT", 
+            Type = CreateBasicType("i32"),
+            IsConstant = true,
+            InitialValue = mockInitialValue
+        };
+        hlir.Globals["NULL_TOSTRING_CONSTANT"] = constantSymbol;
+        
+        var identifier = new HighLevelIR.Identifier("NULL_TOSTRING_CONSTANT", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("result", identifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = _transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should return empty string when constantValue is null (constantValue ?? string.Empty)
+        Assert.That(assignInstr.Source, Is.EqualTo(""));
+    }
+
+    // Helper class for testing null ToString() scenario
+    private class MockObjectWithNullToString
+    {
+        public override string? ToString() => null;
+    }
+
+    // RED PHASE: One failing test at a time for TryGetConstantValue - _currentHlir null case
+    [Test]
+    public void GetExpressionValue_WithNullCurrentHlir_ShouldHandleGracefully()
+    {
+        // Arrange - Test the _currentHlir == null path in TryGetConstantValue (line 284-285)
+        // We need to call GetExpressionValue directly without setting _currentHlir
+        var transformer = new HlirToMlirTransformer();
+        
+        // Create an identifier - this will trigger GetIdentifierValue -> TryGetConstantValue
+        var identifier = new HighLevelIR.Identifier("testConstant", CreateBasicType("i32"), SourceFile);
+        
+        // Act - Call GetExpressionValue directly using reflection since it's internal
+        var getExpressionValueMethod = typeof(HlirToMlirTransformer)
+            .GetMethod("GetExpressionValue", BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        Assert.That(getExpressionValueMethod, Is.Not.Null, "GetExpressionValue method should exist");
+        
+        var result = getExpressionValueMethod?.Invoke(transformer, new object[] { identifier }) as string;
+
+        // Assert - Should return the identifier name since TryGetConstantValue returns false when _currentHlir is null
+        Assert.That(result, Is.EqualTo("testConstant"));
+    }
+
+    // RED PHASE: One failing test at a time for GetIdentifierValue - missing constant symbol
+    [Test]
+    public void Transform_ShouldHandleMissingConstantSymbol()
+    {
+        // Arrange - Test the TryGetConstantValue path where symbol is not found in Globals (line 287-288)
+        var hlir = CreateSimpleProgram();
+        
+        // Don't add any symbol to Globals, but try to reference one
+        var missingConstantIdentifier = new HighLevelIR.Identifier("MISSING_CONSTANT", CreateBasicType("i32"), SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", missingConstantIdentifier, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // Since TryGetConstantValue returns false for missing symbol, should use identifier name
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Source, Is.EqualTo("MISSING_CONSTANT"));
+    }
+
+    // RED PHASE: One failing test at a time for GetExpressionValue - nested binary operations
+    [Test]
+    public void Transform_NestedBinaryOperation_ShouldHandleRecursion()
+    {
+        // Arrange - Test recursive GetExpressionValue calls in GetBinaryOpValue (lines 302-303)
+        var hlir = CreateSimpleProgram();
+        var transformer = new HlirToMlirTransformer();
+        
+        // Create nested binary operation: (5 + 3) * 2
+        // This will trigger recursive calls to GetExpressionValue for the left operand (5 + 3)
+        var innerBinaryOp = new HighLevelIR.BinaryOp
+        {
+            Left = new HighLevelIR.Literal { Value = "5" },
+            Right = new HighLevelIR.Literal { Value = "3" },
+            Operator = "+"
+        };
+        
+        var outerBinaryOp = new HighLevelIR.BinaryOp
+        {
+            Left = innerBinaryOp, // Nested binary operation
+            Right = new HighLevelIR.Literal { Value = "2" },
+            Operator = "*"
+        };
+        
+        var assignment = new HighLevelIR.Assignment
+        {
+            Target = "result",
+            Value = outerBinaryOp
+        };
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.EqualTo(1));
+        
+        var assignInstr = mlFunction.Instructions[0] as MidLevelIR.MLAssign;
+        Assert.That(assignInstr, Is.Not.Null);
+        Assert.That(assignInstr!.Target, Is.EqualTo("result"));
+        // Should be folded: (5 + 3) * 2 = 8 * 2 = 16
+        Assert.That(assignInstr.Source, Is.EqualTo("16"));
+    }
+
+    // RED PHASE: One failing test at a time for GetExpressionValue - FunctionCall case
+    [Test]
+    public void Transform_ShouldHandleFunctionCallExpression()
+    {
+        // Arrange - Create a FunctionCall expression which is NOT handled by GetExpressionValue
+        var hlir = CreateSimpleProgram();
+        var args = new List<HighLevelIR.Expression> 
+        { 
+            new HighLevelIR.Literal("Hello", CreateBasicType("string"), SourceFile) 
+        };
+        var functionCall = new HighLevelIR.FunctionCall("printf", args, SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", functionCall, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The assignment should use the default value ("0") for unsupported FunctionCall expression
+    }
+
+    // RED PHASE: One failing test at a time for ProcessStatement - Block case (genuinely uncovered)
+    [Test]
+    public void Transform_ShouldHandleBlockStatement()
+    {
+        // Arrange - Create a Block statement which should trigger ProcessStatements for nested statements
+        var hlir = CreateSimpleProgram();
+        var nestedBlock = new HighLevelIR.Block(SourceFile);
+        // Add a statement to the nested block to ensure it generates instructions
+        nestedBlock.Statements.Add(new HighLevelIR.Assignment("x", new HighLevelIR.Literal("1", CreateBasicType("i32"), SourceFile), SourceFile));
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { nestedBlock }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The Block should be processed and its nested statement should generate instructions
+    }
+
+    // RED PHASE: One failing test at a time for GetExpressionValue - UnaryOp default case
+    [Test]
+    public void Transform_ShouldHandleUnaryOpExpression()
+    {
+        // Arrange - Create a UnaryOp expression which should hit the default case in GetExpressionValue
+        var hlir = CreateSimpleProgram();
+        var operand = new HighLevelIR.Literal("42", CreateBasicType("i32"), SourceFile);
+        var unaryOp = new HighLevelIR.UnaryOp("-", operand, SourceFile);
+        var assignment = new HighLevelIR.Assignment("x", unaryOp, SourceFile);
+        
+        hlir.Modules[0].Functions.Add(new HighLevelIR.Function
+        {
+            Name = "test",
+            Body = new HighLevelIR.Block(SourceFile)
+            {
+                Statements = new List<HighLevelIR.Statement> { assignment }
+            }
+        });
+        
+        var transformer = new HlirToMlirTransformer();
+
+        // Act
+        var result = transformer.Transform(hlir);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Modules[0].Functions, Has.Count.EqualTo(1));
+        var mlFunction = result.Modules[0].Functions[0];
+        Assert.That(mlFunction.Instructions, Has.Count.GreaterThan(0));
+        // The UnaryOp should use the default value ("0") since it's not explicitly handled
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private HighLevelIR CreateSimpleProgram()
     {
         var hlir = new HighLevelIR { SourceFile = SourceFile };
         // Initialize the Modules list and add a default module
-        hlir.Modules = new List<HighLevelIR.HlModule>();
-        var module = new HighLevelIR.HlModule { Name = "default" };
+        hlir.Modules = new List<HlModule>();
+        var module = new HlModule { Name = "default" };
         hlir.Modules.Add(module);
         return hlir;
     }

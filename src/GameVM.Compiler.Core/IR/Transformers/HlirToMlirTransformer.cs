@@ -44,14 +44,14 @@ namespace GameVM.Compiler.Core.IR.Transformers
             }
         }
 
-        private static bool ShouldProcessModule(HighLevelIR.HlModule hlModule)
+        private static bool ShouldProcessModule(HlModule hlModule)
         {
             return hlModule.Functions.Count > 0 || 
                    hlModule.Types.Count > 0 || 
                    hlModule.Variables.Count > 0;
         }
 
-        private MidLevelIR.MLModule ProcessModule(HighLevelIR.HlModule hlModule)
+        private MidLevelIR.MLModule ProcessModule(HlModule hlModule)
         {
             var mlModule = new MidLevelIR.MLModule { Name = hlModule.Name };
 
@@ -151,6 +151,17 @@ namespace GameVM.Compiler.Core.IR.Transformers
                 {
                     Name = name,
                     Arguments = args
+                });
+            }
+            else
+            {
+                // For non-function-call expressions (literals, identifiers, binary ops, etc.),
+                // create a temporary assignment to _temp with the expression value
+                var value = GetExpressionValue(exprStmt.Expression);
+                mlFunc.Instructions.Add(new MidLevelIR.MLAssign
+                {
+                    Target = "_temp",
+                    Source = value
                 });
             }
         }

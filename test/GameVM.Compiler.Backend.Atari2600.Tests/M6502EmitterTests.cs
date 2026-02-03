@@ -235,5 +235,25 @@ public class M6502EmitterTests
         Assert.That(result[3], Is.EqualTo(0x80));
     }
 
+    // RED PHASE: One failing test at a time for M6502Emitter.Emit - label handling
+    [Test]
+    public void Emit_LabelInstruction_ShouldBeSkipped()
+    {
+        // Arrange - Test the label handling path (line 15: trimmed.EndsWith(':'))
+        var instructions = new List<string> { "LOOP:", "LDA #$01", "STA $80" };
+
+        // Act
+        var result = M6502Emitter.Emit(instructions);
+
+        // Assert
+        // Label should be skipped, only LDA and STA should generate bytes (2 + 2 = 4 bytes)
+        Assert.That(result, Has.Length.EqualTo(4));
+        // Verify the label didn't add any bytes
+        Assert.That(result[0], Is.EqualTo(0xA9)); // LDA opcode
+        Assert.That(result[1], Is.EqualTo(0x01)); // LDA value
+        Assert.That(result[2], Is.EqualTo(0x85)); // STA zero page opcode
+        Assert.That(result[3], Is.EqualTo(0x80)); // STA address
+    }
+
     #endregion
 }

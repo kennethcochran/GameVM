@@ -1,29 +1,29 @@
 {
-   "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
-   "tasks": [
-      {
-         "name": "crap-score-quality-gate",
-         "command": "dotnet",
-         "args": [
-            "test",
-            "--collect:XPlat Code Coverage",
-            "--logger:trx;LogFileName=crap-check.trx",
-            "--results-directory",
-            "./TestResults",
-            "--no-build"
-         ]
-      },
-      {
-         "name": "crap-score-check",
-         "command": "dotnet",
-         "args": [
-            "husky",
-            "exec",
-            ".husky/csx/crap-gate.csx",
-            "--args",
-            "TestResults/crap-check/Summary.json",
-            "30"
-         ]
-      }
-   ]
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "clean-test-results",
+      "command": "dotnet",
+      "args": ["clean"]
+    },
+    {
+      "name": "run-tests-with-coverage",
+      "command": "dotnet",
+      "args": [
+        "test"
+      ]
+    },
+    {
+      "name": "validate-crap-scores",
+      "command": "dotnet",
+      "args": [
+        "husky",
+        "exec",
+        ".husky/csx/crap-gate.csx",
+        "--args",
+        "TestResults/crap-check",
+        "30"
+      ]
+    }
+  ]
 }

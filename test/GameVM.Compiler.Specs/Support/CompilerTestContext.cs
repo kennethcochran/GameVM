@@ -18,7 +18,7 @@ namespace GameVM.Compiler.Specs.Support
     public class CompilerTestContext : IDisposable
     {
         private bool _disposed = false;
-        
+
         public ICompileUseCase CompileUseCase { get; }
         public string SourceCode { get; set; } = string.Empty;
         public CompilationResult? CompilationResult { get; set; }
@@ -28,12 +28,15 @@ namespace GameVM.Compiler.Specs.Support
         public CompilerTestContext()
         {
             // Create real compiler with Pascal frontend
+            var atari2600Generator = new Atari2600CodeGenerator();
             CompileUseCase = new CompileUseCase(
                 new PascalFrontend(),
                 new DefaultMidLevelOptimizer(),
                 new DefaultLowLevelOptimizer(),
                 new MidToLowLevelTransformer(),
-                new Atari2600CodeGenerator());
+                atari2600Generator,
+                atari2600Generator, // Use same instance for ICapabilityProvider
+                new GameVM.Compiler.Capabilities.CapabilityValidatorService());
         }
 
         /// <summary>

@@ -153,6 +153,27 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             Assert.That(result.Instructions.Count, Is.EqualTo(0));
         }
 
+        // RED PHASE: One failing test at a time for RemoveRedundantLoadStores - null instructions
+        [Test]
+        public void Optimize_WithNullInstructions_ShouldHandleGracefully()
+        {
+            // Arrange - Create IR with null instructions list to test the null path
+            var ir = new LowLevelIR
+            {
+                SourceFile = "test.ll",
+                Modules = new List<LowLevelIR.LLModule>(),
+                Instructions = null! // Explicitly null to test the null handling path
+            };
+
+            // Act
+            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Instructions, Is.Not.Null);
+            Assert.That(result.Instructions.Count, Is.EqualTo(0));
+        }
+
         [Test]
         public void Optimize_WithSingleInstruction_ShouldReturnSame()
         {
@@ -163,6 +184,40 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             Assert.That(result, Is.Not.Null);
             Assert.That(result.Instructions.Count, Is.EqualTo(1));
             Assert.That(result.Instructions[0], Is.InstanceOf<LowLevelIR.LLLoad>());
+        }
+
+        // RED PHASE: One failing test at a time for RemoveRedundantLoadStores - load at end boundary
+        [Test]
+        public void Optimize_WithLoadAtEnd_ShouldKeepLoad()
+        {
+            // Arrange - Test the boundary condition where LLLoad is at end (line 66: i + 1 < instructions.Count)
+            var ir = CreateTestIR(
+                new LowLevelIR.LLLoad { Register = "A", Value = "$80" }, // This load has no following instruction
+                new LowLevelIR.LLStore { Address = "$81", Register = "X" },
+                new LowLevelIR.LLLoad { Register = "A", Value = "$82" }  // Load at very end, no next instruction to check
+            );
+
+            // Act
+            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Instructions.Count, Is.EqualTo(3));
+            
+            // First load should be kept (no redundant pair)
+            Assert.That(result.Instructions[0], Is.InstanceOf<LowLevelIR.LLLoad>());
+            var load1 = (LowLevelIR.LLLoad)result.Instructions[0];
+            Assert.That(load1.Register, Is.EqualTo("A"));
+            Assert.That(load1.Value, Is.EqualTo("$80"));
+            
+            // Store should be kept
+            Assert.That(result.Instructions[1], Is.InstanceOf<LowLevelIR.LLStore>());
+            
+            // Last load should be kept (no following instruction to form pair)
+            Assert.That(result.Instructions[2], Is.InstanceOf<LowLevelIR.LLLoad>());
+            var load2 = (LowLevelIR.LLLoad)result.Instructions[2];
+            Assert.That(load2.Register, Is.EqualTo("A"));
+            Assert.That(load2.Value, Is.EqualTo("$82"));
         }
 
         [Test]

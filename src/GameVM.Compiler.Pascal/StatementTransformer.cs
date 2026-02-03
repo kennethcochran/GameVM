@@ -53,24 +53,77 @@ namespace GameVM.Compiler.Pascal
 
             if (targetExpr == null || value == null)
             {
-                if (assignNode.Left is VariableNode varNode && _context.FunctionScope.Count > 0 && _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase) && value != null)
-                {
-                    var returnType = _context.FunctionScope.Peek().ReturnType;
-                    if (returnType != null && value.Type != null && !IsCompatible(returnType, value.Type))
-                    {
-                        _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to return type {returnType.Name}");
-                    }
-
-                    return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
-                }
-                return CreateErrorStatement("Failed to transform assignment operands");
+                return HandleFailedExpressionTransformation(assignNode, value);
             }
 
+            ValidateTypeCompatibility(targetExpr, value);
+
+            return CreateAssignmentStatement(targetExpr, value);
+        }
+
+        private HighLevelIR.Statement HandleFailedExpressionTransformation(
+            AssignmentNode assignNode, 
+            HighLevelIR.Expression? value)
+        {
+            // Handle function return assignment case
+            if (IsFunctionReturnAssignment(assignNode, value))
+            {
+                return HandleFunctionReturnAssignment(assignNode, value!);
+            }
+            
+            return CreateErrorStatement("Failed to transform assignment operands");
+        }
+
+        private bool IsFunctionReturnAssignment(
+            AssignmentNode assignNode, 
+            HighLevelIR.Expression? value)
+        {
+            return assignNode.Left is VariableNode varNode 
+                   && _context.FunctionScope.Count > 0 
+                   && _context.FunctionScope.Peek().Name.Equals(varNode.Name, StringComparison.OrdinalIgnoreCase) 
+                   && value != null;
+        }
+
+        private HighLevelIR.Statement HandleFunctionReturnAssignment(AssignmentNode assignNode, HighLevelIR.Expression value)
+        {
+            var varNode = (VariableNode)assignNode.Left;
+            var returnType = _context.FunctionScope.Peek().ReturnType;
+            
+            ValidateFunctionReturnType(returnType, value);
+
+            return new HighLevelIR.Assignment(varNode.Name, value, _context.SourceFile);
+        }
+
+        private void ValidateFunctionReturnType(HighLevelIR.HlType? returnType, HighLevelIR.Expression value)
+        {
+            if (IsFunctionReturnTypeMismatch(returnType, value))
+            {
+                AddFunctionReturnTypeMismatchError(returnType!, value);
+            }
+        }
+
+        private static bool IsFunctionReturnTypeMismatch(HighLevelIR.HlType? returnType, HighLevelIR.Expression value)
+        {
+            return returnType != null 
+                   && value.Type != null 
+                   && !IsCompatible(returnType, value.Type);
+        }
+
+        private void AddFunctionReturnTypeMismatchError(HighLevelIR.HlType returnType, HighLevelIR.Expression value)
+        {
+            _context.AddError($"Type mismatch: Cannot assign {value.Type!.Name} to return type {returnType.Name}");
+        }
+
+        private void ValidateTypeCompatibility(HighLevelIR.Expression targetExpr, HighLevelIR.Expression value)
+        {
             if (targetExpr.Type != null && value.Type != null && !IsCompatible(targetExpr.Type, value.Type))
             {
                 _context.AddError($"Type mismatch: Cannot assign {value.Type.Name} to {targetExpr.Type.Name}");
             }
+        }
 
+        private HighLevelIR.Statement CreateAssignmentStatement(HighLevelIR.Expression targetExpr, HighLevelIR.Expression value)
+        {
             if (targetExpr is HighLevelIR.Identifier identifier)
             {
                 return new HighLevelIR.Assignment(identifier.Name, value, _context.SourceFile);
@@ -176,6 +229,16 @@ namespace GameVM.Compiler.Pascal
             if (condition == null)
                 return CreateErrorStatement("Failed to transform repeat until condition");
 
+            return CreateRepeatLoopStatement(loopBodyStmt, condition);
+        }
+
+        private HighLevelIR.Statement CreateRepeatLoopStatement(HighLevelIR.Statement loopBodyStmt, HighLevelIR.Expression condition)
+        {
+            // Create a basic statement for now - could be enhanced later to create proper repeat loop IR
+            // Log the transformation details for debugging purposes
+            Console.WriteLine($"Creating repeat loop with condition type: {condition?.Type?.Name ?? "null"}");
+            Console.WriteLine($"Loop body statement type: {loopBodyStmt?.GetType().Name ?? "null"}");
+            
             return new HighLevelIR.Statement(_context.SourceFile);
         }
 
