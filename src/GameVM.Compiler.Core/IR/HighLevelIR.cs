@@ -57,21 +57,14 @@ namespace GameVM.Compiler.Core.IR
             public new required HlType Type { get; set; }
 
             public Variable() { }
+            
+            [SetsRequiredMembers]
             public Variable(string name, HlType type, string sourceFile)
             {
                 Name = name;
                 Type = type;
                 SourceFile = sourceFile;
             }
-
-            public Variable(string name, string typeName, string sourceFile)
-            {
-                Name = name;
-                Type = new BasicType(sourceFile, typeName) { Name = typeName };
-                SourceFile = sourceFile;
-            }
-
-            public Variable(string name, string typeName) : this(name, typeName, UnknownSourceFile) { }
         }
 
         // Nested types for High Level IR
@@ -243,7 +236,7 @@ namespace GameVM.Compiler.Core.IR
 
             public Assignment(Expression target, Expression value, string sourceFile) : base(sourceFile)
             {
-                Target = target is { } ? target.ToString() ?? string.Empty : string.Empty; // Simplified for now
+                Target = target is Identifier identifier ? identifier.Name : target.ToString() ?? string.Empty;
                 Value = value;
             }
         }
@@ -289,13 +282,6 @@ namespace GameVM.Compiler.Core.IR
                 SetThenBlock(thenBlock);
                 SetElseBlock(elseBlock);
             }
-        }
-
-        public class If : IfStatement
-        {
-            public If() { }
-            public If(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null)
-                : base(condition, thenBlock, elseBlock) { }
         }
 
         public class While : Statement
@@ -395,13 +381,6 @@ namespace GameVM.Compiler.Core.IR
                 CallTarget = function;
                 Arguments = arguments;
                 FunctionName = (function as Identifier)?.Name ?? string.Empty;
-            }
-
-            public FunctionCall(string functionName, IEnumerable<Expression> arguments, string sourceFile) : base(sourceFile)
-            {
-                FunctionName = functionName;
-                CallTarget = new Identifier(functionName, sourceFile);
-                Arguments = arguments;
             }
         }
 

@@ -5,11 +5,124 @@ using System.CommandLine;
 using System.Runtime.InteropServices;
 using Moq;
 using Moq.AutoMock;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace GameVM.DevTools.Tests;
 
 public class ProgramTests
 {
+    private Mock<IMameInstaller> _mockMameInstaller = null!;
+    private StringWriter _consoleOutput = null!;
+    private StringWriter _consoleError = null!;
+
+    [SetUp]
+    public void Setup()
+    {
+        _mockMameInstaller = new Mock<IMameInstaller>();
+        _consoleOutput = new StringWriter();
+        _consoleError = new StringWriter();
+        Console.SetOut(_consoleOutput);
+        Console.SetError(_consoleError);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _consoleOutput?.Dispose();
+        _consoleError?.Dispose();
+    }
+
+    [Test]
+    public async Task Main_WithMameInstallCommand_ShouldCallInstallAsync()
+    {
+        // Arrange
+        var args = new[] { "mame", "install" };
+        _mockMameInstaller.Setup(x => x.InstallAsync()).Returns(Task.CompletedTask);
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        _mockMameInstaller.Verify(x => x.InstallAsync(), Times.Once);
+        Assert.That(result, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Main_WithMamePathCommand_ShouldPrintMamePath_WhenMameIsInstalled()
+    {
+        // Arrange
+        var args = new[] { "mame", "path" };
+        var expectedPath = "/path/to/mame";
+        _mockMameInstaller.Setup(x => x.GetMameExecutable()).Returns(expectedPath);
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        _mockMameInstaller.Verify(x => x.GetMameExecutable(), Times.Once);
+        Assert.That(_consoleOutput.ToString(), Does.Contain(expectedPath));
+        Assert.That(result, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Main_WithMamePathCommand_ShouldPrintInstallMessage_WhenMameIsNotInstalled()
+    {
+        // Arrange
+        var args = new[] { "mame", "path" };
+        _mockMameInstaller.Setup(x => x.GetMameExecutable()).Returns((string?)null);
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        _mockMameInstaller.Verify(x => x.GetMameExecutable(), Times.Once);
+        Assert.That(_consoleOutput.ToString(), Does.Contain("MAME is not installed"));
+        Assert.That(result, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Main_WithMameRunCommand_ShouldCallRunMameAsync_WhenRomAndScriptProvided()
+    {
+        // Arrange
+        var args = new[] { "mame", "run", "--rom", "test.rom", "--script", "test.lua" };
+        _mockMameInstaller.Setup(x => x.RunMameAsync("test.rom", "test.lua")).Returns(Task.CompletedTask);
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        _mockMameInstaller.Verify(x => x.RunMameAsync("test.rom", "test.lua"), Times.Once);
+        Assert.That(result, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Main_WithMameRunCommand_ShouldPrintErrorMessage_WhenRomOrScriptMissing()
+    {
+        // Arrange
+        var args = new[] { "mame", "run", "--rom", "test.rom" }; // Missing --script
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        Assert.That(_consoleError.ToString(), Does.Contain("Both --rom and --script options are required"));
+        Assert.That(result, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Main_WithUnknownCommand_ShouldReturnOne()
+    {
+        // Arrange
+        var args = new[] { "unknown", "command" };
+
+        // Act
+        var result = await Program.TestMain(args, _mockMameInstaller.Object);
+
+        // Assert
+        Assert.That(result, Is.EqualTo(1)); // System.CommandLine returns 1 for unknown commands
+    }
+
     [Test]
     public async Task InstallMameAsync_ShouldReturnEarly_WhenLinuxAndFlatpakInstalled()
     {

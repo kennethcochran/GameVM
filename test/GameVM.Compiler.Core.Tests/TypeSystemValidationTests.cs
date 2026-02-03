@@ -199,10 +199,12 @@ public class TypeSystemValidationTests
         var mainFunction = new HighLevelIR.Function("main", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
 
         // Add a function call with wrong number of arguments
-        var functionCall = new HighLevelIR.FunctionCall("add", new List<HighLevelIR.Expression>
-        {
-            new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas")
-        }, "test.pas");
+        var functionCall = new HighLevelIR.FunctionCall(
+            new HighLevelIR.Identifier("add", new HighLevelIR.BasicType("test.pas", "function"), "test.pas"),
+            new List<HighLevelIR.Expression>
+            {
+                new HighLevelIR.Literal("5", new HighLevelIR.HlType("test.pas", "Integer"), "test.pas")
+            });
 
         // Add the function call to the main function's body
         mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement { Expression = functionCall, SourceFile = "test.pas" });
@@ -241,10 +243,12 @@ public class TypeSystemValidationTests
         var mainFunction = new HighLevelIR.Function("main", "test.pas", "Void", new HighLevelIR.Block("test.pas"));
 
         // Add a function call with wrong argument type
-        var functionCall = new HighLevelIR.FunctionCall("process", new List<HighLevelIR.Expression>
-        {
-            new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test.pas")
-        }, "test.pas");
+        var functionCall = new HighLevelIR.FunctionCall(
+            new HighLevelIR.Identifier("process", new HighLevelIR.BasicType("test.pas", "function"), "test.pas"),
+            new List<HighLevelIR.Expression>
+            {
+                new HighLevelIR.Literal("hello", new HighLevelIR.HlType("test.pas", "String"), "test.pas")
+            });
 
         // Add the function call to the main function's body
         mainFunction.Body.Statements.Add(new HighLevelIR.ExpressionStatement { Expression = functionCall, SourceFile = "test.pas" });

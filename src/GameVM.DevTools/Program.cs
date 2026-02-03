@@ -3,11 +3,17 @@ using System.CommandLine.Invocation;
 
 namespace GameVM.DevTools;
 
-static class Program
+public static class Program
 {
-    private static readonly IMameInstaller MameInstaller = new MameInstaller();
+    private static readonly IMameInstaller DefaultMameInstaller = new MameInstaller();
 
     static async Task<int> Main(string[] args)
+    {
+        return await TestMain(args, DefaultMameInstaller);
+    }
+
+    // Test-friendly method that allows dependency injection
+    public static async Task<int> TestMain(string[] args, IMameInstaller mameInstaller)
     {
         var rootCommand = new RootCommand("GameVM Developer Tools");
 
@@ -15,11 +21,11 @@ static class Program
         rootCommand.Subcommands.Add(mameCommand);
 
         var installCommand = new Command("install", "Install the latest MAME version locally");
-        installCommand.SetAction(_ => { MameInstaller.InstallAsync().Wait(); });
+        installCommand.SetAction(_ => { mameInstaller.InstallAsync().Wait(); });
         mameCommand.Subcommands.Add(installCommand);
 
         var pathCommand = new Command("path", "Display the path to the local MAME binary");
-        pathCommand.SetAction(_ => { PrintMamePath(); });
+        pathCommand.SetAction(_ => { PrintMamePath(mameInstaller); });
         mameCommand.Subcommands.Add(pathCommand);
 
         var runCommand = new Command("run", "Run a ROM in MAME with GameVM monitoring");
@@ -33,7 +39,7 @@ static class Program
             var scriptPath = parseResult.GetValue(scriptOption);
             if (romPath != null && scriptPath != null)
             {
-                RunMameAsync(romPath, scriptPath).Wait();
+                RunMameAsync(mameInstaller, romPath, scriptPath).Wait();
             }
             else
             {
@@ -46,9 +52,9 @@ static class Program
         return await parseResult.InvokeAsync();
     }
 
-    private static void PrintMamePath()
+    private static void PrintMamePath(IMameInstaller mameInstaller)
     {
-        var path = MameInstaller.GetMameExecutable();
+        var path = mameInstaller.GetMameExecutable();
         if (string.IsNullOrEmpty(path))
         {
             Console.WriteLine("MAME is not installed. Run 'dotnet run --project src/GameVM.DevTools -- mame install' first.");
@@ -59,8 +65,8 @@ static class Program
         }
     }
 
-    private static async Task RunMameAsync(string romPath, string scriptPath)
+    private static async Task RunMameAsync(IMameInstaller mameInstaller, string romPath, string scriptPath)
     {
-        await MameInstaller.RunMameAsync(romPath, scriptPath);
+        await mameInstaller.RunMameAsync(romPath, scriptPath);
     }
 }

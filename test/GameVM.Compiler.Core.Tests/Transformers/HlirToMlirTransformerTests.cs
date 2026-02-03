@@ -1687,7 +1687,9 @@ public class HlirToMlirTransformerTests
         { 
             new HighLevelIR.Literal("Hello", CreateBasicType("string"), SourceFile) 
         };
-        var functionCall = new HighLevelIR.FunctionCall("printf", args, SourceFile);
+        var functionCall = new HighLevelIR.FunctionCall(
+            new HighLevelIR.Identifier("printf", CreateBasicType("function"), SourceFile), 
+            args);
         var assignment = new HighLevelIR.Assignment("x", functionCall, SourceFile);
         
         hlir.Modules[0].Functions.Add(new HighLevelIR.Function
