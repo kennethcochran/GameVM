@@ -86,7 +86,33 @@ public class MameInstaller : IMameInstaller
 
         try
         {
-            // Use our own GitHub Releases for unlimited access
+            if (_platformService.IsLinux())
+            {
+                _consoleService.WriteLine("Installing MAME from Ubuntu repositories...");
+                
+                // Try to install MAME from Ubuntu repositories
+                var installSuccess = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
+                
+                if (installSuccess)
+                {
+                    _consoleService.WriteLine("MAME installed successfully from Ubuntu repositories");
+                    
+                    // Verify installation
+                    var mamePath = _processService.GetCommandPath("mame");
+                    if (!string.IsNullOrEmpty(mamePath))
+                    {
+                        _consoleService.WriteLine($"MAME available at: {mamePath}");
+                        return;
+                    }
+                }
+                else
+                {
+                    _consoleService.WriteLine("Failed to install MAME from Ubuntu repositories");
+                    _consoleService.WriteLine("Falling back to GameVM releases...");
+                }
+            }
+
+            // Use our own GitHub Releases for unlimited access (fallback for Linux, primary for Windows/macOS)
             var releaseJson = await _httpService.GetStringAsync("https://api.github.com/repos/kennethcochran/GameVM/releases/tags/mame-packages");
             using var doc = JsonDocument.Parse(releaseJson);
             var root = doc.RootElement;
