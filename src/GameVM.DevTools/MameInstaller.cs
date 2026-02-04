@@ -81,36 +81,25 @@ public class MameInstaller : IMameInstaller
 
     public async Task InstallAsync()
     {
-        if (_platformService.IsLinux())
-        {
-            _consoleService.WriteLine("Note: Official Linux binaries are not available on GitHub. Checking for Flatpak...");
-            if (await IsFlatpakInstalledAsync())
-            {
-                _consoleService.WriteLine($"MAME is already installed via Flatpak ({FlatpakId}).");
-                return;
-            }
-            _consoleService.WriteLine("Please install MAME via your distribution's package manager or Flatpak.");
-            return;
-        }
-
         var toolsDir = GetToolsDirectory();
         _consoleService.WriteLine($"Target directory: {toolsDir}");
 
         try
         {
-            _consoleService.WriteLine("Fetching latest MAME release information...");
-            var releaseJson = await _httpService.GetStringAsync($"https://api.github.com/repos/{MameOrg}/{MameRepo}/releases/latest");
+            // Use our own GitHub Releases for unlimited access
+            var releaseJson = await _httpService.GetStringAsync("https://api.github.com/repos/kennethcochran/GameVM/releases/tags/mame-packages");
             using var doc = JsonDocument.Parse(releaseJson);
             var root = doc.RootElement;
 
             var assetInfo = _assetFinder.FindSuitableAsset(root);
             if (assetInfo == null)
             {
-                _consoleService.WriteLine("Could not find a suitable MAME binary for your platform.");
+                _consoleService.WriteLine("Could not find a suitable MAME binary for your platform in GameVM releases.");
+                _consoleService.WriteLine("Available binaries may need to be uploaded to https://github.com/kennethcochran/GameVM/releases/new");
                 return;
             }
 
-            _consoleService.WriteLine($"Downloading {assetInfo.Name}...");
+            _consoleService.WriteLine($"Downloading {assetInfo.Name} from GameVM releases...");
             var tempFile = Path.Combine(Path.GetTempPath(), assetInfo.Name);
             var fileBytes = await _httpService.GetByteArrayAsync(assetInfo.Url);
             await File.WriteAllBytesAsync(tempFile, fileBytes);

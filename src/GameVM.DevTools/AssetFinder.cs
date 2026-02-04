@@ -45,7 +45,7 @@ public class AssetFinder : IAssetFinder
 
     private static bool IsAssetSuitableForPlatform(string assetName)
     {
-        return IsWindowsAsset(assetName) || IsMacAsset(assetName);
+        return IsWindowsAsset(assetName) || IsMacAsset(assetName) || IsLinuxAsset(assetName);
     }
 
     private static bool IsWindowsAsset(string assetName)
@@ -60,5 +60,12 @@ public class AssetFinder : IAssetFinder
         return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
                assetName.Contains("mac") &&
                assetName.EndsWith(".zip");
+    }
+
+    private static bool IsLinuxAsset(string assetName)
+    {
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+               (assetName.Contains("linux") || assetName.Contains("ubuntu")) &&
+               (assetName.EndsWith(".tar.gz") || assetName.EndsWith(".zip"));
     }
 }
