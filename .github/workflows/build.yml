@@ -67,22 +67,22 @@ jobs:
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v4
         with:
-          path: ~\sonar\cache
+          path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube Cloud scanner
         id: cache-sonar-scanner
         uses: actions/cache@v4
         with:
-          path: .\.sonar\scanner
+          path: ~/.sonar/scanner
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
       - name: Install SonarQube Cloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        shell: powershell
+        shell: bash
         run: |
-          New-Item -Path .\.sonar\scanner -ItemType Directory
-          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+          mkdir -p ~/.sonar/scanner
+          dotnet tool update dotnet-sonarscanner --tool-path ~/.sonar/scanner
       - name: Install dotnet-coverage
         shell: bash
         run: |
@@ -91,63 +91,51 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: powershell
+        shell: bash
         run: |
-
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
+          if [ $? -ne 0 ]; then exit 1; fi
           
           dotnet build
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if [ $? -ne 0 ]; then exit 1; fi
           
           # Install .NET tools (including reportgenerator)
           dotnet tool restore
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if [ $? -ne 0 ]; then exit 1; fi
           
           # Run Unit/BDD tests with coverage
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if [ $? -ne 0 ]; then exit 1; fi
           
           # Verify coverage file exists
-          if (Test-Path "coverage.xml") {
-            Write-Host "Coverage file created successfully"
-            Get-Item "coverage.xml" | Write-Host
-          } else {
-            Write-Host "Warning: Coverage file not found"
-          }
+          if [ -f "coverage.xml" ]; then
+            echo "Coverage file created successfully"
+            ls -la "coverage.xml"
+          else
+            echo "Warning: Coverage file not found"
+          fi
           
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ~/.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+          if [ $? -ne 0 ]; then exit 1; fi
           
       - name: Check SonarQube Quality Gate
-        shell: powershell
+        shell: bash
         run: |
-          $headers = @{
-            "Authorization" = "Bearer $env:SONAR_TOKEN"
-          }
+          headers="Authorization: Bearer $SONAR_TOKEN"
+          projectKey="kennethcochran_GameVM"
+          url="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
           
           # Wait for SonarQube processing
-          Start-Sleep -Seconds 30
+          sleep 30
           
-          # Get the latest analysis for the project
-          $projectKey = "kennethcochran_GameVM"
-          $url = "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
+          response=$(curl -s -H "$headers" "$url")
+          status=$(echo "$response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
           
-          try {
-            $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-            Write-Host "Quality Gate Status: $($response.projectStatus.status)"
-            
-            if ($response.projectStatus.status -eq "ERROR") {
-              Write-Host "Quality Gate failed!"
-              Write-Host "Failed conditions:"
-              $response.projectStatus.conditions | Where-Object { $_.status -eq "ERROR" } | ForEach-Object {
-                Write-Host "- $($_.metricKey): Expected $($_.errorThreshold), got $($_.actualValue)"
-              }
-              exit 1
-            } else {
-              Write-Host "Quality Gate passed!"
-            }
-          } catch {
-            Write-Host "Error checking quality gate: $($_.Exception.Message)"
+          echo "Quality Gate Status: $status"
+          
+          if [ "$status" = "ERROR" ]; then
+            echo "Quality Gate failed!"
             exit 1
-          }
+          else
+            echo "Quality Gate passed!"
+          fi
