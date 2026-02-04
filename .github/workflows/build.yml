@@ -88,10 +88,36 @@ jobs:
         run: |
           dotnet tool install --global dotnet-coverage
           
-      - name: Build and analyze
+      - name: Build and analyze (Windows)
+        if: matrix.os == 'windows-latest'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
+        shell: pwsh
+        run: |
+          dotnet build
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          
+          # Install .NET tools (including reportgenerator)
+          dotnet tool restore
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          
+          # Run Unit/BDD tests with coverage (no Sonar on Windows)
+          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          
+          # Verify coverage file exists
+          if (Test-Path "coverage.xml") {
+            Write-Host "Coverage file created successfully"
+            Get-ChildItem "coverage.xml"
+          } else {
+            Write-Host "Warning: Coverage file not found"
+          }
+          
+      - name: Build and analyze (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: bash
         run: |
           dotnet build
           if [ $? -ne 0 ]; then exit 1; fi
