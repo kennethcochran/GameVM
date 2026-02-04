@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  mame-builder:
+    build:
+      context: ..
+      dockerfile: .docker/Dockerfile.mame
+    image: kennethcochran/gamevm-mame:latest
+    platform: windows/amd64
+    volumes:
+      - ..:/workspace
+      - mame-cache:/tools/mame
+    environment:
+      - GAMEVM_WHICH_PATH=C:\mame\mame.exe
+      - GAMEVM_FLATPAK_PATH=
+    working_dir: /workspace
+    command: powershell -Command "Write-Host 'MAME container ready'; while ($true) { Start-Sleep 3600 }"
+
+volumes:
+  mame-cache:
+    driver: local

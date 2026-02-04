@@ -1,0 +1,52 @@
+# Use Windows Server 2022 base image (matches GitHub Actions runner)
+FROM mcr.microsoft.com/dotnet/sdk:8.0-windowsserver-2022
+
+# Set working directory
+WORKDIR C:/build
+
+# Install MAME once during container build
+# This avoids IP bans during CI runs
+RUN powershell -Command "
+    Write-Host 'Installing MAME in container...';
+    
+    # Create MAME directory
+    New-Item -ItemType Directory -Force -Path 'C:/mame';
+    
+    # Download MAME (container IP won't be banned)
+    $mameUrl = 'https://github.com/mamedev/mame/releases/download/mame0284/mame0284_win64.exe';
+    Write-Host \"Downloading MAME from: $mameUrl\";
+    
+    Invoke-WebRequest -Uri $mameUrl -OutFile 'mame-installer.exe' -TimeoutSec 300;
+    
+    # Extract MAME silently
+    Write-Host 'Extracting MAME...';
+    Start-Process 'mame-installer.exe' -ArgumentList '-y -gm2 -oC:\mame' -Wait;
+    
+    # Clean up installer
+    Remove-Item 'mame-installer.exe';
+    
+    # Verify installation
+    if (Test-Path 'C:\mame\mame.exe') {
+        Write-Host 'MAME installed successfully';
+        Get-Item 'C:\mame\mame.exe' | Write-Host;
+    } else {
+        Write-Host 'ERROR: MAME installation failed';
+        exit 1;
+    }
+"
+
+# Add MAME to PATH
+ENV PATH="C:\mame;${PATH}"
+
+# Set working directory for builds
+WORKDIR C:/workspace
+
+# Verify MAME is available
+RUN powershell -Command "
+    Write-Host 'Verifying MAME installation...';
+    mame -version;
+    Write-Host 'MAME is ready for use';
+"
+
+# Default command
+CMD ["powershell"]

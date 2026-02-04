@@ -10,6 +10,16 @@ jobs:
   build:
     name: Build and analyze
     runs-on: windows-2022
+    
+    # Use custom container with MAME pre-installed
+    container:
+      image: kennethcochran/gamevm-mame:latest
+      options: --platform windows/amd64
+    
+    env:
+      GAMEVM_WHICH_PATH: C:\mame\mame.exe
+      GAMEVM_FLATPAK_PATH: ""
+    
     steps:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -43,38 +53,30 @@ jobs:
         run: |
           dotnet tool install --global dotnet-coverage
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-      - name: Cache MAME
-        uses: actions/cache@v4
-        with:
-          path: .tools/mame
-          key: ${{ runner.os }}-mame-v0284 # Use specific version for cache key
-          
-      - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
+      - name: Verify MAME Installation in Container
         shell: powershell
         run: |
-          # Optional: Use absolute paths for enhanced security (resolves S4036)
-          # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
+          Write-Host "=== Verifying MAME in Container ==="
+          Write-Host "MAME executable path: $env:GAMEVM_WHICH_PATH"
           
-          # Retry MAME installation with exponential backoff to handle 403 Forbidden
-          $maxRetries = 3
-          $retryDelay = 30
-          
-          for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
-            Write-Host "MAME installation attempt $attempt of $maxRetries..."
+          if (Test-Path $env:GAMEVM_WHICH_PATH) {
+            Write-Host "✅ MAME is available in container"
+            Get-Item $env:GAMEVM_WHICH_PATH | Write-Host
+            
+            # Test MAME version
             try {
-              dotnet run --project src/GameVM.DevTools -- mame install
-              Write-Host "MAME installation completed successfully on attempt $attempt"
-              break
+              $version = & $env:GAMEVM_WHICH_PATH -version
+              Write-Host "MAME version: $version"
             } catch {
-              Write-Host "MAME installation failed on attempt $attempt: $($_.Exception.Message)"
-              if ($attempt -eq $maxRetries) {
-                Write-Host "All MAME installation attempts failed. This will cause BDD tests to fail."
-                exit 1
-              }
-              Write-Host "Waiting $retryDelay seconds before retry..."
-              Start-Sleep -Seconds $retryDelay
-              $retryDelay = $retryDelay * 2
+              Write-Host "Warning: Could not get MAME version: $($_.Exception.Message)"
             }
+          } else {
+            Write-Host "❌ MAME not found in container at $env:GAMEVM_WHICH_PATH"
+            Write-Host "Available executables in C:\mame:"
+            if (Test-Path "C:\mame") {
+              Get-ChildItem "C:\mame\*.exe" | Write-Host
+            }
+            exit 1
           }
           
       - name: Build and analyze
