@@ -21,11 +21,13 @@ public class MameInstaller : IMameInstaller
     private readonly IConsoleService _consoleService;
     private readonly IProcessService _processService;
     private readonly IPlatformService _platformService;
+    private readonly IFileSystemService _fileSystemService;
 
     public MameInstaller() : this(
         new DefaultConsoleService(), 
         new DefaultProcessService(), 
-        new DefaultPlatformService()
+        new DefaultPlatformService(),
+        new DefaultFileSystemService()
     )
     {
     }
@@ -33,11 +35,25 @@ public class MameInstaller : IMameInstaller
     public MameInstaller(
         IConsoleService consoleService, 
         IProcessService processService, 
-        IPlatformService platformService)
+        IPlatformService platformService) : this(
+            consoleService, 
+            processService,
+            platformService,
+            new DefaultFileSystemService()
+    )
+    {
+    }
+
+    public MameInstaller(
+        IConsoleService consoleService, 
+        IProcessService processService, 
+        IPlatformService platformService,
+        IFileSystemService fileSystemService)
     {
         _consoleService = consoleService;
         _processService = processService;
         _platformService = platformService;
+        _fileSystemService = fileSystemService;
     }
 
     // Legacy constructor for backward compatibility
@@ -217,27 +233,27 @@ public class MameInstaller : IMameInstaller
 
     public string GetToolsDirectory()
     {
-        var root = FindProjectRoot(AppContext.BaseDirectory);
+        var root = FindProjectRoot(_fileSystemService.GetBaseDirectory());
         var toolsDir = Path.Combine(root, ".tools", "mame");
-        if (!Directory.Exists(toolsDir)) Directory.CreateDirectory(toolsDir);
+        if (!_fileSystemService.DirectoryExists(toolsDir)) _fileSystemService.CreateDirectory(toolsDir);
         return toolsDir;
     }
 
     public string FindProjectRoot(string currentDir)
     {
-        var dir = new DirectoryInfo(currentDir);
+        var dir = _fileSystemService.GetDirectoryInfo(currentDir);
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "GameVM.sln")))
+            if (_fileSystemService.FileExists(Path.Combine(dir.FullName, "GameVM.sln")))
                 return dir.FullName;
             dir = dir.Parent;
         }
-        return AppContext.BaseDirectory;
+        return _fileSystemService.GetBaseDirectory();
     }
 
     public string? GetMameExecutable()
     {
-        string binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "mame.exe" : "mame";
+        string binaryName = _platformService.IsWindows() ? "mame.exe" : "mame";
 
         // First, check if MAME is available via package manager (preferred method)
         if (_processService.GetCommandPath(binaryName) != null)
@@ -247,14 +263,14 @@ public class MameInstaller : IMameInstaller
 
         // Legacy: Check local tools directory (for backward compatibility)
         var toolsDir = GetToolsDirectory();
-        if (Directory.Exists(toolsDir))
+        if (_fileSystemService.DirectoryExists(toolsDir))
         {
-            var files = Directory.GetFiles(toolsDir, binaryName, SearchOption.AllDirectories);
+            var files = _fileSystemService.GetFiles(toolsDir, binaryName, SearchOption.AllDirectories);
             if (files.Length > 0) return files[0];
         }
 
         // Legacy: Check Flatpak (Linux fallback)
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && _processService.GetCommandPath("flatpak") != null) 
+        if (_platformService.IsLinux() && _processService.GetCommandPath("flatpak") != null) 
             return "flatpak";
 
         return null;

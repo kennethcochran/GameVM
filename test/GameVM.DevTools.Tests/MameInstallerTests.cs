@@ -13,6 +13,7 @@ public class MameInstallerTests
     private Mock<IConsoleService> _consoleService = null!;
     private Mock<IProcessService> _processService = null!;
     private Mock<IPlatformService> _platformServiceMock = null!;
+    private Mock<IFileSystemService> _fileSystemServiceMock = null!;
 
     [SetUp]
     public void SetUp()
@@ -22,6 +23,13 @@ public class MameInstallerTests
         _consoleService = _autoMocker.GetMock<IConsoleService>();
         _processService = _autoMocker.GetMock<IProcessService>();
         _platformServiceMock = _autoMocker.GetMock<IPlatformService>();
+        _fileSystemServiceMock = _autoMocker.GetMock<IFileSystemService>();
+        
+        // Setup default file system mock behavior
+        _fileSystemServiceMock.Setup(x => x.GetBaseDirectory()).Returns("/home/test/project");
+        _fileSystemServiceMock.Setup(x => x.DirectoryExists(It.IsAny<string>())).Returns(false);
+        _fileSystemServiceMock.Setup(x => x.FileExists(It.IsAny<string>())).Returns(false);
+        _fileSystemServiceMock.Setup(x => x.GetFiles(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<SearchOption>())).Returns(Array.Empty<string>());
     }
 
     // RED PHASE: One failing test at a time for InstallAsync - Linux platform with apt-get
@@ -35,7 +43,7 @@ public class MameInstallerTests
             .ReturnsAsync(true);
         _processService.Setup(x => x.GetCommandPath("mame")).Returns("/usr/bin/mame");
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
@@ -54,7 +62,7 @@ public class MameInstallerTests
         _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
         _processService.Setup(x => x.GetCommandPath("apt-get")).Returns((string?)null);
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
@@ -77,7 +85,7 @@ public class MameInstallerTests
             .ReturnsAsync(true);
         _processService.Setup(x => x.GetCommandPath("mame")).Returns("C:\\ProgramData\\chocolatey\\bin\\mame.exe");
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
@@ -98,7 +106,7 @@ public class MameInstallerTests
         _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
             .ThrowsAsync(new InvalidOperationException("Network error"));
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
@@ -120,7 +128,7 @@ public class MameInstallerTests
             .ReturnsAsync(true);
         _processService.Setup(x => x.GetCommandPath("mame")).Returns("/opt/homebrew/bin/mame");
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
@@ -139,7 +147,7 @@ public class MameInstallerTests
         _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
         _processService.Setup(x => x.GetCommandPath("choco")).Returns((string?)null);
 
-        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
