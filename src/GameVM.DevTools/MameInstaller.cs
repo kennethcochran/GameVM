@@ -215,21 +215,6 @@ public class MameInstaller : IMameInstaller
         }
     }
 
-    public async Task<bool> IsFlatpakInstalledAsync()
-    {
-        try
-        {
-            var flatpakPath = _processService.GetCommandPath("flatpak");
-            if (string.IsNullOrEmpty(flatpakPath))
-            {
-                return false;
-            }
-            
-            return await _processService.RunProcessAsync(flatpakPath, $"info {FlatpakId}", redirectOutput: true, createNoWindow: true);
-        }
-        catch { return false; }
-    }
-
     public string GetToolsDirectory()
     {
         var root = FindProjectRoot(AppContext.BaseDirectory);

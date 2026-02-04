@@ -29,13 +29,13 @@ public class AssetFinderSeparateFileTests
     public void ServiceInterfaces_ShouldBeAccessible_WhenDefinedInSeparateFiles()
     {
         // Arrange & Act - Service interfaces should be accessible from their own files
-        var httpClientFactory = new DefaultHttpClientFactory();
         var consoleService = new DefaultConsoleService();
         var processService = new DefaultProcessService();
+        var platformService = new DefaultPlatformService();
         
         // Assert - Test passes if we can create instances of all services
-        Assert.That(httpClientFactory, Is.Not.Null);
         Assert.That(consoleService, Is.Not.Null);
         Assert.That(processService, Is.Not.Null);
+        Assert.That(platformService, Is.Not.Null);
     }
 }
