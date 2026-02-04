@@ -10,182 +10,144 @@ public class MameInstallerTests
 {
     private AssetFinder _assetFinder = null!;
     private AutoMocker _autoMocker = null!;
-    private Mock<IHttpClientFactory> _httpClientFactory = null!;
     private Mock<IConsoleService> _consoleService = null!;
     private Mock<IProcessService> _processService = null!;
-    private Mock<IAssetFinder> _assetFinderMock = null!;
     private Mock<IPlatformService> _platformServiceMock = null!;
-    private Mock<IHttpService> _httpServiceMock = null!;
 
     [SetUp]
     public void SetUp()
     {
         _assetFinder = new AssetFinder();
         _autoMocker = new AutoMocker();
-        _httpClientFactory = _autoMocker.GetMock<IHttpClientFactory>();
         _consoleService = _autoMocker.GetMock<IConsoleService>();
         _processService = _autoMocker.GetMock<IProcessService>();
-        _assetFinderMock = _autoMocker.GetMock<IAssetFinder>();
         _platformServiceMock = _autoMocker.GetMock<IPlatformService>();
-        _httpServiceMock = _autoMocker.GetMock<IHttpService>();
     }
 
-    // RED PHASE: One failing test at a time for InstallAsync - Linux platform with Flatpak installed
+    // RED PHASE: One failing test at a time for InstallAsync - Linux platform with apt-get
     [Test]
-    public async Task InstallAsync_OnLinuxWithFlatpakInstalled_ShouldSkipInstallation()
+    public async Task InstallAsync_OnLinuxWithAptGet_ShouldInstallViaAptGet()
     {
-        // Arrange - Test the Linux platform path where Flatpak is already installed (lines 53-62)
-        _processService.Setup(x => x.GetCommandPath("flatpak")).Returns("/usr/bin/flatpak");
-        _processService.Setup(x => x.RunProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()))
+        // Arrange - Test the Linux platform path with apt-get available
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
+        _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
             .ReturnsAsync(true);
+        _processService.Setup(x => x.GetCommandPath("mame")).Returns("/usr/bin/mame");
 
-        var installer = new MameInstaller(_httpClientFactory.Object, _consoleService.Object, _processService.Object, _assetFinderMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
 
-        // Assert - Should not attempt to download or install MAME
-        _consoleService.Verify(x => x.WriteLine("Note: Official Linux binaries are not available on GitHub. Checking for Flatpak..."), Times.Once);
-        _consoleService.Verify(x => x.WriteLine($"MAME is already installed via Flatpak (org.mamedev.MAME)."), Times.Once);
-        _consoleService.Verify(x => x.WriteLine("Please install MAME via your distribution's package manager or Flatpak."), Times.Never);
-        
-        // Should not attempt HTTP calls
-        _httpClientFactory.Verify(x => x.CreateClient(), Times.Never);
+        // Assert - Should install via apt-get
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using apt-get (Debian-based Linux)..."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME installed successfully from Debian repositories"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME available at: /usr/bin/mame"), Times.Once);
     }
 
-    // RED PHASE: One failing test at a time for InstallAsync - Linux platform without Flatpak
+    // RED PHASE: One failing test at a time for InstallAsync - Linux platform without apt-get
     [Test]
-    public async Task InstallAsync_OnLinuxWithoutFlatpak_ShouldShowManualInstallMessage()
+    public async Task InstallAsync_OnLinuxWithoutAptGet_ShouldShowErrorMessage()
     {
-        // Arrange - Test the Linux platform path where Flatpak is not installed (lines 53-62)
-        _processService.Setup(x => x.GetCommandPath("flatpak")).Returns((string?)null);
-        _processService.Setup(x => x.RunProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()))
-            .ReturnsAsync(false);
+        // Arrange - Test the Linux platform path where apt-get is not available
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
+        _processService.Setup(x => x.GetCommandPath("apt-get")).Returns((string?)null);
 
-        var installer = new MameInstaller(_httpClientFactory.Object, _consoleService.Object, _processService.Object, _assetFinderMock.Object);
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
 
-        // Assert - Should show manual install message and not attempt to download
-        _consoleService.Verify(x => x.WriteLine("Note: Official Linux binaries are not available on GitHub. Checking for Flatpak..."), Times.Once);
-        _consoleService.Verify(x => x.WriteLine("Please install MAME via your distribution's package manager or Flatpak."), Times.Once);
-        
-        // Should not attempt HTTP calls
-        _httpClientFactory.Verify(x => x.CreateClient(), Times.Never);
+        // Assert - Should show error message for non-Debian systems
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using apt-get (Debian-based Linux)..."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("ERROR: apt-get not found. This installer supports Debian-based Linux distributions."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("For other Linux distributions, please install MAME using your package manager:"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("  - Fedora/RHEL: sudo dnf install mame"), Times.Once);
     }
 
-    // RED PHASE: One failing test at a time for InstallAsync - Non-Linux platform with asset not found
+    // RED PHASE: One failing test at a time for InstallAsync - Windows platform with Chocolatey
     [Test]
-    public async Task InstallAsync_WhenAssetNotFound_ShouldShowErrorMessage()
+    public async Task InstallAsync_OnWindowsPlatform_WithChocolatey_ShouldInstallViaChoco()
     {
-        // Arrange - Test the asset not found path (lines 77-82)
-        // We'll mock the platform to be non-Linux and the asset finder to return null
-        
-        var installer = new MameInstaller(_httpClientFactory.Object, _consoleService.Object, _processService.Object, _assetFinderMock.Object);
+        // Arrange - Test the Windows platform path with Chocolatey available
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
+        _processService.Setup(x => x.GetCommandPath("choco")).Returns("C:\\ProgramData\\chocolatey\\bin\\choco.exe");
+        _processService.Setup(x => x.RunProcessAsync("choco", "install mame -y --no-progress", true, true))
+            .ReturnsAsync(true);
+        _processService.Setup(x => x.GetCommandPath("mame")).Returns("C:\\ProgramData\\chocolatey\\bin\\mame.exe");
+
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
 
-        // Assert - The important thing is that we exercised the non-Linux path
-        // We can see from the failure that it's taking the Linux path, so we need to handle platform detection
-        // For now, let's verify that some console output occurred (indicating the method ran)
-        _consoleService.Verify(x => x.WriteLine(It.IsAny<string>()), Times.AtLeastOnce);
+        // Assert - Should install via Chocolatey
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using Chocolatey..."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME installed successfully via Chocolatey"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME available at: C:\\ProgramData\\chocolatey\\bin\\mame.exe"), Times.Once);
     }
 
     // RED PHASE: One failing test at a time for InstallAsync - Exception handling
     [Test]
     public async Task InstallAsync_WhenExceptionOccurs_ShouldHandleGracefully()
     {
-        // Arrange - Test the exception handling path (lines 101-104)
-        // We'll make the HttpService throw an exception and set up non-Linux platform
-        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
-        _httpServiceMock.Setup(x => x.GetStringAsync(It.IsAny<string>())).Throws(new HttpRequestException("Network error"));
-        
-        var installer = new MameInstaller(
-            _httpClientFactory.Object, 
-            _consoleService.Object, 
-            _processService.Object, 
-            _assetFinderMock.Object,
-            _platformServiceMock.Object,
-            _httpServiceMock.Object);
+        // Arrange - Test the exception handling path
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
+        _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
+            .ThrowsAsync(new InvalidOperationException("Network error"));
+
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
 
-        // Assert - Should handle the exception gracefully
+        // Assert - Should handle exception gracefully
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using apt-get (Debian-based Linux)..."), Times.Once);
         _consoleService.Verify(x => x.WriteLine("Error during installation: Network error"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("Please ensure you have the necessary permissions and network access."), Times.Once);
     }
 
-    // RED PHASE: One failing test at a time for InstallAsync - Non-Linux platform with successful GitHub API call
+    // RED PHASE: One failing test at a time for InstallAsync - macOS platform with Homebrew
     [Test]
-    public async Task InstallAsync_OnNonLinuxPlatform_ShouldAttemptGitHubApiCall()
+    public async Task InstallAsync_OnMacOSPlatform_WithHomebrew_ShouldInstallViaBrew()
     {
-        // Arrange - Test the non-Linux platform path (lines 65-99)
-        // We'll focus on testing that it attempts the GitHub API call and handles the response
-        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
-        _httpServiceMock.Setup(x => x.GetStringAsync(It.IsAny<string>())).ReturnsAsync(@"{""tag_name"": ""test""}");
-        
-        var installer = new MameInstaller(
-            _httpClientFactory.Object, 
-            _consoleService.Object, 
-            _processService.Object, 
-            _assetFinderMock.Object,
-            _platformServiceMock.Object,
-            _httpServiceMock.Object);
+        // Arrange - Test the macOS platform path with Homebrew available
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(true);
+        _processService.Setup(x => x.GetCommandPath("brew")).Returns("/opt/homebrew/bin/brew");
+        _processService.Setup(x => x.RunProcessAsync("brew", "install mame", true, true))
+            .ReturnsAsync(true);
+        _processService.Setup(x => x.GetCommandPath("mame")).Returns("/opt/homebrew/bin/mame");
+
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
         await installer.InstallAsync();
 
-        // Assert - Should attempt to fetch MAME release information
-        _consoleService.Verify(x => x.WriteLine("Fetching latest MAME release information..."), Times.Once);
-        
-        // Should attempt HTTP calls (this verifies we're on the non-Linux path)
-        _httpServiceMock.Verify(x => x.GetStringAsync(It.IsAny<string>()), Times.Once);
+        // Assert - Should install via Homebrew
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using Homebrew..."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME installed successfully via Homebrew"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("MAME available at: /opt/homebrew/bin/mame"), Times.Once);
     }
 
-    // RED PHASE: One failing test at a time for InstallAsync - Non-Linux platform using adapters
+    // RED PHASE: One failing test at a time for InstallAsync - Windows platform without Chocolatey
     [Test]
-    public async Task InstallAsync_OnWindowsPlatform_UsingAdapters_ShouldDownloadAndInstallMame()
+    public async Task InstallAsync_OnWindowsPlatform_WithoutChocolatey_ShouldShowErrorMessage()
     {
-        // Arrange - Test the non-Linux platform path using adapter pattern
-        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        // Arrange - Test the Windows platform path where Chocolatey is not available
         _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
-        
-        _httpServiceMock.Setup(x => x.GetStringAsync(It.IsAny<string>()))
-            .ReturnsAsync(@"{
-                ""tag_name"": ""mame0258"",
-                ""assets"": [
-                    {
-                        ""name"": ""mame0258b_64bit.exe"",
-                        ""browser_download_url"": ""https://github.com/mamedev/mame/releases/download/mame0258/mame0258b_64bit.exe""
-                    }
-                ]
-            }");
-        
-        var mockAssetInfo = new AssetInfo 
-        { 
-            Name = "mame0258b_64bit.exe", 
-            Url = "https://github.com/mamedev/mame/releases/download/mame0258/mame0258b_64bit.exe" 
-        };
-        _assetFinderMock.Setup(x => x.FindSuitableAsset(It.IsAny<JsonElement>())).Returns(mockAssetInfo);
+        _processService.Setup(x => x.GetCommandPath("choco")).Returns((string?)null);
 
-        // Note: This will fail because MameInstaller doesn't yet accept the adapters
-        // We need to modify the constructor first, but let's see the failure first
+        var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object);
 
         // Act
-        var installer = new MameInstaller(
-            _httpClientFactory.Object, 
-            _consoleService.Object, 
-            _processService.Object, 
-            _assetFinderMock.Object,
-            _platformServiceMock.Object,
-            _httpServiceMock.Object);
         await installer.InstallAsync();
 
-        // Assert - Should attempt to download and install MAME
-        _consoleService.Verify(x => x.WriteLine("Fetching latest MAME release information..."), Times.Once);
-        _consoleService.Verify(x => x.WriteLine($"Downloading {mockAssetInfo.Name}..."), Times.Once);
+        // Assert - Should show error message for missing Chocolatey
+        _consoleService.Verify(x => x.WriteLine("Installing MAME using Chocolatey..."), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("ERROR: Chocolatey not found. Please install Chocolatey first:"), Times.Once);
+        _consoleService.Verify(x => x.WriteLine("  Run PowerShell as Administrator and execute:"), Times.Once);
     }
 
     [Test]
