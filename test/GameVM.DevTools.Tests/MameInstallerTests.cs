@@ -18,12 +18,13 @@ public class MameInstallerTests
     [SetUp]
     public void SetUp()
     {
-        _assetFinder = new AssetFinder();
         _autoMocker = new AutoMocker();
         _consoleService = _autoMocker.GetMock<IConsoleService>();
         _processService = _autoMocker.GetMock<IProcessService>();
         _platformServiceMock = _autoMocker.GetMock<IPlatformService>();
         _fileSystemServiceMock = _autoMocker.GetMock<IFileSystemService>();
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
         
         // Setup default file system mock behavior
         _fileSystemServiceMock.Setup(x => x.GetBaseDirectory()).Returns("/home/test/project");
@@ -174,21 +175,19 @@ public class MameInstallerTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
+        // Arrange - Mock Windows platform
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(false);
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
+        
         // Act
         var result = _assetFinder.FindSuitableAsset(root);
         
-        // Assert - On Linux this will return null since we're not on Windows platform
-        // The important thing is the method processes the JSON correctly without crashing
-        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
-        }
-        else
-        {
-            // On non-Windows platforms, this should return null
-            Assert.That(result, Is.Null);
-        }
+        // Assert - Should find Windows asset
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
     }
 
     [Test]
@@ -207,12 +206,19 @@ public class MameInstallerTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
+        // Arrange - Mock Mac platform
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(false);
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(true);
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
+        
         // Act
         var result = _assetFinder.FindSuitableAsset(root);
         
-        // Assert - On Linux this might return null since it's not Mac, but shouldn't crash
-        // The important thing is the method handles the JSON correctly
-        Assert.That(result, Is.Null.Or.Not.Null);
+        // Assert - Should find Mac asset
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Name, Is.EqualTo("mame0258_macos.zip"));
     }
 
     [Test]

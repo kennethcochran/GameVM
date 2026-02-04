@@ -1,17 +1,19 @@
 using NUnit.Framework;
 using System.Text.Json;
-using System.Runtime.InteropServices;
+using Moq;
 
 namespace GameVM.DevTools.Tests;
 
 public class AssetFinderComplexityTests
 {
     private AssetFinder _assetFinder = null!;
+    private Mock<IPlatformService> _platformServiceMock = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _assetFinder = new AssetFinder();
+        _platformServiceMock = new Mock<IPlatformService>();
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
     }
 
     [Test]
@@ -30,19 +32,19 @@ public class AssetFinderComplexityTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
+        // Arrange - Mock Windows platform
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(false);
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
+        
         // Act
         var result = _assetFinder.FindSuitableAsset(root);
         
-        // Assert - Platform-specific behavior
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
-        }
-        else
-        {
-            Assert.That(result, Is.Null);
-        }
+        // Assert - Should find Windows asset
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
     }
 
     [Test]
@@ -61,19 +63,19 @@ public class AssetFinderComplexityTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
+        // Arrange - Mock Mac platform
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(false);
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(true);
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
+        
         // Act
         var result = _assetFinder.FindSuitableAsset(root);
         
-        // Assert - Platform-specific behavior
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("mame0258_macos.zip"));
-        }
-        else
-        {
-            Assert.That(result, Is.Null);
-        }
+        // Assert - Should find Mac asset
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Name, Is.EqualTo("mame0258_macos.zip"));
     }
 
     [Test]
@@ -100,24 +102,19 @@ public class AssetFinderComplexityTests
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
+        // Arrange - Mock Windows platform
+        _platformServiceMock.Setup(x => x.IsWindows()).Returns(true);
+        _platformServiceMock.Setup(x => x.IsMacOS()).Returns(false);
+        _platformServiceMock.Setup(x => x.IsLinux()).Returns(false);
+        
+        _assetFinder = new AssetFinder(_platformServiceMock.Object);
+        
         // Act
         var result = _assetFinder.FindSuitableAsset(root);
         
-        // Assert - Should select appropriate asset for current platform
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.Name, Is.EqualTo("mame0258_macos.zip"));
-        }
-        else
-        {
-            Assert.That(result, Is.Null);
-        }
+        // Assert - Should select Windows asset
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Name, Is.EqualTo("mame0258b_64bit.exe"));
     }
 
     [Test]

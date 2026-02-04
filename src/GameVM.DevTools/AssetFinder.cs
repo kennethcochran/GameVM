@@ -1,10 +1,20 @@
 using System.Text.Json;
-using System.Runtime.InteropServices;
 
 namespace GameVM.DevTools;
 
 public class AssetFinder : IAssetFinder
 {
+    private readonly IPlatformService _platformService;
+
+    public AssetFinder() : this(new DefaultPlatformService())
+    {
+    }
+
+    public AssetFinder(IPlatformService platformService)
+    {
+        _platformService = platformService;
+    }
+
     public AssetInfo? FindSuitableAsset(JsonElement root)
     {
         var assets = ExtractAssets(root);
@@ -43,28 +53,28 @@ public class AssetFinder : IAssetFinder
         return new AssetInfo { Name = name, Url = url ?? string.Empty };
     }
 
-    private static bool IsAssetSuitableForPlatform(string assetName)
+    private bool IsAssetSuitableForPlatform(string assetName)
     {
         return IsWindowsAsset(assetName) || IsMacAsset(assetName) || IsLinuxAsset(assetName);
     }
 
-    private static bool IsWindowsAsset(string assetName)
+    private bool IsWindowsAsset(string assetName)
     {
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-               assetName.Contains("b_x64") &&
+        return _platformService.IsWindows() &&
+               (assetName.Contains("b_x64") || assetName.Contains("b_64bit")) &&
                (assetName.EndsWith(".exe") || assetName.EndsWith(".zip"));
     }
 
-    private static bool IsMacAsset(string assetName)
+    private bool IsMacAsset(string assetName)
     {
-        return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+        return _platformService.IsMacOS() &&
                assetName.Contains("mac") &&
                assetName.EndsWith(".zip");
     }
 
-    private static bool IsLinuxAsset(string assetName)
+    private bool IsLinuxAsset(string assetName)
     {
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+        return _platformService.IsLinux() &&
                (assetName.Contains("linux") || assetName.Contains("ubuntu")) &&
                (assetName.EndsWith(".tar.gz") || assetName.EndsWith(".zip"));
     }
