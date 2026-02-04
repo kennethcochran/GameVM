@@ -57,11 +57,20 @@ namespace UnitTests.Application
             };
 
             var hlir = new HighLevelIR();
-            // We just need a dummy HLIR, as validation result is mocked
+            
+            // Mock the frontend to return our HLIR
             _frontendMock.Setup(f => f.Parse(It.IsAny<string>()))
                 .Returns(hlir);
 
-            _capabilityValidatorMock.Setup(v => v.Validate(hlir, options.Profile, options.SystemExtensions))
+            // Mock capability provider to return backend capabilities
+            var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L1 };
+            _capabilityProviderMock.Setup(p => p.GetCapabilityProfile())
+                .Returns(backendProfile);
+            _capabilityProviderMock.Setup(p => p.GetSupportedExtensions())
+                .Returns(new List<string>());
+
+            // Mock capability validation to return L3 requirement
+            _capabilityValidatorMock.Setup(v => v.Validate(hlir, backendProfile.BaseLevel, backendProfile.Extensions.ToList()))
                 .Returns(new List<string> { "Function 'DrawScroll' requires L3" });
 
             // Act

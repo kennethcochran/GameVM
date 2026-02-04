@@ -79,9 +79,15 @@ namespace UnitTests.Application
                 Optimize = true
             };
 
-            _mocker.GetMock<ILanguageService>()
-                .Setup(x => x.GetFrontend(It.IsAny<string>()))
-                .Returns(frontend.Object);
+            // Mock capability provider for validation
+            var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L3 };
+            _mocker.GetMock<ICapabilityProvider>()
+                .Setup(p => p.GetCapabilityProfile())
+                .Returns(backendProfile);
+            _mocker.GetMock<ICapabilityProvider>()
+                .Setup(p => p.GetSupportedExtensions())
+                .Returns(new List<string>());
+            
             frontend.Setup(x => x.Parse(It.IsAny<string>()))
                 .Returns(hlir);
             frontend.Setup(x => x.ConvertToMidLevelIR(hlir))
@@ -123,9 +129,16 @@ namespace UnitTests.Application
 
             frontend.Setup(f => f.Parse(It.IsAny<string>())).Returns(hlir);
             frontend.Setup(f => f.ConvertToMidLevelIR(hlir)).Returns(mlir);
-            _mocker.GetMock<ILanguageService>()
-                .Setup(r => r.GetFrontend(It.IsAny<string>()))
-                .Returns(frontend.Object);
+            
+            // Mock capability provider for validation
+            var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L3 };
+            _mocker.GetMock<ICapabilityProvider>()
+                .Setup(p => p.GetCapabilityProfile())
+                .Returns(backendProfile);
+            _mocker.GetMock<ICapabilityProvider>()
+                .Setup(p => p.GetSupportedExtensions())
+                .Returns(new List<string>());
+            
             _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
                 .Setup(b => b.Transform(mlir))
                 .Returns(llir);
