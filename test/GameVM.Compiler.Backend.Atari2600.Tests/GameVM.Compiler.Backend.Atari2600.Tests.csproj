@@ -8,12 +8,6 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     
-    <!-- Code Coverage Settings -->
-    <CollectCoverage>true</CollectCoverage>
-    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
-    <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage</ExcludeByAttribute>
-    <Exclude>[*]GameVM.Compiler.Backend.Atari2600.Tests.*</Exclude>
-    <IncludeTestAssembly>false</IncludeTestAssembly>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 

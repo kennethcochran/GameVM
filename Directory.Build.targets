@@ -46,11 +46,12 @@
 
   <!-- Test project specific coverage exclusions -->
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <!-- Coverage collection settings for test projects -->
-    <CollectCoverage>true</CollectCoverage>
-    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
-    <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage</ExcludeByAttribute>
-    <IncludeTestAssembly>false</IncludeTestAssembly>
+    <!-- Coverage collection settings for test projects - DISABLED by default for performance -->
+    <!-- Enable with: dotnet test -p:CollectCoverage=true -->
+    <CollectCoverage Condition="'$(CollectCoverage)' == ''">false</CollectCoverage>
+    <CoverletOutputFormat Condition="'$(CollectCoverage)' == 'true'">cobertura</CoverletOutputFormat>
+    <ExcludeByAttribute Condition="'$(CollectCoverage)' == 'true'">System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage</ExcludeByAttribute>
+    <IncludeTestAssembly Condition="'$(CollectCoverage)' == 'true'">false</IncludeTestAssembly>
     
     <!-- Translate CollectCoverage into VSTestCollect parameter -->
     <VSTestCollect Condition="'$(CollectCoverage)' == 'true'">XPlat Code Coverage</VSTestCollect>
@@ -62,8 +63,8 @@
     <Exclude Include="[*]**/ANTLR/**" />
   </ItemGroup>
 
-  <!-- Run after test execution to aggregate coverage reports -->
-  <Target Name="AggregateCoverageReports" AfterTargets="VSTest" Condition="'$(IsTestProject)' == 'true'">
+  <!-- Run after test execution to aggregate coverage reports - ONLY when coverage is enabled -->
+  <Target Name="AggregateCoverageReports" AfterTargets="VSTest" Condition="'$(IsTestProject)' == 'true' AND '$(CollectCoverage)' == 'true'">
     <PropertyGroup>
       <SolutionDir>$(MSBuildThisFileDirectory)</SolutionDir>
       <CoverageDir>$(SolutionDir)TestResults/coverage</CoverageDir>

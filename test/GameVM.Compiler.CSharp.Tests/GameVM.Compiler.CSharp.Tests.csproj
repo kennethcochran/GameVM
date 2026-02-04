@@ -7,12 +7,6 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     
-    <!-- Code Coverage Settings -->
-    <CollectCoverage>true</CollectCoverage>
-    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
-    <ExcludeByAttribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage</ExcludeByAttribute>
-    <Exclude>[*]GameVM.Compiler.CSharp.Tests.*</Exclude>
-    <IncludeTestAssembly>false</IncludeTestAssembly>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
