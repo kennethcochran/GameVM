@@ -28,21 +28,38 @@ jobs:
       
       - name: Install MAME (Linux)
         if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
         run: |
           sudo apt-get update
           sudo apt-get install -y mame
+          echo "MAME installation completed"
 
       - name: Install MAME (Windows)
         if: matrix.os == 'windows-latest'
-        run: choco install mame -y --no-progress
+        continue-on-error: true
+        run: |
+          choco install mame -y --no-progress
+          echo "MAME installation completed"
 
       - name: Install MAME (macOS)
         if: matrix.os == 'macos-latest'
-        run: brew install mame
+        continue-on-error: true
+        run: |
+          brew install mame
+          echo "MAME installation completed"
 
       # --- Verification & Test Execution ---
 
-      - name: Verify MAME
+      - name: Verify MAME (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: mame -version
+
+      - name: Verify MAME (Windows)
+        if: matrix.os == 'windows-latest'
+        run: mame -version
+
+      - name: Verify MAME (macOS)
+        if: matrix.os == 'macos-latest'
         run: mame -version
 
       # --- Build and Analysis Steps ---
