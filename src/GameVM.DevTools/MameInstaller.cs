@@ -1,23 +1,14 @@
-using System.Net.Http;
-using System.Text.Json;
 using System.Runtime.InteropServices;
-using System.IO.Compression;
 
 namespace GameVM.DevTools;
 
 public interface IMameInstaller
 {
     Task InstallAsync();
-    Task<bool> IsFlatpakInstalledAsync();
     string GetToolsDirectory();
     string FindProjectRoot(string currentDir);
     string? GetMameExecutable();
     Task RunMameAsync(string romPath, string scriptPath);
-}
-
-public class DefaultHttpClientFactory : IHttpClientFactory
-{
-    public HttpClient CreateClient() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
 }
 
 public class DefaultConsoleService : IConsoleService
@@ -27,40 +18,26 @@ public class DefaultConsoleService : IConsoleService
 
 public class MameInstaller : IMameInstaller
 {
-    private const string MameOrg = "mamedev";
-    private const string MameRepo = "mame";
-    private const string FlatpakId = "org.mamedev.MAME";
-
     private readonly IConsoleService _consoleService;
     private readonly IProcessService _processService;
-    private readonly IAssetFinder _assetFinder;
     private readonly IPlatformService _platformService;
-    private readonly IHttpService _httpService;
 
     public MameInstaller() : this(
-        new DefaultHttpClientFactory(), 
         new DefaultConsoleService(), 
         new DefaultProcessService(), 
-        new AssetFinder(),
-        new DefaultPlatformService(),
-        new DefaultHttpService(new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
+        new DefaultPlatformService()
     )
     {
     }
 
     public MameInstaller(
-        IHttpClientFactory httpClientFactory, 
         IConsoleService consoleService, 
         IProcessService processService, 
-        IAssetFinder assetFinder,
-        IPlatformService platformService,
-        IHttpService httpService)
+        IPlatformService platformService)
     {
         _consoleService = consoleService;
         _processService = processService;
-        _assetFinder = assetFinder;
         _platformService = platformService;
-        _httpService = httpService;
     }
 
     // Legacy constructor for backward compatibility
@@ -69,13 +46,25 @@ public class MameInstaller : IMameInstaller
         IConsoleService consoleService, 
         IProcessService processService, 
         IAssetFinder assetFinder) : this(
-            httpClientFactory, 
             consoleService, 
-            processService, 
-            assetFinder,
-            new DefaultPlatformService(),
-            new DefaultHttpService(new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
-        )
+            processService,
+            new DefaultPlatformService()
+    )
+    {
+    }
+
+    // Legacy constructor for backward compatibility
+    public MameInstaller(
+        IHttpClientFactory httpClientFactory, 
+        IConsoleService consoleService, 
+        IProcessService processService, 
+        IAssetFinder assetFinder,
+        IPlatformService platformService,
+        IHttpService httpService) : this(
+            consoleService, 
+            processService,
+            platformService
+    )
     {
     }
 
@@ -86,16 +75,30 @@ public class MameInstaller : IMameInstaller
 
         try
         {
+            bool installSuccess = false;
+            
             if (_platformService.IsLinux())
             {
-                _consoleService.WriteLine("Installing MAME from Ubuntu repositories...");
+                _consoleService.WriteLine("Installing MAME using apt-get (Debian-based Linux)...");
                 
-                // Try to install MAME from Ubuntu repositories
-                var installSuccess = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
+                // Check if apt-get is available
+                var aptPath = _processService.GetCommandPath("apt-get");
+                if (string.IsNullOrEmpty(aptPath))
+                {
+                    _consoleService.WriteLine("ERROR: apt-get not found. This installer supports Debian-based Linux distributions.");
+                    _consoleService.WriteLine("For other Linux distributions, please install MAME using your package manager:");
+                    _consoleService.WriteLine("  - Fedora/RHEL: sudo dnf install mame");
+                    _consoleService.WriteLine("  - Arch Linux: sudo pacman -S mame");
+                    _consoleService.WriteLine("  - openSUSE: sudo zypper install mame");
+                    return;
+                }
+                
+                // Install MAME from Debian repositories
+                installSuccess = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
                 
                 if (installSuccess)
                 {
-                    _consoleService.WriteLine("MAME installed successfully from Ubuntu repositories");
+                    _consoleService.WriteLine("MAME installed successfully from Debian repositories");
                     
                     // Verify installation
                     var mamePath = _processService.GetCommandPath("mame");
@@ -107,41 +110,108 @@ public class MameInstaller : IMameInstaller
                 }
                 else
                 {
-                    _consoleService.WriteLine("Failed to install MAME from Ubuntu repositories");
-                    _consoleService.WriteLine("Falling back to GameVM releases...");
+                    _consoleService.WriteLine("Failed to install MAME from Debian repositories");
+                    _consoleService.WriteLine("This may indicate an issue with your package sources or permissions.");
                 }
             }
-
-            // Use our own GitHub Releases for unlimited access (fallback for Linux, primary for Windows/macOS)
-            var releaseJson = await _httpService.GetStringAsync("https://api.github.com/repos/kennethcochran/GameVM/releases/tags/mame-packages");
-            using var doc = JsonDocument.Parse(releaseJson);
-            var root = doc.RootElement;
-
-            var assetInfo = _assetFinder.FindSuitableAsset(root);
-            if (assetInfo == null)
+            else if (_platformService.IsWindows())
             {
-                _consoleService.WriteLine("Could not find a suitable MAME binary for your platform in GameVM releases.");
-                _consoleService.WriteLine("Available binaries may need to be uploaded to https://github.com/kennethcochran/GameVM/releases/new");
+                _consoleService.WriteLine("Installing MAME using Chocolatey...");
+                
+                // Check if Chocolatey is available
+                var chocoPath = _processService.GetCommandPath("choco");
+                if (string.IsNullOrEmpty(chocoPath))
+                {
+                    _consoleService.WriteLine("ERROR: Chocolatey not found. Please install Chocolatey first:");
+                    _consoleService.WriteLine("  Run PowerShell as Administrator and execute:");
+                    _consoleService.WriteLine("    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))");
+                    return;
+                }
+                
+                // Install MAME using Chocolatey
+                installSuccess = await _processService.RunProcessAsync("choco", "install mame -y --no-progress", redirectOutput: true, createNoWindow: true);
+                
+                if (installSuccess)
+                {
+                    _consoleService.WriteLine("MAME installed successfully via Chocolatey");
+                    
+                    // Verify installation
+                    var mamePath = _processService.GetCommandPath("mame");
+                    if (!string.IsNullOrEmpty(mamePath))
+                    {
+                        _consoleService.WriteLine($"MAME available at: {mamePath}");
+                        return;
+                    }
+                }
+                else
+                {
+                    _consoleService.WriteLine("Failed to install MAME via Chocolatey");
+                }
+            }
+            else if (_platformService.IsMacOS())
+            {
+                _consoleService.WriteLine("Installing MAME using Homebrew...");
+                
+                // Check if Homebrew is available
+                var brewPath = _processService.GetCommandPath("brew");
+                if (string.IsNullOrEmpty(brewPath))
+                {
+                    _consoleService.WriteLine("ERROR: Homebrew not found. Please install Homebrew first:");
+                    _consoleService.WriteLine("  Run: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"");
+                    return;
+                }
+                
+                // Install MAME using Homebrew
+                installSuccess = await _processService.RunProcessAsync("brew", "install mame", redirectOutput: true, createNoWindow: true);
+                
+                if (installSuccess)
+                {
+                    _consoleService.WriteLine("MAME installed successfully via Homebrew");
+                    
+                    // Verify installation
+                    var mamePath = _processService.GetCommandPath("mame");
+                    if (!string.IsNullOrEmpty(mamePath))
+                    {
+                        _consoleService.WriteLine($"MAME available at: {mamePath}");
+                        return;
+                    }
+                }
+                else
+                {
+                    _consoleService.WriteLine("Failed to install MAME via Homebrew");
+                }
+            }
+            else
+            {
+                _consoleService.WriteLine("ERROR: Unsupported operating system");
                 return;
             }
 
-            _consoleService.WriteLine($"Downloading {assetInfo.Name} from GameVM releases...");
-            var tempFile = Path.Combine(Path.GetTempPath(), assetInfo.Name);
-            var fileBytes = await _httpService.GetByteArrayAsync(assetInfo.Url);
-            await File.WriteAllBytesAsync(tempFile, fileBytes);
-
-            _consoleService.WriteLine("Extracting MAME...");
-            await ExtractMameAsync(tempFile, toolsDir);
-
-            var exe = GetMameExecutable();
-            if (!string.IsNullOrEmpty(exe))
+            // If package manager installation failed, provide guidance
+            if (!installSuccess)
             {
-                _consoleService.WriteLine($"MAME installed successfully at: {exe}");
+                _consoleService.WriteLine("Package manager installation failed. Please install MAME manually:");
+                if (_platformService.IsLinux())
+                {
+                    _consoleService.WriteLine("  sudo apt-get install mame  # For Debian-based systems");
+                }
+                else if (_platformService.IsWindows())
+                {
+                    _consoleService.WriteLine("  choco install mame  # Via Chocolatey");
+                    _consoleService.WriteLine("  Or download from: https://chocolatey.org/packages/mame");
+                }
+                else if (_platformService.IsMacOS())
+                {
+                    _consoleService.WriteLine("  brew install mame  # Via Homebrew");
+                    _consoleService.WriteLine("  Or download from: https://formulae.brew.sh/formula/mame");
+                }
+                return;
             }
         }
         catch (Exception ex)
         {
             _consoleService.WriteLine($"Error during installation: {ex.Message}");
+            _consoleService.WriteLine("Please ensure you have the necessary permissions and network access.");
         }
     }
 
@@ -182,20 +252,23 @@ public class MameInstaller : IMameInstaller
 
     public string? GetMameExecutable()
     {
-        var toolsDir = GetToolsDirectory();
         string binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "mame.exe" : "mame";
 
+        // First, check if MAME is available via package manager (preferred method)
+        if (_processService.GetCommandPath(binaryName) != null)
+        {
+            return binaryName;
+        }
+
+        // Legacy: Check local tools directory (for backward compatibility)
+        var toolsDir = GetToolsDirectory();
         if (Directory.Exists(toolsDir))
         {
             var files = Directory.GetFiles(toolsDir, binaryName, SearchOption.AllDirectories);
             if (files.Length > 0) return files[0];
         }
 
-        if (_processService.GetCommandPath(binaryName) != null)
-        {
-            return binaryName;
-        }
-
+        // Legacy: Check Flatpak (Linux fallback)
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && _processService.GetCommandPath("flatpak") != null) 
             return "flatpak";
 
@@ -212,23 +285,11 @@ public class MameInstaller : IMameInstaller
         }
 
         var fullRomPath = Path.GetFullPath(romPath);
-        string args;
-
-        if (mameExe == "flatpak")
+        string args = $"-window -bench 10 a2600 -cart \"{fullRomPath}\"";
+        
+        if (!string.IsNullOrEmpty(scriptPath))
         {
-            args = $"run {FlatpakId} -window -bench 10 a2600 -cart \"{fullRomPath}\"";
-            if (!string.IsNullOrEmpty(scriptPath))
-            {
-                args += $" -autoboot_script \"{Path.GetFullPath(scriptPath)}\"";
-            }
-        }
-        else
-        {
-            args = $"-window -bench 10 a2600 -cart \"{fullRomPath}\"";
-            if (!string.IsNullOrEmpty(scriptPath))
-            {
-                args += $" -autoboot_script \"{Path.GetFullPath(scriptPath)}\"";
-            }
+            args += $" -autoboot_script \"{Path.GetFullPath(scriptPath)}\"";
         }
 
         _consoleService.WriteLine($"Executing: {mameExe} {args}");
@@ -240,7 +301,7 @@ public class MameInstaller : IMameInstaller
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            WorkingDirectory = (mameExe == "flatpak") ? AppContext.BaseDirectory : Path.GetDirectoryName(mameExe)
+            WorkingDirectory = Path.GetDirectoryName(mameExe) ?? AppContext.BaseDirectory
         };
 
         using var process = System.Diagnostics.Process.Start(startInfo);
@@ -259,26 +320,6 @@ public class MameInstaller : IMameInstaller
         {
             _consoleService.WriteLine("ERRORS:");
             _consoleService.WriteLine(error);
-        }
-    }
-
-    private async Task ExtractMameAsync(string tempFile, string toolsDir)
-    {
-        if (tempFile.EndsWith(".exe"))
-        {
-            var extractArgs = $"-y -gm2 -o\"{toolsDir}\"";
-            var success = await _processService.RunProcessAsync(tempFile, extractArgs, redirectOutput: true, createNoWindow: true);
-            
-            if (!success)
-            {
-                _consoleService.WriteLine("Extraction failed.");
-            }
-            File.Delete(tempFile);
-        }
-        else
-        {
-            await ZipFile.ExtractToDirectoryAsync(tempFile, toolsDir, overwriteFiles: true);
-            File.Delete(tempFile);
         }
     }
 }
