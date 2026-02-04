@@ -51,19 +51,31 @@ jobs:
           
       - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
         shell: powershell
-        continue-on-error: true  # MAME failure should not block SonarQube analysis
         run: |
           # Optional: Use absolute paths for enhanced security (resolves S4036)
           # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
-          Write-Host "Attempting MAME installation (non-critical for SonarQube)..."
-          try {
-            dotnet run --project src/GameVM.DevTools -- mame install
-            Write-Host "MAME installation completed successfully"
-          } catch {
-            Write-Host "MAME installation failed (non-critical): $($_.Exception.Message)"
-            Write-Host "Continuing with SonarQube analysis..."
+          
+          # Retry MAME installation with exponential backoff to handle 403 Forbidden
+          $maxRetries = 3
+          $retryDelay = 30
+          
+          for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            Write-Host "MAME installation attempt $attempt of $maxRetries..."
+            try {
+              dotnet run --project src/GameVM.DevTools -- mame install
+              Write-Host "MAME installation completed successfully on attempt $attempt"
+              break
+            } catch {
+              Write-Host "MAME installation failed on attempt $attempt: $($_.Exception.Message)"
+              if ($attempt -eq $maxRetries) {
+                Write-Host "All MAME installation attempts failed. This will cause BDD tests to fail."
+                exit 1
+              }
+              Write-Host "Waiting $retryDelay seconds before retry..."
+              Start-Sleep -Seconds $retryDelay
+              $retryDelay = $retryDelay * 2
+            }
           }
-          # Don't check exit code - MAME failure should not stop the build
           
       - name: Build and analyze
         env:
