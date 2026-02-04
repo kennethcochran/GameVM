@@ -51,17 +51,11 @@ jobs:
           
       - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
         shell: powershell
-        continue-on-error: true  # Allow build to continue even if MAME installation fails
         run: |
           # Optional: Use absolute paths for enhanced security (resolves S4036)
           # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
-          try {
-            dotnet run --project src/GameVM.DevTools -- mame install
-            Write-Host "MAME installation completed successfully"
-          } catch {
-            Write-Host "MAME installation failed, but continuing with build: $($_.Exception.Message)"
-            Write-Host "This is not critical for SonarQube analysis"
-          }
+          dotnet run --project src/GameVM.DevTools -- mame install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
       - name: Build and analyze
         env:
@@ -69,51 +63,56 @@ jobs:
         shell: powershell
         run: |
 
+          Write-Host "=== Starting SonarQube Scanner Begin ==="
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          
-          dotnet build
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          
-          # Install .NET tools (including reportgenerator)
-          dotnet tool restore
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          
-          # Run Unit/BDD tests with coverage
-          try {
-            dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
-            Write-Host "Coverage collection completed successfully"
-          } catch {
-            Write-Host "Coverage collection failed: $($_.Exception.Message)"
-            Write-Host "Creating empty coverage file to prevent SonarQube failure"
-            # Create minimal coverage.xml to prevent SonarQube from failing
-            @'
-<?xml version="1.0" encoding="utf-8"?>
-<coverage version="6.0" timestamp="1699999999" lines-valid="0" lines-covered="0" line-rate="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0">
-  <sources>
-    <source>.</source>
-  </sources>
-  <packages>
-    <package name="root" line-rate="0" branch-rate="0" complexity="0">
-      <classes></classes>
-    </package>
-  </packages>
-</coverage>
-'@ | Out-File -FilePath "coverage.xml" -Encoding UTF8
+          Write-Host "SonarQube Scanner Begin exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Host "ERROR: SonarQube Scanner Begin failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
           }
           
-          # Verify coverage file exists
+          Write-Host "=== Starting dotnet build ==="
+          dotnet build --verbosity normal
+          Write-Host "dotnet build exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Host "ERROR: dotnet build failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
+          }
+          
+          Write-Host "=== Starting dotnet tool restore ==="
+          dotnet tool restore --verbosity normal
+          Write-Host "dotnet tool restore exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Host "ERROR: dotnet tool restore failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
+          }
+          
+          Write-Host "=== Starting coverage collection ==="
+          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" --verbosity normal
+          Write-Host "Coverage collection exit code: $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Host "ERROR: Coverage collection failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
+          }
+          
+          Write-Host "=== Verifying coverage file ==="
           if (Test-Path "coverage.xml") {
             Write-Host "Coverage file created successfully"
             Get-Item "coverage.xml" | Write-Host
           } else {
-            Write-Host "Warning: Coverage file not found"
+            Write-Host "ERROR: Coverage file not found"
+            exit 1
           }
           
+          Write-Host "=== Starting SonarQube Scanner End ==="
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+          Write-Host "SonarQube Scanner End exit code: $LASTEXITCODE"
           if ($LASTEXITCODE -ne 0) { 
-            Write-Host "SonarQube scanner completed with warnings, but continuing to quality gate check"
+            Write-Host "ERROR: SonarQube Scanner End failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
           }
+          
+          Write-Host "=== Build and analyze completed successfully ==="
           
       - name: Check SonarQube Quality Gate
         shell: powershell
