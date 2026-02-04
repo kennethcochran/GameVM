@@ -1,0 +1,25 @@
+name: 'MAME Setup Action'
+description: 'Sets up MAME emulator for GameVM BDD tests'
+author: 'kennethcochran'
+
+inputs:
+  mame-version:
+    description: 'MAME version to install'
+    required: false
+    default: 'mame0284'
+  install-path:
+    description: 'Path where MAME should be installed'
+    required: false
+    default: '/opt/mame'
+
+outputs:
+  mame-path:
+    description: 'Path to MAME executable'
+    value: ${{ steps.setup-mame.outputs.mame-path }}
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.mame-version }}
+    - ${{ inputs.install-path }}

@@ -11,35 +11,48 @@ jobs:
     name: Build and analyze
     runs-on: ubuntu-latest
     
-    # Use custom container with MAME pre-installed
-    container:
-      image: kennethcochran/gamevm-mame:latest
-      options: --platform linux/amd64
-    
-    env:
-      GAMEVM_WHICH_PATH: /opt/mame/mame
-      GAMEVM_FLATPAK_PATH: ""
-    
     steps:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'zulu' # Alternative distribution options are available.
+          distribution: 'zulu'
+          
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
+          
+      - name: Set up MAME
+        uses: ./.github/actions/mame-setup
+        with:
+          mame-version: 'mame0284'
+          install-path: '/opt/mame'
+          
+      - name: Verify MAME Installation
+        shell: bash
+        run: |
+          echo "=== Verifying MAME Installation ==="
+          echo "MAME executable path: $GAMEVM_WHICH_PATH"
+          
+          if [ -f "$GAMEVM_WHICH_PATH" ]; then
+            echo "✅ MAME is available"
+            ls -la "$GAMEVM_WHICH_PATH"
+            "$GAMEVM_WHICH_PATH" -version | head -3
+          else
+            echo "❌ MAME not found at $GAMEVM_WHICH_PATH"
+            exit 1
+          fi
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v4
         with:
-          path: ~\sonar\cache
+          path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube Cloud scanner
         id: cache-sonar-scanner
         uses: actions/cache@v4
         with:
-          path: .\.sonar\scanner
+          path: ./.sonar/scanner
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
       - name: Install SonarQube Cloud scanner
