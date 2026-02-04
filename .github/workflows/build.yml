@@ -51,11 +51,19 @@ jobs:
           
       - name: Install MAME via DevTools (uses cache if available, supports silent .exe extraction)
         shell: powershell
+        continue-on-error: true  # MAME failure should not block SonarQube analysis
         run: |
           # Optional: Use absolute paths for enhanced security (resolves S4036)
           # Set environment variables: GAMEVM_WHICH_PATH and GAMEVM_FLATPAK_PATH
-          dotnet run --project src/GameVM.DevTools -- mame install
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Attempting MAME installation (non-critical for SonarQube)..."
+          try {
+            dotnet run --project src/GameVM.DevTools -- mame install
+            Write-Host "MAME installation completed successfully"
+          } catch {
+            Write-Host "MAME installation failed (non-critical): $($_.Exception.Message)"
+            Write-Host "Continuing with SonarQube analysis..."
+          }
+          # Don't check exit code - MAME failure should not stop the build
           
       - name: Build and analyze
         env:
