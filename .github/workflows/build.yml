@@ -83,7 +83,14 @@ jobs:
         run: |
           mkdir -p ~/.sonar/scanner
           dotnet tool update dotnet-sonarscanner --tool-path ~/.sonar/scanner
-      - name: Install dotnet-coverage
+      - name: Install dotnet-coverage (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          dotnet tool install --global dotnet-coverage
+          
+      - name: Install dotnet-coverage (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           dotnet tool install --global dotnet-coverage
@@ -102,7 +109,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           
           # Run Unit/BDD tests with coverage (no Sonar on Windows)
-          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          # Use full path to dotnet-coverage to ensure it's found
+          & dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
           if ($LASTEXITCODE -ne 0) { exit 1 }
           
           # Verify coverage file exists
