@@ -57,37 +57,73 @@ namespace GameVM.Compile
                 var input = parseResult.GetValue(inputOption);
                 var output = parseResult.GetValue(outputOption);
                 
-                if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(output))
+                if (!ValidateArguments(input, output))
                 {
-                    Console.WriteLine("Error: Both --input and --output are required.");
                     return;
                 }
 
-                using (var scope = host.Services.CreateScope())
+                try
                 {
-                    var sourceCode = File.ReadAllText(input);
-                    var extension = Path.GetExtension(input);
-                    var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
-                    var result = useCase.Execute(sourceCode, extension, new CompilationOptions
+                    var sourceCode = File.ReadAllText(input!);
+                    using (var scope = host.Services.CreateScope())
                     {
-                        // Set any compilation options here
-                    });
-
-                    if (result.Success)
-                    {
-                        File.WriteAllBytes(output, result.Code);
-                        Console.WriteLine($"Successfully compiled {input} to {output}");
+                        var success = CompileFile(input!, output!, sourceCode, scope);
+                        if (success)
+                        {
+                            Console.WriteLine($"Successfully compiled {input} to {output}");
+                        }
                     }
-                    else
-                    {
-                        Console.WriteLine($"Compilation failed for {input}:");
-                        Console.WriteLine($"- {result.ErrorMessage}");
-                    }
+                }
+                catch (FileNotFoundException ex)
+                {
+                    Console.WriteLine($"Error: File not found: {ex.FileName}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error: {ex.Message}");
                 }
             });
 
             var parseResult = rootCommand.Parse(args);
             parseResult.Invoke();
+        }
+
+        /// <summary>
+        /// Validates command line arguments
+        /// </summary>
+        public static bool ValidateArguments(string? input, string? output)
+        {
+            if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(output))
+            {
+                Console.WriteLine("Error: Both --input and --output are required.");
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Compiles a file using the provided service scope
+        /// </summary>
+        public static bool CompileFile(string inputFile, string outputFile, string sourceCode, IServiceScope scope)
+        {
+            var extension = Path.GetExtension(inputFile);
+            var useCase = scope.ServiceProvider.GetRequiredService<ICompileUseCase>();
+            var result = useCase.Execute(sourceCode, extension, new CompilationOptions
+            {
+                // Set any compilation options here
+            });
+
+            if (result.Success)
+            {
+                File.WriteAllBytes(outputFile, result.Code);
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"Compilation failed for {inputFile}:");
+                Console.WriteLine($"- {result.ErrorMessage}");
+                return false;
+            }
         }
     }
 }

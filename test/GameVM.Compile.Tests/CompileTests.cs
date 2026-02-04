@@ -1,167 +1,110 @@
 using NUnit.Framework;
 using System.IO;
 using System.CommandLine;
+using Moq;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using GameVM.Compiler.Application;
+using GameVM.Compiler.Application.Services;
+using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Optimizers.MidLevel;
+using GameVM.Compiler.Optimizers.LowLevel;
+using GameVM.Compiler.Core.Interfaces;
+using GameVM.Compiler.Pascal;
+using GameVM.Compiler.Backend.Atari2600;
 
 namespace GameVM.Compile.Tests;
 
 [TestFixture]
 public class CompileTests
 {
-    private string _tempDir = null!;
-    private string _inputFile = null!;
-    private string _outputFile = null!;
+    private StringWriter _consoleOutput = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_tempDir);
-        _inputFile = Path.Combine(_tempDir, "test.pas");
-        _outputFile = Path.Combine(_tempDir, "output.bin");
+        _consoleOutput = new StringWriter();
+        Console.SetOut(_consoleOutput);
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
+        _consoleOutput?.Dispose();
+        Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
     }
 
-    // RED PHASE: One failing test at a time for Program.Main - missing input argument
+    // RED PHASE: Test for extracted validation method
+    [Test]
+    public void ValidateArguments_WithMissingInput_ShouldReturnFalse()
+    {
+        // Arrange
+        var input = "";
+        var output = "test.bin";
+
+        // Act
+        var result = GameVM.Compile.Program.ValidateArguments(input, output);
+
+        // Assert
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void ValidateArguments_WithMissingOutput_ShouldReturnFalse()
+    {
+        // Arrange
+        var input = "test.pas";
+        var output = "";
+
+        // Act
+        var result = GameVM.Compile.Program.ValidateArguments(input, output);
+
+        // Assert
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void ValidateArguments_WithBothArguments_ShouldReturnTrue()
+    {
+        // Arrange
+        var input = "test.pas";
+        var output = "test.bin";
+
+        // Act
+        var result = GameVM.Compile.Program.ValidateArguments(input, output);
+
+        // Assert
+        Assert.That(result, Is.True);
+    }
+
+    // Original integration tests (simplified)
     [Test]
     public void Main_WithMissingInputArgument_ShouldShowErrorMessage()
     {
         // Arrange - Test the validation path (lines 57-61)
-        var args = new[] { "--output", _outputFile }; // Missing --input
+        var args = new[] { "--output", "test.bin" }; // Missing --input
 
-        // Act - Call the Main method (it will handle validation internally)
-        // Note: Main method is void and uses Console.WriteLine, so we can't easily capture output
-        // But this test exercises the validation path in the Main method
-        // The inotify error is a system limitation, not a test failure
-        try
-        {
-            GameVM.Compile.Program.Main(args);
-        }
-        catch (System.IO.IOException ex) when (ex.Message.Contains("inotify"))
-        {
-            // System limitation - test still exercises the Main method path
-            Console.WriteLine("System inotify limit reached, but Main method was exercised");
-        }
-        
-        // Assert - Verify the test setup works (directory may be cleaned up by Main method)
-        Assert.That(_inputFile, Is.Not.Null);
-        Assert.That(_outputFile, Is.Not.Null);
-        // The important thing is that Main method was exercised (we saw the inotify message)
+        // Act - Call the Main method
+        GameVM.Compile.Program.Main(args);
+
+        // Assert - Should show error message for missing input
+        var output = _consoleOutput.ToString();
+        Assert.That(output, Does.Contain("Error: Both --input and --output are required."));
     }
 
-    // RED PHASE: One failing test at a time for Program.Main - missing output argument  
     [Test]
     public void Main_WithMissingOutputArgument_ShouldShowErrorMessage()
     {
         // Arrange - Test the validation path (lines 57-61)
-        var args = new[] { "--input", _inputFile }; // Missing --output
+        var args = new[] { "--input", "test.pas" }; // Missing --output
 
-        // Act - Call the Main method to exercise the validation path
-        try
-        {
-            GameVM.Compile.Program.Main(args);
-        }
-        catch (System.IO.IOException ex) when (ex.Message.Contains("inotify"))
-        {
-            // System limitation - test still exercises the Main method path
-            Console.WriteLine("System inotify limit reached, but Main method was exercised");
-        }
-        
-        // Assert - Test the validation logic
-        Assert.That(_inputFile, Is.Not.Null);
-        Assert.That(_outputFile, Is.Not.Null);
-    }
+        // Act - Call the Main method
+        GameVM.Compile.Program.Main(args);
 
-    // RED PHASE: One failing test at a time for Program.Main - successful compilation
-    [Test]
-    public void Main_WithValidArguments_ShouldCompileSuccessfully()
-    {
-        // Arrange - Test the success path (lines 73-77)
-        File.WriteAllText(_inputFile, @"
-            program Test;
-            begin
-            end.");
-        
-        var args = new[] { "--input", _inputFile, "--output", _outputFile };
-
-        // Act - Call the Main method to exercise the successful compilation path
-        try
-        {
-            GameVM.Compile.Program.Main(args);
-        }
-        catch (System.IO.IOException ex) when (ex.Message.Contains("inotify"))
-        {
-            // System limitation - test still exercises the Main method path
-            Console.WriteLine("System inotify limit reached, but Main method was exercised");
-        }
-
-        // Assert - Test the successful compilation path
-        Assert.That(File.Exists(_inputFile), Is.True);
-        Assert.That(_outputFile, Is.Not.Null);
-    }
-
-    [Test]
-    public void Main_WithValidArguments_ShouldExerciseDependencyInjectionSetup()
-    {
-        // Arrange - Test the dependency injection setup path (lines 20-35)
-        File.WriteAllText(_inputFile, @"
-            program Test;
-            begin
-            end.");
-        
-        var args = new[] { "--input", _inputFile, "--output", _outputFile };
-
-        // Act - Call the Main method to exercise the dependency injection setup
-        try
-        {
-            GameVM.Compile.Program.Main(args);
-        }
-        catch (System.IO.IOException ex) when (ex.Message.Contains("inotify"))
-        {
-            // System limitation - test still exercises the Main method path
-            Console.WriteLine("System inotify limit reached, but Main method was exercised");
-        }
-        catch (Exception ex) when (ex.Message.Contains("Compilation failed") || ex.Message.Contains("Successfully compiled"))
-        {
-            // Expected - compilation may succeed or fail, but DI setup was exercised
-        }
-
-        // Assert - Verify that the dependency injection setup was exercised
-        // The fact that Main method runs without throwing DI-related exceptions means the AddSingleton lines were covered
-        Assert.That(File.Exists(_inputFile), Is.True);
-        Assert.That(_outputFile, Is.Not.Null);
-    }
-
-    // RED PHASE: One failing test at a time for Program.Main - failed compilation
-    [Test]
-    public void Main_WithInvalidSourceCode_ShouldShowCompilationError()
-    {
-        // Arrange - Test the failure path (lines 78-82)
-        File.WriteAllText(_inputFile, "invalid pascal code here");
-        
-        var args = new[] { "--input", _inputFile, "--output", _outputFile };
-
-        // Act - Call the Main method to exercise the compilation failure path
-        try
-        {
-            GameVM.Compile.Program.Main(args);
-        }
-        catch (System.IO.IOException ex) when (ex.Message.Contains("inotify"))
-        {
-            // System limitation - test still exercises the Main method path
-            Console.WriteLine("System inotify limit reached, but Main method was exercised");
-        }
-
-        // Assert - Test the compilation failure path
-        Assert.That(File.Exists(_inputFile), Is.True);
-        Assert.That(_outputFile, Is.Not.Null);
+        // Assert - Should show error message for missing output
+        var output = _consoleOutput.ToString();
+        Assert.That(output, Does.Contain("Error: Both --input and --output are required."));
     }
 
     [Test]
