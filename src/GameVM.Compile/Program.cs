@@ -11,6 +11,7 @@ namespace GameVM.Compile
     using Compiler.Core.Interfaces;
     using Compiler.Pascal;
     using Compiler.Backend.Atari2600;
+    using Compiler.Capabilities;
     using System.CommandLine;
     using System.IO;
 
@@ -35,6 +36,9 @@ namespace GameVM.Compile
                 // Register code generator
                 services.AddSingleton<ICodeGenerator, Atari2600CodeGenerator>();
                 services.AddSingleton<ICapabilityProvider, Atari2600CodeGenerator>();
+
+                // Register capability validator
+                services.AddSingleton<ICapabilityValidatorService, CapabilityValidatorService>();
 
                 // Register the main use case
                 services.AddSingleton<ICompileUseCase, CompileUseCase>();
