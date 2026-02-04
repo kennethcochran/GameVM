@@ -12,7 +12,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
@@ -53,7 +53,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: windows/amd64
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           
@@ -65,7 +65,7 @@ jobs:
           output-file: sbom.spdx.json
           
       - name: Upload SBOM
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.spdx.json

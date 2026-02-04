@@ -1,52 +1,61 @@
-# Use Windows Server 2022 base image (matches GitHub Actions runner)
-FROM mcr.microsoft.com/dotnet/sdk:8.0-windowsserver-2022
+# Use Ubuntu base image (more reliable than Windows for GitHub Actions)
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install .NET SDK
+RUN wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y dotnet-sdk-8.0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR C:/build
+WORKDIR /build
 
 # Install MAME once during container build
 # This avoids IP bans during CI runs
-RUN powershell -Command "
-    Write-Host 'Installing MAME in container...';
-    
+RUN echo "Installing MAME in container..." && \
     # Create MAME directory
-    New-Item -ItemType Directory -Force -Path 'C:/mame';
-    
+    mkdir -p /opt/mame && \
     # Download MAME (container IP won't be banned)
-    $mameUrl = 'https://github.com/mamedev/mame/releases/download/mame0284/mame0284_win64.exe';
-    Write-Host \"Downloading MAME from: $mameUrl\";
-    
-    Invoke-WebRequest -Uri $mameUrl -OutFile 'mame-installer.exe' -TimeoutSec 300;
-    
-    # Extract MAME silently
-    Write-Host 'Extracting MAME...';
-    Start-Process 'mame-installer.exe' -ArgumentList '-y -gm2 -oC:\mame' -Wait;
-    
-    # Clean up installer
-    Remove-Item 'mame-installer.exe';
-    
+    MAME_URL="https://github.com/mamedev/mame/releases/download/mame0284/mame0284_linux_x64.tar.gz" && \
+    echo "Downloading MAME from: $MAME_URL" && \
+    wget --timeout=300 --tries=3 "$MAME_URL" -O mame.tar.gz && \
+    # Extract MAME
+    echo "Extracting MAME..." && \
+    tar -xzf mame.tar.gz -C /opt/mame --strip-components=1 && \
+    # Clean up
+    rm mame.tar.gz && \
+    # Make executable
+    chmod +x /opt/mame/mame && \
     # Verify installation
-    if (Test-Path 'C:\mame\mame.exe') {
-        Write-Host 'MAME installed successfully';
-        Get-Item 'C:\mame\mame.exe' | Write-Host;
-    } else {
-        Write-Host 'ERROR: MAME installation failed';
-        exit 1;
-    }
-"
+    if [ -f "/opt/mame/mame" ]; then \
+        echo "MAME installed successfully"; \
+        /opt/mame/mame -version; \
+    else \
+        echo "ERROR: MAME installation failed"; \
+        exit 1; \
+    fi
 
 # Add MAME to PATH
-ENV PATH="C:\mame;${PATH}"
+ENV PATH="/opt/mame:${PATH}"
+ENV GAMEVM_WHICH_PATH="/opt/mame/mame"
+ENV GAMEVM_FLATPAK_PATH=""
 
 # Set working directory for builds
-WORKDIR C:/workspace
+WORKDIR /workspace
 
 # Verify MAME is available
-RUN powershell -Command "
-    Write-Host 'Verifying MAME installation...';
-    mame -version;
-    Write-Host 'MAME is ready for use';
-"
+RUN echo "Verifying MAME installation..." && \
+    /opt/mame/mame -version && \
+    echo "MAME is ready for use"
 
 # Default command
-CMD ["powershell"]
+CMD ["/bin/bash"]

@@ -9,15 +9,15 @@ on:
 jobs:
   build:
     name: Build and analyze
-    runs-on: windows-2022
+    runs-on: ubuntu-latest
     
     # Use custom container with MAME pre-installed
     container:
       image: kennethcochran/gamevm-mame:latest
-      options: --platform windows/amd64
+      options: --platform linux/amd64
     
     env:
-      GAMEVM_WHICH_PATH: C:\mame\mame.exe
+      GAMEVM_WHICH_PATH: /opt/mame/mame
       GAMEVM_FLATPAK_PATH: ""
     
     steps:
@@ -44,127 +44,144 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar-scanner
       - name: Install SonarQube Cloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        shell: powershell
+        shell: bash
         run: |
-          New-Item -Path .\.sonar\scanner -ItemType Directory
-          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+          mkdir -p ./.sonar/scanner
+          dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
       - name: Install dotnet-coverage
-        shell: powershell
+        shell: bash
         run: |
           dotnet tool install --global dotnet-coverage
-          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
       - name: Verify MAME Installation in Container
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "=== Verifying MAME in Container ==="
-          Write-Host "MAME executable path: $env:GAMEVM_WHICH_PATH"
+          echo "=== Verifying MAME in Container ==="
+          echo "MAME executable path: $GAMEVM_WHICH_PATH"
           
-          if (Test-Path $env:GAMEVM_WHICH_PATH) {
-            Write-Host "✅ MAME is available in container"
-            Get-Item $env:GAMEVM_WHICH_PATH | Write-Host
+          if [ -f "$GAMEVM_WHICH_PATH" ]; then
+            echo "✅ MAME is available in container"
+            ls -la "$GAMEVM_WHICH_PATH"
             
             # Test MAME version
-            try {
-              $version = & $env:GAMEVM_WHICH_PATH -version
-              Write-Host "MAME version: $version"
-            } catch {
-              Write-Host "Warning: Could not get MAME version: $($_.Exception.Message)"
-            }
-          } else {
-            Write-Host "❌ MAME not found in container at $env:GAMEVM_WHICH_PATH"
-            Write-Host "Available executables in C:\mame:"
-            if (Test-Path "C:\mame") {
-              Get-ChildItem "C:\mame\*.exe" | Write-Host
-            }
+            if "$GAMEVM_WHICH_PATH" -version; then
+              echo "MAME version check successful"
+            else
+              echo "Warning: Could not get MAME version"
+            fi
+          else
+            echo "❌ MAME not found in container at $GAMEVM_WHICH_PATH"
+            echo "Available executables in /opt/mame:"
+            if [ -d "/opt/mame" ]; then
+              ls -la /opt/mame/
+            fi
             exit 1
-          }
+          fi
           
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: powershell
+        shell: bash
         run: |
 
-          Write-Host "=== Starting SonarQube Scanner Begin ==="
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token=$env:SONAR_TOKEN /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
-          Write-Host "SonarQube Scanner Begin exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Host "ERROR: SonarQube Scanner Begin failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-          Write-Host "=== Starting dotnet build ==="
-          dotnet build --verbosity normal
-          Write-Host "dotnet build exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Host "ERROR: dotnet build failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-          Write-Host "=== Starting dotnet tool restore ==="
-          dotnet tool restore --verbosity normal
-          Write-Host "dotnet tool restore exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Host "ERROR: dotnet tool restore failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-          Write-Host "=== Starting coverage collection ==="
-          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" --verbosity normal
-          Write-Host "Coverage collection exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Host "ERROR: Coverage collection failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-          Write-Host "=== Verifying coverage file ==="
-          if (Test-Path "coverage.xml") {
-            Write-Host "Coverage file created successfully"
-            Get-Item "coverage.xml" | Write-Host
-          } else {
-            Write-Host "ERROR: Coverage file not found"
+          echo "=== Starting SonarQube Scanner Begin ==="
+          ./.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
+          echo "SonarQube Scanner Begin exit code: $?"
+          if [ $? -ne 0 ]; then 
+            echo "ERROR: SonarQube Scanner Begin failed with exit code $?"
             exit 1
-          }
+          fi
           
-          Write-Host "=== Starting SonarQube Scanner End ==="
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
-          Write-Host "SonarQube Scanner End exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Host "ERROR: SonarQube Scanner End failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
+          echo "=== Starting dotnet build ==="
+          dotnet build --verbosity normal
+          echo "dotnet build exit code: $?"
+          if [ $? -ne 0 ]; then 
+            echo "ERROR: dotnet build failed with exit code $?"
+            exit 1
+          fi
           
-          Write-Host "=== Build and analyze completed successfully ==="
+          echo "=== Starting dotnet tool restore ==="
+          dotnet tool restore --verbosity normal
+          echo "dotnet tool restore exit code: $?"
+          if [ $? -ne 0 ]; then 
+            echo "ERROR: dotnet tool restore failed with exit code $?"
+            exit 1
+          fi
+          
+          echo "=== Starting coverage collection ==="
+          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" --verbosity normal
+          echo "Coverage collection exit code: $?"
+          if [ $? -ne 0 ]; then 
+            echo "ERROR: Coverage collection failed with exit code $?"
+            exit 1
+          fi
+          
+          echo "=== Verifying coverage file ==="
+          if [ -f "coverage.xml" ]; then
+            echo "Coverage file created successfully"
+            ls -la "coverage.xml"
+          else
+            echo "ERROR: Coverage file not found"
+            exit 1
+          fi
+          
+          echo "=== Starting SonarQube Scanner End ==="
+          ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+          echo "SonarQube Scanner End exit code: $?"
+          if [ $? -ne 0 ]; then 
+            echo "ERROR: SonarQube Scanner End failed with exit code $?"
+            exit 1
+          fi
+          
+          echo "=== Build and analyze completed successfully ==="
           
       - name: Check SonarQube Quality Gate
-        shell: powershell
+        shell: bash
         run: |
-          $headers = @{
-            "Authorization" = "Bearer $env:SONAR_TOKEN"
-          }
+          echo "=== Checking SonarQube Quality Gate ==="
           
           # Wait for SonarQube processing
-          Start-Sleep -Seconds 30
+          echo "Waiting 30 seconds for SonarQube processing..."
+          sleep 30
           
           # Get the latest analysis for the project
-          $projectKey = "kennethcochran_GameVM"
-          $url = "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
+          PROJECT_KEY="kennethcochran_GameVM"
+          URL="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$PROJECT_KEY"
           
-          try {
-            $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-            Write-Host "Quality Gate Status: $($response.projectStatus.status)"
+          # Set up headers
+          AUTH_HEADER="Authorization: Bearer $SONAR_TOKEN"
+          
+          echo "Checking quality gate at: $URL"
+          
+          if response=$(curl -s -f -H "$AUTH_HEADER" "$URL"); then
+            echo "Quality Gate response received"
             
-            if ($response.projectStatus.status -eq "ERROR") {
-              Write-Host "Quality Gate failed!"
-              Write-Host "Failed conditions:"
-              $response.projectStatus.conditions | Where-Object { $_.status -eq "ERROR" } | ForEach-Object {
-                Write-Host "- $($_.metricKey): Expected $($_.errorThreshold), got $($_.actualValue)"
-              }
-              exit 1
-            } else {
-              Write-Host "Quality Gate passed!"
-            }
-          } catch {
-            Write-Host "Error checking quality gate: $($_.Exception.Message)"
+            # Extract status using jq (if available) or grep
+            if command -v jq &> /dev/null; then
+              STATUS=$(echo "$response" | jq -r '.projectStatus.status')
+              echo "Quality Gate Status: $STATUS"
+              
+              if [ "$STATUS" = "ERROR" ]; then
+                echo "Quality Gate failed!"
+                echo "Failed conditions:"
+                echo "$response" | jq -r '.projectStatus.conditions[] | select(.status == "ERROR") | "- \(.metricKey): Expected \(.errorThreshold), got \(.actualValue)"'
+                exit 1
+              else
+                echo "Quality Gate passed!"
+              fi
+            else
+              echo "jq not available, showing raw response:"
+              echo "$response"
+              
+              # Simple grep for status
+              if echo "$response" | grep -q '"status":"ERROR"'; then
+                echo "Quality Gate failed!"
+                exit 1
+              else
+                echo "Quality Gate passed!"
+              fi
+            fi
+          else
+            echo "Error checking quality gate: HTTP request failed"
             exit 1
-          }
+          fi
