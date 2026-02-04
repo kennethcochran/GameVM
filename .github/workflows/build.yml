@@ -91,11 +91,8 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: bash
+        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
         run: |
-          ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
-          if [ $? -ne 0 ]; then exit 1; fi
-          
           dotnet build
           if [ $? -ne 0 ]; then exit 1; fi
           
@@ -103,7 +100,12 @@ jobs:
           dotnet tool restore
           if [ $? -ne 0 ]; then exit 1; fi
           
-          # Run Unit/BDD tests with coverage
+          # Run Unit/BDD tests with coverage (only for Sonar on Ubuntu)
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
+            if [ $? -ne 0 ]; then exit 1; fi
+          fi
+          
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
           if [ $? -ne 0 ]; then exit 1; fi
           
@@ -115,10 +117,13 @@ jobs:
             echo "Warning: Coverage file not found"
           fi
           
-          ~/.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
-          if [ $? -ne 0 ]; then exit 1; fi
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            ~/.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+            if [ $? -ne 0 ]; then exit 1; fi
+          fi
           
       - name: Check SonarQube Quality Gate
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           headers="Authorization: Bearer $SONAR_TOKEN"
