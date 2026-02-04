@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     tar \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up arguments
@@ -17,9 +18,21 @@ ARG INSTALL_PATH=/opt/mame
 # Create installation directory
 RUN mkdir -p ${INSTALL_PATH}
 
-# Download and install MAME
+# Download and install MAME using the same API as original code
 RUN echo "Installing MAME ${MAME_VERSION}..." && \
-    MAME_URL="https://github.com/mamedev/mame/releases/download/${MAME_VERSION}/${MAME_VERSION}_linux_x64.tar.gz" && \
+    # Get latest release info from GitHub API (same as original)
+    LATEST_RELEASE_URL="https://api.github.com/repos/mamedev/mame/releases/latest" && \
+    echo "Fetching release info from: ${LATEST_RELEASE_URL}" && \
+    RELEASE_JSON=$(wget -qO- "${LATEST_RELEASE_URL}") && \
+    echo "Finding Linux asset..." && \
+    # Find Linux asset (add Linux support to original logic)
+    MAME_URL=$(echo "${RELEASE_JSON}" | jq -r '.assets[] | select(.name | contains("linux_x64") and endswith(".tar.gz")) | .browser_download_url' | head -1) && \
+    if [ -z "${MAME_URL}" ] || [ "${MAME_URL}" = "null" ]; then \
+        echo "ERROR: No Linux MAME asset found in release"; \
+        echo "Available assets:"; \
+        echo "${RELEASE_JSON}" | jq -r '.assets[].name'; \
+        exit 1; \
+    fi && \
     echo "Downloading from: ${MAME_URL}" && \
     wget --timeout=300 --tries=3 "${MAME_URL}" -O /tmp/mame.tar.gz && \
     echo "Extracting MAME..." && \
