@@ -437,3 +437,37 @@ dev_warnings.txt
 
 # Generated Reqnroll/SpecFlow files
 *.feature.cs
+
+# MAME emulator binaries and packages (DO NOT COMMIT - use GitHub Releases)
+mame*.exe
+mame*.tar.gz
+mame*.zip
+*MAME*.exe
+*MAME*.tar.gz
+*MAME*.zip
+mame0*
+MAME0*
+
+# Other emulator binaries (prevent accidental commits)
+*.emu
+*.sim
+*.rom
+*.bin
+*.nes
+*.smc
+*.gb
+*.gbc
+*.vec
+
+# Large binary files that should be in GitHub Releases, not git
+*.dmg
+*.iso
+*.img
+*.pkg
+*.deb
+*.rpm
+
+# Downloaded packages and installers
+*.msi
+*.installer
+*.setup
