@@ -1,0 +1,127 @@
+{
+  "controlledVocabulary": {
+    "projectTerms": {
+      "GameVM": {
+        "preferred": "GameVM",
+        "variants": ["Game VM", "gamevm", "GAMEVM"],
+        "definition": "The Game Virtual Machine project - a multi-language, multi-target compiler and runtime system.",
+        "category": "project"
+      },
+      "HLIR": {
+        "preferred": "HLIR",
+        "variants": ["High-Level Intermediate Representation", "high-level IR", "HL IR"],
+        "definition": "High-Level Intermediate Representation - language-specific but target-agnostic IR.",
+        "category": "compiler"
+      },
+      "LLIR": {
+        "preferred": "LLIR", 
+        "variants": ["Low-Level Intermediate Representation", "low-level IR", "LL IR"],
+        "definition": "Low-Level Intermediate Representation - target-specific but still abstract IR.",
+        "category": "compiler"
+      },
+      "MLIR": {
+        "preferred": "MLIR",
+        "variants": ["Multi-Level Intermediate Representation", "multi-level IR"],
+        "definition": "Multi-Level Intermediate Representation - LLVM's intermediate representation.",
+        "category": "compiler"
+      }
+    },
+    "technicalTerms": {
+      "frontend": {
+        "preferred": "frontend",
+        "variants": ["front-end", "front end"],
+        "definition": "The part of the compiler that handles parsing and semantic analysis.",
+        "category": "compiler"
+      },
+      "backend": {
+        "preferred": "backend", 
+        "variants": ["back-end", "back end"],
+        "definition": "The part of the compiler that generates target-specific code.",
+        "category": "compiler"
+      },
+      "AST": {
+        "preferred": "AST",
+        "variants": ["Abstract Syntax Tree", "abstract syntax tree"],
+        "definition": "Abstract Syntax Tree - tree representation of code structure.",
+        "category": "compiler"
+      },
+      "runtime": {
+        "preferred": "runtime",
+        "variants": ["run-time", "run time"],
+        "definition": "The execution environment for compiled programs.",
+        "category": "runtime"
+      }
+    },
+    "platformTerms": {
+      "Atari 2600": {
+        "preferred": "Atari 2600",
+        "variants": ["Atari VCS", "Atari Video Computer System", "2600"],
+        "definition": "Atari 2600 Video Computer System - 1977 game console.",
+        "category": "platform"
+      },
+      "NES": {
+        "preferred": "NES",
+        "variants": ["Nintendo Entertainment System", "Nintendo"],
+        "definition": "Nintendo Entertainment System - 1983 game console.",
+        "category": "platform"
+      },
+      "SNES": {
+        "preferred": "SNES", 
+        "variants": ["Super Nintendo Entertainment System", "Super Nintendo", "Super NES"],
+        "definition": "Super Nintendo Entertainment System - 1990 game console.",
+        "category": "platform"
+      }
+    },
+    "developmentTerms": {
+      "API": {
+        "preferred": "API",
+        "variants": ["Application Programming Interface", "application programming interface"],
+        "definition": "Application Programming Interface - set of protocols for building software.",
+        "category": "development"
+      },
+      "SDK": {
+        "preferred": "SDK",
+        "variants": ["Software Development Kit", "software development kit"],
+        "definition": "Software Development Kit - tools for developing applications.",
+        "category": "development"
+      },
+      "CLI": {
+        "preferred": "CLI",
+        "variants": ["Command Line Interface", "command-line interface", "command line"],
+        "definition": "Command Line Interface - text-based interface for programs.",
+        "category": "development"
+      }
+    },
+    "documentTerms": {
+      "README": {
+        "preferred": "README",
+        "variants": ["readme", "README.md", "Readme"],
+        "definition": "README file - documentation file explaining a project or directory.",
+        "category": "documentation"
+      },
+      "markdown": {
+        "preferred": "Markdown",
+        "variants": ["markdown", "MD", "md"],
+        "definition": "Markdown - lightweight markup language for formatting text.",
+        "category": "documentation"
+      }
+    }
+  },
+  "rules": {
+    "capitalization": {
+      "acronyms": ["GameVM", "HLIR", "LLIR", "MLIR", "AST", "API", "SDK", "CLI", "NES", "SNES"],
+      "properNouns": ["Atari", "Nintendo", "Sega", "Sony", "NEC"]
+    },
+    "consistency": {
+      "avoidVariants": true,
+      "preferAcronyms": true,
+      "caseSensitive": true
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2026-02-11",
+    "description": "Controlled vocabulary for GameVM documentation consistency",
+    "categories": ["project", "compiler", "runtime", "platform", "development", "documentation"]
+  }
+}
