@@ -7,24 +7,39 @@ Design: see `docs/compiler/DataOrientedPipeline.md`
 Purpose
 -------
 A concrete, sequenced, testable plan to build the data-oriented (DOD) compilation pipeline via
-**branch by abstraction**, as specified in the design doc. The plan is organized into phases;
-each phase is a self-contained, reviewable PR that keeps the repository building, keeps every
-existing test green, and leaves the **legacy pipeline as the default** until the very end.
+**branch by abstraction**, as specified in the design doc. The plan is organized into phases,
+but the phases are **logical increments, not a PR-per-phase requirement**. The existing pipeline
+stages are fairly simple, so reaching feature parity is expected to be quick; several phases can
+be implemented and delivered together in a single PR (or a small number of PRs) at the author's
+discretion. What matters is the order of work and the invariants below, not the PR granularity.
+Throughout, the repository must keep building, every existing test must stay green, and the
+**legacy pipeline remains the default** until parity is proven.
 
-Guiding rules for every phase
------------------------------
+Guiding rules (apply throughout, regardless of PR grouping)
+----------------------------------------------------------
 - **Never edit the working pipeline in place.** New DOD code is added alongside the legacy code.
   The legacy classes (`PascalFrontend`, `HlirToMlirTransformer`, `DefaultMidLevelOptimizer`,
   `MidToLowLevelTransformer`, `DefaultLowLevelOptimizer`, `Atari2600CodeGenerator`) are not
   modified except for additive DI registration.
 - **Legacy stays the default.** `CompilationOptions.DataOriented` defaults to `false`. A DOD run
   only happens when explicitly selected.
-- **Green build + green tests on every PR.** Existing tests must remain untouched and passing;
-  new code ships with its own tests.
+- **Green build + green tests at every commit/PR boundary.** Existing tests must remain untouched
+  and passing; new code ships with its own tests.
 - **Respect the quality gates.** The repo enforces CRAP-score/coverage gates via Husky.NET and
   SonarCloud; new code must meet them.
 - **Parity is the acceptance criterion.** DOD stages are accepted when their output matches the
   legacy output (or is a documented, intended improvement) under differential tests.
+
+Suggested PR grouping
+---------------------
+Given how small the stages are, a reasonable split is just a few PRs rather than sixteen:
+1. **Foundation** — P0 build fix (or its own tiny PR) + P1 infra + P2 blob models + P3 interfaces.
+2. **DOD pipeline** — P4 harness + P5..P11 stages + P12 serialization + P13 composition, landed
+   together (they share the differential harness and are quick to reach parity).
+3. **Cutover** — P14 end-to-end parity/benchmarks/CI + P15 flip default, then P16 legacy removal
+   (P16 may be its own PR so the diff is easy to review).
+This is a suggestion; collapse or split further as convenient as long as each PR builds and is
+green.
 
 Prerequisite (P0): unblock the build
 ------------------------------------
@@ -62,10 +77,11 @@ P14 End-to-end parity + benchmarks + CI
 P15 Flip default to DOD
 P16 Remove legacy pipeline
 ```
-Dependencies: P1 -> P2 -> P3 gate everything. Stage phases P5..P11 each depend on the adjacent
-blob model and the relevant interface, and can otherwise proceed in the listed order (a natural
-producer/consumer order). P13 requires all of P5..P11. P14 requires P13. P15 requires P14 green
-over the corpus. P16 requires P15 to have shipped and soaked.
+Dependencies (independent of how phases are grouped into PRs): P1 -> P2 -> P3 gate everything.
+Stage phases P5..P11 each depend on the adjacent blob model and the relevant interface, and can
+otherwise proceed in the listed order (a natural producer/consumer order). P13 requires all of
+P5..P11. P14 requires P13. P15 requires P14 green over the corpus. P16 requires P15 to have
+shipped and soaked.
 
 --------------------------------------------------------------------------------
 Phase 1 — Shared Blob infrastructure
