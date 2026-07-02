@@ -17,11 +17,20 @@ whole `HLIR -> MLIR -> LLIR -> target` flow.
 **Delivery method: branch by abstraction.** We do not mutate the existing pipeline in place.
 Instead we build a *parallel* DOD pipeline alongside the current one — a new visitor that turns
 the ANTLR parse tree into a DOD AST, and a new implementation of every subsequent pipeline stage
-that consumes/produces DOD data. Both pipelines coexist behind the existing stage interfaces
-(`ILanguageFrontend`, `IIRTransformer<,>`, `IMidLevelOptimizer`, `ILowLevelOptimizer`,
-`ICodeGenerator`) and are selectable at composition/runtime. The original pipeline is retained
-(and remains the default) until the new one demonstrably reaches feature parity; only then is
-the legacy path retired. See "Migration strategy" below.
+that consumes/produces DOD data.
+
+Crucially, the DOD pipeline is expected to look quite different from the original, so we will
+**introduce new interfaces** rather than assume the DOD stages fit the existing ones. Where a
+legacy interface still fits the DOD data model, a DOD stage may implement it directly; but where
+the shapes diverge (e.g. transformers that operate on blob types and id-based operands instead
+of object trees and `string`s), we define new DOD-specific abstractions (e.g.
+`IDodIRTransformer<TIn, TOut>`, `IDodFrontend`, `IDodOptimizer<T>`, `IDodCodeGenerator`). The
+branch-by-abstraction seam therefore lives at the **pipeline/orchestration level** (a selectable
+DOD vs. legacy pipeline, e.g. behind `ICompileUseCase`) as well as at individual stages, so the
+two pipelines can differ structurally without one constraining the other. Both are selectable at
+composition/runtime. The original pipeline is retained (and remains the default) until the new
+one demonstrably reaches feature parity; only then is the legacy path retired. See "Migration
+strategy" below.
 
 This supersedes the earlier HLIR-only proposal (`HLIR_DataOriented.md`): the scope is now the
 full pipeline rather than a single IR level.
@@ -98,9 +107,10 @@ Goals
    analyses, optimization, and lowering.
 2. Preserve language- and target-agnostic semantics: each IR must still represent the same
    modules, types, globals, functions, statements/instructions consumed by the next stage.
-3. Provide a smooth migration path via branch by abstraction: a parallel DOD pipeline built
-   behind the existing stage interfaces, kept side by side with the legacy pipeline until it
-   reaches feature parity, so the working compiler is never broken.
+3. Provide a smooth migration path via branch by abstraction: a parallel DOD pipeline (with new
+   DOD-specific interfaces where the shapes diverge from the legacy ones), kept side by side
+   with the legacy pipeline until it reaches feature parity, so the working compiler is never
+   broken.
 4. Replace `string`-typed operands/types with interned ids to remove per-access parsing and
    allocation.
 5. Enable deterministic layout and compact serialization of any IR for cross-process tooling
@@ -124,9 +134,11 @@ Design principles
 - **Uniform blob shape across levels:** HLIR, MLIR, and LLIR share the same container idioms
   (module table + SoA instruction/node stores + string pool + version header) so tooling,
   serialization, and tests are reusable.
-- **Branch by abstraction:** new DOD stages are added as parallel implementations behind the
-  existing stage interfaces, never as in-place edits to the working pipeline. Old and new run
-  side by side and are compared for parity before the old path is removed.
+- **Branch by abstraction:** new DOD stages are added as a parallel pipeline, never as in-place
+  edits to the working one. The selection seam sits at the pipeline/orchestration level and, where
+  practical, at individual stages. New DOD-specific interfaces are introduced wherever the DOD
+  shape diverges from a legacy interface. Old and new run side by side and are compared for parity
+  before the old path is removed.
 
 Shared infrastructure (`GameVM.Compiler.Core/IR/Blob`)
 ------------------------------------------------------
@@ -167,8 +179,9 @@ parallel we add new components:
   parse tree is read but never stored.
 - A **new AST->HLIR builder** (e.g. `DodHlirBuilder`) that consumes the `AstBlob` and emits an
   `HLIRBlob`, reserving capacities up front and interning every string once.
-- A **new frontend** implementation of `ILanguageFrontend` (e.g. `PascalDodFrontend`) that wires
-  these together, so the composition root can select the legacy `PascalFrontend` or the DOD one.
+- A **new frontend** (e.g. `PascalDodFrontend`, implementing `IDodFrontend` — or `ILanguageFrontend`
+  if that shape still fits) that wires these together, so the composition root can select the
+  legacy `PascalFrontend` or the DOD one.
 
 The existing `PascalFrontend`/`AstVisitor`/`PascalAstToHlirTransformer` remain the default until
 the DOD frontend reaches parity.
@@ -197,8 +210,9 @@ Top-level container:
 
 3. HLIR -> MLIR lowering
 ------------------------
-A **new** `IIRTransformer<HLIRBlob, MLIRBlob>` (e.g. `DodHlirToMlirTransformer`) is added
-alongside `HlirToMlirTransformer`, which is left untouched:
+A **new** DOD transformer (e.g. `DodHlirToMlirTransformer`, implementing
+`IDodIRTransformer<HLIRBlob, MLIRBlob>` — a new interface if `IIRTransformer<,>` doesn't fit the
+blob shape) is added alongside `HlirToMlirTransformer`, which is left untouched:
 
 - Replace runtime-type `switch(node)` with a tight loop over `NodeKinds` (dense switch on a
   byte enum; branch-predictor friendly).
@@ -221,8 +235,9 @@ alongside `HlirToMlirTransformer`, which is left untouched:
 
 5. Mid-level optimization
 -------------------------
-A **new** `IMidLevelOptimizer` (e.g. `DodMidLevelOptimizer`) operates over the MLIR SoA store,
-added beside `DefaultMidLevelOptimizer`:
+A **new** DOD optimizer (e.g. `DodMidLevelOptimizer`, implementing `IDodOptimizer<MLIRBlob>` or
+`IMidLevelOptimizer` if it fits) operates over the MLIR SoA store, added beside
+`DefaultMidLevelOptimizer`:
 
 - Constant folding works on the value/operand table (ids + a small constant pool), not on
   parsing `"(5 + 3)"` substrings.
@@ -232,8 +247,9 @@ added beside `DefaultMidLevelOptimizer`:
 
 6. MLIR -> LLIR lowering
 ------------------------
-A **new** `IIRTransformer<MLIRBlob, LLIRBlob>` (e.g. `DodMidToLowLevelTransformer`) consumes
-`MLIRBlob` and emits `LLIRBlob`, added beside `MidToLowLevelTransformer`:
+A **new** DOD transformer (e.g. `DodMidToLowLevelTransformer`, implementing
+`IDodIRTransformer<MLIRBlob, LLIRBlob>`) consumes `MLIRBlob` and emits `LLIRBlob`, added beside
+`MidToLowLevelTransformer`:
 
 - Address map keyed by `SymbolId`/`StringId` instead of `Dictionary<string,string>`.
 - Emits into the LLIR SoA store; keeps the flattened top-level instruction range for current
@@ -250,15 +266,16 @@ A **new** `IIRTransformer<MLIRBlob, LLIRBlob>` (e.g. `DodMidToLowLevelTransforme
 
 8. Low-level optimization
 -------------------------
-A **new** `ILowLevelOptimizer` (e.g. `DodLowLevelOptimizer`), added beside
-`DefaultLowLevelOptimizer`, scans the LLIR `Opcodes`/operand arrays directly (e.g. redundant
-load/store detection compares operand ids in adjacent slots), emitting a filtered instruction
-range.
+A **new** DOD optimizer (e.g. `DodLowLevelOptimizer`, implementing `IDodOptimizer<LLIRBlob>` or
+`ILowLevelOptimizer` if it fits), added beside `DefaultLowLevelOptimizer`, scans the LLIR
+`Opcodes`/operand arrays directly (e.g. redundant load/store detection compares operand ids in
+adjacent slots), emitting a filtered instruction range.
 
 9. Code generation
 ------------------
-A **new** `ICodeGenerator` (e.g. `DodAtari2600CodeGenerator`) iterates the LLIR SoA store by
-`InstrRange`, added beside `Atari2600CodeGenerator`. Assembly emission can move from building
+A **new** DOD code generator (e.g. `DodAtari2600CodeGenerator`, implementing `IDodCodeGenerator`
+or `ICodeGenerator` if it fits) iterates the LLIR SoA store by `InstrRange`, added beside
+`Atari2600CodeGenerator`. Assembly emission can move from building
 `List<string>` toward an opcode/operand table consumed by `M6502Emitter`, reducing
 per-instruction string formatting until the final assembly text is needed. ROM layout logic is
 unchanged. The MOS 6502 mnemonics/tables are target data, not generated code, so they remain in
@@ -277,26 +294,31 @@ until the DOD pipeline reaches feature parity end to end.
 
 1. Land shared `Blob` infrastructure (ids, ranges, string pool, SoA store, arena) with tests.
 2. Add the DOD data model for each IR level (`HLIRBlob`, `MLIRBlob`, `LLIRBlob`).
-3. Implement a **new, parallel** component for each stage, each satisfying the same abstraction
-   as its legacy counterpart:
-   - `PascalDodFrontend : ILanguageFrontend` (new sibling visitor + AST->HLIR builder),
-   - `DodHlirToMlirTransformer : IIRTransformer<HLIRBlob, MLIRBlob>`,
-   - `DodMidLevelOptimizer : IMidLevelOptimizer`,
-   - `DodMidToLowLevelTransformer : IIRTransformer<MLIRBlob, LLIRBlob>`,
-   - `DodLowLevelOptimizer : ILowLevelOptimizer`,
-   - `DodAtari2600CodeGenerator : ICodeGenerator`.
-4. Select legacy vs. DOD at the composition root (DI registration) / via an option such as
-   `CompilationOptions.DataOriented`. The two pipelines never interleave: a compilation runs
+3. Define the DOD stage abstractions. Reuse a legacy interface only where the DOD data model
+   genuinely fits it; otherwise introduce a new DOD-specific interface (the expected common
+   case, since the DOD stages operate on blobs and id-based operands). Candidate abstractions:
+   - `IDodFrontend` — parse-tree -> `HLIRBlob` (may or may not resemble `ILanguageFrontend`),
+   - `IDodIRTransformer<TIn, TOut>` — e.g. `HLIRBlob -> MLIRBlob`, `MLIRBlob -> LLIRBlob`,
+   - `IDodOptimizer<T>` — e.g. over `MLIRBlob` / `LLIRBlob`,
+   - `IDodCodeGenerator` — `LLIRBlob -> byte[]`.
+   These live beside (not replacing) `ILanguageFrontend`, `IIRTransformer<,>`,
+   `IMidLevelOptimizer`, `ILowLevelOptimizer`, `ICodeGenerator`.
+4. Implement a **new, parallel** component for each stage against those abstractions:
+   `PascalDodFrontend`, `DodHlirToMlirTransformer`, `DodMidLevelOptimizer`,
+   `DodMidToLowLevelTransformer`, `DodLowLevelOptimizer`, `DodAtari2600CodeGenerator`.
+5. Compose them into a **DOD pipeline** selectable against the legacy one at the orchestration
+   level (e.g. an alternate `ICompileUseCase` wiring, chosen via DI / an option such as
+   `CompilationOptions.DataOriented`). The two pipelines never interleave: a compilation runs
    entirely on one path or the other. (Optional narrow adapters between a legacy IR and a blob
    may be used only as temporary scaffolding for differential testing, not as a permanent
    coupling.)
-5. Drive the DOD pipeline to parity: run both paths over the same inputs and compare outputs
+6. Drive the DOD pipeline to parity: run both paths over the same inputs and compare outputs
    (see "Tooling, testing, benchmarks") until the DOD path matches the legacy path (or is a
    documented, intended improvement) across the test corpus.
-6. Flip the default to the DOD pipeline once parity holds; keep the legacy path available behind
+7. Flip the default to the DOD pipeline once parity holds; keep the legacy path available behind
    the flag for one release as a fallback.
-7. Only after the DOD path has proven itself, remove the legacy object-model pipeline and its
-   IR types.
+8. Only after the DOD path has proven itself, remove the legacy object-model pipeline, its IR
+   types, and any legacy-only interfaces that no longer have implementers.
 
 Because each stage is independently swappable behind its interface, stages can be built and
 validated in any convenient order; a natural progression is frontend -> HLIR/MLIR ->
@@ -337,15 +359,18 @@ Roadmap & checklist (initial)
 - [ ] Implement shared `Blob` infrastructure (ids, `Range32`, `StringPool`, `TypeTable`,
       SoA instruction store, `Arena`, `VersionInfo`) + tests
 - [ ] HLIR/MLIR/LLIR blob data models
+- [ ] Define DOD stage interfaces where shapes diverge (`IDodFrontend`,
+      `IDodIRTransformer<TIn, TOut>`, `IDodOptimizer<T>`, `IDodCodeGenerator`)
 - [ ] New frontend: `PascalDodAstVisitor` (sibling `PascalBaseVisitor` descendant) +
-      `DodHlirBuilder` + `PascalDodFrontend : ILanguageFrontend`
-- [ ] New `DodHlirToMlirTransformer : IIRTransformer<HLIRBlob, MLIRBlob>`
-- [ ] New `DodMidLevelOptimizer : IMidLevelOptimizer`
-- [ ] New `DodMidToLowLevelTransformer : IIRTransformer<MLIRBlob, LLIRBlob>`
-- [ ] New `DodLowLevelOptimizer : ILowLevelOptimizer`
-- [ ] New `DodAtari2600CodeGenerator : ICodeGenerator` (+ DOD-friendly `M6502Emitter` path)
+      `DodHlirBuilder` + `PascalDodFrontend`
+- [ ] New `DodHlirToMlirTransformer` (`HLIRBlob -> MLIRBlob`)
+- [ ] New `DodMidLevelOptimizer` (over `MLIRBlob`)
+- [ ] New `DodMidToLowLevelTransformer` (`MLIRBlob -> LLIRBlob`)
+- [ ] New `DodLowLevelOptimizer` (over `LLIRBlob`)
+- [ ] New `DodAtari2600CodeGenerator` (+ DOD-friendly `M6502Emitter` path)
 - [ ] DOD capability validation over the HLIR table
-- [ ] Composition-root selection (`CompilationOptions.DataOriented`) for legacy vs DOD
+- [ ] DOD pipeline composition + selection (`CompilationOptions.DataOriented`) at the
+      orchestration level (legacy vs DOD)
 - [ ] Differential/parity tests (per-stage and end-to-end) + golden serialization tests
 - [ ] Microbenchmarks + CI job
 - [ ] Flip default to DOD once parity holds; keep legacy behind the flag for one release
@@ -358,6 +383,8 @@ Initial file & code layout suggestions
   SymbolTable.cs, InstructionStore.cs, Arena.cs, VersionInfo.cs)
 - src/GameVM.Compiler.Core/IR/Blob/HLIRBlob.cs, MLIRBlob.cs, LLIRBlob.cs
 - src/GameVM.Compiler.Pascal/ (PascalDodAstVisitor.cs, DodHlirBuilder.cs, PascalDodFrontend.cs)
+- src/GameVM.Compiler.Core/IR/Interfaces/ (IDodFrontend.cs, IDodIRTransformer.cs, IDodOptimizer.cs,
+  IDodCodeGenerator.cs — the DOD stage abstractions)
 - src/GameVM.Compiler.Core/IR/Transformers/DodHlirToMlirTransformer.cs (and MLIR->LLIR, optimizer,
   codegen DOD equivalents in their existing projects)
 - src/GameVM.Compiler.Core/IR/Serialization/ (BlobWriter.cs, BlobReader.cs)
