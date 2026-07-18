@@ -35,9 +35,9 @@ namespace GameVM.Compiler.Core.DOD
             // Read metadata from current position
             var metadata = _slab[_current];
 
-            // Validate instruction block size
+            // Validate instruction block size (block may end exactly at slab boundary)
             var size = MetadataDecoder.DecodeSize(metadata);
-            if (_current + size >= _slab.Length)
+            if (_current + size > _slab.Length)
                 throw new InvalidOperationException($"Block at {_current} of size {size} exceeds slab length");
 
             // Create instruction instance based on decoded metadata
@@ -95,6 +95,4 @@ namespace GameVM.Compiler.Core.DOD
         public bool IsTerminator { get; set; }
         public bool HasDiagnostic { get; set; }
     }
-
-    // Unit tests would go here in practice
 }
