@@ -6,14 +6,14 @@
 - [ ] 1.4 Create metadata encoding/decoding helper functions with bit manipulation utilities
 - [ ] 1.5 Implement parallel CFG arrays (blockOffsets, cfgEdges, edgeStart, edgeCount)
 - [ ] 1.6 Implement CFG construction pass to identify leaders and assign Block IDs
-- [ ] 1.7 Define local slot index system for cross-block dependencies (defer SSA to future work)
-- [ ] 1.8 Implement Diagnostic Journal for error handling separate from instruction slab
+- [x] 1.7 Define local slot index system for cross-block dependencies (defer SSA to future work)
+- [x] 1.8 Implement Diagnostic Journal for error handling separate from instruction slab
 - [ ] 1.9 Implement SlabPrinter utility to translate uint[] arrays to pseudo-assembly text (prerequisite before optimization passes)
 - [ ] 1.10 Enforce strict value-type isolation in all DOD structures (InstructionSlab, CFGTable, SymbolTable) using only structs and primitive arrays
-- [ ] 1.11 Implement hashed SymbolTable using FNV-1a algorithm with parallel uint[] arrays (SymbolHashes, SlabOffsets)
+- [x] 1.11 Implement hashed SymbolTable using FNV-1a algorithm with parallel uint[] arrays (SymbolHashes, SlabOffsets)
 - [x] 1.12 Implement standardized slab header prefix (6 indices: magic, major version, minor version, IR stage, element count, symbol table offset)
-- [ ] 1.13 Implement Type-Length-Value (TLV) structure for auxiliary data sections
-- [ ] 1.14 Implement SlabRelocator utility class for centralized offset patching
+- [x] 1.13 Implement Type-Length-Value (TLV) structure for auxiliary data sections
+- [x] 1.14 Implement SlabRelocator utility class for centralized offset patching
 
 ## 2. CSharp Frontend Migration
 
