@@ -1,7 +1,8 @@
 using System;
 using GameVM.Compiler.Core.Utilities;
 
-namespace GameVM.Compiler.Core.DOD
+using GameVM.Compiler.Core.IR.Slab;
+namespace GameVM.Compiler.Core.IR.SlabProcessing
 {
     /// <summary>
     /// Slab compaction utility that rewrites instruction slabs into compacted form.

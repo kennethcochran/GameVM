@@ -3,7 +3,8 @@ using System.IO;
 using System.Text;
 using GameVM.Compiler.Core.Utilities;
 
-namespace GameVM.Compiler.Core.DOD;
+using GameVM.Compiler.Core.IR.Slab;
+namespace GameVM.Compiler.Core.IR.SlabProcessing;
 
 /// <summary>
 /// Translates a raw <c>uint[]</c> instruction slab into a readable pseudo-assembly text

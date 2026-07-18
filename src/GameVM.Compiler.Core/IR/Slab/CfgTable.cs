@@ -1,10 +1,10 @@
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Slab
 {
     /// <summary>
     /// Control Flow Graph stored as parallel, cache-friendly primitive arrays.
     /// Block IDs are stable references for branch targets (not raw slab offsets).
     /// </summary>
-    public sealed class CfgTable
+    public struct CfgTable
     {
         /// <summary>Maps BlockID -&gt; first slab offset of that block's instruction.</summary>
         private readonly int[] _blockOffsets;

@@ -1,6 +1,6 @@
 using System;
 
-namespace GameVM.Compiler.Core.DOD;
+namespace GameVM.Compiler.Core.IR.Slab;
 
 /// <summary>
 /// Helper class for encoding and decoding 32-bit instruction metadata.
@@ -12,7 +12,7 @@ namespace GameVM.Compiler.Core.DOD;
 /// - Bit 21: Diagnostic Present Flag (cold-path debug info available)
 /// - Bits 22-31: Reserved for future flags
 /// </summary>
-public static class InstructionMetadata
+public struct InstructionMetadata
 {
     public const byte KindMask = 0xFF;              // Bits 0-7
     public const ushort SizeMask = 0x3F00;         // Bits 8-13

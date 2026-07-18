@@ -1,6 +1,6 @@
 using System;
 
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Buffers
 {
     /// <summary>
     /// Hashed symbol table using the FNV-1a algorithm. String identifiers are reduced to

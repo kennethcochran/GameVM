@@ -1,6 +1,6 @@
 using System;
 
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Slab
 {
     /// <summary>
     /// Type-Length-Value (TLV) chunk for auxiliary slab data sections. Each chunk is

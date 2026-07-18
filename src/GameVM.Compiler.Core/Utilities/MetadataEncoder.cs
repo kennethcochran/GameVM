@@ -1,4 +1,4 @@
-using GameVM.Compiler.Core.DOD;
+using GameVM.Compiler.Core.IR.Slab;
 
 namespace GameVM.Compiler.Core.Utilities;
 

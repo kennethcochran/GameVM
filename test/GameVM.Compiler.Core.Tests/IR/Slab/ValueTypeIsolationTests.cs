@@ -1,10 +1,12 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using GameVM.Compiler.Core.DOD;
+using GameVM.Compiler.Core.IR.Slab;
 using NUnit.Framework;
 
-namespace GameVM.Compiler.Core.Tests.DOD;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Buffers;
+namespace GameVM.Compiler.Core.Tests.IR.Slab;
 
 /// <summary>
 /// Runtime enforcement of the strict value-type isolation requirement (task 1.10):
@@ -13,21 +15,22 @@ namespace GameVM.Compiler.Core.Tests.DOD;
 /// </summary>
 public class ValueTypeIsolationTests
 {
-    // IR data structures governed by the isolation rule. Managers/utilities that own
-    // arena/chunk arrays (ArenaAllocator, SlabIterator, CfgConstructionPass,
-    // SlabCompactionUtility, SlabRelocator, HashedSymbolTable) are intentionally excluded:
-    // they are controllers over arrays, not the IR payload the rule targets.
+    // IR data structures governed by the isolation rule: the fixed-layout slab value types
+    // (GameVM.Compiler.Core.IR.Slab) and the growable parallel-array buffers
+    // (GameVM.Compiler.Core.IR.Buffers). Slab-processing managers/iterators
+    // (GameVM.Compiler.Core.IR.SlabProcessing) are intentionally excluded: they are
+    // controllers over arrays, not the IR payload the rule targets.
     private static readonly Type[] IrDataTypes =
     {
         typeof(CfgTable),
         typeof(SlabHeader),
         typeof(LocalSlotIndex),
+        typeof(TlvEntry),
+        typeof(InstructionMetadataFlags),
         typeof(DiagnosticJournal),
         typeof(DiagnosticEntry),
-        typeof(TlvEntry),
-        typeof(Instruction),
-        typeof(InstructionFlags),
-        typeof(InstructionMetadataFlags),
+        typeof(HashedSymbolTable),
+        typeof(SlabRelocator),
     };
 
     [Test]

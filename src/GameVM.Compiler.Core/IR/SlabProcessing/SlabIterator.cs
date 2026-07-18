@@ -1,13 +1,13 @@
 using System;
 using GameVM.Compiler.Core.Utilities;
 
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.SlabProcessing
 {
     /// <summary>
     /// Slab iterator for reading self-describing instruction blocks sequentially.
     /// Maintains current position in the uint[] slab and provides access to each instruction block.
     /// </summary>
-    public class SlabIterator
+    public sealed class SlabIterator
     {
         private readonly uint[] _slab;
         private int _current = 6;  // Start after standardized 6-index header

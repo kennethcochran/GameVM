@@ -1,6 +1,7 @@
 using System;
 
-namespace GameVM.Compiler.Core.DOD
+using GameVM.Compiler.Core.IR.Slab;
+namespace GameVM.Compiler.Core.IR.Buffers
 {
     /// <summary>
     /// Centralized offset-patching utility. Structural optimization passes and branch

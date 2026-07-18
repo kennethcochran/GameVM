@@ -1,0 +1,13 @@
+root = true
+
+[*]
+indent_style = space
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.cs]
+# --- GameVM DOD value-type enforcement (analyzer GVM001) ---
+# Comma-separated list of namespaces. Any class whose declared namespace starts with one of
+# these prefixes is reported as GVM001 (must be a struct). Adjust as DOD IR namespaces evolve.
+gamevm_enforce_value_types_in = GameVM.Compiler.Core.IR.Slab

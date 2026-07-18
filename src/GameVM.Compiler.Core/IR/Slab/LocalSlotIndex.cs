@@ -1,4 +1,4 @@
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Slab
 {
     /// <summary>
     /// Symbolic reference to a local slot (abstract stack / local-variable array position)

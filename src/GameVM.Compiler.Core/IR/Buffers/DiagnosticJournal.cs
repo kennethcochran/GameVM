@@ -1,4 +1,4 @@
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Buffers
 {
     /// <summary>
     /// Lightweight diagnostic journal kept separate from the executable instruction slab.

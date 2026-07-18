@@ -1,7 +1,8 @@
-using GameVM.Compiler.Core.DOD;
+using GameVM.Compiler.Core.IR.Slab;
 using NUnit.Framework;
 
-namespace GameVM.Compiler.Core.Tests.DOD;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+namespace GameVM.Compiler.Core.Tests.IR.Slab;
 
 public class ArenaAllocatorTests
 {

@@ -9,7 +9,7 @@
 - [x] 1.7 Define local slot index system for cross-block dependencies (defer SSA to future work)
 - [x] 1.8 Implement Diagnostic Journal for error handling separate from instruction slab
 - [x] 1.9 Implement SlabPrinter utility to translate uint[] arrays to pseudo-assembly text (prerequisite before optimization passes)
-- [ ] 1.10 Enforce strict value-type isolation in all DOD structures (InstructionSlab, CFGTable, SymbolTable) using only structs and primitive arrays
+- [x] 1.10 Enforce strict value-type isolation via GVM001 analyzer (.editorconfig gamevm_enforce_value_types_in = GameVM.Compiler.Core.IR.Slab) plus runtime ValueTypeIsolationTests; DOD types relocated to domain namespaces (IR.Slab / IR.Buffers / IR.SlabProcessing)
 - [x] 1.11 Implement hashed SymbolTable using FNV-1a algorithm with parallel uint[] arrays (SymbolHashes, SlabOffsets)
 - [x] 1.12 Implement standardized slab header prefix (6 indices: magic, major version, minor version, IR stage, element count, symbol table offset)
 - [x] 1.13 Implement Type-Length-Value (TLV) structure for auxiliary data sections

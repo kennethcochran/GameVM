@@ -1,6 +1,6 @@
 using System;
 
-namespace GameVM.Compiler.Core.DOD
+namespace GameVM.Compiler.Core.IR.Slab
 {
     /// <summary>
     /// Standardized 6-index slab header prefix. Owns the global metadata and versioning
@@ -20,7 +20,7 @@ namespace GameVM.Compiler.Core.DOD
         public const uint CurrentMinorVersion = 0;
 
         /// <summary>Index of each header field within the slab prefix.</summary>
-        public static class HeaderIndex
+        public struct HeaderIndex
         {
             public const int MagicIndex = 0;
             public const int MajorIndex = 1;

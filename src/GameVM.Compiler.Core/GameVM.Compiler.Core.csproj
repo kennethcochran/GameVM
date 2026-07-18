@@ -15,4 +15,12 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Local DOD value-type enforcement analyzer. Loaded as a build-time analyzer only;
+         must NOT become a runtime dependency of the compiler core. -->
+    <ProjectReference Include="..\GameVM.Analyzers\GameVM.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

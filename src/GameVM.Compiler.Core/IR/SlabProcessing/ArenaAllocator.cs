@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace GameVM.Compiler.Core.DOD;
+namespace GameVM.Compiler.Core.IR.SlabProcessing;
 
 /// <summary>
 /// Arena allocator for contiguous memory slab allocation.

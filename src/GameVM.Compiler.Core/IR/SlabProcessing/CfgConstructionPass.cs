@@ -1,6 +1,7 @@
 using GameVM.Compiler.Core.Utilities;
 
-namespace GameVM.Compiler.Core.DOD
+using GameVM.Compiler.Core.IR.Slab;
+namespace GameVM.Compiler.Core.IR.SlabProcessing
 {
     /// <summary>
     /// Builds a <see cref="CfgTable"/> from a linear instruction slab by identifying
