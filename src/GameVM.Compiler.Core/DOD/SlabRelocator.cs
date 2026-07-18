@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace GameVM.Compiler.Core.DOD
 {
@@ -12,8 +11,23 @@ namespace GameVM.Compiler.Core.DOD
     /// </summary>
     public sealed class SlabRelocator
     {
-        // Old offset -> new offset.
-        private readonly Dictionary<int, int> _remap = new Dictionary<int, int>();
+        // Remap stored as parallel int[] arrays (old -> new) for value-type isolation.
+        // No Dictionary/List: only primitive arrays are retained.
+        private int[] _oldOffsets;
+        private int[] _newOffsets;
+        private int _count;
+        private int _capacity;
+
+        /// <summary>Creates a relocator with the given initial relocation capacity.</summary>
+        public SlabRelocator(int initialCapacity = 16)
+        {
+            if (initialCapacity < 1)
+                initialCapacity = 1;
+            _capacity = initialCapacity;
+            _oldOffsets = new int[initialCapacity];
+            _newOffsets = new int[initialCapacity];
+            _count = 0;
+        }
 
         /// <summary>Registers that content previously at <paramref name="oldOffset"/> now lives at <paramref name="newOffset"/>.</summary>
         public void AddReloc(int oldOffset, int newOffset)
@@ -22,11 +36,24 @@ namespace GameVM.Compiler.Core.DOD
                 throw new ArgumentOutOfRangeException(nameof(oldOffset));
             if (newOffset < 0)
                 throw new ArgumentOutOfRangeException(nameof(newOffset));
-            _remap[oldOffset] = newOffset;
+
+            int existing = FindIndex(oldOffset);
+            if (existing >= 0)
+            {
+                _newOffsets[existing] = newOffset;
+                return;
+            }
+
+            if (_count == _capacity)
+                Grow();
+
+            _oldOffsets[_count] = oldOffset;
+            _newOffsets[_count] = newOffset;
+            _count++;
         }
 
         /// <summary>Returns true if a relocation exists for the given old offset.</summary>
-        public bool HasReloc(int oldOffset) => _remap.ContainsKey(oldOffset);
+        public bool HasReloc(int oldOffset) => FindIndex(oldOffset) >= 0;
 
         /// <summary>
         /// Resolves an old offset to its new location. Returns the original offset unchanged
@@ -34,7 +61,8 @@ namespace GameVM.Compiler.Core.DOD
         /// </summary>
         public int Relocate(int oldOffset)
         {
-            return _remap.TryGetValue(oldOffset, out int newOffset) ? newOffset : oldOffset;
+            int index = FindIndex(oldOffset);
+            return index >= 0 ? _newOffsets[index] : oldOffset;
         }
 
         /// <summary>
@@ -75,6 +103,29 @@ namespace GameVM.Compiler.Core.DOD
         }
 
         /// <summary>Number of registered relocations.</summary>
-        public int RelocCount => _remap.Count;
+        public int RelocCount => _count;
+
+        // Linear scan for the entry index (relocation sets are typically small).
+        private int FindIndex(int oldOffset)
+        {
+            for (int i = 0; i < _count; i++)
+            {
+                if (_oldOffsets[i] == oldOffset)
+                    return i;
+            }
+            return -1;
+        }
+
+        private void Grow()
+        {
+            int newCapacity = _capacity * 2;
+            int[] oo = new int[newCapacity];
+            int[] no = new int[newCapacity];
+            Array.Copy(_oldOffsets, oo, _count);
+            Array.Copy(_newOffsets, no, _count);
+            _oldOffsets = oo;
+            _newOffsets = no;
+            _capacity = newCapacity;
+        }
     }
 }

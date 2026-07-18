@@ -262,4 +262,27 @@ public class SlabRelocatorTests
 
         Assert.That(slab[7], Is.EqualTo(40u));
     }
+
+    [Test]
+    public void AddReloc_BeyondCapacity_GrowsAndKeepsAll()
+    {
+        // Default capacity 16; register 20 relocations to force growth.
+        var reloc = new SlabRelocator();
+        for (int i = 0; i < 20; i++)
+            reloc.AddReloc(i, i + 100);
+
+        Assert.That(reloc.RelocCount, Is.EqualTo(20));
+        for (int i = 0; i < 20; i++)
+            Assert.That(reloc.Relocate(i), Is.EqualTo(i + 100));
+    }
+
+    [Test]
+    public void AddReloc_DuplicateOldOffset_UpdatesNewOffset()
+    {
+        var reloc = new SlabRelocator();
+        reloc.AddReloc(10, 40);
+        reloc.AddReloc(10, 99);
+        Assert.That(reloc.RelocCount, Is.EqualTo(1));
+        Assert.That(reloc.Relocate(10), Is.EqualTo(99));
+    }
 }
