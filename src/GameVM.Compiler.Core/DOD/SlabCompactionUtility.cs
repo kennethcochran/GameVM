@@ -25,22 +25,11 @@ namespace GameVM.Compiler.Core.DOD
             _targetSlab = targetSlab ?? throw new ArgumentNullException(nameof(targetSlab));
 
             // Skip the 6-index header
-            _sourceIndex = 6;
-            _targetIndex = 6;
+            _sourceIndex = SlabHeader.HeaderIndex.Length;
+            _targetIndex = SlabHeader.HeaderIndex.Length;
 
-            // Copy header to target
-            CopyHeader();
-        }
-
-        /// <summary>
-        /// Copies the 6-index header to the target slab.
-        /// </summary>
-        private void CopyHeader()
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                _targetSlab[i] = _sourceSlab[i];
-            }
+            // Copy validated header to target
+            SlabHeader.Read(_sourceSlab).WriteTo(_targetSlab);
         }
 
         /// <summary>
@@ -89,8 +78,16 @@ namespace GameVM.Compiler.Core.DOD
         /// </summary>
         public void FinalizeHeader()
         {
-            // Update element count in header (index 4)
-            _targetSlab[4] = (uint)(_targetIndex - 6); // Exclude header indices
+            // Rebuild header with the final element count (excludes the 6 header indices)
+            var header = SlabHeader.Read(_targetSlab);
+            var updated = new SlabHeader(
+                header.MagicNumber,
+                header.Major,
+                header.Minor,
+                header.IrStage,
+                (uint)(_targetIndex - SlabHeader.HeaderIndex.Length),
+                header.SymbolTableOffset);
+            updated.WriteTo(_targetSlab);
         }
     }
 }
