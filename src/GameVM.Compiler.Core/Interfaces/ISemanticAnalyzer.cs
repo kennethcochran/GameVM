@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Core.Interfaces
@@ -24,7 +26,7 @@ namespace GameVM.Compiler.Core.Interfaces
         public List<string> Errors { get; set; } = new();
         public List<string> Warnings { get; set; } = new();
 
-        public static SemanticAnalysisResult Success() => new() { Success = true };
+        public static SemanticAnalysisResult CreateSuccess() => new() { Success = true };
         public static SemanticAnalysisResult Failure(params string[] errors) => new() { Success = false, Errors = errors.ToList() };
     }
 
