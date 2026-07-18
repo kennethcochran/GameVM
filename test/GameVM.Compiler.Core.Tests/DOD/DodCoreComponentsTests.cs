@@ -100,6 +100,37 @@ public class DiagnosticJournalTests
         Assert.That(journal.Count, Is.EqualTo(0));
         Assert.That(journal.Has(12), Is.False);
     }
+
+    [Test]
+    public void Record_BeyondCapacity_GrowsAndKeepsAll()
+    {
+        // Default capacity 16; record 20 distinct offsets to force growth.
+        var journal = new DiagnosticJournal();
+        for (uint i = 0; i < 20; i++)
+            journal.Record(100 + i, i, i + 1, i);
+
+        Assert.That(journal.Count, Is.EqualTo(20));
+        for (uint i = 0; i < 20; i++)
+        {
+            Assert.That(journal.TryGet(100 + i, out var entry), Is.True);
+            Assert.That(entry.DiagnosticCode, Is.EqualTo(i));
+        }
+    }
+
+    [Test]
+    public void Record_AfterSwapRemove_RetainsCorrectEntry()
+    {
+        var journal = new DiagnosticJournal();
+        journal.Record(1, 0, 0, 10);
+        journal.Record(2, 0, 0, 20);
+        journal.Record(3, 0, 0, 30);
+        journal.Remove(2); // swap-remove middle entry
+
+        Assert.That(journal.Count, Is.EqualTo(2));
+        Assert.That(journal.TryGet(1, out var e1), Is.True); Assert.That(e1.DiagnosticCode, Is.EqualTo(10u));
+        Assert.That(journal.TryGet(3, out var e3), Is.True); Assert.That(e3.DiagnosticCode, Is.EqualTo(30u));
+        Assert.That(journal.Has(2), Is.False);
+    }
 }
 
 public class HashedSymbolTableTests
