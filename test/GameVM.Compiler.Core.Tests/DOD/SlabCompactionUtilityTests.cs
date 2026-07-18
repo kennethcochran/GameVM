@@ -201,4 +201,22 @@ public class SlabCompactionUtilityTests
         Assert.That(util.CompactedElementCount, Is.EqualTo(6));
         Assert.That(target[4], Is.EqualTo(0u));
     }
+
+    [Test]
+    public void ProcessNext_TargetSlabTooSmall_ThrowsInvalidOperationException()
+    {
+        // 2 single-uint blocks need 8 slots (header 6 + 2); target only has 7
+        var source = BuildSlab(
+            MetadataEncoder.Encode(1, 1, 0),
+            MetadataEncoder.Encode(2, 1, 0));
+        var target = new uint[7];
+
+        var util = new SlabCompactionUtility(source, target);
+        // First block fits (writes header slot + 1); second overflows the 7-slot target
+        Assert.Throws<System.InvalidOperationException>(() =>
+        {
+            util.ProcessNext(KeepAll);
+            util.ProcessNext(KeepAll);
+        });
+    }
 }

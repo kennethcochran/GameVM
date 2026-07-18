@@ -55,13 +55,17 @@ namespace GameVM.Compiler.Core.DOD
 
             var metadata = _sourceSlab[_sourceIndex];
             var size = (int)MetadataDecoder.DecodeSize(metadata);
-            var isNop = MetadataDecoder.IsNop(metadata);
 
-            // Determine if we should keep this instruction
-            bool keep = keepCallback?.Invoke(metadata) ?? !isNop;
+            // Determine if we should keep this instruction; default drops NOP tombstones
+            bool keep = keepCallback?.Invoke(metadata) ?? !MetadataDecoder.IsNop(metadata);
 
             if (keep && size > 0)
             {
+                // Guard: target slab must have room for this block (header already occupies 6)
+                if (_targetIndex + size > _targetSlab.Length)
+                    throw new InvalidOperationException(
+                        $"Target slab too small: need {_targetIndex + size}, have {_targetSlab.Length}");
+
                 // Copy instruction block to target
                 for (int i = 0; i < size; i++)
                 {
