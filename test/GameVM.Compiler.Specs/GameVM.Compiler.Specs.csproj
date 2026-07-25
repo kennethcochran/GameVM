@@ -9,6 +9,7 @@
     <IsTestProject>true</IsTestProject>
     
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ReqnrollDeleteObsoleteCodeBehindFilesOnClean>true</ReqnrollDeleteObsoleteCodeBehindFilesOnClean>
   </PropertyGroup>
 
   <ItemGroup>
