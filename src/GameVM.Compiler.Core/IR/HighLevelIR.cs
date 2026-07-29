@@ -269,10 +269,37 @@ namespace GameVM.Compiler.Core.IR
             public void SetThenBlock(List<IRNode> block) => _thenBlock = block;
             public void SetElseBlock(List<IRNode>? block) => _elseBlock = block;
 
-            public Block GetThenBlockAsBlock() => new Block(SourceFile, _thenBlock.Cast<Statement>().ToList());
-            public Block? GetElseBlockAsBlock() => _elseBlock == null ? null : new Block(SourceFile, _elseBlock.Cast<Statement>().ToList());
-            public void SetThenBlockFromBlock(Block block) => _thenBlock = block.Statements.Cast<IRNode>().ToList();
-            public void SetElseBlockFromBlock(Block? block) => _elseBlock = block?.Statements.Cast<IRNode>().ToList();
+            public Block GetThenBlockAsBlock()
+            {
+                var stmts = new List<Statement>(_thenBlock.Count);
+                foreach (var node in _thenBlock) stmts.Add((Statement)node);
+                return new Block(SourceFile, stmts);
+            }
+
+            public Block? GetElseBlockAsBlock()
+            {
+                if (_elseBlock == null) return null;
+                var stmts = new List<Statement>(_elseBlock.Count);
+                foreach (var node in _elseBlock) stmts.Add((Statement)node);
+                return new Block(SourceFile, stmts);
+            }
+
+            public void SetThenBlockFromBlock(Block block)
+            {
+                _thenBlock = new List<IRNode>(block.Statements.Count);
+                foreach (var stmt in block.Statements) _thenBlock.Add(stmt);
+            }
+
+            public void SetElseBlockFromBlock(Block? block)
+            {
+                if (block == null)
+                {
+                    _elseBlock = null;
+                    return;
+                }
+                _elseBlock = new List<IRNode>(block.Statements.Count);
+                foreach (var stmt in block.Statements) _elseBlock.Add(stmt);
+            }
 
             public IfStatement() : base(UnknownSourceFile) { }
             public IfStatement(Expression condition, List<IRNode> thenBlock, List<IRNode>? elseBlock = null)

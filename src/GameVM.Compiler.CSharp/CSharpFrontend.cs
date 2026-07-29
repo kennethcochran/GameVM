@@ -3,12 +3,13 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.IR.SlabProcessing;
-using GameVM.Compiler.Pascal.ANTLR;
-using GameVM.Compiler.Pascal.Transformers;
+using GameVM.Compiler.CSharp.ANTLR;
+using GameVM.Compiler.CSharp.Transformers;
+using System.Collections.Generic;
 
-namespace GameVM.Compiler.Pascal
+namespace GameVM.Compiler.CSharp
 {
-    public class PascalFrontend : ILanguageFrontend
+    public class CSharpFrontend : ILanguageFrontend
     {
         private readonly HlirToMlirTransformer _hlirToMlir = new HlirToMlirTransformer();
 
@@ -17,9 +18,9 @@ namespace GameVM.Compiler.Pascal
             try
             {
                 var inputStream = new AntlrInputStream(sourceCode);
-                var lexer = new PascalLexer(inputStream);
+                var lexer = new CSharpLexer(inputStream);
                 var commonTokenStream = new CommonTokenStream(lexer);
-                var parser = new PascalParser(commonTokenStream);
+                var parser = new CSharpParser(commonTokenStream);
                 
                 var context = parser.program();
 
@@ -32,20 +33,20 @@ namespace GameVM.Compiler.Pascal
                 }
 
                 // Use our DOD visitor to convert parse tree directly to AST slab
-                var visitor = new PascalToSlabVisitor(new ArenaAllocator());
+                var visitor = new CSharpToSlabVisitor(new ArenaAllocator());
                 visitor.Visit(context);
                 
                 // Get the AST slab
                 uint[] astSlab = visitor.GetSlab();
                 
-                // Transform AST slab to HLIR
-                var astToHlirTransformer = new PascalAstToHlirTransformer("<source>");
+                // Transform AST slab to HLIR using our new transformer
+                var astToHlirTransformer = new CSharpAstToHlirTransformer("<source>");
                 return astToHlirTransformer.Transform(astSlab);
             }
             catch (Exception ex)
             {
                 var hlir = new HighLevelIR { SourceFile = "<source>" };
-                hlir.Errors.Add($"Failed to parse Pascal code: {ex.Message}");
+                hlir.Errors.Add($"Failed to parse C# code: {ex.Message}");
                 return hlir;
             }
         }

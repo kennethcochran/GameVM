@@ -8,7 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Antlr4 Include="ANTLR\CSharp.g4">
+      <Package>GameVM.Compiler.CSharp.ANTLR</Package>
+      <AntOutDir>.\ANTLR</AntOutDir>
+    </Antlr4>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+    <PackageReference Include="Antlr4BuildTasks" Version="12.14.0" />
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.18.0.131500">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

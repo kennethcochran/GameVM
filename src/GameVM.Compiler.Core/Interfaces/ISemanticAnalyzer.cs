@@ -27,7 +27,7 @@ namespace GameVM.Compiler.Core.Interfaces
         public List<string> Warnings { get; set; } = new();
 
         public static SemanticAnalysisResult CreateSuccess() => new() { Success = true };
-        public static SemanticAnalysisResult Failure(params string[] errors) => new() { Success = false, Errors = errors.ToList() };
+        public static SemanticAnalysisResult Failure(params string[] errors) => new() { Success = false, Errors = new List<string>(errors) };
     }
 
     /// <summary>

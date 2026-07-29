@@ -2,6 +2,11 @@ using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
+using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
+using GameVM.Compiler.Core.Utilities;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
@@ -9,6 +14,7 @@ namespace GameVM.Compiler.Backend.Atari2600
     {
         private readonly Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
         private int _nextAvailableAddress = 0x80;
+        private readonly ArenaAllocator _arena;
 
         private void InitializeAddressMap()
         {
@@ -20,6 +26,16 @@ namespace GameVM.Compiler.Backend.Atari2600
             _addressMap["COLUPF"] = "$08";
             _addressMap["COLUP0"] = "$06";
             _addressMap["COLUP1"] = "$07";
+        }
+
+        public MidToLowLevelTransformer(ArenaAllocator arena)
+        {
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+        }
+
+        public MidToLowLevelTransformer()
+        {
+            _arena = new ArenaAllocator();
         }
 
         public LowLevelIR Transform(MidLevelIR mlir)
@@ -50,6 +66,71 @@ namespace GameVM.Compiler.Backend.Atari2600
                 }
             }
             
+            return llir;
+        }
+
+        /// <summary>
+        /// DOD interface: Transforms MLIR slab (uint[]) to LLIR object hierarchy.
+        /// Uses linear iteration with switch-based dispatch on decoded metadata.
+        /// </summary>
+        public LowLevelIR TransformSlab(uint[] mlirSlab)
+        {
+            if (mlirSlab == null || mlirSlab.Length < SlabHeader.HeaderIndex.Length)
+            {
+                throw new ArgumentException("Invalid MLIR slab: too small or null", nameof(mlirSlab));
+            }
+
+            var header = SlabHeader.Read(mlirSlab);
+            if (!header.HasValidMagic())
+            {
+                throw new ArgumentException("Invalid MLIR slab: invalid magic number");
+            }
+
+            if (header.IrStage != 2) // Stage 2 = MLIR
+            {
+                throw new ArgumentException($"Expected MLIR slab (stage 2), got stage {header.IrStage}");
+            }
+
+            InitializeAddressMap();
+            _arena.Reset();
+
+            var llir = new LowLevelIR { SourceFile = "slab" };
+            llir.Modules.Clear();
+
+            int offset = SlabHeader.HeaderIndex.Length;
+            int functionCount = 0;
+
+            // Write new header with placeholder function count
+            var newHeaderOffset = _arena.Allocate(SlabHeader.HeaderIndex.Length);
+            var headerData = SlabHeader.ForStage(2, 0);
+            var headerBytes = new uint[SlabHeader.HeaderIndex.Length];
+            headerData.WriteTo(headerBytes);
+            _arena.Write(newHeaderOffset, headerBytes);
+
+            // Process each function in the MLIR slab
+            while (offset < mlirSlab.Length)
+            {
+                var metadata = mlirSlab[offset];
+                var size = InstructionMetadata.DecodeSize(metadata);
+                var kind = InstructionMetadata.DecodeKind(metadata);
+
+                if (size == 0 || offset + size > mlirSlab.Length)
+                    break;
+
+                if (kind == InstructionMetadataFlags.METHOD_DECLARATION)
+                {
+                    ProcessFunctionFromSlab(mlirSlab, offset, size, llir, ref functionCount);
+                }
+
+                offset += size;
+            }
+
+            // Update header with actual function count
+            var finalHeader = SlabHeader.ForStage(2, (uint)functionCount, 0);
+            var finalHeaderData = new uint[SlabHeader.HeaderIndex.Length];
+            finalHeader.WriteTo(finalHeaderData);
+            _arena.Write(newHeaderOffset, finalHeaderData);
+
             return llir;
         }
 
@@ -126,6 +207,133 @@ namespace GameVM.Compiler.Backend.Atari2600
             _addressMap[target] = newAddr;
             _nextAvailableAddress++;
             return newAddr;
+        }
+
+        private void ProcessFunctionFromSlab(uint[] mlirSlab, int funcOffset, int funcSize, LowLevelIR llir, ref int functionCount)
+        {
+            var funcNameHash = mlirSlab[funcOffset + 1];
+            var bodyOffset = funcOffset + 2;
+
+            // Store function name
+            var nameHashSlot = _arena.Allocate(1);
+            _arena.Write(nameHashSlot, funcNameHash);
+
+            int bodyEndOffset = funcOffset + funcSize;
+            int currentOffset = bodyOffset;
+
+            // Get or create the first function in the LLIR
+            var llFunc = new LowLevelIR.LLFunction { Name = "main" };
+            llir.Modules.Add(new LowLevelIR.LLModule { Name = "module", Functions = new List<LowLevelIR.LLFunction> { llFunc } });
+
+            while (currentOffset < bodyEndOffset && currentOffset < mlirSlab.Length)
+            {
+                var metadata = mlirSlab[currentOffset];
+                var size = InstructionMetadata.DecodeSize(metadata);
+                var kind = InstructionMetadata.DecodeKind(metadata);
+
+                if (size == 0 || currentOffset + size > mlirSlab.Length)
+                    break;
+
+                ProcessSlabInstruction(mlirSlab, currentOffset, kind, llFunc);
+                currentOffset += size;
+            }
+
+            functionCount++;
+        }
+
+        private void ProcessSlabInstruction(uint[] slab, int offset, byte kind, LowLevelIR.LLFunction llFunc)
+        {
+            switch (kind)
+            {
+                case MLIR_LABEL:
+                    ProcessLabelFromSlab(slab, offset, llFunc);
+                    break;
+                case MLIR_ASSIGN:
+                    ProcessAssignmentFromSlab(slab, offset, llFunc);
+                    break;
+                case MLIR_CALL:
+                    ProcessCallFromSlab(slab, offset, llFunc);
+                    break;
+                case MLIR_BRANCH:
+                    ProcessJumpFromSlab(slab, offset, llFunc);
+                    break;
+                default:
+                    CopyInstruction(slab, offset);
+                    break;
+            }
+        }
+
+        private void ProcessLabelFromSlab(uint[] slab, int offset, LowLevelIR.LLFunction llFunc)
+        {
+            var labelName = $"label_{slab[offset + 1]:X}";
+            
+            var instrSize = 2;
+            var startOffset = _arena.Allocate(instrSize);
+            _arena.Write(startOffset, Encode(InstructionMetadataFlags.LLIR_LABEL, (byte)instrSize, 1), (uint)labelName.GetHashCode());
+            
+            llFunc.Instructions.Add(new LowLevelIR.LLLabel { Name = labelName });
+        }
+
+        private void ProcessAssignmentFromSlab(uint[] slab, int offset, LowLevelIR.LLFunction llFunc)
+        {
+            var targetHash = slab[offset + 1];
+            var sourceHash = slab[offset + 2];
+            
+            var loadSize = (byte)2;
+            var loadOffset = _arena.Allocate(loadSize);
+            _arena.Write(loadOffset, Encode(InstructionMetadataFlags.LLIR_LOAD, loadSize, 2), 
+                (uint)"A".GetHashCode(), sourceHash);
+            
+            var storeSize = (byte)3;
+            var storeOffset = _arena.Allocate(storeSize);
+            _arena.Write(storeOffset, Encode(InstructionMetadataFlags.LLIR_STORE, storeSize, 3), 
+                targetHash, (uint)"A".GetHashCode());
+            
+            llFunc.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = sourceHash.ToString() });
+            llFunc.Instructions.Add(new LowLevelIR.LLStore { Address = targetHash.ToString(), Register = "A" });
+        }
+
+        private void ProcessCallFromSlab(uint[] slab, int offset, LowLevelIR.LLFunction llFunc)
+        {
+            var callNameHash = slab[offset + 1];
+            
+            var instrSize = (byte)2;
+            var callOffset = _arena.Allocate(instrSize);
+            _arena.Write(callOffset, Encode(InstructionMetadataFlags.LLIR_CALL, instrSize, 1), callNameHash);
+            
+            llFunc.Instructions.Add(new LowLevelIR.LLCall { Label = $"call_{callNameHash:X}" });
+        }
+
+        private void ProcessJumpFromSlab(uint[] slab, int offset, LowLevelIR.LLFunction llFunc)
+        {
+            var conditionHash = slab[offset + 1];
+            var targetHash = slab[offset + 2];
+            
+            var instrSize = 3;
+            var jumpOffset = _arena.Allocate(instrSize);
+            _arena.Write(jumpOffset, Encode(InstructionMetadataFlags.LLIR_JUMP, (byte)instrSize, 2), conditionHash, targetHash);
+            
+            llFunc.Instructions.Add(new LowLevelIR.LLJump { Target = $"jump_{targetHash:X}", Condition = $"cond_{conditionHash:X}" });
+        }
+
+        private void CopyInstruction(uint[] sourceSlab, int offset)
+        {
+            if (offset >= sourceSlab.Length) return;
+            
+            var metadata = sourceSlab[offset];
+            var size = InstructionMetadata.DecodeSize(metadata);
+            
+            if (size == 0) return;
+            
+            var destOffset = _arena.Allocate(size);
+            var buffer = new uint[size];
+            Array.Copy(sourceSlab, offset, buffer, 0, size);
+            _arena.Write(destOffset, buffer);
+        }
+
+        private static uint Encode(byte kind, byte size, byte argCount, bool isTerminator = false, bool hasDiagnostic = false)
+        {
+            return InstructionMetadata.Encode(kind, size, argCount, isTerminator, hasDiagnostic);
         }
     }
 }

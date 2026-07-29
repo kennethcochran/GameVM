@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 
@@ -8,6 +7,7 @@ namespace GameVM.Compiler.Core.IR.Transformers
     public class HlirToMlirTransformer : IIRTransformer<HighLevelIR, MidLevelIR>
     {
         private HighLevelIR? _currentHlir;
+
         public MidLevelIR Transform(HighLevelIR hlir)
         {
             _currentHlir = hlir;
@@ -73,7 +73,7 @@ namespace GameVM.Compiler.Core.IR.Transformers
 
         private void ProcessLegacyFunctions(HighLevelIR hlir, MidLevelIR mlir)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
+#pragma warning disable CS0618
             if (hlir.GlobalFunctions.Count == 0)
                 return;
 
@@ -90,7 +90,15 @@ namespace GameVM.Compiler.Core.IR.Transformers
 
         private static MidLevelIR.MLModule GetOrCreateDefaultModule(MidLevelIR mlir)
         {
-            var defaultModule = mlir.Modules.FirstOrDefault(m => m.Name == "default");
+            MidLevelIR.MLModule? defaultModule = null;
+            foreach (var module in mlir.Modules)
+            {
+                if (module.Name == "default")
+                {
+                    defaultModule = module;
+                    break;
+                }
+            }
             if (defaultModule == null)
             {
                 defaultModule = new MidLevelIR.MLModule { Name = "default" };
@@ -145,7 +153,11 @@ namespace GameVM.Compiler.Core.IR.Transformers
         {
             if (exprStmt.Expression is HighLevelIR.FunctionCall call)
             {
-                var args = call.Arguments.Select(GetExpressionValue).ToList();
+                var args = new List<string>();
+                foreach (var arg in call.Arguments)
+                {
+                    args.Add(GetExpressionValue(arg));
+                }
                 var name = GetFunctionName(call);
                 mlFunc.Instructions.Add(new MidLevelIR.MLCall
                 {
@@ -155,8 +167,6 @@ namespace GameVM.Compiler.Core.IR.Transformers
             }
             else
             {
-                // For non-function-call expressions (literals, identifiers, binary ops, etc.),
-                // create a temporary assignment to _temp with the expression value
                 var value = GetExpressionValue(exprStmt.Expression);
                 mlFunc.Instructions.Add(new MidLevelIR.MLAssign
                 {
@@ -206,7 +216,14 @@ namespace GameVM.Compiler.Core.IR.Transformers
             mlFunc.Instructions.Add(new MidLevelIR.MLBranch { Target = elseLabel });
             mlFunc.Instructions.Add(new MidLevelIR.MLLabel { Name = thenLabel });
             
-            var thenStatements = ifStmt.GetThenBlock().Cast<HighLevelIR.Statement>().ToList();
+            var thenStatements = new List<HighLevelIR.Statement>();
+            foreach (var node in ifStmt.GetThenBlock())
+            {
+                if (node is HighLevelIR.Statement stmt)
+                {
+                    thenStatements.Add(stmt);
+                }
+            }
             if (thenStatements.Count > 0)
             {
                 ProcessStatements(thenStatements, mlFunc);
@@ -220,7 +237,14 @@ namespace GameVM.Compiler.Core.IR.Transformers
             mlFunc.Instructions.Add(new MidLevelIR.MLBranch { Target = endLabel });
             mlFunc.Instructions.Add(new MidLevelIR.MLLabel { Name = thenLabel });
             
-            var thenStatements = ifStmt.GetThenBlock().Cast<HighLevelIR.Statement>().ToList();
+            var thenStatements = new List<HighLevelIR.Statement>();
+            foreach (var node in ifStmt.GetThenBlock())
+            {
+                if (node is HighLevelIR.Statement stmt)
+                {
+                    thenStatements.Add(stmt);
+                }
+            }
             if (thenStatements.Count > 0)
             {
                 ProcessStatements(thenStatements, mlFunc);
@@ -231,17 +255,12 @@ namespace GameVM.Compiler.Core.IR.Transformers
 
         private void ProcessWhileStatement(HighLevelIR.While whileStmt, MidLevelIR.MLFunction mlFunc)
         {
-            // Process the loop body statements
-            // While loop transformation with labels and branches will be implemented in a future iteration
             ProcessStatements(whileStmt.Body.Statements, mlFunc);
         }
 
         private static void ProcessReturnStatement(HighLevelIR.ReturnStatement returnStmt)
         {
-            if (returnStmt.Value != null)
-            {
-                // For now, we ignore return values as MLIR doesn't have a concept of return values
-            }
+            // For now, we ignore return values as MLIR doesn't have a concept of return values
         }
 
         private string GetExpressionValue(HighLevelIR.Expression expr)
@@ -257,7 +276,6 @@ namespace GameVM.Compiler.Core.IR.Transformers
 
         private string GetIdentifierValue(HighLevelIR.Identifier ident)
         {
-            // Check if it's a constant in Globals
             if (_currentHlir != null && _currentHlir.Globals.TryGetValue(ident.Name, out var symbol) && symbol.IsConstant && symbol.InitialValue != null)
             {
                 return symbol.InitialValue.ToString() ?? string.Empty;
