@@ -1,6 +1,6 @@
-# Hartung Game Master
+# Hartung Game Master [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Z80A compatible
 - CPU Clock: 4 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Game Boy-like hardware with unique color LCD technology
 
-## CPU Details
+## CPU Details [implemented]
 ### Z80A Compatible
 #### Architecture Characteristics
 - Processor: 8-bit
@@ -36,7 +36,7 @@
 - Memory controller
 - I/O controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 8KB
 - Video RAM: 8KB
@@ -50,7 +50,7 @@
 - $C000-$DFFF: Work RAM
 - $F000-$FFFF: System RAM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 160×144
 - Colors: 4 colors
@@ -76,7 +76,7 @@
 - Screen masking
 - Background effects
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Channels: 3
   - 2 square wave
@@ -95,7 +95,7 @@
 - Internal speaker
 - Headphone output
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-pad
 - A, B buttons
@@ -119,7 +119,7 @@
 - No TV output
 - Contrast control
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Standard model
 - European variants
@@ -138,7 +138,7 @@
 - Unique cartridge format
 - Power efficiency
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Color LCD technology
 - Game Boy-like architecture
@@ -170,8 +170,8 @@
   - Game Boy competitor
   - European focus
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - Z80 instructions
   - Video timing
@@ -187,7 +187,7 @@
   - Work RAM
   - Stack space
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4 MHz
 - Graphics: 60 fps
 - Audio: 3 channels
@@ -197,14 +197,14 @@
   - Boot ROM: 4KB
   - Cart ROM: 128KB max
 
-### Special Handling
+### Special Handling [aspirational]
 - Color System
 - Sound Generation
 - Input Processing
 - Memory Banking
 - Power Management
 
-## References
+## References [implemented]
 - [Game Master Hardware Guide](http://hartung-systems.org)
 - [Z80 Programming Manual](http://zilog.com/docs)
 - [Display System Documentation](http://gamemaster-dev.net)

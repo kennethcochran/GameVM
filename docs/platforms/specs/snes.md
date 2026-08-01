@@ -1,6 +1,6 @@
-# Super Nintendo Entertainment System (SNES/Super Famicom)
+# Super Nintendo Entertainment System (SNES/Super Famicom) [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L5
 - CPU: Ricoh 5A22 (based on 65816)
 - CPU Clock: 2.68 MHz, 3.58 MHz (fast mode)
@@ -11,7 +11,7 @@
 - Successor: Nintendo 64
 - Notable Feature: Mode 7 graphics, custom audio DSP
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: Ricoh 5A22 (65C816-based)
 - Word Size: 16-bit with 8-bit bus
@@ -71,7 +71,7 @@
   - 16-bit register modes
   - Zero page addressing
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 128 KB
 - Video RAM: 64 KB
@@ -92,7 +92,7 @@
 - $40-$7D,$C0-$FF: ROM/RAM
 - $7E-$7F: Work RAM (128 KB)
 
-## Video System
+## Video System [implemented]
 ### Picture Processing Unit (PPU)
 #### PPU1 (S-PPU1)
 - Background Processing
@@ -144,7 +144,7 @@
   - 1×1 to 16×16 pixels
   - Independent per layer
 
-## Audio System
+## Audio System [implemented]
 ### Sony S-SMP Audio Processing Unit
 - 8-bit CPU (Sony SPC700)
 - 64 KB RAM
@@ -183,7 +183,7 @@
 - Echo buffer
 - Sound variables
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two 7-pin ports
 - Controller Features:
@@ -212,7 +212,7 @@
   - Size: 2 KB to 32 KB
   - Persistent storage
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Special Chips
 - Super FX:
   - 3D polygon rendering
@@ -250,7 +250,7 @@
 - New-Style SNES (1997)
 - Regional variations
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Mode 7 graphics
 - Custom sound DSP
@@ -276,8 +276,8 @@
   - Launch: ¥25,000/US$199
   - Final: US$99
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 65816 native code
   - Memory model awareness
@@ -294,7 +294,7 @@
   - VRAM access timing
   - Enhancement chip memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60/50 Hz
 - Audio Rate: 32 KHz
 - DMA Transfer: During HBLANK/VBLANK
@@ -304,14 +304,14 @@
   - Audio RAM: 64 KB
   - Save RAM: Up to 32 KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Mode 7 Effects
 - Enhancement Chips
 - DMA/HDMA Timing
 - Audio Processing
 - Regional Differences
 
-## References
+## References [implemented]
 - [SNES Development Manual](https://www.nintendo.co.jp/support/manual/pdf/SNESDevManual.pdf)
 - [65816 Programming Manual](http://6502.org/documents/datasheets/wdc/wdc_65816_programming_manual.pdf)
 - [SNES Hardware Specifications](https://problemkaputt.de/fullsnes.htm)

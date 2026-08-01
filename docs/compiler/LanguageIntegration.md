@@ -1,4 +1,4 @@
-# GameVM Language Integration Design
+# GameVM Language Integration Design [aspirational]
 
 ## 1. Introduction
 
@@ -13,7 +13,7 @@ This document outlines the design for cross-language integration in GameVM, enab
 
 ## 2. Type System
 
-### 2.1 Core Type Mappings
+### 2.1 Core Type Mappings [aspirational]
 
 | HLIR Type     | Pascal          | C/C++           | C#              | Java            |
 |---------------|-----------------|-----------------|-----------------|-----------------|
@@ -29,7 +29,7 @@ This document outlines the design for cross-language integration in GameVM, enab
 | `struct`     | `record`        | `struct`        | `struct`        | `class`         |
 | `interface`  | `interface`     | `struct` + vtable | `interface`    | `interface`     |
 
-### 2.2 Type Marshaling
+### 2.2 Type Marshaling [aspirational]
 
 #### 2.2.1 Value Types
 - Direct memory copy when possible
@@ -43,7 +43,7 @@ This document outlines the design for cross-language integration in GameVM, enab
 
 ## 3. Function Calling Convention
 
-### 3.1 Call Stubs
+### 3.1 Call Stubs [aspirational]
 ```csharp
 // C# calling C example
 [DllImport("mylib", CallingConvention = CallingConvention.Cdecl)]
@@ -66,14 +66,14 @@ public static int CallAddNumbers(int a, int b)
 }
 ```
 
-### 3.2 Calling Conventions
+### 3.2 Calling Conventions [aspirational]
 - **cdecl**: C-style (caller cleans up)
 - **stdcall**: Windows API standard
 - **fastcall**: Register-based for performance
 - **thiscall**: C++ member functions
 - **vectorcall**: SIMD optimization
 
-## 4. Memory Management
+## 4. Memory Management [aspirational]
 
 ### 4.1 Ownership Models
 1. **Transfer Ownership**
@@ -89,12 +89,12 @@ public static int CallAddNumbers(int a, int b)
    - Reference counted
    - Automatic cleanup when last reference is dropped
 
-### 4.2 Garbage Collection
+### 4.2 Garbage Collection [aspirational]
 - Integration with language GCs
 - Finalizer support
 - Weak references
 
-## 5. Exception Handling
+## 5. Exception Handling [aspirational]
 
 ### 5.1 Exception Translation
 ```pascal
@@ -116,12 +116,12 @@ void* CallWithExceptionHandling(void* context, void* (*func)(void*)) {
 }
 ```
 
-### 5.2 Error Codes
+### 5.2 Error Codes [aspirational]
 - Standard error code mapping
 - Custom error domains
 - Error chaining
 
-## 6. Module Initialization
+## 6. Module Initialization [aspirational]
 
 ### 6.1 Initialization Order
 1. Static data initialization
@@ -134,7 +134,7 @@ void* CallWithExceptionHandling(void* context, void* (*func)(void*)) {
 - Resource cleanup
 - Thread cleanup
 
-## 7. Advanced Features
+## 7. Advanced Features [aspirational]
 
 ### 7.1 Callbacks
 ```csharp
@@ -155,7 +155,7 @@ RegisterCallback(callback);
 - Synchronization primitives
 - Task scheduling
 
-## 8. Performance Considerations
+## 8. Performance Considerations [aspirational]
 
 ### 8.1 Call Overhead
 - Inline caching
@@ -167,7 +167,7 @@ RegisterCallback(callback);
 - Cache alignment
 - Zero-copy operations
 
-## 9. Security
+## 9. Security [aspirational]
 
 ### 9.1 Type Safety
 - Runtime type checking

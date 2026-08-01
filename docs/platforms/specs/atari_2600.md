@@ -1,6 +1,6 @@
-# Atari Video Computer System (VCS/2600)
+# Atari Video Computer System (VCS/2600) [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: MOS Technology 6507
 - Clock Speed: 1.19 MHz (NTSC), 1.182097 MHz (PAL)
@@ -10,7 +10,7 @@
 - Predecessor: Atari Pong consoles
 - Successor: Atari 5200
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: MOS 6502 subset
 - Word Size: 8-bit
@@ -55,7 +55,7 @@
   - Cycle-counted loops
   - Racing the beam techniques
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 128 bytes
 - ROM: None built-in (cartridge only)
@@ -69,7 +69,7 @@
 - $1000-$1FFF: Cartridge ROM (4K)
   - Mirrored through remaining space
 
-## Video System
+## Video System [implemented]
 ### Television Interface Adapter (TIA)
 - Chip: Custom Atari TIA
 - Display Resolution:
@@ -114,8 +114,8 @@
 - Player reflection
 - Priority control
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Ports
 - Number of Ports: 2
 - Connector Type: DE-9
@@ -161,7 +161,7 @@
 - Power Consumption: ~4W
 - Power Switch: Integrated RF switch
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Original VCS (1977)
   - Heavy Sixer
@@ -188,7 +188,7 @@
 - Color/B&W Switch
 - Channel Selection
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First microprocessor-based console with ROM cartridges
 - Racing the beam display system
@@ -224,7 +224,7 @@
 
 
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 2
 - Sample Rate: N/A (direct frequency control)
@@ -243,7 +243,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: None (not connected on 6507)
 - Sources: N/A
@@ -255,8 +255,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Pure native code
 - Register Allocation Strategy:
   - Heavy use of zero page
@@ -271,7 +271,7 @@
   - Zero page optimization critical
   - Kernel-style video generation
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS (NTSC), 50 FPS (PAL)
 - Audio Update Frequency: As needed
 - Memory Budget:
@@ -283,7 +283,7 @@
   - Extremely limited RAM
   - Real-time video generation required
 
-### Special Handling
+### Special Handling [aspirational]
 - Bank Switching Implementation:
   - Must track current bank
   - Bank switch only during VBLANK
@@ -299,7 +299,7 @@
   - Cycle-exact sprite positioning
   - Color changes must be cycle-timed
 
-## References
+## References [implemented]
 - [Stella Programmer's Guide](https://alienbill.com/2600/101/docs/stella.html)
 - [6502 Reference](http://www.obelisk.me.uk/6502/reference.html)
 - [TIA Hardware Notes](https://www.atarihq.com/danb/files/TIA_HW_Notes.txt)

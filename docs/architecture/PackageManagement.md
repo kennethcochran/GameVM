@@ -1,4 +1,4 @@
-# GameVM Package Management Design
+# GameVM Package Management Design [aspirational]
 
 ## 1. Introduction
 

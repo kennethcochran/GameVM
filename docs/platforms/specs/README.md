@@ -1,4 +1,4 @@
-# Platform Specifications
+# Platform Specifications [implemented]
 
 This directory contains detailed specifications for each platform supported by GameVM.
 

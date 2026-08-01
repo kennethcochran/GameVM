@@ -1,6 +1,6 @@
-# Epoch Super Cassette Vision
+# Epoch Super Cassette Vision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: NEC µPD7801G
 - CPU Clock: 4 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: First console with a 16-bit video chip
 
-## CPU Details
+## CPU Details [implemented]
 ### NEC µPD7801G
 #### Architecture Characteristics
 - Processor: 8-bit microcontroller
@@ -35,7 +35,7 @@
 - Background scrolling
 - Color palette control
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 2KB
 - Video RAM: 4KB
@@ -49,7 +49,7 @@
 - $4000-$BFFF: Cartridge ROM
 - I/O ports: Hardware registers
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 309×246
 - Colors: 16 from palette of 4096
@@ -75,7 +75,7 @@
 - Screen masking
 - Priority control
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Type: Programmable Sound Generator
 - Channels: 3
@@ -93,7 +93,7 @@
 - Volume control
 - Stereo sound
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Digital joystick
@@ -115,7 +115,7 @@
 - NTSC format
 - Enhanced quality
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Standard model
 - European model (limited)
@@ -134,7 +134,7 @@
 - Improved controllers
 - Larger game capacity
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Early 16-bit graphics
 - Enhanced sound
@@ -166,8 +166,8 @@
   - Japan focus
   - Technical pioneer
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - µPD7801G instructions
   - Video chip commands
@@ -183,7 +183,7 @@
   - ROM banking
   - Hardware registers
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4 MHz
 - Graphics: 60 Hz
 - Audio: 3 channels
@@ -193,14 +193,14 @@
   - System ROM: 8KB
   - Cart ROM: 32KB max
 
-### Special Handling
+### Special Handling [aspirational]
 - Sprite System
 - Background Scrolling
 - Sound Generation
 - Controller Input
 - Video Output
 
-## References
+## References [implemented]
 - [Super Cassette Vision Hardware Guide](http://epoch.jp/scv/tech)
 - [µPD7801G Programming Manual](http://nec.com/upd7801g)
 - [Graphics Chip Documentation](http://epoch.jp/scv/graphics)

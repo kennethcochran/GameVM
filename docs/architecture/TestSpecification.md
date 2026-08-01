@@ -7,7 +7,7 @@ updated: "2026-01-31"
 version: "1.1.0"
 ---
 
-# Test Specifications
+# Test Specifications [aspirational]
 
 ## 1. Unit Tests
 

@@ -1,6 +1,6 @@
-# Atari 5200 SuperSystem
+# Atari 5200 SuperSystem [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Custom MOS Technology 6502C
 - Clock Speed: 1.79 MHz
@@ -10,7 +10,7 @@
 - Predecessor: Atari 2600
 - Successor: Atari 7800
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: 6502
 - Word Size: 8-bit
@@ -34,7 +34,7 @@
 - Known Bottlenecks: Memory access contention with ANTIC DMA
 - Optimization Opportunities: Zero Page usage; ANTIC Display List interrupts (DLI)
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 16 KB
 - Layout: 0x0000-0x3FFF
@@ -54,7 +54,7 @@
 - I/O Registers: 0xC000-0xDFFF (ANTIC, GTIA, POKEY)
 - System Vectors: 0xFFF0-0xFFFF
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: up to 320x192 (2 color), 160x192 (4 color), 80x192 (16 color)
 - Color Depth: 128 or 256 colors total palette
@@ -77,7 +77,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted (Shared memory)
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 4 (via POKEY chip)
 - Sample Rate: Variable (Digital-to-Analog conversion)
@@ -90,15 +90,15 @@
 - Sample Playback: Possible via volume manipulation
 - Special Features: Frequency and distortion control per channel
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: IRQ, NMI (DLI and VBI)
 - Sources: VBLANK, ANTIC DLI, Timers
 - Timing: Triggered by hardware
 - Priority: NMI > IRQ
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - **Tier Assignment**: **GV.Spec.L3**. 
 - **Rationale**: The **ANTIC** chip provides dedicated hardware for smooth fine-scrolling (HSCROL/VSCROL), and the **POKEY** chip provides 4-channel, high-accuracy audio. This fulfills the L3 "Scrolling Bridge" and "Advanced Audio" contracts natively.
 - Preferred Code Generation Strategy: Native (6502)
@@ -106,12 +106,12 @@
 - Memory Management Strategy: Static 16 KB
 - Optimization Opportunities: Use of ANTIC Display Lists to offload logic
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 fps
 - Audio Update Frequency: 60 Hz
 - Memory Budget: 16 KB RAM
 
-## References
+## References [implemented]
 - Atari 5200 Technical Reference Manual
 - ANTIC/GTIA Chip Specifications
 - Mapping the Atari (for 8-bit computer comparison)

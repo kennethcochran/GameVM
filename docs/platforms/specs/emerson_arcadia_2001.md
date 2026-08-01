@@ -1,6 +1,6 @@
-# Emerson Arcadia 2001
+# Emerson Arcadia 2001 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: Signetics 2650A
 - CPU Clock: 3.58 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Multiple regional variants and clones
 
-## CPU Details
+## CPU Details [implemented]
 ### Signetics 2650A
 #### Architecture Characteristics
 - Processor: 8-bit
@@ -33,7 +33,7 @@
 - I/O Controller
 - Memory Controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 1KB
 - Video RAM: 2KB
@@ -46,7 +46,7 @@
 - $0C00-$13FF: Video RAM
 - $1400-$3FFF: Cartridge ROM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 128×208
 - Colors: 8
@@ -65,7 +65,7 @@
 - Color changes
 - Screen masking
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Type: Simple tone generator
 - Channels: 1
@@ -82,7 +82,7 @@
 - Basic sound effects
 - Internal speaker
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Numeric keypad
@@ -103,7 +103,7 @@
 - TV connection
 - NTSC/PAL variants
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Emerson Arcadia 2001
 - Bandai Super Vision 8000
@@ -122,7 +122,7 @@
 - Multiple controllers
 - Regional variants
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Unique processor choice
 - Multiple variants
@@ -154,8 +154,8 @@
   - Limited success
   - Many variants
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 2650A instructions
   - Memory mapping
@@ -171,7 +171,7 @@
   - ROM access
   - I/O mapping
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 3.58 MHz
 - Graphics: TV refresh rate
 - Audio: Single channel
@@ -181,14 +181,14 @@
   - System ROM: 2KB
   - Cart ROM: 8KB max
 
-### Special Handling
+### Special Handling [aspirational]
 - Character Graphics
 - Sound Generation
 - Controller Input
 - TV Output
 - Memory Mapping
 
-## References
+## References [implemented]
 - [Arcadia 2001 Technical Guide](http://arcadia.console.info)
 - [Signetics 2650A Manual](http://datasheets.chipdb.org/Signetics/2650A)
 - [Arcadia Development Notes](http://arcadiadev.com)

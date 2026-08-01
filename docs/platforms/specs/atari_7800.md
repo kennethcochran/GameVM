@@ -1,6 +1,6 @@
-# Atari 7800 ProSystem
+# Atari 7800 ProSystem [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: MOS Technology 6502C (Sally)
 - Clock Speed: 1.79 MHz (NTSC), 1.66 MHz (PAL)
@@ -10,7 +10,7 @@
 - Predecessor: Atari 5200
 - Successor: Atari XEGS
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: MOS 6502 (with halt capability)
 - Word Size: 8-bit
@@ -47,7 +47,7 @@
   - Strategic MARIA synchronization
   - Efficient bank switching
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Total RAM: 4 KB main + 4 KB MARIA + 2 KB zero-page
 - ROM: 4 KB BIOS
@@ -69,7 +69,7 @@
 - $4000-$FF7F: Cartridge ROM space
 - $FF80-$FFFF: BIOS ROM
 
-## Video System
+## Video System [implemented]
 ### MARIA Graphics Processor
 - Chip: Custom MARIA (Mathematical And Rendering Intelligent Assistant)
 - Clock Speed: 7.16 MHz (4× CPU clock)
@@ -131,7 +131,7 @@
   - Scanline interrupts
   - Palette manipulation
 
-## Audio System
+## Audio System [implemented]
 ### TIA Audio (Television Interface Adapter)
 - Chip: Custom Atari TIA (same as 2600)
 - Channels: 2 independent channels
@@ -158,7 +158,7 @@
   - Potentiometer reading
   - Serial I/O support
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Support
 - Ports: Two DE-9 connectors
 - Compatible Controllers:
@@ -194,7 +194,7 @@
   - Standard: 160-320×240
   - Interlaced: Up to 320×480
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Backwards Compatibility
 - Full Atari 2600 Support:
   - TIA chip compatibility
@@ -229,8 +229,8 @@
 - Multiple graphics modes
 - Flexible memory management
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - **Tier Assignment**: **GV.Spec.L2**.
 - **Rationale**: While the **MARIA** chip is highly capable for sprites/colors, it lacks dedicated hardware for tile-based smooth scrolling (requiring CPU-driven display list management). The base **TIA** audio is limited to 2 channels. 
 - **Extensions**: Supports `Ext.Snd.Pokey` for L3-grade audio, as used in select historical cartridges.

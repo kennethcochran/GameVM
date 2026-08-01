@@ -1,6 +1,6 @@
-# Watara Supervision
+# Watara Supervision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: WDC 65C02
 - CPU Clock: 4 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Game Boy competitor with TV-out capability
 
-## CPU Details
+## CPU Details [implemented]
 ### WDC 65C02
 #### Architecture Characteristics
 - Processor: 8-bit CMOS
@@ -35,7 +35,7 @@
 - Memory controller
 - I/O controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 8KB
 - Video RAM: 8KB
@@ -49,7 +49,7 @@
 - $8000-$FFFF: Cartridge ROM
 - Zero Page: System variables
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 160×160
 - Colors: 4 shades of gray
@@ -74,7 +74,7 @@
 - Gray scale control
 - TV color modes
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Channels: 2
 - Features:
@@ -91,7 +91,7 @@
 - Internal speaker
 - TV audio output
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Built-in D-pad
 - A, B buttons
@@ -114,7 +114,7 @@
 - Contrast control
 - External power
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Supervision
 - Quickshot Supervision
@@ -133,7 +133,7 @@
 - External controller
 - Multiple variants
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - TV output handheld
 - Low cost design
@@ -165,8 +165,8 @@
   - Limited success
   - Multiple markets
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 65C02 instructions
   - Video handling
@@ -182,7 +182,7 @@
   - ROM banking
   - Zero page
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4 MHz
 - Graphics: LCD refresh
 - Audio: 2 channels
@@ -192,14 +192,14 @@
   - Boot ROM: 2KB
   - Cart ROM: 64KB max
 
-### Special Handling
+### Special Handling [aspirational]
 - LCD Control
 - TV Output
 - Sound Generation
 - Input Processing
 - Power Management
 
-## References
+## References [implemented]
 - [Supervision Hardware Manual](http://supervision-console.org)
 - [65C02 Programming Reference](http://wdc65xx.com/docs)
 - [Display System Documentation](http://supervision-dev.net)

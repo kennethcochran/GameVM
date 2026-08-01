@@ -1,6 +1,6 @@
-# 3DO Interactive Multiplayer
+# 3DO Interactive Multiplayer [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: ARM60 32-bit RISC
 - CPU Clock: 12.5 MHz
@@ -12,7 +12,7 @@
 - Successor: M2 (cancelled)
 - Notable Feature: First CD-based 32-bit game console with hardware 3D capabilities
 
-## CPU Details
+## CPU Details [implemented]
 ### ARM60 (Advanced RISC Machine)
 #### Architecture Characteristics
 - Processor: ARM60 (ARM6 core)
@@ -36,7 +36,7 @@
   - Fixed-point arithmetic
   - Hardware multiply/divide
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 2MB
 - Video RAM: 1MB
@@ -51,7 +51,7 @@
 - $00500000-$005FFFFF: Hardware registers
 - $03000000-$03FFFFFF: Expansion bus
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 320×240 to 640×480
 - Colors: 16.7M (24-bit)
@@ -85,7 +85,7 @@
 - Video overlay
 - Real-time scaling
 
-## Audio System
+## Audio System [implemented]
 ### DSP (Digital Signal Processor)
 - Channels: 25 PCM channels
 - Sample Rate: 44.1 kHz
@@ -103,7 +103,7 @@
 - MIDI support
 - Digital mixing
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports (daisy-chainable)
 - Support for up to 8 controllers
@@ -126,7 +126,7 @@
 - RF output
 - RGB SCART (some models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Panasonic FZ-1
 - Panasonic FZ-10
@@ -146,7 +146,7 @@
 - Photo CD support
 - MPEG expansion
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - ARM processor adoption
 - CD-ROM integration
@@ -178,8 +178,8 @@
   - Multiple manufacturers
   - Limited success
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - ARM60 instructions
   - Co-processor operations
@@ -195,7 +195,7 @@
   - CD buffering
   - DMA control
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 12.5 MIPS
 - Graphics: 20K polygons/sec
 - Audio: CD quality
@@ -205,14 +205,14 @@
   - CD Buffer: 32KB
   - Save RAM: 32KB
 
-### Special Handling
+### Special Handling [aspirational]
 - CD-ROM Access
 - Graphics Pipeline
 - Audio Processing
 - Controller Input
 - Memory Management
 
-## References
+## References [implemented]
 - [3DO Hardware Specification](http://www.3do.com/hardware)
 - [ARM60 Technical Reference](http://www.arm.com/docs/arm60)
 - [3DO Development Guide](http://www.3dodev.com/docs)

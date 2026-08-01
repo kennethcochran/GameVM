@@ -1,6 +1,6 @@
-# Nintendo Entertainment System (NES/Famicom)
+# Nintendo Entertainment System (NES/Famicom) [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Ricoh 2A03 (based on MOS 6502)
 - Clock Speed: 1.79 MHz (NTSC), 1.66 MHz (PAL)
@@ -10,7 +10,7 @@
 - Predecessor: Nintendo Color TV-Game
 - Successor: Super Nintendo Entertainment System
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: MOS 6502 (without decimal mode)
 - Word Size: 8-bit
@@ -40,7 +40,7 @@
   - Self-modifying code for indirect addressing
   - Cycle-counted loops for timing-critical code
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 2KB internal RAM
 - Layout:
@@ -68,7 +68,7 @@
   - $FFFC-$FFFD: Reset vector
   - $FFFE-$FFFF: IRQ/BRK vector
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 256×240 (NTSC), 256×224 (PAL)
 - Color Depth: 4-bit
@@ -95,7 +95,7 @@
 - HBLANK Duration: 85.2 PPU cycles
 - Access Windows: During VBLANK or HBLANK only
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 5
 - Sample Rate: ~44.1 KHz (CPU clock / 40)
@@ -114,7 +114,7 @@
 - DMA Features: DMC sample playback
 - Interrupt Sources: IRQ from frame counter
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: NMI, IRQ, BRK (software)
 - Sources:
@@ -130,8 +130,8 @@
 - Available Modes: Sprite OAM DMA only
 - Timing Constraints: CPU halted during DMA
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native code for performance-critical sections
 - Register Allocation Strategy:
   - Prioritize zero page usage
@@ -144,7 +144,7 @@
   - Self-modifying code for indirect access
   - Unrolled loops for timing-critical code
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS (NTSC), 50 FPS (PAL)
 - Audio Update Frequency: 240 Hz
 - Memory Budget:
@@ -156,7 +156,7 @@
   - VRAM access timing
   - Audio channel conflicts
 
-### Special Handling
+### Special Handling [aspirational]
 - Bank Switching Implementation:
   - Mapper-specific code generation
   - Bank tracking and switching overhead
@@ -171,7 +171,7 @@
   - Background update during VBLANK
   - Split-screen effect support
 
-## References
+## References [implemented]
 - [NESDev Wiki](http://wiki.nesdev.com/)
 - [NESDoc](http://nesdev.com/NESDoc.pdf)
 - [6502 Reference](http://www.obelisk.me.uk/6502/reference.html)

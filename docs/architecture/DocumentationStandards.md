@@ -1,4 +1,4 @@
-# GameVM Documentation Standards
+# GameVM Documentation Standards [aspirational]
 
 ## 1. Document Structure
 

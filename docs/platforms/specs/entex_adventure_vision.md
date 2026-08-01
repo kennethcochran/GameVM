@@ -1,6 +1,6 @@
-# Entex Adventure Vision
+# Entex Adventure Vision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - Profile: GV.Spec.L1
 - CPU: Intel 8048
@@ -13,7 +13,7 @@
 - Successor: None
 - Notable Feature: Unique mechanical mirror-scanning LED display system
 
-## CPU Details
+## CPU Details [implemented]
 ### Intel 8048
 #### Architecture Characteristics
 - Processor: 8-bit microcontroller
@@ -37,7 +37,7 @@
 - Input Controller
 - Memory Controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Internal RAM: 64 bytes
 - External RAM: 1KB
@@ -53,7 +53,7 @@
   - Register banks
   - Stack space
 
-## Video System
+## Video System [implemented]
 ### Display Hardware
 - Type: LED array with mechanical scanner
 - Resolution: 150×40 (effective)
@@ -72,7 +72,7 @@
 - Motion effects
 - Screen masking
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Type: Simple tone generator
 - Channels: 1
@@ -89,7 +89,7 @@
 - Tone control
 - Internal speaker
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Built-in controls
 - Four action buttons
@@ -111,7 +111,7 @@
 - No external display
 - Brightness control
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Single model
 - Development units
@@ -130,7 +130,7 @@
 - Built-in controls
 - Battery operation
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Mirror-scanning display
 - LED array technology
@@ -162,8 +162,8 @@
   - Experimental design
   - Collector's item
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 8048 instructions
   - Display timing
@@ -179,7 +179,7 @@
   - Sound control
   - Input handling
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 5.91 MHz
 - Display: 240 Hz refresh
 - Audio: Single channel
@@ -189,14 +189,14 @@
   - System ROM: 1KB
   - Cart ROM: 4KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Display Timing
 - Mirror Scanning
 - LED Control
 - Sound Generation
 - Input Processing
 
-## References
+## References [implemented]
 - [Adventure Vision Technical Manual](http://www.adventurevision.info)
 - [Intel 8048 Datasheet](http://www.intel.com/8048)
 - [Display System Documentation](http://www.ledscanning.org)

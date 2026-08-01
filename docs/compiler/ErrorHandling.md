@@ -7,7 +7,7 @@ updated: "2025-09-20"
 version: "1.0.0"
 ---
 
-# Error Handling in GameVM
+# Error Handling in GameVM [implemented, aspirational]
 
 ## 1. Introduction
 
@@ -28,7 +28,7 @@ This document defines the error handling strategy for GameVM, ensuring consisten
 
 ## 2. Error Types
 
-### 2.1 Error Categories
+### 2.1 Error Categories [implemented]
 
 | Category      | Description                          | Recovery Strategy           | Example                      |
 |---------------|--------------------------------------|-----------------------------|------------------------------|
@@ -37,7 +37,7 @@ This document defines the error handling strategy for GameVM, ensuring consisten
 | **Warning**   | Non-critical issue                   | Log and continue            | Deprecated API usage         |
 | **Info**      | Informational message                | Log and continue            | Configuration loaded         |
 
-### 2.2 Error Codes
+### 2.2 Error Codes [implemented, aspirational]
 
 #### 2.2.1 Core Error Codes
 ```cpp
@@ -66,7 +66,7 @@ enum class ErrorCode : uint32_t {
 
 ## 3. Error Reporting
 
-### 3.1 Error Structure
+### 3.1 Error Structure [implemented]
 ```typescript
 interface ErrorInfo {
     code: number;           // Error code
@@ -80,7 +80,7 @@ interface ErrorInfo {
 }
 ```
 
-### 3.2 Error Context
+### 3.2 Error Context [implemented]
 - **Required Fields**:
   - `code`: Numeric error code
   - `message`: Human-readable description
@@ -92,11 +92,11 @@ interface ErrorInfo {
   - `suggestion`: How to fix the issue
   - `documentation`: Link to relevant docs
 
-## 4. Cross-Language Error Handling
+## 4. Cross-Language Error Handling [aspirational]
 
 ### 4.1 Language-Specific Mappings
 
-#### 4.1.1 C++
+#### 4.1.1 C++ [aspirational]
 ```cpp
 class Error {
 public:
@@ -121,7 +121,7 @@ private:
 };
 ```
 
-#### 4.1.2 C#
+#### 4.1.2 C# [implemented]
 ```csharp
 public class GameVmException : Exception
 {
@@ -139,7 +139,7 @@ public class GameVmException : Exception
 }
 ```
 
-#### 4.1.3 JavaScript/TypeScript
+#### 4.1.3 JavaScript/TypeScript [aspirational]
 ```typescript
 type Result<T, E = Error> = 
     | { success: true; value: T }
@@ -158,7 +158,7 @@ function divide(a: number, b: number): Result<number, Error> {
 
 ## 5. Error Recovery
 
-### 5.1 Retry Strategies
+### 5.1 Retry Strategies [aspirational]
 
 #### 5.1.1 Exponential Backoff
 ```cpp
@@ -181,7 +181,7 @@ Error retryWithBackoff(std::function<Error()> operation, int maxRetries = 3) {
 }
 ```
 
-### 5.2 Fallback Mechanisms
+### 5.2 Fallback Mechanisms [aspirational]
 ```csharp
 public T GetResource<T>(string path, T fallback = default)
 {
@@ -195,7 +195,7 @@ public T GetResource<T>(string path, T fallback = default)
 }
 ```
 
-## 6. Logging and Diagnostics
+## 6. Logging and Diagnostics [implemented, aspirational]
 
 ### 6.1 Log Levels
 ```cpp
@@ -209,7 +209,7 @@ enum class LogLevel {
 };
 ```
 
-### 6.2 Structured Logging
+### 6.2 Structured Logging [aspirational]
 ```typescript
 interface LogEntry {
     timestamp: Date;
@@ -239,7 +239,7 @@ class Logger {
 }
 ```
 
-## 7. Best Practices
+## 7. Best Practices [implemented]
 
 ### 7.1 Do's and Don'ts
 
@@ -263,7 +263,7 @@ class Logger {
 - Avoid technical jargon when possible
 - Provide actionable information
 
-## 8. Testing Error Cases
+## 8. Testing Error Cases [implemented]
 
 ### 8.1 Unit Testing
 ```csharp
@@ -281,14 +281,14 @@ public void Divide_ByZero_ThrowsException()
 }
 ```
 
-### 8.2 Property-Based Testing
+### 8.2 Property-Based Testing [aspirational]
 ```haskell
 -- Using QuickCheck/Hedgehog
 prop_divide_by_nonzero_multiplicative_inverse a b = 
     b /= 0 ==> (a / b) * b == a
 ```
 
-## 9. Performance Considerations
+## 9. Performance Considerations [aspirational]
 
 ### 9.1 Zero-Cost Error Handling
 - Use return values for common error cases
@@ -300,7 +300,7 @@ prop_divide_by_nonzero_multiplicative_inverse a b =
 - Use small string optimization where possible
 - Consider thread-local storage for error contexts
 
-## 10. Security Considerations
+## 10. Security Considerations [aspirational]
 
 ### 10.1 Error Information Leakage
 - Sanitize error messages in production

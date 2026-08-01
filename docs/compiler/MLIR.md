@@ -1,12 +1,13 @@
-# Mid-Level Intermediate Representation (MLIR)
+# Mid-Level Intermediate Representation (MLIR) [aspirational, outdated]
 
-## Overview
+## Overview [aspirational]
 The Mid-Level Intermediate Representation (MLIR) acts as a bridge between the high-level constructs of the HLIR and the low-level details of the LLIR. It focuses on resource management and optimization opportunities, making it crucial for performance tuning and analysis.
 
-## Data Structure Type
+## Data Structure Type [outdated]
 The MLIR will utilize a **graph structure** to represent control flow and data dependencies. This allows for more complex optimizations, such as dead code elimination and constant propagation, by enabling analysis of relationships between different code blocks and instructions.
+**NOTE: Actual implementation uses slab-based DOD pipeline (uint[] arrays), not graph structure.**
 
-## Data Structure
+## Data Structure [aspirational]
 The MLIR includes the following components:
 
 - **Function Signatures:**
@@ -28,5 +29,5 @@ The MLIR includes the following components:
   - Constant propagation
   - Common subexpression elimination
 
-## Purpose
+## Purpose [aspirational]
 The MLIR is designed to facilitate optimizations and analyses that are independent of specific hardware architectures. It prepares the code for further lowering to machine-specific representations while ensuring that resource constraints are respected and managed effectively.

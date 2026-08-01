@@ -1,6 +1,6 @@
-# Bandai WonderSwan
+# Bandai WonderSwan [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - CPU: NEC V30 MZ
 - CPU Clock: 3.072 MHz
@@ -11,7 +11,7 @@
 - Successor: WonderSwan Color
 - Notable Feature: Designed by Game Boy creator Gunpei Yokoi, vertical/horizontal screen orientation
 
-## CPU Details
+## CPU Details [implemented]
 ### NEC V30 MZ
 #### Architecture Characteristics
 - Processor: 16-bit (80186 compatible)
@@ -36,7 +36,7 @@
 - Interrupt Controller
 - Power Management Unit
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 16KB
 - Video RAM: 4KB
@@ -51,7 +51,7 @@
 - $15000-$15FFF: Sprite Table
 - $16000-$17FFF: Tile Data
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 224×144
 - Colors: 8 shades of gray
@@ -75,7 +75,7 @@
 - Line scroll
 - Priority control
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Channels: 4
 - Wave Types:
@@ -96,7 +96,7 @@
 - Internal speaker
 - Headphone output
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-pad (×2)
 - A, B buttons
@@ -118,7 +118,7 @@
 - Link cable for multiplayer
 - No TV output
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - WonderSwan (original)
 - WonderSwan Color
@@ -137,7 +137,7 @@
 - Multiple control layouts
 - Unique button arrangement
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Dual screen orientation
 - Extended button layout
@@ -169,8 +169,8 @@
   - Energy efficient
   - Innovative design
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - x86 instruction set
   - Screen orientation
@@ -186,7 +186,7 @@
   - Display buffer
   - Sprite tables
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 3.072 MHz
 - Graphics: 75 fps
 - Audio: 4 channels
@@ -196,14 +196,14 @@
   - Display RAM: 512B
   - Sprite RAM: 4KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Screen Rotation
 - Power Management
 - Button Mapping
 - Sound Generation
 - DMA Operations
 
-## References
+## References [implemented]
 - [WonderSwan Hardware Manual](http://daifukkat.su/docs/wsman)
 - [NEC V30MZ Documentation](http://www.nec.com/v30)
 - [WonderSwan Development Guide](http://wonderswan.org/dev)

@@ -1,6 +1,6 @@
-# Sony PlayStation
+# Sony PlayStation [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: MIPS R3000A
 - CPU Clock: 33.8688 MHz
@@ -12,7 +12,7 @@
 - Successor: PlayStation 2
 - Notable Feature: First successful CD-ROM based gaming console
 
-## CPU Details
+## CPU Details [implemented]
 ### MIPS R3000A
 #### Architecture Characteristics
 - Processor: LSI LR33300 (R3000A core)
@@ -42,7 +42,7 @@
   - Fixed-point arithmetic
   - Parallel operation
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 2MB
 - Video RAM: 1MB
@@ -57,7 +57,7 @@
 - $1FC00000-$1FC7FFFF: BIOS ROM
 - $1FF00000-$1FF7FFFF: I/O Ports
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing Unit
 - Resolution: 256×224 to 640×480
 - Colors: 16.7M (24-bit)
@@ -88,7 +88,7 @@
 - Dithering
 - Frame buffer effects
 
-## Audio System
+## Audio System [implemented]
 ### SPU (Sound Processing Unit)
 - Channels: 24
 - Sample Rate: 44.1 kHz
@@ -106,7 +106,7 @@
 - Hardware compression
 - Reverb processing
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Memory card slots
@@ -130,7 +130,7 @@
 - RGB SCART
 - RFU adaptor
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - SCPH-1000 series
 - SCPH-5000 series
@@ -149,7 +149,7 @@
 - Net Yaroze
 - Debug units
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - CD-ROM based
 - 3D acceleration
@@ -181,8 +181,8 @@
   - 3D graphics pioneer
   - Major success
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - MIPS R3000A instructions
   - GTE optimization
@@ -198,7 +198,7 @@
   - Sound RAM
   - CD buffer
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 30 MIPS
 - GTE: 66M coordinates/sec
 - GPU: 360K polygons/sec
@@ -208,14 +208,14 @@
   - Sound RAM: 512KB
   - CD buffer: 32KB
 
-### Special Handling
+### Special Handling [aspirational]
 - GTE Operations
 - GPU Commands
 - SPU Management
 - CD-ROM Access
 - DMA Control
 
-## References
+## References [implemented]
 - [PlayStation Hardware Documentation](http://problemkaputt.de/psx-spx.htm)
 - [MIPS R3000A Manual](http://www.mips.com/r3000a)
 - [PlayStation Development Guide](http://www.psxdev.net/docs)

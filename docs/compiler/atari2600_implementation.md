@@ -1,8 +1,8 @@
-# GameVM Implementation for Atari 2600
+# GameVM Implementation for Atari 2600 [implemented, aspirational]
 
 This document outlines the specific challenges and proposed solutions for implementing GameVM support for the Atari 2600. The extreme constraints of the 2600 make it an ideal first target - solutions developed here will scale well to other platforms.
 
-## Core Challenges
+## Core Challenges [aspirational]
 
 ### 1. Memory Management (128 bytes total)
 
@@ -12,7 +12,7 @@ This document outlines the specific challenges and proposed solutions for implem
 - No heap possible
 - Stack overflow risks due to shared space
 
-#### Proposed Solutions
+#### Proposed Solutions [aspirational]
 - **Static Memory Allocation**
   - Compile-time analysis of variable usage
   - Dead variable elimination
@@ -31,7 +31,7 @@ This document outlines the specific challenges and proposed solutions for implem
   - Consider instruction cycle counts in placement decisions
   - Bank local variables between functions
 
-### 2. Real-Time Video Generation
+### 2. Real-Time Video Generation [aspirational]
 
 #### Challenges
 - No frame buffer
@@ -39,7 +39,7 @@ This document outlines the specific challenges and proposed solutions for implem
 - Limited sprite hardware
 - Color changes must be precisely timed
 
-#### Proposed Solutions
+#### Proposed Solutions [aspirational]
 - **Kernel Generation**
   - Generate specialized display kernels
   - Unroll critical loops
@@ -58,7 +58,7 @@ This document outlines the specific challenges and proposed solutions for implem
   - Generate efficient scanline code
   - Handle special cases (racing the beam)
 
-### 3. Code Generation
+### 3. Code Generation [implemented, aspirational]
 
 #### Challenges
 - Must generate cycle-exact code
@@ -66,7 +66,7 @@ This document outlines the specific challenges and proposed solutions for implem
 - Bank switching overhead
 - No interrupt support
 
-#### Proposed Solutions
+#### Proposed Solutions [implemented, aspirational]
 - **Cycle-Exact Compilation**
   - Track cycle counts during code generation
   - Insert NOPs or timing code as needed
@@ -85,7 +85,7 @@ This document outlines the specific challenges and proposed solutions for implem
   - Instruction sequence optimization
   - Balance inlining vs. code size
 
-### 4. Runtime Support
+### 4. Runtime Support [aspirational]
 
 #### Challenges
 - Minimal runtime overhead possible
@@ -93,7 +93,7 @@ This document outlines the specific challenges and proposed solutions for implem
 - Limited stack for runtime support
 - Must maintain cycle accuracy
 
-#### Proposed Solutions
+#### Proposed Solutions [aspirational]
 - **Minimal Runtime**
   - Most support compiled into game code
   - Static linking of runtime features
@@ -106,9 +106,9 @@ This document outlines the specific challenges and proposed solutions for implem
   - Efficient timing check code
   - Minimal runtime overhead
 
-## Implementation Strategy
+## Implementation Strategy [implemented, aspirational]
 
-### Phase 1: Basic Infrastructure
+### Phase 1: Basic Infrastructure [implemented, aspirational]
 1. **Memory Manager**
    ```
    - Static allocation system
@@ -117,16 +117,16 @@ This document outlines the specific challenges and proposed solutions for implem
    - Variable lifetime tracker
    ```
 
-2. **Code Generator**
+2. **Code Generator** [implemented, aspirational]
    ```
-   - Basic 6502 code generation
+   - Basic 6502 code generation [implemented]
    - Cycle counting
    - Simple optimizations
    - Bank switching support
    ```
 
-### Phase 2: Video Support
-1. **Display Kernel Generator**
+### Phase 2: Video Support [aspirational]
+1. **Display Kernel Generator** [aspirational]
    ```
    - Basic scanline generation
    - Sprite positioning
@@ -134,7 +134,7 @@ This document outlines the specific challenges and proposed solutions for implem
    - Timing verification
    ```
 
-2. **Graphics Compiler**
+2. **Graphics Compiler** [aspirational]
    ```
    - Sprite compiler
    - Background compiler
@@ -142,8 +142,8 @@ This document outlines the specific challenges and proposed solutions for implem
    - Kernel specializer
    ```
 
-### Phase 3: Optimization
-1. **Code Optimization**
+### Phase 3: Optimization [aspirational]
+1. **Code Optimization** [aspirational]
    ```
    - Zero page optimization
    - Bank optimization
@@ -151,7 +151,7 @@ This document outlines the specific challenges and proposed solutions for implem
    - Cycle optimization
    ```
 
-2. **Memory Optimization**
+2. **Memory Optimization** [aspirational]
    ```
    - Variable placement
    - Stack optimization
@@ -159,55 +159,55 @@ This document outlines the specific challenges and proposed solutions for implem
    - Dead code elimination
    ```
 
-## Testing Strategy
+## Testing Strategy [implemented]
 
-### 1. Unit Testing
+### 1. Unit Testing [implemented]
 - Cycle-accurate instruction tests
 - Memory allocation tests
 - Bank switching tests
 - Stack usage tests
 
-### 2. Integration Testing
+### 2. Integration Testing [implemented]
 - Display kernel tests
 - Full frame generation
 - Memory limit tests
 - Timing verification
 
-### 3. Real Hardware Testing
+### 3. Real Hardware Testing [aspirational]
 - Stella emulator testing
 - Hardware verification
 - Timing accuracy tests
 - Resource usage verification
 
-## Performance Metrics
+## Performance Metrics [aspirational]
 
-### 1. Memory Usage
+### 1. Memory Usage [aspirational]
 - Zero page utilization
 - Stack depth
 - Variable placement efficiency
 - Bank switching frequency
 
-### 2. Timing Accuracy
+### 2. Timing Accuracy [aspirational]
 - Scanline timing
 - Frame timing
 - Color change accuracy
 - Sprite positioning
 
-### 3. Code Size
+### 3. Code Size [aspirational]
 - ROM utilization
 - Bank distribution
 - Code density
 - Runtime overhead
 
-## Development Tools
+## Development Tools [aspirational]
 
-### 1. Analysis Tools
+### 1. Analysis Tools [aspirational]
 - Stack usage analyzer
 - Cycle counter
 - Memory map visualizer
 - Bank usage tracker
 
-### 2. Debug Support
+### 2. Debug Support [aspirational]
 - Cycle-accurate debugger
 - Memory usage monitor
 - Timing analyzer
@@ -227,4 +227,4 @@ This document outlines the specific challenges and proposed solutions for implem
 
 ### Communities
 - [AtariAge Forums](https://atariage.com/forums/)
-- [6502.org](http://6502.org/)
+- [6502.org](http://www.6502.org/)

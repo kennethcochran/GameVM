@@ -1,6 +1,6 @@
-# [System Name]
+# [System Name] [implemented]
 
-## System Overview
+## System Overview [implemented]
 - CPU: [CPU model and family]
 - Clock Speed: [frequency]
 - Release Year: [year]
@@ -9,7 +9,7 @@
 - Predecessor: [previous system in family]
 - Successor: [next system in family]
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: [e.g., 6502, Z80, 68000]
 - Word Size: [8/16/32-bit]
@@ -33,7 +33,7 @@
 - Known Bottlenecks: [common performance issues]
 - Optimization Opportunities: [special instructions or techniques]
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: [amount]
 - Layout: [regions and their purposes]
@@ -53,7 +53,7 @@
 - I/O Registers: [address ranges]
 - System Vectors: [if applicable]
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: [pixels]
 - Color Depth: [bits]
@@ -77,7 +77,7 @@
 - HBLANK Duration: [cycles]
 - Access Windows: [when VRAM can be modified]
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: [number and types]
 - Sample Rate: [if applicable]
@@ -96,7 +96,7 @@
 - DMA Features: [if available]
 - Interrupt Sources: [if any]
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: [NMI, IRQ, etc.]
 - Sources: [what triggers them]
@@ -108,26 +108,26 @@
 - Available Modes: [list]
 - Timing Constraints: [when usable]
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: [bytecode/native/hybrid]
 - Register Allocation Strategy: [approach]
 - Memory Management Strategy: [approach]
 - Optimization Opportunities: [system-specific]
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: [fps]
 - Audio Update Frequency: [Hz]
 - Memory Budget: [breakdown]
 - Known Limitations: [list]
 
-### Special Handling
+### Special Handling [aspirational]
 - Bank Switching Implementation: [if needed]
 - Interrupt Management: [approach]
 - Audio Mixing Strategy: [approach]
 - Graphics Pipeline: [implementation]
 
-## References
+## References [implemented]
 - [Technical Documentation]
 - [Development Guides]
 - [Hardware Specifications]

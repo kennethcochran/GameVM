@@ -1,6 +1,6 @@
-# Atari Lynx
+# Atari Lynx [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: WDC 65SC02 + "Mikey" and "Suzy" custom chips
 - CPU Clock: 4 MHz (16 MHz system clock)
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Features: First color LCD handheld, hardware scaling/rotation
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: WDC 65SC02
 - Word Size: 8-bit
@@ -66,7 +66,7 @@
   - Math co-processor
   - Hardware sprite system
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 64 KB
 - ROM: 512 bytes boot ROM
@@ -139,7 +139,7 @@
   - LED Mode (power saving)
   - Variable screen size
 
-## Audio System (Mikey)
+## Audio System [implemented]
 ### Audio Hardware
 - Channels: 4 independent
 - Sample Size: 8-bit
@@ -167,7 +167,7 @@
 - Interrupt Generation
 - Flexible Mixing
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-Pad (8 directions)
 - A and B buttons
@@ -197,7 +197,7 @@
 - External power port
 - Power management
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Components
 - Mikey Chip:
   - Sound generation
@@ -223,7 +223,7 @@
 - Hardware Math
 - DMA Control
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First color handheld
 - Hardware scaling/rotation
@@ -255,8 +255,8 @@
   - Game Gear
   - TurboExpress
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 6502 native code
   - Hardware acceleration
@@ -270,7 +270,7 @@
   - Sprite data handling
   - Audio buffer management
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60/50 Hz
 - Audio Rate: Up to 32 KHz
 - Sprite Count: Up to 32/scanline
@@ -280,14 +280,14 @@
   - Stack: 256 bytes
   - Zero Page: 256 bytes
 
-### Special Handling
+### Special Handling [aspirational]
 - Sprite System Control
 - Math Co-processor Usage
 - Audio Buffer Management
 - Network Communication
 - Power Management
 
-## References
+## References [implemented]
 - [Lynx Hardware Documentation](http://www.atarihq.com/danb/files/lynx_hw.txt)
 - [6502 Programming Manual](http://www.6502.org/documents/datasheets/mos/mos_6500_programming_manual.pdf)
 - [Epyx Lynx Documentation](http://www.atarihq.com/danb/files/lynx_prog.txt)

@@ -7,9 +7,9 @@ updated: "2025-09-20"
 version: "1.0.0"
 ---
 
-# GameVM Build System Design
+# GameVM Build System Design [aspirational]
 
-## 1. Introduction
+## 1. Introduction [aspirational]
 
 ### 1.1 Purpose
 This document outlines the design of GameVM's build system, which orchestrates the compilation and linking of modules across multiple languages for retro gaming console targets (2nd-5th generation).

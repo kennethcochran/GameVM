@@ -1,6 +1,6 @@
-# SNK Neo Geo Pocket Color
+# SNK Neo Geo Pocket Color [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L5
 - CPU: 16-bit Toshiba TLCS900H (Main), Zilog Z80 (Sound)
 - Clock Speed: 6.144 MHz (Main), 3.072 MHz (Sound)
@@ -10,7 +10,7 @@
 - Predecessor: Neo Geo Pocket
 - Successor: N/A
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: TLCS-900 (Z80-based 16-bit CISC)
 - Word Size: 16-bit
@@ -29,7 +29,7 @@
 - Known Bottlenecks: Memory remains tight at 12KB
 - Optimization Opportunities: Exploit 16-bit register pairs for coordinates
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 12 KB (WRAM) + 4 KB (Z80 RAM)
 - Bank Switching: No
@@ -46,7 +46,7 @@
 - Tilemap RAM: 4 KB
 - Palette RAM: Hardware registers for 48 palettes
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 160x152 (Visible) / 256x256 (Virtual plane)
 - Color Depth: 12-bit (4096 colors)
@@ -69,7 +69,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 6 simultaneous tones + 2 DAC channels
 - Audio CPU: Zilog Z80 (3.072 MHz)
@@ -79,22 +79,22 @@
 - Noise: 1 channel
 - Sample Playback: Yes (Dual 8-bit DACs)
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: Multiple maskable and non-maskable
 - Sources: VBLANK, Timer, Serial, etc.
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (TLCS900H)
 - Register Allocation Strategy: Utilize large register file
 - Memory Management Strategy: Static 12 KB allocation
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 fps
 - Audio Update Frequency: 60 Hz
 - Memory Budget: 12 KB Main RAM
 
-## References
+## References [implemented]
 - Neo Geo Pocket Color Technical Manual
 - SNK Hardware Documentation Project

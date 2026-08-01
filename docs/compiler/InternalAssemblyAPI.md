@@ -1,9 +1,9 @@
-# Internal Assembly API: Template Interpreter Design
+# Internal Assembly API: Template Interpreter Design [aspirational]
 
-## 1. Overview
+## 1. Overview [aspirational]
 GameVM utilizes an internal C# DSL (Domain Specific Language) to define architecture-specific machine code patterns. This API allows the compiler to generate target-native instructions directly from C# code at compile-time, eliminating the need for external assemblers or separate assembly files for each backend.
 
-## 2. Design Philosophy: The "Template Interpreter"
+## 2. Design Philosophy: The "Template Interpreter" [aspirational]
 Inspired by the **HotSpot Template Interpreter (JVM)**, this approach avoids the use of slow, C-switch-based dispatch loops. Instead:
 - **Direct Emission**: The compiler uses these APIs to emit the "Inner Loop" and "Instruction Handlers" as optimized machine code blocks tailored to the specific game.
 - **Native Implementation**: Writing the interpreter logic in C# (via this API) ensures that the emission logic is version-controlled and tightly integrated with the compiler's IR (Intermediate Representation) mapping.
@@ -11,7 +11,7 @@ Inspired by the **HotSpot Template Interpreter (JVM)**, this approach avoids the
 
 ## 3. API Structure
 
-### 3.1 Architecture-Specific Modules
+### 3.1 Architecture-Specific Modules [aspirational]
 Each target architecture (6502, Z80, MIPS, SH-2) implements its own static API class. These classes provide methods that correspond directly to physical opcodes.
 
 ```csharp
@@ -32,19 +32,19 @@ public static class Assembly6502
 }
 ```
 
-### 3.2 The Abstraction Layer (Future Goal)
+### 3.2 The Abstraction Layer (Future Goal) [aspirational]
 The long-term vision is a **High-Level Interpreter Definition** (HLID) that allows the developer to define the VM logic (e.g., "Add the value at R0 to A") in an IR-neutral way. The compiler will then map this definition to the architecture-specific Assembly APIs.
 
 - **Current Step**: Manual definition of interpreters in C# using arch-specific opcodes.
 - **Future Step**: A generic "Interpreter Specification" that lowers automatically to 6502, Z80, or MIPS templates.
 
-## 4. Key Benefits
+## 4. Key Benefits [aspirational]
 1. **Performance**: Emitted code is direct, non-switched, and leverages hardware-specific idioms (e.g., 68000 auto-increment).
 2. **No External Dependencies**: No need to maintain or bundle target-specific cross-assemblers.
 3. **Consistency**: The same C# toolchain that parses Python or Pascal also generates the final hardware-native entry point.
 4. **Tooling Integration**: C# unit tests can verify the bytecode-to-native mapping for every instruction in isolation.
 
-## 5. Implementation Status
+## 5. Implementation Status [aspirational]
 - **Phase 1**: Instruction emission for 6502 and Z80 (Basic DTC).
 - **Phase 2 (Active)**: Expansion to MIPS (PS1/N64) and SH-2 (Saturn).
 - **Phase 3**: Introduction of the Cross-Architecture Interpreter Abstraction.

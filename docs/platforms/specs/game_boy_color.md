@@ -1,6 +1,6 @@
-# Nintendo Game Boy Color
+# Nintendo Game Boy Color [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - Profile: GV.Spec.L3
 - CPU: Sharp LR35902 (modified Z80)
@@ -12,7 +12,7 @@
 - Successor: Game Boy Advance
 - Notable Feature: Full backward compatibility with Game Boy while adding color capabilities
 
-## CPU Details
+## CPU Details [implemented]
 ### Sharp LR35902
 #### Architecture Characteristics
 - Processor: 8-bit (modified Z80)
@@ -36,7 +36,7 @@
 - Dynamic switching
 - Compatibility mode
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 32KB
 - Video RAM: 16KB
@@ -55,7 +55,7 @@
 - $FF80-$FFFE: High RAM
 - $FFFF: Interrupt Enable
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 160×144
 - Colors: 32,768 (15-bit)
@@ -82,7 +82,7 @@
 - Background priorities
 - Auto-colorization of GB games
 
-## Audio System
+## Audio System [implemented]
 ### Sound Controller
 - Channels: 4
   - 2 square wave
@@ -102,7 +102,7 @@
 - Stereo output
 - Envelope control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-pad
 - A, B buttons
@@ -127,7 +127,7 @@
 - 32,768 colors
 - Game Boy compatibility
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Game Boy Color
 - Game Boy Color CGB-101
@@ -145,7 +145,7 @@
 - Infrared port
 - Double speed mode
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Color display
 - Backward compatibility
@@ -177,8 +177,8 @@
   - Backward compatible
   - Market leader
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - Z80-like instructions
   - Memory banking
@@ -194,7 +194,7 @@
   - VRAM access
   - DMA control
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4.19/8.38 MHz
 - Graphics: 60 fps
 - Audio: 4 channels
@@ -204,14 +204,14 @@
   - ROM: Up to 8MB
   - External RAM: 32KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Speed Switching
 - Color Palettes
 - GB Compatibility
 - DMA Transfers
 - IR Communication
 
-## References
+## References [implemented]
 - [Game Boy Color Programming Manual](http://gbdev.gg8.se/files/docs/GBCProgramming.pdf)
 - [Pan Docs](http://gbdev.io/pandocs)
 - [Game Boy CPU Manual](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)

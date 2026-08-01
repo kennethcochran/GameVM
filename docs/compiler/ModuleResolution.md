@@ -1,24 +1,24 @@
-# GameVM Module Resolution System Design
+# GameVM Module Resolution System Design [aspirational, outdated]
 
-## 1. Introduction
+## 1. Introduction [aspirational]
 
-### 1.1 Purpose
+### 1.1 Purpose [aspirational]
 This document outlines the design of GameVM's unified module resolution system, which enables seamless integration of modules across multiple programming languages through a canonical [High-Level Intermediate Representation (HLIR)](./HLIR.md). The system implements a language-agnostic approach to dependency management, type resolution, and ABI compliance, providing a robust foundation for polyglot development.
 
-### 1.2 Key Features
+### 1.2 Key Features [aspirational]
 - **Unified HLIR as Canonical Source of Truth**: All languages compile to a single, language-agnostic HLIR.
 - **Strict DAG Enforcement**: Circular dependencies between modules are strictly forbidden to ensure deterministic builds and zero-cost cross-language linking.
 - **Centralized ABI Management**: Eliminates the need for per-language ABI implementations.
 - **Compiler-Native Resolution**: Moves beyond text-based includes to semantic dependency tracking.
 
-### 1.3 Scope
+### 1.3 Scope [aspirational]
 - Module discovery and resolution
 - Cross-language dependency management
 - Version conflict resolution
 - Build system integration
 - Development tooling support
 
-### 1.4 Related Documents
+### 1.4 Related Documents [aspirational]
 - [Architecture Overview](../architecture/ArchitectureOverview.md)
 - [Type System](./TypeSystem.md)
 - [Build System](./BuildSystem.md)

@@ -1,6 +1,6 @@
-# Compiler Architecture
+# Compiler Architecture [aspirational, outdated]
 
-## Overview
+## Overview [aspirational]
 
 The GameVM compiler is a **cross-compiler** that runs on modern workstations to produce specialized binaries for retro gaming consoles. It models a hybrid accumulator-based Virtual Machine architecture (LLIR), which can be emitted in several ways depending on the developer's choice:
 

@@ -1,17 +1,17 @@
-# GameVM Architecture Overview
+# GameVM Architecture Overview [implemented, aspirational, outdated]
 
-## 1. Introduction
+## 1. Introduction [implemented, aspirational, outdated]
 
-### 1.1 Purpose
+### 1.1 Purpose [implemented]
 This document provides a high-level architectural overview of the GameVM system, describing its core components, their relationships, and key design decisions.
 
-### 1.2 Host/Target Philosophy
+### 1.2 Host/Target Philosophy [implemented, outdated]
 GameVM is a **cross-compiler system**. All complex analysis, optimization, and transformation happen on a modern host computer (PC/Mac/Linux). The output of this process is a tailored binary (ROM or disk image) for a specific retro gaming target.
 
 - **Host (PC)**: Runs the compiler toolchain, manages the module dependency graph, and performs whole-program optimization across the IR pipeline (HLIR -> MLIR -> LLIR).
 - **Target (Console)**: The actual retro hardware or emulator. It executes the final binary, which the compiler has emitted using one of several **dispatch techniques** (e.g., Native machine code, DTC, ITC, STC, or TTC).
 
-### 1.3 Definitions
+### 1.3 Definitions [implemented, outdated]
 - **HLIR**: High-Level Intermediate Representation (Host-only AST).
 - **MLIR**: Mid-Level Intermediate Representation (Host-only optimization graph).
 - **LLIR**: Low-Level Intermediate Representation. This is the **Virtual Machine ISA**, modeling a hybrid accumulator-based architecture.
@@ -23,7 +23,7 @@ GameVM is a **cross-compiler system**. All complex analysis, optimization, and t
 
 ## 2. Core Architecture
 
-### 2.1 High-Level Architecture
+### 2.1 High-Level Architecture [implemented, aspirational, outdated]
 
 ```mermaid
 graph TD
@@ -55,37 +55,38 @@ graph TD
     Title[GameVM High-Level Architecture]:::titleStyle
 ```
 
-### 2.2 Component Relationships
+### 2.2 Component Relationships [implemented, aspirational, outdated]
 
-1. **Frontends**
+1. **Frontends** [implemented, aspirational]
    - Language-specific parsers and analyzers
    - Convert source code to HLIR
    - Handle language-specific features and idioms
 
-2. **Intermediate Representations**
+2. **Intermediate Representations** [implemented]
    - **HLIR (High-Level IR)**: Language-agnostic, preserves high-level semantics
    - **MLIR (Mid-Level IR)**: Focuses on optimizations and resource management
    - **LLIR (Low-Level IR)**: Close to machine code, architecture-specific
 
-3. **Backends**
+3. **Backends** [aspirational]
    - Generate code for 2nd-5th generation gaming consoles
    - Optimize for console-specific hardware capabilities
    - Handle memory constraints of retro gaming platforms
    - Handle platform-specific optimizations
    - Manage memory layout and calling conventions
 
-4. **Core Services (Host)**
+4. **Core Services (Host)** [implemented, aspirational]
    - **Module System**: Manages dependencies and code organization
    - **Type System**: Ensures type safety across language boundaries
    - **Build System**: Coordinates compilation and linking
-5. **Runtime Services (Target)**
+
+5. **Runtime Services (Target)** [aspirational]
    - **Dynamic Loading**: Handles relocatable modules and overlays on RAM-based systems
    - **Memory Model**: Bare-metal memory management optimized for target constraints
    - **Interpreter/VM**: The generated execution engine for LLIR bytecode
 
 ## 3. Data Flow
 
-### 3.1 Compilation Pipeline
+### 3.1 Compilation Pipeline [implemented, aspirational]
 ```
 Source Code → Frontend → HLIR → MLIR → LLIR → Target Code
     │           │          │        │        │
@@ -96,72 +97,72 @@ Source Code → Frontend → HLIR → MLIR → LLIR → Target Code
     └──────────────────────────────────────────▶ Source Mapping
 ```
 
-### 3.2 Runtime Flow
+### 3.2 Runtime Flow [implemented, aspirational]
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │ Application │───▶│  GameVM     │◀──▶│  Platform   │
 │  Code       │◄───│  Runtime    │    │  Services   │
 └─────────────┘    └─────────────┘    └─────────────┘
-        ▲                  ▲
-        │                  │
-        └──────────────────┘
-       Debugging & Profiling
+         ▲                  ▲
+         │                  │
+         └──────────────────┘
+        Debugging & Profiling
 ```
 
 ## 4. Key Design Decisions
 
-### 4.1 Intermediate Representations
+### 4.1 Intermediate Representations [implemented]
 - Three-tier IR design for optimal balance between high-level optimizations and low-level code generation
 - Clear separation of concerns between language frontends and platform backends
 
-### 4.2 Cross-Platform Support
+### 4.2 Cross-Platform Support [aspirational]
 - Abstracted hardware interfaces for different console generations
 - Consistent execution model across platforms
 
 ## 5. Cross-Cutting Concerns
 
-### 5.1 Memory Management
+### 5.1 Memory Management [aspirational]
 - Unified memory model across languages
 - Garbage collection strategies
 - Memory safety guarantees
 
-### 5.2 Error Handling
+### 5.2 Error Handling [aspirational]
 - Unified error reporting
 - Exception handling across language boundaries
 - Debug information
 
-### 5.3 Performance
+### 5.3 Performance [implemented, aspirational]
 - Optimization passes
 - Memory access patterns
 - Parallel execution
 
-## 4. Integration Points
+## 6. Integration Points [aspirational]
 
-### 4.1 Language Integration
+### 6.1 Language Integration [aspirational]
 - Foreign Function Interface (FFI)
 - Type conversion rules
 - Memory sharing
 
-### 4.2 Platform Integration
+### 6.2 Platform Integration [aspirational]
 - System calls
 - Hardware access
 - Input/Output
 
-## 5. Build and Deployment
+## 7. Build and Deployment [implemented, aspirational]
 
-### 5.1 Build Process
+### 7.1 Build Process [implemented]
 1. Parse source files
 2. Generate HLIR
 3. Apply optimizations
 4. Generate target code
 5. Link dependencies
 
-### 5.2 Packaging
+### 7.2 Packaging [aspirational]
 - Module packaging
 - Resource bundling
 - Deployment artifacts
 
-## 6. Related Documents
+## 8. Related Documents [implemented, aspirational]
 - [HLIR Design](../compiler/HLIR.md)
 - [MLIR Design](../compiler/MLIR.md)
 - [LLIR Design](../compiler/LLIR.md)
@@ -169,3 +170,5 @@ Source Code → Frontend → HLIR → MLIR → LLIR → Target Code
 - [Dynamic Loading](../compiler/DynamicLoading.md)
 - [Build System](../compiler/BuildSystem.md)
 - [Type System](../compiler/TypeSystem.md)
+
+(End of file - total 171 lines)

@@ -1,6 +1,6 @@
-# Sega SG-1000
+# Sega SG-1000 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: NEC 780C (Z80A clone)
 - Clock Speed: 3.58 MHz
@@ -10,7 +10,7 @@
 - Predecessor: None (Sega's first home console)
 - Successor: Sega Mark III/Master System
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Z80A compatible
 - Word Size: 8-bit
@@ -49,7 +49,7 @@
   - Efficient register usage
   - Interrupt mode selection
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 1 KB
 - Video RAM: 16 KB
@@ -65,7 +65,7 @@
 - Port $7E: PSG register select
 - Port $7F: PSG data write
 
-## Video System
+## Video System [implemented]
 ### TMS9928A VDP
 - Chip: Texas Instruments TMS9928A
 - Clock Speed: 10.738635 MHz
@@ -116,7 +116,7 @@
 - Interrupt Generation
 - Status Register Reading
 
-## Audio System
+## Audio System [implemented]
 ### SN76489 PSG
 - Chip: Texas Instruments SN76489
 - Clock Speed: 3.579545 MHz
@@ -139,7 +139,7 @@
 - Sample Rate: ~32 kHz effective
 - Output Resolution: 4-bit
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Ports: Two DE-9 connectors
 - Original Model:

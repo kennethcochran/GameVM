@@ -1,6 +1,6 @@
-# Apple Pippin
+# Apple Pippin [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: PowerPC 603
 - CPU Clock: 66 MHz
@@ -12,7 +12,7 @@
 - Successor: None
 - Notable Feature: Mac OS-based gaming platform
 
-## CPU Details
+## CPU Details [implemented]
 ### PowerPC 603
 #### Architecture Characteristics
 - Processor: 32-bit RISC
@@ -35,7 +35,7 @@
 - Branch Processing Unit
 - System Interface Unit
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 6MB
 - Video RAM: 2MB (shared)
@@ -51,7 +51,7 @@
 - I/O space
 - System registers
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 640×480
 - Colors: 16.7M (24-bit)
@@ -84,7 +84,7 @@
 - Color effects
 - QuickTime support
 
-## Audio System
+## Audio System [implemented]
 ### Sound Processing
 - Sample Rate: 44.1 kHz
 - Channels: 16-bit stereo
@@ -102,7 +102,7 @@
 - Multiple channels
 - Volume control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - ADB (Apple Desktop Bus) ports
 - AppleJack controller port
@@ -126,7 +126,7 @@
 - VGA output
 - RF output (some models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Bandai Pippin ATMARK
 - Bandai Pippin @WORLD
@@ -145,7 +145,7 @@
 - Expansion dock
 - GeoPort support
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - PowerPC architecture
 - Mac OS integration
@@ -177,8 +177,8 @@
   - Limited success
   - Mac OS based
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - PowerPC instructions
   - Mac Toolbox calls
@@ -193,7 +193,7 @@
   - Resource management
   - Handle-based memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 66 MHz PowerPC
 - Graphics: 640×480
 - Audio: CD quality
@@ -203,14 +203,14 @@
   - ROM: 4MB
   - Cache: 32KB total
 
-### Special Handling
+### Special Handling [aspirational]
 - Mac OS Integration
 - PowerPC Architecture
 - Resource Management
 - Network Support
 - CD-ROM Access
 
-## References
+## References [implemented]
 - [Pippin Technical Specifications](http://www.apple-history.com/pippin)
 - [PowerPC 603 Reference Manual](http://www.ibm.com/chips/powerpc)
 - [Mac OS Development Guide](http://www.apple.com/legacy)

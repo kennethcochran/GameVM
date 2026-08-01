@@ -1,6 +1,6 @@
-# Bally Professional Arcade / Astrocade
+# Bally Professional Arcade / Astrocade [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: Zilog Z80 @ 1.789 MHz
 - Release Year: 1977 (as Bally Home Library Computer)
@@ -10,7 +10,7 @@
 - Successor: None
 - Notable Features: High-resolution graphics, BASIC programming
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: Zilog Z80
 - Clock Speed: 1.789 MHz (half NTSC colorburst)
@@ -55,7 +55,7 @@
   - Register alternates
   - Screen buffer management
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 4 KB (expandable to 64 KB)
 - ROM: 8 KB built-in
@@ -74,7 +74,7 @@
   - $19: Graphics mode control
   - $20-$3F: Custom chip registers
 
-## Video System
+## Video System [implemented]
 ### Display Processor
 - Custom Magic chip
 - Resolution: 160×102 to 320×204 pixels
@@ -116,8 +116,8 @@
 - Double buffering capable
 - Memory-mapped color control
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Number of Ports: 4
 - Controller Features:
@@ -159,7 +159,7 @@
 - Printer interface
 - Additional controllers
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Bally Home Library Computer (1977)
 - Bally Professional Arcade (1978)
@@ -193,7 +193,7 @@
   - Music composition
   - Waveform creation
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - High-resolution graphics
 - Advanced sound capabilities
@@ -237,7 +237,7 @@
   - Sound effects
   - Game logic
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: Zilog Z80 (custom variant)
 - Clock Speed: 1.789 MHz
@@ -247,7 +247,7 @@
 - Predecessor: None (Bally's first console)
 - Successor: None
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: Z80
 - Word Size: 8-bit
@@ -282,7 +282,7 @@
   - Alternate register set
   - Index register usage
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 4KB (expandable to 32KB)
 - Layout:
@@ -312,7 +312,7 @@
 - Sound Registers: Custom memory-mapped
 - Controller Ports: Memory-mapped
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 160×102 to 320×204
 - Color Depth: 8 colors per scan line (from palette of 256)
@@ -337,7 +337,7 @@
 - HBLANK Duration: Standard NTSC
 - Access Windows: During VBLANK/HBLANK
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3 + noise
 - Sample Rate: N/A (tone generation)
@@ -359,7 +359,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - Vertical blank
@@ -375,8 +375,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Z80 native code
   - Display list optimization
@@ -394,7 +394,7 @@
   - Display list compilation
   - Audio timing
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS
 - Audio Update Frequency: Per frame
 - Memory Budget:
@@ -406,7 +406,7 @@
   - No hardware sprites
   - Shared video memory
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - Custom display list generator
   - Scan line color management
@@ -420,7 +420,7 @@
   - Display list allocation
   - Stack management
 
-## References
+## References [implemented]
 - [Bally Astrocade Technical Reference](http://www.ballyalley.com/ml/ML_reference.pdf)
 - [Z80 User Manual](http://www.zilog.com/docs/z80/um0080.pdf)
 - [Hardware Documentation](http://www.ballyalley.com/documentation/documentation.html)

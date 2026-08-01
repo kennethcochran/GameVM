@@ -1,6 +1,6 @@
-# LLIR Instruction Set Architecture (ISA) Specification
+# LLIR Instruction Set Architecture (ISA) Specification [aspirational]
 
-## Overview
+## Overview [aspirational]
 
 This document provides the complete specification for the LLIR instruction set. The LLIR is an accumulator-based virtual ISA designed for efficient threaded code execution across 2nd-5th generation gaming consoles.
 

@@ -1,6 +1,6 @@
-# SNK Neo Geo AES/MVS
+# SNK Neo Geo AES/MVS [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L5
 - CPU: Motorola 68000 (Main), Zilog Z80 (Sound)
 - Main CPU Clock: 12 MHz
@@ -12,7 +12,7 @@
 - Successor: Neo Geo CD
 - Notable Feature: Arcade-perfect home gaming, identical hardware to MVS arcade system
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68000)
 #### Architecture Characteristics
 - Processor: Motorola 68000
@@ -72,7 +72,7 @@
 - ROM Access: Direct
 - Sound Chip Access: Port-mapped
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 64 KB
 - Video RAM: 68 KB
@@ -98,7 +98,7 @@
 - $E000-$E3FF: Port Access
 - $F000-$F7FF: ROM Bank
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Custom SNK graphics system
 - Resolution: 320×224 pixels
@@ -144,7 +144,7 @@
   - Sprite stacking
   - Background interaction
 
-## Audio System
+## Audio System [implemented]
 ### YM2610 Sound Chip
 - Channels: Multiple synthesis types
   - 4 FM channels
@@ -175,7 +175,7 @@
 - ADPCM Storage: ROM-based
 - Mixing: Hardware
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two DE-15 ports
 - Neo Geo Controller:
@@ -206,7 +206,7 @@
 - Resolution: 320×224
 - Refresh: 60 Hz
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 #### MVS (Multi Video System)
 - Arcade cabinet system
@@ -232,7 +232,7 @@
 - Auto-fire capability
 - System diagnostics
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Arcade-identical home system
 - Large ROM capacity
@@ -264,8 +264,8 @@
   - Collector's market
   - Fighting game focus
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 68000 native code
   - Z80 sound code
@@ -280,7 +280,7 @@
   - Sprite system
   - Sound memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60 Hz
 - Sprite Count: Up to 380
 - Audio Quality: CD-quality
@@ -290,14 +290,14 @@
   - Sound RAM: 2 KB
   - ROM: Up to 716 Mbit
 
-### Special Handling
+### Special Handling [aspirational]
 - Dual CPU Coordination
 - Sprite System Management
 - Auto-Animation
 - Memory Card Access
 - Sound Processing
 
-## References
+## References [implemented]
 - [Neo Geo Development Wiki](http://wiki.neogeodev.org)
 - [YM2610 Documentation](http://www.ym2610.org/docs)
 - [68000 Programming Manual](http://www.nxp.com/docs/en/reference-manual/MC68000UM.pdf)

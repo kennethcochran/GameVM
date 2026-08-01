@@ -1,6 +1,6 @@
-# Sega Genesis/Mega Drive
+# Sega Genesis/Mega Drive [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - Main CPU: Motorola 68000
 - Sound CPU: Zilog Z80
@@ -12,7 +12,7 @@
 - Successor: Sega Saturn
 - Notable Feature: Backward compatibility with Master System (with adapter)
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68000)
 #### Architecture Characteristics
 - Processor: Motorola 68000
@@ -68,7 +68,7 @@
   - Sound chips (YM2612, PSG)
   - 68000 bus (when granted)
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 64 KB
 - Video RAM: 64 KB
@@ -93,7 +93,7 @@
 - $7F11: PSG
 - $8000-$FFFF: Bank Control
 
-## Video System
+## Video System [implemented]
 ### Video Display Processor (VDP)
 - Type: Custom Yamaha YM7101
 - Resolution: 320×224 (NTSC), 320×240 (PAL)
@@ -130,7 +130,7 @@
 - Raster effects
 - Window clipping
 
-## Audio System
+## Audio System [implemented]
 ### YM2612 FM Synthesizer
 - Channels: 6 total
 - Features per Channel:
@@ -159,7 +159,7 @@
 - PCM playback control
 - Sound driver execution
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two DE-9 ports
 - Standard Controller:
@@ -195,7 +195,7 @@
   - 256×240 (PAL)
   - 320×240 (PAL)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Special Chips
 - Sega Virtua Processor (SVP)
   - DSP for 3D calculations
@@ -231,7 +231,7 @@
   - RGB output
   - 50 Hz operation
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First 16-bit console success in NA
 - Backward compatibility
@@ -255,8 +255,8 @@
   - Launch: US$189
   - Final: US$99
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 68000 native code
   - Z80 sound code
@@ -271,7 +271,7 @@
   - VDP memory access
   - Sound memory coordination
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60/50 Hz
 - Audio Update: Per frame
 - DMA Transfer: During blanking
@@ -281,14 +281,14 @@
   - Sound RAM: 8 KB
   - ROM: Up to 4 MB standard
 
-### Special Handling
+### Special Handling [aspirational]
 - Dual CPU Coordination
 - VDP Access Timing
 - Sound Generation
 - Add-on Support
 - Regional Differences
 
-## References
+## References [implemented]
 - [Genesis Technical Manual](https://segaretro.org/images/a/a2/Genesis_Software_Manual.pdf)
 - [68000 User Manual](https://www.nxp.com/docs/en/reference-manual/MC68000UM.pdf)
 - [VDP Documentation](https://www.plutiedev.com/genesis-vdp)

@@ -1,6 +1,6 @@
-# Sega Saturn
+# Sega Saturn [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: Two Hitachi SH-2 (32-bit RISC)
 - CPU Clock: 28.6 MHz (each)
@@ -12,7 +12,7 @@
 - Successor: Dreamcast
 - Notable Feature: Dual CPU architecture, specialized for 2D and quadrilateral rendering
 
-## CPU Details
+## CPU Details [implemented]
 ### Dual SH-2 Processors
 #### Architecture Characteristics
 - Processor: Hitachi SH-2 RISC
@@ -37,7 +37,7 @@
   - DMA control
   - Interrupt handling
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM-H: 1MB (32-bit)
 - Work RAM-L: 1MB (16-bit)
@@ -54,7 +54,7 @@
 - $05A00000-$05AFFFFF: VDP2 VRAM
 - $05C00000-$05C7FFFF: SCU RAM
 
-## Video System
+## Video System [implemented]
 ### VDP1 (Sprite/Polygon Processor)
 - Features:
   - Sprite rendering
@@ -95,7 +95,7 @@
   - Transparency
   - Color calculation
 
-## Audio System
+## Audio System [implemented]
 ### Sound Processor
 - Type: Motorola 68EC000
 - Clock: 11.3 MHz
@@ -116,7 +116,7 @@
   - Digital filtering
   - MIDI capabilities
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Multi-tap support (up to 12 players)
@@ -140,7 +140,7 @@
 - RGB SCART
 - RF adapter (optional)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Model 1 (HST-3200)
 - Model 2 (HST-3220)
@@ -160,7 +160,7 @@
 - Various peripherals
 - Arcade ports
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Dual CPU architecture
 - Specialized video processors
@@ -192,8 +192,8 @@
   - Arcade perfect ports
   - Complex architecture
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - SH-2 instruction set
   - Dual CPU coordination
@@ -209,7 +209,7 @@
   - CD buffer handling
   - DMA queuing
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 28.6 MIPS (per CPU)
 - VDP1: 200K textured polys/sec
 - VDP2: 5 backgrounds
@@ -219,14 +219,14 @@
   - Sound RAM: 512KB
   - CD buffer: 512KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Dual CPU Synchronization
 - VDP1/VDP2 Coordination
 - SCU DSP Operations
 - CD Streaming
 - DMA Management
 
-## References
+## References [implemented]
 - [Saturn Hardware Manual](http://segaretro.org/Saturn_Hardware_Manual)
 - [SH-2 Programming Guide](http://renesas.com/sh2)
 - [VDP1/VDP2 Programming Guide](http://segadev.org/saturn/docs)

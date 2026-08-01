@@ -1,6 +1,6 @@
-# Sega Game Gear
+# Sega Game Gear [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Zilog Z80A
 - Clock Speed: 3.58 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Full color backlit screen
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Z80A
 - Word Size: 8-bit
@@ -55,7 +55,7 @@
   - Alternate register set
   - Efficient bank switching
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 8 KB
 - Video RAM: 16 KB
@@ -70,7 +70,7 @@
 - $C000-$DFFF: System RAM
 - $E000-$FFFF: System RAM (mirror)
 
-## Video System
+## Video System [implemented]
 ### Display Hardware
 - Screen: 3.2-inch backlit LCD
 - Resolution: 160×144 pixels
@@ -107,7 +107,7 @@
 - Background priority
 - Collision detection
 
-## Audio System
+## Audio System [implemented]
 ### Sound Hardware
 - Primary: Texas Instruments SN76489
 - Channels: 4 total
@@ -127,7 +127,7 @@
 - Volume Envelopes (software)
 - Noise Generator Modes
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-Pad (8 directions)
 - Button 1 (primary)
@@ -158,7 +158,7 @@
 - Power LED indicator
 - Low battery indicator
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Design
 - Integrated Unit:
   - Backlit color LCD
@@ -184,7 +184,7 @@
 - External Power Support
 - Screen Brightness Control
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First backlit color handheld
 - SMS compatibility
@@ -214,8 +214,8 @@
   - Atari Lynx
   - NEC PC Engine GT
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Z80 native code
   - Bank-aware code
@@ -229,7 +229,7 @@
   - VDP memory management
   - RAM optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 59.922 Hz
 - Audio Update: 60 Hz
 - VDP Access: During VBLANK
@@ -238,14 +238,14 @@
   - VRAM: 16 KB
   - ROM: Up to 1 MB
 
-### Special Handling
+### Special Handling [aspirational]
 - VDP Access Timing
 - Bank Switching
 - Audio Mixing
 - Power Management
 - Screen Scaling
 
-## References
+## References [implemented]
 - [Game Gear Hardware Manual](https://www.smspower.org/uploads/Development/GameGearDevelopmentManual.pdf)
 - [Z80 CPU Manual](http://www.zilog.com/docs/z80/um0080.pdf)
 - [VDP Documentation](http://www.smspower.org/Development/VDP)

@@ -7,7 +7,7 @@ updated: "2025-09-24"
 version: "1.0.0"
 ---
 
-# Parser Component
+# Parser Component [aspirational, outdated]
 
 ## 1. Overview
 The Parser component is responsible for converting source code into an Abstract Syntax Tree (AST) representation.

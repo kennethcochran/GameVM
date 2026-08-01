@@ -1,6 +1,6 @@
-# NEC PC Engine GT/TurboExpress
+# NEC PC Engine GT/TurboExpress [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - CPU: Hudson HuC6280
 - Clock Speed: 7.16 MHz (1.79 MHz power-save mode)
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Perfect compatibility with PC Engine/TurboGrafx-16 home console games
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: HuC6280 (modified 65C02)
 - Word Size: 8-bit
@@ -66,7 +66,7 @@
   - Hardware math operations
   - Bank switching optimization
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 8 KB
 - Video RAM: 64 KB
@@ -87,7 +87,7 @@
   - Timer: $0C00-$0C03
   - I/O: $1000-$1003
 
-## Video System
+## Video System [implemented]
 ### Display Hardware
 - Screen: 2.6-inch Active-Matrix LCD
 - Resolution: 400×270 (scaled to LCD)
@@ -128,7 +128,7 @@
   - Multiple background layers
   - Hardware sprites
 
-## Audio System
+## Audio System [implemented]
 ### Sound Hardware
 - PSG Channels: 6
   - 5 Wavetable channels
@@ -160,7 +160,7 @@
 - LFO Control
 - DDA Mode Control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-Pad (8 directions)
 - Run Button
@@ -193,7 +193,7 @@
 - Power LED
 - Low battery indicator
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Design
 - Integrated Unit:
   - Active-matrix LCD
@@ -220,7 +220,7 @@
 - Power Save Mode
 - Screen Brightness Control
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First handheld with home console compatibility
 - Active-matrix LCD screen
@@ -250,8 +250,8 @@
   - Game Gear
   - Atari Lynx
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 6502-based native code
   - Bank switching awareness
@@ -265,7 +265,7 @@
   - VRAM access timing
   - DMA optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60 Hz
 - Audio Update: System dependent
 - Battery Life: Power management
@@ -274,14 +274,14 @@
   - VRAM: 64 KB
   - ROM: Up to 2.5 MB
 
-### Special Handling
+### Special Handling [aspirational]
 - Power Management
 - Bank Switching
 - VRAM Access
 - Audio Generation
 - Display Scaling
 
-## References
+## References [implemented]
 - [PC Engine Programming Guide](http://www.archaicpixels.com/PCE_Programming_Guide)
 - [HuC6280 Documentation](http://www.archaicpixels.com/HuC6280)
 - [VDC Documentation](http://www.archaicpixels.com/PC_Engine_VDC)

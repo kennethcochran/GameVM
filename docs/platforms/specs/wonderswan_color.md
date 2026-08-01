@@ -1,6 +1,6 @@
-# Bandai WonderSwan Color
+# Bandai WonderSwan Color [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L5
 - CPU: SPGY-1002 (NEC V30MZ 16-bit RISC-style clone)
 - Clock Speed: 3.072 MHz
@@ -10,7 +10,7 @@
 - Predecessor: Bandai WonderSwan (Monochrome)
 - Successor: Bandai SwanCrystal
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: x86 (80186 compatible)
 - Word Size: 16-bit
@@ -35,7 +35,7 @@
 - Known Bottlenecks: Memory speed and bus contention
 - Optimization Opportunities: 16-bit wide data access; bitwise manipulation
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 64 KB (Unified VRAM/WRAM)
 - Layout: 0x00000-0x0FFFF
@@ -55,7 +55,7 @@
 - I/O Registers: 0x0000-0x00FF (I/O space)
 - System Vectors: 0xFFFF0 (Reset)
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 224x144 pixels
 - Color Depth: 12-bit (4096 colors)
@@ -79,7 +79,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted (Unified memory)
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 4 (Digital PCM)
 - Sample Rate: Variable (4-bit or 8-bit samples)
@@ -92,27 +92,27 @@
 - Sample Playback: Yes (Wavetable memory support)
 - Special Features: Volume envelope, Stereo output
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: Hardware interrupts (VBLANK, HBLANK, Serial, Key, etc.)
 - Sources: 8 sources
 - Timing: Programmable
 - Priority: Fixed
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (x86-style)
 - Register Allocation Strategy: Use SI/DI/BP for intermediate pointers
 - Memory Management Strategy: Shared 64KB mapping
 - Optimization Opportunities: Segmented memory tricks for fast context switching
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60-75 fps
 - Audio Update Frequency: 75 Hz
 - Memory Budget: 64 KB total
 - Known Limitations: Non-backlit screen makes high-speed motion blurred
 
-## References
+## References [implemented]
 - WonderSwan Color Hardware Specification (isie.pl)
 - Bandai SPGY-1002 Technical Manual
 - NEC V30MZ Programmer's Reference

@@ -1,6 +1,6 @@
-# Pioneer LaserActive
+# Pioneer LaserActive [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - Base Unit: Pioneer CLD-A100
 - Optional Packs: Sega PAC-S1, NEC PAC-N1
@@ -78,7 +78,7 @@
 - CD Buffer: 64KB
 - Backup RAM: 2KB
 
-## Video System
+## Video System [implemented]
 ### Base System
 - LaserDisc Video:
   - Analog video
@@ -104,7 +104,7 @@
 - Multiple resolutions
 - Hardware scaling
 
-## Audio System
+## Audio System [implemented]
 ### Base System
 - LaserDisc Audio:
   - Digital PCM
@@ -124,7 +124,7 @@
 - CD-quality audio
 - Effects processing
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Ports
 - Two controller ports
 - Compatible with:
@@ -148,7 +148,7 @@
 - RF output
 - RGB (Japanese models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - CLD-A100 (NTSC)
 - CLD-A100J (Japanese)
@@ -170,7 +170,7 @@
 - Karaoke features
 - 3D capabilities
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Multi-system architecture
 - LaserDisc gaming
@@ -202,8 +202,8 @@
   - Multimedia platform
   - Collector's item
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Multi-system Code Generation:
   - Base system code
   - PAC-S1 (68000)
@@ -217,7 +217,7 @@
   - LaserDisc buffering
   - Pack memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Video:
   - LaserDisc quality
   - Pack-specific resolutions
@@ -231,14 +231,14 @@
   - Buffer management
   - System resources
 
-### Special Handling
+### Special Handling [aspirational]
 - LaserDisc Control
 - Pack Integration
 - Video Synchronization
 - Audio Mixing
 - Controller Management
 
-## References
+## References [implemented]
 - [LaserActive Technical Documentation](http://www.pioneerarchive.com/laseractive)
 - [PAC-S1 Developer Guide](http://www.sega.com/pac-s1)
 - [PAC-N1 Technical Reference](http://www.nec.com/pac-n1)

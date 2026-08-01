@@ -1,4 +1,4 @@
-# Supported Platforms
+# Supported Platforms [aspirational]
 
 This directory contains documentation about platforms supported by GameVM.
 

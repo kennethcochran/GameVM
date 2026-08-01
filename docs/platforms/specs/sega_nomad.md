@@ -1,6 +1,6 @@
-# Sega Nomad
+# Sega Nomad [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - Profile: GV.Spec.L4
 - CPU: Motorola 68000
@@ -13,7 +13,7 @@
 - Successor: None
 - Notable Feature: Portable Sega Genesis/Mega Drive with full compatibility
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68000)
 #### Architecture Characteristics
 - Processor: Motorola 68000
@@ -42,7 +42,7 @@
   - Program counter
 - Purpose: Sound control and FM synthesis
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 64KB
 - Video RAM: 64KB
@@ -56,7 +56,7 @@
 - $E00000-$E0FFFF: RAM
 - $FF0000-$FFFFFF: System ROM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 320×224
 - Colors: 512 (64 simultaneous)
@@ -80,7 +80,7 @@
 - Window plane
 - Shadow/highlight
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - FM Synthesis:
   - Yamaha YM2612
@@ -100,7 +100,7 @@
 - Multiple channels
 - Volume control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Built-in 6-button controller
 - Second controller port
@@ -119,7 +119,7 @@
 - RF adapter support
 - NTSC format
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Single model (MK-6100)
 - Development units
@@ -137,7 +137,7 @@
 - TV output
 - Two-player support
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Portable Genesis
 - Full compatibility
@@ -169,8 +169,8 @@
   - Limited battery life
   - Niche market
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 68000 instructions
   - Z80 sound code
@@ -185,7 +185,7 @@
   - Battery optimization
   - LCD buffering
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 7.67 MHz
 - Graphics: 60 fps
 - Audio: Full Genesis
@@ -195,14 +195,14 @@
   - Sound RAM: 8KB
   - Cart ROM: Variable
 
-### Special Handling
+### Special Handling [aspirational]
 - LCD Display
 - Battery Management
 - Heat Control
 - TV Output
 - Sound Mixing
 
-## References
+## References [implemented]
 - [Nomad Hardware Specification](http://segaretro.org/Nomad)
 - [Genesis Technical Manual](http://www.sega-16.com/Genesis_Software_Manual.pdf)
 - [68000 Programming Reference](http://www.nxp.com/docs/en/reference-manual/MC68000UM.pdf)

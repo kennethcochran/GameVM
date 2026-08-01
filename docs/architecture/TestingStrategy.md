@@ -1,23 +1,23 @@
-# GameVM Testing Strategy
+# GameVM Testing Strategy [implemented, aspirational]
 
-## 1. Introduction
+## 1. Introduction [implemented]
 
-### 1.1 Purpose
+### 1.1 Purpose [implemented]
 This document outlines the testing strategy for GameVM, ensuring software quality through comprehensive test coverage across all components and language boundaries.
 
-### 1.2 Key Principles
+### 1.2 Key Principles [implemented, aspirational]
 - **Automation**: Maximize automated test coverage
 - **Isolation**: Test components in isolation when possible
 - **Reproducibility**: Tests should be deterministic
 - **Performance**: Include performance benchmarks
 - **Cross-Platform**: Verify behavior across all supported platforms
 
-### 1.3 Related Documents
+### 1.3 Related Documents [implemented, aspirational]
 - [Architecture Overview](./ArchitectureOverview.md)
 - [Error Handling](../compiler/ErrorHandling.md)
 - [Build System](../compiler/BuildSystem.md)
 
-## 2. Testing Pyramid
+## 2. Testing Pyramid [implemented, aspirational]
 
 ```mermaid
 graph TD
@@ -64,27 +64,27 @@ graph TD
     Title[Testing Pyramid]:::titleStyle
 ```
 
-### 2.1 Unit Tests (60%)
+### 2.1 Unit Tests (60%) [implemented]
 - Test individual functions/classes in isolation
 - Fast execution (<1ms per test)
 - No I/O or external dependencies
 - High code coverage (>80%)
 
-### 2.2 Integration Tests (30%)
+### 2.2 Integration Tests (30%) [implemented]
 - Test interactions between components
 - May include database/network access
 - Moderate execution time
 - Focus on critical paths
 
-### 2.3 End-to-End Tests (10%)
+### 2.3 End-to-End Tests (10%) [aspirational]
 - Test complete user workflows
 - Full system initialization
 - Slowest to execute
 - Validate system behavior
 
-## 3. Test Types
+## 3. Test Types [implemented, aspirational]
 
-### 3.1 Static Analysis
+### 3.1 Static Analysis [implemented, aspirational]
 - **Purpose**: Catch issues without executing code
 - **Tools**:
   - C++: Clang-Tidy, Cppcheck
@@ -92,7 +92,7 @@ graph TD
   - JavaScript/TypeScript: ESLint, TypeScript compiler
 - **Enforced via**: Pre-commit hooks and CI
 
-### 3.2 Unit Tests
+### 3.2 Unit Tests [implemented]
 - **Purpose**: Verify individual units of code
 - **Frameworks**:
   - C++: Google Test, Catch2
@@ -103,7 +103,7 @@ graph TD
   - Use test doubles (mocks, stubs, fakes)
   - Follow Arrange-Act-Assert pattern
 
-### 3.3 Integration Tests
+### 3.3 Integration Tests [implemented]
 - **Purpose**: Verify component interactions
 - **Approach**:
   - Test module boundaries
@@ -113,26 +113,21 @@ graph TD
   - Same as unit tests, with additional test containers
   - TestContainers for database testing
 
-### 3.2 Unit Tests
-- **Purpose**: Verify individual components (Parsers, Optimizers, Backend Emitters).
-- **Behavioral Verification**: Use behavioral unit tests that verify generated LLIR against expected execution patterns.
-- **Frameworks**:
-  - Compiler: Google Test (C++) / xUnit (C#)
-  - Generated Code: LLIR-based assertion suites.
+### 3.2 Unit Tests (Compiler) [implemented]
 
-### 3.3 MAME Behavioral Testing (Priority)
+### 3.3 MAME Behavioral Testing (Priority) [aspirational]
 - **Purpose**: Ensure emitted ROMs/Binaries behave correctly on hardware-accurate emulators.
 - **Approach**:
   - **Headless Execution**: Execute ROMs in MAME via CLI.
   - **Memory Snapshotting**: Compare RAM/VRAM states against expected "Gold Frames."
   - **Instruction Tracing**: Verify that specific LLIR blocks map to the expected native cycles.
 
-### 3.4 Performance & Cycle Benchmarks
+### 3.4 Performance & Cycle Benchmarks [aspirational]
 - **Purpose**: Verify that "Intrinsic Promotion" and "Superinstructions" meet timing goals.
 - **Metric**: Execution cycles on target hardware.
 - **Verification**: Use MAME's debugger or hardware-specific performance counters.
 
-### 4.1 CI/CD Pipeline
+### 4.1 CI/CD Pipeline [aspirational]
 ```yaml
 # .github/workflows/ci.yml
 name: CI
@@ -160,15 +155,15 @@ jobs:
         run: ./scripts/test.sh e2e
 ```
 
-### 4.2 Test Reporting
+### 4.2 Test Reporting [aspirational]
 - **Code Coverage**: LCOV, Coverlet, istanbul
 - **Test Results**: JUnit XML format
 - **Dashboards**: Grafana, Azure DevOps
 - **Notifications**: Slack, Email, GitHub Status Checks
 
-## 5. Cross-Language Testing
+## 5. Cross-Language Testing [aspirational]
 
-### 5.1 Testing Shared Libraries
+### 5.1 Testing Shared Libraries [aspirational]
 ```csharp
 // C# test calling into native library
 [Test]
@@ -185,30 +180,30 @@ public unsafe void NativeLibrary_AddNumbers_ReturnsCorrectSum()
 }
 ```
 
-### 5.2 Contract Testing
+### 5.2 Contract Testing [aspirational]
 - **Purpose**: Verify cross-language interfaces
 - **Approach**:
   - Define API contracts using OpenAPI/Swagger
   - Generate client/server stubs
   - Verify both sides adhere to the contract
 
-## 6. Test Data Management
+## 6. Test Data Management [implemented, aspirational]
 
-### 6.1 Test Fixtures
+### 6.1 Test Fixtures [implemented, aspirational]
 - Use factory pattern for test data
 - Generate deterministic random data
 - Clean up after tests
 - Consider using snapshot testing for complex outputs
 
-### 6.2 Test Doubles
+### 6.2 Test Doubles [implemented]
 - **Mocks**: Verify interactions
 - **Stubs**: Provide canned responses
 - **Fakes**: Lightweight implementations
 - **Dummies**: Placeholder values
 
-## 7. Performance Testing
+## 7. Performance Testing [aspirational]
 
-### 7.1 Benchmarking
+### 7.1 Benchmarking [aspirational]
 ```cpp
 // C++ benchmark example
 static void BM_StringCreation(benchmark::State& state) {
@@ -220,7 +215,7 @@ static void BM_StringCreation(benchmark::State& state) {
 BENCHMARK(BM_StringCreation);
 ```
 
-### 7.2 Load Testing
+### 7.2 Load Testing [aspirational]
 - **Tools**: k6, Locust, JMeter
 - **Scenarios**:
   - Normal load

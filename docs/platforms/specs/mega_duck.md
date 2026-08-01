@@ -1,6 +1,6 @@
-# Mega Duck/Cougar Boy
+# Mega Duck/Cougar Boy [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - Profile: GV.Spec.L3
 - CPU: Sharp LR35902 (modified Z80)
@@ -12,7 +12,7 @@
 - Successor: None
 - Notable Feature: Game Boy-compatible architecture with unique cartridge format
 
-## CPU Details
+## CPU Details [implemented]
 ### Sharp LR35902
 #### Architecture Characteristics
 - Processor: 8-bit (modified Z80)
@@ -36,7 +36,7 @@
 - Sprite system
 - Background layer
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Work RAM: 8KB
 - Video RAM: 8KB
@@ -53,7 +53,7 @@
 - $FF00-$FF7F: I/O Registers
 - $FF80-$FFFE: High RAM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 160×144
 - Colors: 4 shades of gray
@@ -79,7 +79,7 @@
 - LCD control
 - Screen blanking
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Channels: 4
   - 2 square wave
@@ -99,7 +99,7 @@
 - Stereo output
 - Channel mixing
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-pad
 - A, B buttons
@@ -123,7 +123,7 @@
 - No TV output
 - Link capabilities
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Mega Duck (Europe)
 - Cougar Boy (Asia)
@@ -142,7 +142,7 @@
 - Link cable support
 - Battery efficiency
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Game Boy architecture clone
 - Cost-effective design
@@ -174,8 +174,8 @@
   - Game Boy alternative
   - Short lifespan
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - LR35902 instructions
   - Memory management
@@ -191,7 +191,7 @@
   - OAM DMA
   - Work RAM
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4 MHz
 - Graphics: 60 fps
 - Audio: 4 channels
@@ -201,14 +201,14 @@
   - Boot ROM: 2KB
   - Cart ROM: Up to 1MB
 
-### Special Handling
+### Special Handling [aspirational]
 - LCD Control
 - Sound Generation
 - Input Processing
 - Memory Banking
 - Power Management
 
-## References
+## References [implemented]
 - [Mega Duck Hardware Manual](http://megaduck.org/docs)
 - [LR35902 Technical Reference](http://sharp.com/cpu)
 - [Game Development Guide](http://megaduck-dev.net)

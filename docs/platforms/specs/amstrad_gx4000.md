@@ -1,6 +1,6 @@
-# Amstrad GX4000
+# Amstrad GX4000 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - CPU: Zilog Z80A
 - Clock Speed: 4 MHz (Effective 3.3 MHz due to video memory contention)
@@ -10,7 +10,7 @@
 - Predecessor: Amstrad CPC 6128 Plus (Console version of computer)
 - Successor: N/A
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: Z80
 - Word Size: 8-bit
@@ -34,7 +34,7 @@
 - Known Bottlenecks: Memory access wait states due to ASIC/Video contention
 - Optimization Opportunities: Use of shadow registers; block move instructions (LDIR, etc.)
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 64 KB
 - Layout: 0x0000-0xFFFF (mapped by ASIC)
@@ -54,7 +54,7 @@
 - I/O Registers: 0x4000-0x7FFF (ASIC configuration mapping)
 - System Vectors: 0x0000, 0x0038 (IM 1), 0x0066 (NMI)
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 160x200 (16 colors), 320x200 (4 colors), 640x200 (2 colors)
 - Color Depth: 12-bit RGB (4,096 colors)
@@ -78,7 +78,7 @@
 - HBLANK Duration: approx. 12 us
 - Access Windows: CPU access is slowed during active scan to prevent "snow"
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3 (via General Instrument AY-3-8912)
 - Sample Rate: N/A (Programmable Sound Generator)
@@ -91,27 +91,27 @@
 - Sample Playback: Possible via software volume manipulation or ASIC DMA
 - Special Features: 3-channel DMA Sound supported by ASIC
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: IRQ (standard), NMI
 - Sources: VBLANK, ASIC scanline counters
 - Timing: Programmable via ASIC raster interrupts
 - Priority: NMI > IRQ
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (Z80)
 - Register Allocation Strategy: Register-heavy (utilizing HL, BC, DE pairs)
 - Memory Management Strategy: ASIC bank switching
 - Optimization Opportunities: Exploit 12-bit palette for high-end 8-bit effects
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 50 fps (PAL)
 - Audio Update Frequency: 50 Hz
 - Memory Budget: 64 KB total
 - Known Limitations: Effective CPU speed is slower than 4MHz due to wait states
 
-## References
+## References [implemented]
 - Amstrad CPC Plus ASIC Specifications
 - GX4000 Technical Archive (gx4000.co.uk)
 - Z80 Architecture Reference Manual

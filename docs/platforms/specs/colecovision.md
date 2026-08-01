@@ -1,6 +1,6 @@
-# ColecoVision
+# ColecoVision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: Zilog Z80A
 - Clock Speed: 3.58 MHz
@@ -10,7 +10,7 @@
 - Predecessor: Coleco Telstar series
 - Successor: None (planned ADAM computer integration)
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Z80A (enhanced 8080 instruction set)
 - Word Size: 8-bit
@@ -53,7 +53,7 @@
   - Alternate register set usage
   - Interrupt mode selection
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 1 KB work RAM
 - Video RAM: 16 KB
@@ -73,7 +73,7 @@
   - $40-$7F: Controller 1
   - $80-$BF: Controller 2
 
-## Video System
+## Video System [implemented]
 ### Video Display Processor
 - Chip: Texas Instruments TMS9928A
 - Clock Speed: 10.738635 MHz
@@ -123,8 +123,8 @@
 - Status Register Reading
 - Direct Memory Access
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Number of Ports: 2
 - Controller Features:
@@ -162,7 +162,7 @@
 - Controller Expansions
 - Game-Specific Peripherals
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Original ColecoVision (1982)
 - Telegames Personal Arcade
@@ -184,7 +184,7 @@
 - ADAM computer compatibility
 - High-quality arcade ports
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Arcade-quality graphics
 - Expandable system design
@@ -233,7 +233,7 @@
 
 
 
-## Audio System (SN76489A)
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3 + noise
 - Sample Rate: N/A (tone generation)
@@ -255,7 +255,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - VDP interrupt
@@ -271,8 +271,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Z80 native code
   - VDP-aware timing
@@ -290,7 +290,7 @@
   - Alternate registers
   - VDP timing optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS
 - Audio Update Frequency: Per frame
 - Memory Budget:
@@ -302,7 +302,7 @@
   - VDP sprite limitations
   - Memory access timing
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - VDP register setup
   - Sprite management
@@ -316,7 +316,7 @@
   - Pattern/color table management
   - Sprite attribute table
 
-## References
+## References [implemented]
 - [ColecoVision Technical Information](http://www.atarihq.com/danb/files/CV-Tech.txt)
 - [Z80 User Manual](http://www.zilog.com/docs/z80/um0080.pdf)
 - [TMS9928A Manual](http://map.grauw.nl/resources/video/ti-vdp-programmers-guide.pdf)

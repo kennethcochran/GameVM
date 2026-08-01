@@ -7,7 +7,7 @@ updated: "2025-09-24"
 version: "1.0.0"
 ---
 
-# Specification-Driven Development Guide
+# Specification-Driven Development Guide [aspirational]
 
 ## 1. Introduction to SDD
 

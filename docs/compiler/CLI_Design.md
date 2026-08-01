@@ -6,9 +6,9 @@ created: "2025-01-31"
 updated: "2025-01-31"
 ---
 
-# GameVM Fluent CLI Design
+# GameVM Fluent CLI Design [aspirational]
 
-## Overview
+## Overview [aspirational]
 
 This document outlines the design of a configuration-driven, fluent command-line interface for the GameVM platform. The design follows industry best practices from .NET Core, Cargo, and npm, providing simple verb-only commands backed by rich configuration files and extensible tooling architecture.
 

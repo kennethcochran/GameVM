@@ -1,6 +1,6 @@
-# Sega Master System
+# Sega Master System [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Zilog Z80A
 - Clock Speed: 4 MHz
@@ -10,7 +10,7 @@
 - Predecessor: SG-1000
 - Successor: Sega Genesis/Mega Drive
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Zilog Z80A (enhanced 8080 instruction set)
 - Word Size: 8-bit
@@ -41,7 +41,7 @@
   - Interrupt mode selection for specific timing needs
   - Strategic use of alternate register set
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Total RAM: 8 KB main RAM
 - Video RAM: 16 KB dedicated VRAM
@@ -60,7 +60,7 @@
 - $C000-$DFFF: System RAM
 - $E000-$FFFF: System RAM mirror
 
-## Video System
+## Video System [implemented]
 ### VDP (Video Display Processor)
 - Chip: Sega VDP (based on Texas Instruments TMS9918)
 - Clock Speed: 10.738635 MHz (NTSC) / 10.6875 MHz (PAL)
@@ -108,7 +108,7 @@
 - Background Priority
 - Direct Memory Access (DMA)
 
-## Audio System
+## Audio System [implemented]
 ### Primary Sound (SN76489)
 - Chip: Texas Instruments SN76489
 - Clock Speed: 3.579545 MHz
@@ -135,7 +135,7 @@
   - Key Scale Rate
 - Implementation: Optional, region dependent
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Ports
 - Type: DE-9 (9-pin)
 - Number of Ports: 2
@@ -170,7 +170,7 @@
 - External Power: 9V DC
 - AV Multi-out (later models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Built-in Components
 - BIOS: Region-specific
 - Built-in Game: Varies by region/model

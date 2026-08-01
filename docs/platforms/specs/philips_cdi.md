@@ -1,6 +1,6 @@
-# Philips CD-i
+# Philips CD-i [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: 68070 VLSI (68000 derivative)
 - CPU Clock: 15.5 MHz
@@ -11,7 +11,7 @@
 - Successor: None
 - Notable Feature: Multimedia platform with CD-ROM support
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68070)
 #### Architecture Characteristics
 - Processor: Philips 68070 (68000 derivative)
@@ -38,7 +38,7 @@
   - Memory protection
   - Address translation
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 1MB
 - Video RAM: 768KB
@@ -52,7 +52,7 @@
 - $2C0000-$2FFFFF: Reserved
 - $300000-$3FFFFF: I/O Space
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 384×280 to 768×560
 - Colors: Up to 32,768 (15-bit)
@@ -81,7 +81,7 @@
 - Real-time scaling
 - Video overlay
 
-## Audio System
+## Audio System [implemented]
 ### MCD Audio Processor
 - Sample Rate: 44.1 kHz
 - Channels: 2 (stereo)
@@ -103,7 +103,7 @@
   - Audio effects
   - Multiple streams
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - CD-i Controller:
@@ -130,7 +130,7 @@
 - RF output
 - RGB SCART (European models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - CD-i 200 series
 - CD-i 400 series
@@ -149,7 +149,7 @@
 - Network capabilities
 - Professional features
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Integrated multimedia
 - CD-ROM based
@@ -181,8 +181,8 @@
   - Home entertainment
   - Professional use
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 68070 instructions
   - OS-9 compatibility
@@ -197,7 +197,7 @@
   - CD-ROM buffering
   - Video memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 30/60 Hz
 - Audio: CD quality
 - Video: Full screen
@@ -207,14 +207,14 @@
   - System ROM: 1MB
   - CD-ROM buffer
 
-### Special Handling
+### Special Handling [aspirational]
 - CD-ROM Access
 - Video Playback
 - Audio Synchronization
 - Input Device Support
 - Real-time Constraints
 
-## References
+## References [implemented]
 - [CD-i Hardware Documentation](http://www.icdia.co.uk/hardware)
 - [68070 Technical Reference](http://www.nxp.com/docs/68070.pdf)
 - [CD-i Developer Guide](http://www.cdidev.org/docs)

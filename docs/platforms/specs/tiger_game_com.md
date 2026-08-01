@@ -1,6 +1,6 @@
-# Tiger Game.com
+# Tiger Game.com [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Sharp SM8521
 - CPU Clock: 12 MHz
@@ -11,7 +11,7 @@
 - Successor: Game.com Pocket Pro
 - Notable Feature: First handheld with a touchscreen and Internet connectivity
 
-## CPU Details
+## CPU Details [implemented]
 ### Sharp SM8521
 #### Architecture Characteristics
 - Processor: 8-bit CPU
@@ -36,7 +36,7 @@
 - I/O Ports
 - Interrupt Controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 32KB
 - Video RAM: 16KB
@@ -50,7 +50,7 @@
 - $A000-$DFFF: RAM
 - $E000-$FFFF: Video RAM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 200×160
 - Display: 4 shades of gray
@@ -76,7 +76,7 @@
 - Touch detection
 - Screen masking
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Type: Digital sound generator
 - Channels: 2
@@ -94,7 +94,7 @@
 - Internal speaker
 - Headphone support
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-pad
 - A, B, C, D buttons
@@ -118,7 +118,7 @@
 - Internet connectivity
 - Email capability
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Original Game.com
 - Game.com Pocket
@@ -137,7 +137,7 @@
 - PDA functions
 - Built-in applications
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Touchscreen interface
 - Internet connectivity
@@ -169,8 +169,8 @@
   - Limited success
   - Innovative features
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - SM8521 instructions
   - Touch handling
@@ -186,7 +186,7 @@
   - Network buffers
   - Touch data
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 12 MHz
 - Graphics: LCD refresh
 - Audio: 2 channels
@@ -196,14 +196,14 @@
   - ROM: Up to 4MB
   - EEPROM: 512B
 
-### Special Handling
+### Special Handling [aspirational]
 - Touchscreen Input
 - Network Stack
 - Power Management
 - LCD Control
 - Sound Generation
 
-## References
+## References [implemented]
 - [Game.com Technical Manual](http://game.com/docs/tech)
 - [SM8521 Programming Guide](http://sharp.com/sm8521)
 - [Game.com Development Kit](http://game.com/dev)

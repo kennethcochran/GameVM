@@ -1,6 +1,6 @@
-# Nintendo Game Boy
+# Nintendo Game Boy [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: Sharp LR35902 (modified Z80)
 - Clock Speed: 4.194304 MHz
@@ -11,7 +11,7 @@
 - Successor: Game Boy Color
 - Notable Feature: First successful handheld with interchangeable cartridges
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Modified Z80/8080 hybrid
 - Word Size: 8-bit
@@ -69,7 +69,7 @@
   - VBlank period utilization
   - Efficient register usage
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Internal RAM: 8 KB
 - Video RAM: 8 KB
@@ -91,7 +91,7 @@
 - $FF80-$FFFE: High RAM (HRAM)
 - $FFFF: Interrupt Enable Register
 
-## Video System
+## Video System [implemented]
 ### LCD Display
 - Type: STN LCD (Super-Twisted Nematic)
 - Resolution: 160×144 pixels
@@ -148,7 +148,7 @@
   - LY=LYC
   - OAM Search
 
-## Audio System
+## Audio System [implemented]
 ### Sound Hardware (PSG)
 - Four Sound Channels:
   1. Square Wave with Sweep
@@ -193,7 +193,7 @@
 - Vin Mixing
 - Status Flags
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - D-Pad (4 directions)
 - A Button
@@ -235,7 +235,7 @@
   - LCD: ~8.0mA
   - Sound: ~2.0mA per channel
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Power Management
 - CPU Speed Control
 - LCD Enable/Disable
@@ -255,8 +255,8 @@
 - Power supply differences
 - Language ROMs
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Z80-like instruction set
   - Efficient register usage
@@ -271,7 +271,7 @@
   - Bank switching overhead
   - DMA coordination
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 59.73 Hz
 - Audio Update: 256 Hz
 - DMA Transfer: 160 microseconds
@@ -281,14 +281,14 @@
   - OAM: 160 bytes
   - HRAM: 128 bytes
 
-### Special Handling
+### Special Handling [aspirational]
 - LCD Timing Management
 - Audio Channel Synchronization
 - DMA Coordination
 - Bank Switching
 - Power Management
 
-## References
+## References [implemented]
 - [Pan Docs](https://gbdev.io/pandocs/)
 - [Game Boy CPU Manual](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)
 - [Game Boy Programming Manual](https://archive.org/details/GameBoyProgManVer1.1)

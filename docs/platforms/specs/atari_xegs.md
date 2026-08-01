@@ -1,6 +1,6 @@
-# Atari XEGS
+# Atari XEGS [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L3
 - CPU: MOS Technology 6502C
 - Clock Speed: 1.79 MHz
@@ -10,7 +10,7 @@
 - Predecessor: Atari 65XE (Computer roots back to 400/800)
 - Successor: N/A (Atari Jaguar was the next console)
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: 6502
 - Word Size: 8-bit
@@ -34,7 +34,7 @@
 - Known Bottlenecks: CPU is paused during ANTIC DMA
 - Optimization Opportunities: Use of Display Lists in ANTIC; Zero Page usage
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 64 KB
 - Layout: 0x0000-0xFFFF (shared with OS and I/O)
@@ -57,7 +57,7 @@
   - PIA: 0xD300
   - ANTIC: 0xD400
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 320x192 (Monochrome), 160x192 (Standard Color), 80x192 (High Color)
 - Color Depth: 256 colors total (8 hues * 16 luminances / 16 hues * 8 luminances)
@@ -80,7 +80,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted (CPU and ANTIC both access RAM)
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 4 (via POKEY chip)
 - Sample Rate: Variable (Digital-to-Analog conversion)
@@ -93,27 +93,27 @@
 - Sample Playback: Possible via volume register manipulation (4-bit PCM)
 - Special Features: Independent frequency and volume registers per channel
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: IRQ, NMI (DLI and VBI)
 - Sources: VBLANK, ANTIC DLI, Timer, Keyboard, SIO
 - Timing: Triggered by system events
 - Priority: NMI > IRQ
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (6502)
 - Register Allocation Strategy: Minimalist (A, X, Y)
 - Memory Management Strategy: RAM/ROM mapping control via bits at 0xD301
 - Optimization Opportunities: Use ANTIC Display Lists for background logic
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 fps (NTSC)
 - Audio Update Frequency: 60 Hz
 - Memory Budget: 64 KB total
 - Known Limitations: Limited sprites (PM Graphics require significant CPU intervention for vertical movement)
 
-## References
+## References [implemented]
 - Atari 8-bit FAQ
 - Mapping the Atari (Ian Chadwick)
 - Atari ANTIC/GTIA Technical Documentation

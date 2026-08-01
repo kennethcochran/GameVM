@@ -1,6 +1,6 @@
-# Commodore CDTV
+# Commodore CDTV [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: Motorola 68000
 - CPU Clock: 7.14 MHz
@@ -11,7 +11,7 @@
 - Successor: Amiga CD32
 - Notable Feature: First CD-ROM based Amiga system
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68000)
 #### Architecture Characteristics
 - Processor: Motorola 68000
@@ -53,7 +53,7 @@
   - Serial port
   - Interrupt control
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Chip RAM: 512KB
 - Fast RAM: 512KB
@@ -66,7 +66,7 @@
 - $BFD000-$BFDFFF: Custom chips
 - $F80000-$FFFFFF: Kickstart ROM
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 320×256 to 640×512
 - Colors: 4096 (12-bit)
@@ -92,7 +92,7 @@
 - Hardware scrolling
 - Copper effects
 
-## Audio System
+## Audio System [implemented]
 ### Paula Audio
 - Channels: 4
 - Sample Resolution: 8-bit
@@ -113,7 +113,7 @@
   - Stereo panning
   - Filter control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - CD-i style remote
@@ -139,7 +139,7 @@
 - RGB video
 - S-Video (some models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - CDTV
 - CDTV-CR (rack mount)
@@ -157,7 +157,7 @@
 - MIDI support
 - Genlock capability
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Early CD-ROM adoption
 - Multimedia focus
@@ -189,8 +189,8 @@
   - CD-ROM pioneer
   - Limited success
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - 68000 instructions
   - Custom chip access
@@ -205,7 +205,7 @@
   - CD-ROM buffering
   - DMA control
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 50/60 Hz
 - Audio: CD quality
 - Video: Multiple modes
@@ -214,14 +214,14 @@
   - Fast RAM: 512KB
   - CD-ROM buffer
 
-### Special Handling
+### Special Handling [aspirational]
 - Custom Chipset
 - CD-ROM Access
 - DMA Control
 - Audio Mixing
 - Video Modes
 
-## References
+## References [implemented]
 - [CDTV Hardware Manual](http://www.commodore.ca/cdtv)
 - [Amiga Hardware Reference](http://amigadev.elowar.com)
 - [CDTV Developer Documentation](http://www.cdtv.org/dev)

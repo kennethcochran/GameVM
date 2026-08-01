@@ -7,7 +7,7 @@ updated: "2025-09-24"
 version: "1.0.0"
 ---
 
-# Specification-Driven Development Workflow
+# Specification-Driven Development Workflow [aspirational]
 
 ## 1. Overview
 This document defines the workflow for specification-driven development (SDD) in the GameVM project.

@@ -1,21 +1,21 @@
-# GameVM System Specs and Profiles
+# GameVM System Specs and Profiles [aspirational]
 
-## 1. The "Hardware Contract" Philosophy
+## 1. The "Hardware Contract" Philosophy [aspirational]
 GameVM does not just target individual consoles; it targets **System Specs**. A Spec (or Profile) is a guaranteed hardware baseline. By developing against a Spec, your game is guaranteed to run on any console that fulfills that spec.
 
 This model is inspired by **J2ME (Java Micro Edition)**, ensuring that the "porting nightmare" is caught by the compiler at design-time, rather than by the developer at build-time.
 
 ---
 
-## 2. Hardware Tiers (L1 - L7)
+## 2. Hardware Tiers (L1 - L7) [aspirational]
 
 Developers choose a **System Spec** at the start of their project. This "Profile" acts as a boundary—the compiler will prevent you from using features that aren't in your chosen spec.
 
-## 2. Hardware Tiers (L1 - L7)
+## 2. Hardware Tiers (L1 - L7) [aspirational]
 
 GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible hardware baseline appropriate for its generation, which is then extended by the subsequent tier. This allows developers to rely on a stable set of signatures while moving up the power scale.
 
-### **`GV.Spec.L1` (Bare-Metal Baseline)**
+### **`GV.Spec.L1` (Bare-Metal Baseline)** [aspirational]
 *   **Philosophy**: The core execution contract where the CPU is the "Video Card."
 *   **Capsule Model**: A hybrid of **Framework Drivers** and **Developer Kernels**.
 *   **Abstractions**: 
@@ -29,7 +29,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Graphics_UpdateScanlineKernel`
     - `GameVM_Graphics_AwaitVerticalBlank`
 
-### **`GV.Spec.L2` (Fixed Display & Multi-Channel IO)**
+### **`GV.Spec.L2` (Fixed Display & Multi-Channel IO)** [aspirational]
 *   **Philosophy**: Coalescing around the first "Standard" console features.
 *   **Extension**: **Extends L1** with object-based abstractions.
 *   **Abstractions**:
@@ -41,7 +41,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Audio_InitializeSoundChannel`
     - `GameVM_Input_PollExtendedControllerState`
 
-### **`GV.Spec.L3` (Scrolling & Dynamic Viewports)**
+### **`GV.Spec.L3` (Scrolling & Dynamic Viewports)** [aspirational]
 *   **Philosophy**: Smooth, screen-filling motion.
 *   **Extension**: **Extends L2** by adding movement to the fixed display.
 *   **Abstractions**:
@@ -51,7 +51,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Graphics_UpdateBackgroundScrollOffsets`
     - `GameVM_Audio_SetChannelVolumeEnvelope`
 
-### **`GV.Spec.L4` (Multi-Layer & FM Synthesis)**
+### **`GV.Spec.L4` (Multi-Layer & FM Synthesis)** [aspirational]
 *   **Philosophy**: Depth through parallax and complex harmonics.
 *   **Extension**: **Extends L3** by layering the viewports.
 *   **Abstractions**:
@@ -62,7 +62,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Audio_UpdateFmOperatorParameters`
     - `GameVM_Graphics_LoadHardwarePalette`
 
-### **`GV.Spec.L5` (Affine Transformation & PCM Audio)**
+### **`GV.Spec.L5` (Affine Transformation & PCM Audio)** [aspirational]
 *   **Philosophy**: Mathematical manipulation of the 2D plane.
 *   **Extension**: **Extends L4** with pixel-level transformations.
 *   **Abstractions**:
@@ -72,7 +72,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Math_SetAffineTransformationMatrix`
     - `GameVM_Audio_StreamPcmBufferFragment`
 
-### **`GV.Spec.L6` (Geometric Pipeline & Media Streaming)**
+### **`GV.Spec.L6` (Geometric Pipeline & Media Streaming)** [aspirational]
 *   **Philosophy**: The transition to 3D and high-capacity storage.
 *   **Extension**: **Extends L5** with geometric primitives and modern input.
 *   **Abstractions**:
@@ -84,7 +84,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
     - `GameVM_Data_BeginAsynchronousDiskRead`
     - `GameVM_Input_ReadAnalogStickAxis`
 
-### **`GV.Spec.L7` (Filtered Pipeline & Vector Precision)**
+### **`GV.Spec.L7` (Filtered Pipeline & Vector Precision)** [aspirational]
 *   **Philosophy**: Modernized 3D with hardware depth and smoothing.
 *   **Extension**: **Extends L6** with pipeline state controls.
 *   **Abstractions**:
@@ -97,7 +97,7 @@ GameVM uses a **Cumulative Abstraction Model**. Each tier defines a sensible har
 
 ---
 
-## 3. System Compatibility Matrix
+## 3. System Compatibility Matrix [aspirational]
 
 This table maps every supported console to its **highest guaranteed** hardware spec.
 
@@ -155,11 +155,11 @@ This table maps every supported console to its **highest guaranteed** hardware s
 
 ---
 
-## 5. System Extensions (Hardware Injections)
+## 5. System Extensions (Hardware Injections) [aspirational]
 
 Extensions are optional hardware capabilities—often provided by custom cartridge hardware or co-processors—that allow a project to access **Signatures from Higher Tiers** without changing the base machine requirements.
 
-### The "Hybrid" Logic
+### The "Hybrid" Logic [aspirational]
 A project remains anchored to its **Base Level** (for timing and core I/O) but can "inject" specific capabilities from the future.
 
 *   **Example: "The DPC Injection"**
@@ -167,7 +167,7 @@ A project remains anchored to its **Base Level** (for timing and core I/O) but c
     - **Injection**: `Ext.Snd.Polyphonic` (via the custom DPC chip developed for *Pitfall II*).
     - **Result**: The project remains an L1 game (racing the beam), but the compiler allows the use of **L5-grade PCM** or multi-voice audio signatures that the base 2600 TIA could never achieve.
 
-### Extension Categories
+### Extension Categories [aspirational]
 | Extension ID       | Category | Effect                                                            |
 | :----------------- | :------- | :---------------------------------------------------------------- |
 | `Ext.Gfx.Mapper`   | Graphics | Permits high-tier bank-switching or scroll-assistance signatures. |
@@ -176,18 +176,18 @@ A project remains anchored to its **Base Level** (for timing and core I/O) but c
 
 ---
 
-## 6. Software Fallbacks (Polyfills)
+## 6. Software Fallbacks (Polyfills) [aspirational]
 
 If a developer uses a feature that is not natively supported by the hardware *or* an injection, the compiler may provide a **Software Fallback** (emulation). 
 
-### Implementation Logic Gate
+### Implementation Logic Gate [aspirational]
 For every capability signature used, the compiler follows this priority:
 1.  **NATIVE ✅**: Target hardware supports it directly.
 2.  **INJECTED 💉**: Registered hardware extension provides it.
 3.  **EMULATED ⚠️**: Compiler injects a software polyfill. Issues a **Performance Warning**.
 4.  **IMPOSSIBLE ❌**: Feature exceeds target resources. Issues an **Error**.
 
-### Fallback Availability Matrix
+### Fallback Availability Matrix [aspirational]
 | Module           |  L1   |  L2   |  L3   |  L4   |  L5   |  L6   |  L7   | Fallback Logic                    |
 | :--------------- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :-------------------------------- |
 | `HAL.Gfx.Tile`   | **⚠️** | **✅** | **✅** | **✅** | **✅** | **✅** | **✅** | Software Rasterization (High CPU) |
@@ -198,11 +198,11 @@ For every capability signature used, the compiler follows this priority:
 
 ---
 
-## 7. Advisory Enforcement (The "Hacker" Mode)
+## 7. Advisory Enforcement (The "Hacker" Mode) [aspirational]
 
 By default, the profile set in `gamevm.yaml` is a **Strict Contract**. However, GameVM allows an **Advisory Mode** for experimentation.
 
-### Enforcement Matrix
+### Enforcement Matrix [aspirational]
 | Context      | Native Support | Fallback Possible | Impossible (Hard Stop) |
 | :----------- | :------------- | :---------------- | :--------------------- |
 | **Strict**   | Allow          | Error             | Error                  |
@@ -216,7 +216,7 @@ enforcement: advisory
 
 ---
 
-## 8. Developer Workflow
+## 8. Developer Workflow [aspirational]
 
 1.  **Set the Budget**: Define `profile: GV.Spec.L3` across `gamevm.yaml`.
 2.  **Define Injections**: Register any custom hardware (e.g. `Ext.Snd.Injected`) if your target cartridge supports it.

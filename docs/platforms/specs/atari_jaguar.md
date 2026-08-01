@@ -1,6 +1,6 @@
-# Atari Jaguar
+# Atari Jaguar [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: Motorola 68000 (General), 2× Tom (Graphics), Jerry (Sound)
 - Main CPU Clock: 13.295 MHz
@@ -27,7 +27,7 @@
   - CD Audio mixing capabilities
   - Video CD playback (with optional MPEG card)
 
-## CPU Details
+## CPU Details [implemented]
 ### Main CPU (68000)
 #### Architecture Characteristics
 - Processor: Motorola 68000
@@ -72,7 +72,7 @@
   - Audio processing
   - I/O management
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 2 MB
 - Video RAM: Shared with main RAM
@@ -93,7 +93,7 @@
 - DMA control
 - Interrupt vectors
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 320×200 to 800×576
 - Colors: 16.7 million (24-bit)
@@ -132,7 +132,7 @@
   - Hardware scaling
   - Screen rotation
 
-## Audio System
+## Audio System [implemented]
 ### Jerry Audio Processor
 - Sample Rate: Up to 50 kHz
 - Channels: 32
@@ -160,7 +160,7 @@
 - Streaming capability
 - Buffer management
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two 9-pin ports
 - Jaguar Controller:
@@ -194,7 +194,7 @@
   - 640×480
   - 800×576
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Jaguar
 - Jaguar CD (add-on)
@@ -213,7 +213,7 @@
 - Development capabilities
 - Network features (unreleased)
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Custom RISC processors
 - Advanced graphics capabilities
@@ -245,8 +245,8 @@
   - Limited success
   - Final Atari console
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Multi-processor Code Generation:
   - 68000 code
   - Tom GPU code
@@ -260,7 +260,7 @@
   - DMA optimization
   - Cache coordination
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60 Hz
 - Resolution: Multiple modes
 - Audio Quality: CD-quality
@@ -269,14 +269,14 @@
   - ROM: Up to 6 MB
   - Shared resources
 
-### Special Handling
+### Special Handling [aspirational]
 - Multi-processor Coordination
 - Graphics Pipeline
 - Audio Processing
 - I/O Management
 - CD-ROM Support
 
-## References
+## References [implemented]
 - [Atari Jaguar Technical Specifications](http://www.atarimuseum.com/jaguar/specifications)
 - [Jaguar Development Documentation](http://www.atarihq.com/jaguar/docs)
 - [Tom and Jerry Architecture Guide](http://www.jaguardev.org/docs)

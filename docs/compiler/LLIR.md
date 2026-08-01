@@ -1,6 +1,6 @@
-# Low-Level Intermediate Representation (LLIR)
+# Low-Level Intermediate Representation (LLIR) [aspirational, outdated]
 
-## Overview
+## Overview [aspirational]
 The Low-Level Intermediate Representation (LLIR) is a hardware-agnostic virtual machine design that serves as the final compilation target before generating native machine code or threaded code interpreters. It is specifically designed as an accumulator-based architecture to optimize for:
 
 1. **Efficient threaded code dispatch** (DTC, ITC, TTC) on constrained hardware
@@ -8,22 +8,22 @@ The Low-Level Intermediate Representation (LLIR) is a hardware-agnostic virtual 
 3. **Scalable performance** on modern register-rich targets
 4. **Bespoke VM generation** with game-specific interpreter optimization
 
-## Design Philosophy
+## Design Philosophy [aspirational]
 
 The LLIR is designed around a singular thought experiment: **"If you could go back in time to the 8-bit era and design a CPU that was 'forward compatible'—knowing how hardware would evolve into the 32/64-bit eras—how would it look?"**
 
-### 1. The Portability Goal
+### 1. The Portability Goal [aspirational]
 A game written for the **Atari 2600** that utilizes only the Standard Library and the HAL should be portable to the **PlayStation** or **Nintendo 64** with a simple compiler flag change and a recompile. The LLIR exists to bridge this gap by abstracting the physical hardware while preserving the deterministic behavior (overflow, carry, memory limits) of the 8-bit roots.
 
-### 2. Core Principles
+### 2. Core Principles [aspirational]
 1. **Width-Awareness**: Every instruction is explicitly typed by width (8, 16, 32, 64-bit). The backend ensures that an 8-bit ADD on a 64-bit MIPS processor behaves identically to an 8-bit ADD on a 6502.
 2. **Hybrid Accumulator Model**: Features a lead register (`A`) for 8-bit efficiency and a pool of general registers (`R0-R15`) for 32/64-bit register-rich architectures.
 3. **Bespoke Interpretation**: The ISA is designed to be emitted as optimized, non-switched machine code (via the [Internal Assembly API](InternalAssemblyAPI.md)), making the virtual "CPU" feel as fast as a native one.
 4. **Intrinsic Promotion**: Blurs the line between functions and opcodes, allowing complex game logic (like `MoveSprites`) to be promoted to a native-speed "Superinstruction."
 
-## Virtual Machine Architecture
+## Virtual Machine Architecture [aspirational]
 
-### Virtual Register File
+### Virtual Register File [aspirational]
 
 | Register | Description                                    |
 | -------- | ---------------------------------------------- |
@@ -39,7 +39,7 @@ A game written for the **Atari 2600** that utilizes only the Standard Library an
 - **Backend mapping**: Atari 2600 might map A→A, R0→X, R1→Y; N64 might map to physical registers
 - **Width flexibility**: Each register can operate on 8, 16, 32, or 64-bit values
 
-### Status Flags
+### Status Flags [aspirational]
 
 | Flag | Description | Set Condition                       |
 | ---- | ----------- | ----------------------------------- |
@@ -54,7 +54,7 @@ A game written for the **Atari 2600** that utilizes only the Standard Library an
 - Logical operations set Z and N flags
 - Backends may optimize flag handling for target hardware
 
-## Memory Model
+## Memory Model [aspirational]
 
 ### Virtual Memory Space
 
@@ -84,33 +84,34 @@ POP   Rd, width              ; Pop from stack to register
 - **Genesis**: Use 68000 addressing modes, handle memory layout  
 - **N64**: Use virtual memory, cache optimization
 
-## Execution Models
+## Execution Models [aspirational, outdated]
 
 ### Threaded Code Support
 
 LLIR is optimized for multiple threaded code execution models:
 
-#### **Direct Threaded Code (DTC)**
+#### **Direct Threaded Code (DTC)** [implemented]
 - Each instruction points directly to implementation code
 - Minimal dispatch overhead
 - Excellent for register-poor targets
 
-#### **Indirect Threaded Code (ITC)**  
+#### **Indirect Threaded Code (ITC)** [aspirational, outdated]  
 - Instructions contain opcodes that index into dispatch table
 - Compact bytecode representation
 - Good balance of size and speed
+- **NOTE: ITC is MISSING from DispatchStrategy enum in implementation**
 
-#### **Token Threaded Code (TTC)**
+#### **Token Threaded Code (TTC)** [implemented]
 - Single-byte tokens for maximum compactness
 - Dispatch table lookup + jump
 - Best for memory-constrained targets
 
-#### **Subroutine Threaded Code (STC)**
+#### **Subroutine Threaded Code (STC)** [implemented]
 - Instructions compiled to native subroutines
 - CALL/RET dispatch pattern
 - Good for complex instruction sequences
 
-### Bespoke Interpreter Generation
+### Bespoke Interpreter Generation [aspirational]
 
 The compiler can generate game-specific interpreters:
 
@@ -244,10 +245,9 @@ begin
   end;
 end;
 ```
+### Superinstruction Generation Process [aspirational]
 
-### Superinstruction Generation Process
-
-#### **Successful Generation**
+#### **Successful Generation** [aspirational]
 ```
 [Super] function FastAdd(X, Y: Integer): Integer;
 begin
@@ -257,10 +257,10 @@ end;
 ↓ Compiler Analysis ↓
 
 ✅ Function meets criteria:
-   - 3 LLIR instructions
-   - No control flow
-   - 2 parameters
-   - Simple operations
+    - 3 LLIR instructions
+    - No control flow
+    - 2 parameters
+    - Simple operations
 
 ↓ Generation ↓
 
@@ -269,7 +269,7 @@ Implementation: LOAD A, [X]; ADD A, [Y]; MOV [Result], A
 Dispatch Table Entry: [0xF1] → FastAdd_implementation
 ```
 
-#### **Hand-Optimized Generation**
+#### **Hand-Optimized Generation** [aspirational]
 ```
 [Super]
 function OptimizedSwap(var X, Y: Integer);
@@ -284,10 +284,10 @@ end;
 ↓ Compiler Analysis ↓
 
 ✅ Function meets criteria:
-   - 3 LLIR instructions (inline assembly)
-   - No control flow
-   - 2 parameters
-   - Hand-optimized assembly
+    - 3 LLIR instructions (inline assembly)
+    - No control flow
+    - 2 parameters
+    - Hand-optimized assembly
 
 ↓ Generation ↓
 
@@ -296,7 +296,8 @@ Implementation: MOV R0, [X]; XCHG R0, [Y]; MOV [X], R0
 Dispatch Table Entry: [0xF2] → OptimizedSwap_implementation
 ```
 
-#### **Failed Generation with Diagnostics**
+#### **Failed Generation with Diagnostics** [aspirational]
+
 ```
 [Super]
 function ComplexMath(X, Y: Integer): Integer;
@@ -311,37 +312,38 @@ end;
 ↓ Compiler Analysis ↓
 
 ❌ Function rejected for superinstruction:
-   - Contains loop construct
-   - Variable instruction count
-   - Non-deterministic execution time
+    - Contains loop construct
+    - Variable instruction count
+    - Non-deterministic execution time
 
 ↓ Fallback ↓
+
 Generated as normal function with warning:
 "Warning: Function 'ComplexMath' marked as [Super] but rejected:
-   - Contains loop construct (not allowed)
-   - Consider simplifying or using normal function"
+    - Contains loop construct (not allowed)
+    - Consider simplifying or using normal function"
 ```
 
-### Performance Benefits
+### Performance Benefits [aspirational]
 
-#### **Normal Function Call Overhead**
+#### **Normal Function Call Overhead** [aspirational]
 ```
 CALL FastAdd, X, Y, Result    ; ~20-50 cycles depending on dispatch
 ```
 
-#### **Superinstruction Execution**
+#### **Superinstruction Execution** [aspirational]
 ```
 FASTADD X, Y, Result         ; ~5-15 cycles (direct implementation)
 ```
 
-#### **Hand-Optimized Superinstruction**
+#### **Hand-Optimized Superinstruction** [aspirational]
 ```
 OPTIMIZED_SWAP X, Y          ; ~3-8 cycles (hand-tuned assembly)
 ```
 
-### Compiler Integration
+### Compiler Integration [aspirational]
 
-#### **Opcode Management**
+#### **Opcode Management** [aspirational]
 ```csharp
 class SuperinstructionManager {
     private byte nextSuperOpcode = 0xF0;
@@ -360,7 +362,7 @@ class SuperinstructionManager {
 }
 ```
 
-#### **Validation Pipeline**
+#### **Validation Pipeline** [aspirational]
 ```csharp
 class SuperinstructionValidator {
     ValidationResult ValidateForSuperinstruction(Function function) {
@@ -378,16 +380,16 @@ class SuperinstructionValidator {
 }
 ```
 
-### Developer Experience
+### Developer Experience [aspirational]
 
-#### **Performance Engineering Workflow**
+#### **Performance Engineering Workflow** [aspirational]
 1. **Profile**: Identify performance bottlenecks
 2. **Mark**: Add `[Super]` to critical functions
 3. **Test**: Verify superinstruction generation
 4. **Optimize**: Add inline assembly for maximum performance
 5. **Validate**: Check cycle counts and ROM usage
 
-#### **Debugging Support**
+#### **Debugging Support** [aspirational]
 ```pascal
 // Compiler can generate diagnostics
 {$SUPERINSTRUCTION_DIAGNOSTICS}
@@ -407,9 +409,9 @@ end;
 
 This combination of **developer-guided superinstructions** and **hand-optimized inline assembly** gives developers unprecedented control over performance while maintaining cross-platform portability!
 
-## Example LLIR Code
+## Example LLIR Code [aspirational]
 
-### Simple Arithmetic Operations
+### Simple Arithmetic Operations [aspirational]
 ```llir
 ; Add two 16-bit numbers: result = a + b
 LOAD  A, [a_addr], TYPE_INT16
@@ -417,7 +419,7 @@ ADD   A, [b_addr], TYPE_INT16
 STORE [result_addr], A, TYPE_INT16
 ```
 
-### Control Flow Example
+### Control Flow Example [aspirational]
 ```llir
 ; Simple loop: sum array elements
 PROC sum_array
@@ -442,9 +444,9 @@ loop_end:
 ENDPROC
 ```
 
-### Backend Translation Examples
+### Backend Translation Examples [outdated]
 
-#### **Atari 2600 Backend (6502)**
+#### **Atari 2600 Backend (6502)** [implemented]
 ```asm
 ; LOAD A, [addr], TYPE_INT16 becomes:
 LDA addr_low
@@ -462,7 +464,7 @@ ADC addr_high
 STA temp_high
 ```
 
-#### **Genesis Backend (68000)**
+#### **Genesis Backend (68000)** [aspirational]
 ```asm
 ; LOAD A, [addr], TYPE_INT16 becomes:
 MOVE.W (A0), D0
@@ -471,7 +473,7 @@ MOVE.W (A0), D0
 ADD.W (A1), D0
 ```
 
-#### **N64 Backend (MIPS)**
+#### **N64 Backend (MIPS)** [aspirational]
 ```asm
 ; LOAD A, [addr], TYPE_INT16 becomes:
 LH   $t0, 0($t1)

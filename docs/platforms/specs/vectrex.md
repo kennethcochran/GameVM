@@ -1,6 +1,6 @@
-# Vectrex (MB Vector Display Gaming System)
+# Vectrex (MB Vector Display Gaming System) [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: Motorola 6809 @ 1.5 MHz
 - Display: Samsung 240RB40 9-inch monochrome vector monitor
@@ -11,7 +11,7 @@
 - Successor: None (cancelled Mini-Cade)
 - Unique Feature: Built-in vector display
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: Motorola 6809
 - Word Size: 8-bit with 16-bit operations
@@ -63,7 +63,7 @@
   - Fast interrupt usage
   - Register-based operations
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 1 KB (1024 bytes)
 - ROM: 8 KB (built-in MineStorm game)
@@ -142,8 +142,8 @@
   - Scale registers
   - Brightness control
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Number of Ports: 1 (plus 3 optional)
 - Built-in Controller:
@@ -186,7 +186,7 @@
   - ±12V analog
   - High voltage for CRT
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Design
 - All-in-one Unit:
   - Integrated vector display
@@ -222,7 +222,7 @@
   - 50 Hz refresh
 - Universal vector display timing
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First home vector display system
 - Integrated monitor design
@@ -270,7 +270,7 @@
 
 
 
-## Audio System (AY-3-8912)
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3
 - Sample Rate: N/A (tone generation)
@@ -289,7 +289,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - Frame interrupt (50/60 Hz)
@@ -305,8 +305,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Vector-aware code
   - Efficient 6809 usage
@@ -324,7 +324,7 @@
   - Display list sorting
   - Register usage patterns
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 50/60 Hz
 - Vector Count: System dependent
 - Memory Budget:
@@ -336,7 +336,7 @@
   - RAM size
   - Drawing time constraints
 
-### Special Handling
+### Special Handling [aspirational]
 - Vector Generation:
   - Path optimization
   - Intensity control
@@ -352,7 +352,7 @@
   - RAM optimization
   - Stack management
 
-## References
+## References [implemented]
 - [Vectrex Technical Manual](http://www.playvectrex.com/designit/chrissalo/vectrex1.pdf)
 - [6809 Programming Manual](http://www.classiccmp.org/dunfield/r/6809prog.pdf)
 - [Vectrex Hardware Documentation](http://www.playvectrex.com/designit/chrissalo/vectrex3.pdf)

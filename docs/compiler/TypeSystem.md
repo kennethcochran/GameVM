@@ -1,4 +1,4 @@
-# GameVM Type System
+# GameVM Type System [implemented, aspirational]
 
 ## 1. Introduction
 
@@ -92,7 +92,7 @@ classDiagram
     classDef composite fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
 ```
 
-### 2.2 Primitive Types
+## 2.2 Primitive Types
 
 | HLIR Type | Size  | Signed | Description           |
 |-----------|-------|--------|-----------------------|
@@ -137,7 +137,7 @@ graph TD
         P4["visible: bool (1 byte)"]
         P5["padding (3 bytes)"]
     end
-    
+
     subgraph Memory_Layout["Memory Layout"]
         direction TB
         M1["0-3: x (i32)"]
@@ -146,15 +146,15 @@ graph TD
         M4["12: visible (bool)"]
         M5["13-15: [padding]"]
     end
-    
+
     Point_Struct -->|"memory layout"| Memory_Layout
-    
+
     classDef struct fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#333;
     classDef memory fill:#f5f5f5,stroke:#9e9e9e,stroke-width:1px,color:#333,font-family:monospace;
-    
+
     class Point_Struct struct;
     class Memory_Layout memory;
-    
+
     %% Add a title
     classDef titleStyle fill:none,stroke:none,font-weight:bold,font-size:16px
     Title[Struct Memory Layout Example]:::titleStyle

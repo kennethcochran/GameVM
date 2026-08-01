@@ -1,6 +1,6 @@
-# Bitcorp Gamate
+# Bitcorp Gamate [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: 8-bit MOS 6502 (UMC UA6588F or NCR 81489)
 - Clock Speed: 2.22 MHz
@@ -10,7 +10,7 @@
 - Predecessor: N/A
 - Successor: N/A
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: 6502
 - Word Size: 8-bit
@@ -34,7 +34,7 @@
 - Known Bottlenecks: Slow clock speed for a bitmap-based system
 - Optimization Opportunities: Zero Page usage for fast variables
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 16 KB (Main) + 1 KB (CPU Internal)
 - Layout: 0x0000-0x3FFF (16 KB)
@@ -54,7 +54,7 @@
 - I/O Registers: 0x4000-0x5FFF (Hardware control)
 - System Vectors: 0xFFF0-0xFFFF
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 160x152 (Visible) / 256x256 (Bitmap space)
 - Color Depth: 2-bit (4 levels of grayscale)
@@ -74,7 +74,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3 (Integrated AY-3-8910 compatible logic)
 - Sample Rate: N/A
@@ -87,27 +87,27 @@
 - Sample Playback: No
 - Special Features: Stereo output via headphone jack
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: IRQ, NMI
 - Sources: VBLANK, Timer
 - Timing: 60 Hz
 - Priority: Standard
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (6502)
 - Register Allocation Strategy: Minimal (A, X, Y)
 - Memory Management Strategy: Static 16 KB allocation
 - Optimization Opportunities: Optimize bitmap clearing and pixel manipulation for the 6502
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 15-20 fps (due to software rendering overhead)
 - Audio Update Frequency: 60 Hz
 - Memory Budget: 16 KB RAM
 - Known Limitations: High ghosting on original LCD; heavy CPU load for any scrolling effect
 
-## References
+## References [implemented]
 - Bitcorp Gamate Technical Analysis (grauw.nl)
 - 12bit.club: Gamate Platform Guide
 - UA6588F Datasheet

@@ -1,6 +1,6 @@
-# Fairchild Channel F
+# Fairchild Channel F [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: Fairchild F8 (F3850)
 - Clock Speed: 1.7897725 MHz (NTSC colorburst ÷ 2)
@@ -11,7 +11,7 @@
 - Predecessor: None (Fairchild's first console)
 - Successor: Channel F System II
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: Fairchild F8 (F3850)
 - Word Size: 8-bit
@@ -58,7 +58,7 @@
   - Program counter switching
   - Efficient indirect addressing
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 64 bytes (scratchpad) + 2 KB main
 - ROM: 2 KB (system BIOS)
@@ -78,7 +78,7 @@
   - $4000-$47FF: Video registers
   - $4800-$4FFF: Sound registers
 
-## Video System
+## Video System [implemented]
 ### Display Processor
 - Custom Fairchild video processor
 - Resolution: 128×64 pixels
@@ -128,8 +128,8 @@
 - No hardware sprites
 - Limited hardware assistance
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Number of Ports: 2
 - Controller Features:
@@ -165,7 +165,7 @@
 - Channel Select
 - Difficulty Controls
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Original Channel F (1976)
   - Built-in controllers
@@ -193,7 +193,7 @@
 - Two cartridge slots
 - Built-in games
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First ROM cartridge system
 - Unique controller design
@@ -242,7 +242,7 @@
 
 
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 1
 - Sample Rate: N/A (tone generation)
@@ -261,7 +261,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - External interrupt
@@ -277,8 +277,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Direct F8 assembly
   - Heavy use of scratchpad registers
@@ -296,7 +296,7 @@
   - ISAR-based addressing
   - Video memory access patterns
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS
 - Audio Update Frequency: As needed
 - Memory Budget:
@@ -309,7 +309,7 @@
   - Simple audio
   - Complex CPU architecture
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - Software sprite system
   - Efficient framebuffer updates
@@ -322,7 +322,7 @@
   - Efficient video memory usage
   - Scratchpad register optimization
 
-## References
+## References [implemented]
 - [Channel F Technical Documentation](http://www.videogameconsolelibrary.com/pg70-channelf.htm)
 - [F8 Microprocessor Manual](http://www.bitsavers.org/components/fairchild/F8/F8_Users_Manual_1975.pdf)
 - [Channel F Programming Guide](http://www.channelf.se/veswiki/index.php/Main_Page)

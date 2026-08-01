@@ -1,6 +1,6 @@
-# FM Towns Marty
+# FM Towns Marty [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: AMD 386SX
 - CPU Clock: 16 MHz
@@ -12,7 +12,7 @@
 - Successor: FM Towns Marty II
 - Notable Feature: Console version of FM Towns computer with CD-ROM and sprite hardware
 
-## CPU Details
+## CPU Details [implemented]
 ### AMD 386SX
 #### Architecture Characteristics
 - Processor: 32-bit x86
@@ -35,7 +35,7 @@
 - PCM sound processor
 - CD-ROM controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 2MB
 - Video RAM: 640KB
@@ -54,7 +54,7 @@
   - Memory management
   - Paging support
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 352×232 to 640×480
 - Colors: 16.7M (24-bit)
@@ -84,7 +84,7 @@
 - Multiple layers
 - Transparency
 
-## Audio System
+## Audio System [implemented]
 ### Sound Processor
 - Channels: 6 FM + 8 PCM
 - Sample Rate: 44.1 kHz
@@ -102,7 +102,7 @@
 - Mixing capabilities
 - MIDI support
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Mouse port
@@ -126,7 +126,7 @@
 - RGB (31 kHz)
 - S-Video
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - FM Towns Marty
 - FM Towns Marty II
@@ -144,7 +144,7 @@
 - Mouse support
 - Keyboard support
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - PC architecture
 - CD-ROM integration
@@ -176,8 +176,8 @@
   - Limited market
   - Japan exclusive
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - x86 instructions
   - Protected mode
@@ -193,7 +193,7 @@
   - DMA
   - Cache control
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 16 MHz 386SX
 - Video: Multiple modes
 - Audio: CD quality
@@ -203,14 +203,14 @@
   - Sprite RAM: 512KB
   - CD Buffer: 64KB
 
-### Special Handling
+### Special Handling [aspirational]
 - x86 Architecture
 - Protected Mode
 - Sprite Hardware
 - CD-ROM Access
 - Audio System
 
-## References
+## References [implemented]
 - [FM Towns Hardware Manual](http://www.fmtowns.org/docs/hardware)
 - [386SX Programming Guide](http://www.intel.com/support/386sx)
 - [Towns OS Programming](http://www.townsdev.net)

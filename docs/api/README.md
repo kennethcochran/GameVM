@@ -1,4 +1,4 @@
-# API Documentation
+# API Documentation [aspirational]
 
 This directory contains API documentation for the GameVM system.
 

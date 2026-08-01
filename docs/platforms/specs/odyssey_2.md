@@ -1,6 +1,6 @@
-# Magnavox Odyssey² / Philips Videopac G7000
+# Magnavox Odyssey² / Philips Videopac G7000 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: Intel 8048 @ 1.79 MHz
 - Release Year: 1978
@@ -10,7 +10,7 @@
 - Successor: Philips Videopac+ G7400
 - Notable Feature: Integrated keyboard
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: Intel 8048 microcontroller
 - Clock Speed: 5.37 MHz ÷ 3 = 1.79 MHz
@@ -58,7 +58,7 @@
   - Register bank switching
   - Efficient I/O handling
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Internal RAM: 64 bytes (CPU)
 - External RAM: 128 bytes
@@ -78,7 +78,7 @@
   - $800-$9FF: External RAM
   - $A00-$FFF: Cartridge ROM
 
-## Video System
+## Video System [implemented]
 ### Display Processor
 - Custom Intel Graphics Generator
 - Resolution: 160×200 pixels (NTSC)
@@ -125,8 +125,8 @@
   - Character color selection
   - Limited raster effects
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Built-in Keyboard
 - Full 49-key layout
 - Alpha-numeric input
@@ -165,7 +165,7 @@
 - Resolution: 160×200 pixels
 - Colors: 8 + black
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Magnavox Odyssey² (North America)
 - Philips Videopac G7000 (Europe)
@@ -195,7 +195,7 @@
 - The Voice add-on capability
 - Chess Module support
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Integrated keyboard
 - Programmable characters
@@ -243,7 +243,7 @@
 
 
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 1
 - Sample Rate: N/A (square wave)
@@ -262,7 +262,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - Timer interrupt
@@ -278,8 +278,8 @@
 - Available Modes: N/A
 - Timing Constraints: N/A
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Native 8048 code
   - Display synchronization
@@ -297,7 +297,7 @@
   - Timer integration
   - Display list optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60/50 FPS
 - Audio Update Frequency: As needed
 - Memory Budget:
@@ -310,7 +310,7 @@
   - Simple audio
   - Memory split
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - Sprite management
   - Character set optimization
@@ -324,7 +324,7 @@
   - Character RAM allocation
   - Stack optimization
 
-## References
+## References [implemented]
 - [Intel 8048 Datasheet](http://datasheets.chipdb.org/Intel/MCS48/INTEL-8048.pdf)
 - [Videopac Technical Documentation](http://www.videopac.org/tech/)
 - [8244/8245 Video Display Controller](http://www.videopac.org/technical/8244_8245.txt)

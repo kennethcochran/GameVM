@@ -1,9 +1,9 @@
-# High-Level Intermediate Representation (HLIR)
+# High-Level Intermediate Representation (HLIR) [aspirational, outdated]
 
-## Overview
+## Overview [aspirational]
 The High-Level Intermediate Representation (HLIR) serves as the first stage in the compilation process. It is designed to be language-independent, allowing for a variety of high-level languages to be represented in a unified format. The HLIR maintains the structure and semantics of the original source code while abstracting away language-specific details.
 
-## Data Structure
+## Data Structure [aspirational]
 The HLIR consists of the following components:
 
 - **Function Definitions:**
@@ -29,8 +29,9 @@ The HLIR consists of the following components:
 - **Type Information:**
   - Type annotations for variables and return types
 
-## Data Structure Type
+## Data Structure Type [outdated]
 The HLIR will utilize a **tree structure** to represent the hierarchical nature of the code, allowing for easy traversal and manipulation during optimization phases. Each node in the tree corresponds to a construct in the source code, facilitating semantic analysis and transformations.
+**NOTE: Actual implementation uses slab-based DOD pipeline (uint[] arrays), not tree structure.**
 
-## Purpose
+## Purpose [aspirational]
 The HLIR allows for early-stage optimizations and serves as a foundation for further transformations into lower-level representations. It retains enough structure for potential debugging and analysis while being flexible enough to accommodate various source languages.

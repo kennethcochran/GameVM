@@ -1,4 +1,4 @@
-# Performance Guidelines: Retro & Constrained Hardware
+# Performance Guidelines: Retro & Constrained Hardware [aspirational]
 
 ## 1. Core Philosophy
 On retro platforms, performance is a hard boundary defined by clock cycles and memory bandwidth. "Optimization" is not just about speed, but about fitting the logic into deterministic time windows (vblank, hblank).

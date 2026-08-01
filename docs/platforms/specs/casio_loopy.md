@@ -1,6 +1,6 @@
-# Casio Loopy
+# Casio Loopy [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L5
 - CPU: NEC V30MZ
 - CPU Clock: 20 MHz
@@ -12,7 +12,7 @@
 - Successor: None
 - Notable Feature: Built-in thermal printer and "My Seal" creation system
 
-## CPU Details
+## CPU Details [implemented]
 ### NEC V30MZ
 #### Architecture Characteristics
 - Processor: 16-bit (8086 compatible)
@@ -35,7 +35,7 @@
 - Printer controller
 - DMA controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 512KB
 - Video RAM: 256KB
@@ -48,7 +48,7 @@
 - 0xC0000-0xFFFFF: System ROM
 - I/O mapped devices
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 320×240
 - Colors: 256 from 32,768
@@ -73,7 +73,7 @@
 - Layer blending
 - Printer effects
 
-## Audio System
+## Audio System [implemented]
 ### Sound Processing
 - Type: PCM
 - Channels: 8
@@ -92,7 +92,7 @@
 - Stereo output
 - Sound effects
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - One controller port
 - Printer interface
@@ -115,7 +115,7 @@
 - RF output
 - Printer output
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Standard Loopy
 - Development units
@@ -133,7 +133,7 @@
 - Animation tools
 - Image capture
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Built-in printer
 - Seal creation system
@@ -165,8 +165,8 @@
   - Limited release
   - Niche market
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - V30MZ instructions
   - 8086 compatibility
@@ -182,7 +182,7 @@
   - Printer buffer
   - Video memory
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 20 MHz V30MZ
 - Graphics: 320×240
 - Audio: 32 kHz
@@ -192,14 +192,14 @@
   - ROM: 1MB
   - Backup: 8KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Printer Integration
 - Sprite System
 - Audio Processing
 - Input Management
 - Creative Tools
 
-## References
+## References [implemented]
 - [Loopy Hardware Manual](http://www.casio.co.jp/loopy)
 - [V30MZ Technical Reference](http://www.nec.com/v30mz)
 - [Loopy Development Guide](http://www.loopydev.net)

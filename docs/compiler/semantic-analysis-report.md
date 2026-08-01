@@ -1,53 +1,53 @@
-# Semantic Analysis Approaches in Major Compilers
+# Semantic Analysis Approaches in Major Compilers [aspirational]
 
-## Executive Summary
+## Executive Summary [aspirational]
 
 This report analyzes how seven major compiler projects handle semantic analysis when dealing with functions or classes defined in already compiled assemblies or object files: GCC, LLVM/Clang, ACK (Amsterdam Compiler Kit), .NET Runtime, Roslyn .NET Compiler, OpenJDK Java Compiler, and GameVM. The key finding is that these compilers use different strategies ranging from immediate lookup with placeholder types to deferred analysis with lazy resolution.
 
-## GCC Semantic Analysis Approach
+## GCC Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 GCC uses a **lookup-based approach** with immediate semantic analysis:
 
 1. **External Reference Construction**: The `build_external_ref()` function in `c-typeck.cc` handles external references by:
-   - Looking up the identifier using `lookup_name()`
-   - Returning the declaration if found, or creating an implicit declaration for functions
-   - Setting type information immediately when available
+    - Looking up the identifier using `lookup_name()`
+    - Returning the declaration if found, or creating an implicit declaration for functions
+    - Setting type information immediately when available
 
 2. **Name Resolution Strategy**: 
-   - `lookup_name()` searches through symbol bindings in current and outer scopes
-   - Uses `I_SYMBOL_BINDING` macro to access identifier bindings
-   - Returns `NULL_TREE` if undefined, triggering error handling
+    - `lookup_name()` searches through symbol bindings in current and outer scopes
+    - Uses `I_SYMBOL_BINDING` macro to access identifier bindings
+    - Returns `NULL_TREE` if undefined, triggering error handling
 
 3. **Deferred Analysis**:
-   - GCC does **not** typically defer semantic analysis
-   - When a type is not available, it sets `*TYPE = NULL` and continues
-   - Uses `implicitly_declare()` for undefined functions (C compatibility)
+    - GCC does **not** typically defer semantic analysis
+    - When a type is not available, it sets `*TYPE = NULL` and continues
+    - Uses `implicitly_declare()` for undefined functions (C compatibility)
 
 ### Key Files:
 - `gcc/c/c-typeck.cc`: External reference building
 - `gcc/c/c-decl.cc`: Name lookup and declaration handling
 - `gcc/cp/name-lookup.cc`: C++ name resolution
 
-## Roslyn .NET Compiler Semantic Analysis Approach
+## Roslyn .NET Compiler Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 Roslyn uses a **lazy, on-demand compilation** approach with sophisticated caching:
 
 1. **Compilation-Based Architecture**: 
-   - `CSharpCompilation` is immutable but on-demand, realizing and caching data as necessary
-   - Supports incremental compilation with small deltas
-   - Reuses information from existing compilations for efficiency
+    - `CSharpCompilation` is immutable but on-demand, realizing and caching data as necessary
+    - Supports incremental compilation with small deltas
+    - Reuses information from existing compilations for efficiency
 
 2. **Binder Lookup System**: 
-   - `Binder_Lookup.cs` provides comprehensive name resolution through `LookupResult` objects
-   - `LookupSymbolsSimpleName()` and `LookupSymbolsInternal()` for identifier resolution
-   - Supports fallback lookup with detailed error diagnostics
+    - `Binder_Lookup.cs` provides comprehensive name resolution through `LookupResult` objects
+    - `LookupSymbolsSimpleName()` and `LookupSymbolsInternal()` for identifier resolution
+    - Supports fallback lookup with detailed error diagnostics
 
 3. **Semantic Model Integration**:
-   - `CSharpSemanticModel` provides lazy semantic analysis
-   - Supports speculative analysis for IDE features
-   - Caches analysis results to avoid recomputation
+    - `CSharpSemanticModel` provides lazy semantic analysis
+    - Supports speculative analysis for IDE features
+    - Caches analysis results to avoid recomputation
 
 ### Deferred Analysis Features:
 - **Lazy Compilation**: Types and members analyzed only when first accessed
@@ -60,25 +60,25 @@ Roslyn uses a **lazy, on-demand compilation** approach with sophisticated cachin
 - `src/Compilers/CSharp/Portable/Compilation/CSharpCompilation.cs`: Compilation management
 - `src/Compilers/CSharp/Portable/Compilation/CSharpSemanticModel.cs`: Semantic model implementation
 
-## OpenJDK Java Compiler (javac) Semantic Analysis Approach
+## OpenJDK Java Compiler (javac) Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 OpenJDK's javac uses a **multi-phase deferred analysis** system with sophisticated type inference:
 
 1. **Attribution Phase (Attr.java)**: 
-   - Main semantic analysis phase encompassing name resolution, type checking, and constant folding
-   - Uses `Resolve.checkMethod()` for method resolution with deferred type checking
-   - Supports poly expressions with temporary deferred types
+    - Main semantic analysis phase encompassing name resolution, type checking, and constant folding
+    - Uses `Resolve.checkMethod()` for method resolution with deferred type checking
+    - Supports poly expressions with temporary deferred types
 
 2. **Resolution Phase (Resolve.java)**:
-   - Comprehensive name resolution through `Resolve` class
-   - Handles method overload resolution and access checking
-   - Converts `ResolveError` objects to `ErrorSymbol` with detailed diagnostics
+    - Comprehensive name resolution through `Resolve` class
+    - Handles method overload resolution and access checking
+    - Converts `ResolveError` objects to `ErrorSymbol` with detailed diagnostics
 
 3. **Deferred Attribution (DeferredAttr.java)**:
-   - Specialized deferred type-analysis for poly expressions
-   - Creates temporary 'deferred types' checked against expected formal types
-   - Supports multiple checks against different target types
+    - Specialized deferred type-analysis for poly expressions
+    - Creates temporary 'deferred types' checked against expected formal types
+    - Supports multiple checks against different target types
 
 ### Deferred Analysis Features:
 - **Poly Expression Handling**: Lambda expressions and method references analyzed with deferred types
@@ -98,27 +98,27 @@ OpenJDK's javac uses a **multi-phase deferred analysis** system with sophisticat
 - `src/hotspot/share/classfile/classLoader.cpp`: Runtime class loading
 - `src/hotspot/share/classfile/systemDictionary.cpp`: Runtime symbol resolution
 
-## GameVM Semantic Analysis Approach
+## GameVM Semantic Analysis Approach [aspirational]
 
-### Current State
+### Current State [implemented]
 GameVM currently has **no semantic analysis implementation** and focuses on parsing and AST transformation:
 
 1. **Parsing Phase**: 
-   - Uses ANTLR for lexical and syntactic analysis
-   - Generates language-specific AST nodes
-   - No type checking or semantic validation
+    - Uses ANTLR for lexical and syntactic analysis
+    - Generates language-specific AST nodes
+    - No type checking or semantic validation
 
 2. **AST Transformation**:
-   - Converts AST to HLIR
-   - Basic structural validation only
-   - No cross-module reference resolution
+    - Converts AST to HLIR
+    - Basic structural validation only
+    - No cross-module reference resolution
 
 3. **IR Pipeline**:
-   - HLIR → MLIR → LLIR transformation pipeline
-   - Focuses on code generation, not semantic analysis
-   - Missing type safety and semantic correctness
+    - HLIR → MLIR → LLIR transformation pipeline
+    - Focuses on code generation, not semantic analysis
+    - Missing type safety and semantic correctness
 
-### GameVM Architecture and Goals
+### GameVM Architecture and Goals [implemented, aspirational]
 
 #### Unique Characteristics:
 - **Cross-Compiler System**: Host-based compilation for retro gaming targets (2nd-5th generation consoles)
@@ -138,9 +138,9 @@ GameVM currently has **no semantic analysis implementation** and focuses on pars
 - **Hardware Contract Philosophy**: Develop against capability profiles, not specific hardware
 - **Performance by Design**: Zero-page optimization, accumulator preference, intrinsic promotion
 
-### Semantic Analysis Recommendations
+### Semantic Analysis Recommendations [aspirational]
 
-#### 1. Source Location Infrastructure Enhancement
+#### 1. Source Location Infrastructure Enhancement [aspirational]
 
 **Current State**: GameVM has `IRSourceLocation` class and `IRNode.Location` property, but AST nodes don't capture source location during parsing.
 
@@ -222,7 +222,7 @@ private sealed class PascalErrorListener : BaseErrorListener
 }
 ```
 
-#### 2. HLIR-Level Semantic Analysis
+#### 2. HLIR-Level Semantic Analysis [aspirational]
 
 **Core Recommendation**: Implement semantic analysis at HLIR level to maintain language agnosticism while supporting GameVM's unique performance and capability requirements.
 
@@ -266,7 +266,7 @@ public class CapabilityAwareSemanticAnalyzer : IHlirSemanticAnalyzer
 - **Superinstruction Analysis**: Identify functions eligible for intrinsic promotion
 - **Memory Layout Validation**: Ensure static allocation patterns for retro targets
 
-#### 2. Multi-Phase Analysis Strategy
+#### 2. Multi-Phase Analysis Strategy [aspirational]
 
 **Phase 1: Intramodule Analysis**
 - Type checking within individual modules with width-aware validation
@@ -287,7 +287,7 @@ public class CapabilityAwareSemanticAnalyzer : IHlirSemanticAnalyzer
 - Memory layout optimization for retro constraints
 - Cycle budget analysis for time-critical code
 
-#### 3. Performance-Aware Deferred Analysis
+#### 3. Performance-Aware Deferred Analysis [aspirational]
 
 **Cycle Budget Validation**:
 ```csharp
@@ -353,7 +353,7 @@ public class MemoryLayoutOptimizer
 }
 ```
 
-#### 4. Capability-Driven Semantic Analysis
+#### 4. Capability-Driven Semantic Analysis [aspirational]
 
 **Hardware Contract Validation**:
 ```csharp
@@ -418,7 +418,7 @@ public class CrossLanguageTypeChecker
 }
 ```
 
-#### 5. Type System Integration
+#### 5. Type System Integration [aspirational]
 
 **Width-Aware Type Checking**:
 ```csharp
@@ -479,7 +479,7 @@ public class StaticMemoryValidator
 }
 ```
 
-#### 6. GameVM-Specific Error Handling
+#### 6. GameVM-Specific Error Handling [aspirational]
 
 **Performance Constraint Errors**:
 ```csharp
@@ -523,63 +523,63 @@ public class CrossLanguageError : SemanticError
 }
 ```
 
-### Implementation Strategy
+### Implementation Strategy [aspirational]
 
 #### Phase 1: Foundation (Weeks 1-4)
 1. **Source Location Infrastructure**
-   - Enhance AST nodes with location properties (Line, Column, StartOffset, EndOffset)
-   - Update ASTBuilder to capture location during node creation
-   - Modify transformers to populate `IRNode.Location` property
-   - Integrate ANTLR parser to capture token positions
+    - Enhance AST nodes with location properties (Line, Column, StartOffset, EndOffset)
+    - Update ASTBuilder to capture location during node creation
+    - Modify transformers to populate `IRNode.Location` property
+    - Integrate ANTLR parser to capture token positions
 
 2. **Type System Integration**
-   - Implement HLIR type checking framework with width-awareness
-   - Add symbol table management with module scope tracking
-   - Create basic semantic validators for capability constraints
+    - Implement HLIR type checking framework with width-awareness
+    - Add symbol table management with module scope tracking
+    - Create basic semantic validators for capability constraints
 
 3. **Symbol Resolution**
-   - Implement intramodule symbol resolution with lazy loading
-   - Add basic type checking with cross-language compatibility
-   - Create error reporting infrastructure with GameVM-specific error codes
+    - Implement intramodule symbol resolution with lazy loading
+    - Add basic type checking with cross-language compatibility
+    - Create error reporting infrastructure with GameVM-specific error codes
 
 4. **Capability Profile Integration**
-   - Integrate hardware contract validation into semantic analysis
-   - Add performance constraint checking for cycle budgets
-   - Create profile-specific optimization suggestions
+    - Integrate hardware contract validation into semantic analysis
+    - Add performance constraint checking for cycle budgets
+    - Create profile-specific optimization suggestions
 
 #### Phase 2: Cross-Module Analysis (Weeks 5-8)
 1. **Module Graph Analysis**
-   - Implement dependency-driven analysis with DAG enforcement
-   - Add cross-module symbol resolution with ELF relocation support
-   - Create interface compatibility checking across language boundaries
+    - Implement dependency-driven analysis with DAG enforcement
+    - Add cross-module symbol resolution with ELF relocation support
+    - Create interface compatibility checking across language boundaries
 
 2. **Deferred Analysis**
-   - Add lazy symbol loading with caching for large projects
-   - Implement incremental analysis for fast recompilation
-   - Create memory-efficient symbol resolution for retro targets
+    - Add lazy symbol loading with caching for large projects
+    - Implement incremental analysis for fast recompilation
+    - Create memory-efficient symbol resolution for retro targets
 
 3. **Performance Optimization**
-   - Implement superinstruction identification and promotion analysis
-   - Add cycle budget validation for time-critical code
-   - Create memory layout optimization for zero-page/scratchpad usage
+    - Implement superinstruction identification and promotion analysis
+    - Add cycle budget validation for time-critical code
+    - Create memory layout optimization for zero-page/scratchpad usage
 
 #### Phase 3: Advanced Features (Weeks 9-12)
 1. **Whole-Program Optimization**
-   - Add global type consistency across all modules
-   - Implement ABI compliance verification for target hardware
-   - Create dead code elimination based on semantic analysis
+    - Add global type consistency across all modules
+    - Implement ABI compliance verification for target hardware
+    - Create dead code elimination based on semantic analysis
 
 2. **Tool Integration**
-   - Integrate semantic analysis with existing IR pipeline
-   - Add IDE support features with performance diagnostics
-   - Create debugging tools for cycle counting and memory usage
+    - Integrate semantic analysis with existing IR pipeline
+    - Add IDE support features with performance diagnostics
+    - Create debugging tools for cycle counting and memory usage
 
 3. **Testing Infrastructure**
-   - Create semantic analysis test suites with MAME validation
-   - Add performance benchmarking for superinstruction effectiveness
-   - Implement cross-language compatibility testing
+    - Create semantic analysis test suites with MAME validation
+    - Add performance benchmarking for superinstruction effectiveness
+    - Implement cross-language compatibility testing
 
-### Key Files for Implementation
+### Key Files for Implementation [aspirational]
 
 #### Source Location Infrastructure:
 - `src/GameVM.Compiler.Pascal/PascalASTNode.cs` - Add location properties to base class
@@ -594,7 +594,7 @@ public class CrossLanguageError : SemanticError
 - `src/GameVM.Compiler.Core/IR/IRSourceLocation.cs` - Already exists, enhance if needed
 - `src/GameVM.Compiler.Core/IR/IRNode.cs` - Already has Location property
 
-### Benefits of This Approach
+### Benefits of This Approach [aspirational]
 
 1. **Language Agnosticism**: Semantic analysis works across all supported languages (Pascal, C#, C++, etc.)
 2. **Hardware Contract Compliance**: Validates against capability profiles ensuring compatibility with target hardware
@@ -606,25 +606,25 @@ public class CrossLanguageError : SemanticError
 8. **Testing Ready**: Designed to integrate with MAME-based behavioral testing strategy
 9. **Precise Error Reporting**: Source location mapping enables accurate developer feedback
 
-## LLVM/Clang Semantic Analysis Approach
+## LLVM/Clang Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 Clang employs a **sophisticated deferred analysis** system:
 
 1. **LookupResult Framework**: Uses `LookupResult` objects to manage name resolution:
-   - Supports multiple lookup kinds (`LookupOrdinaryName`, `LookupTagName`, etc.)
-   - Handles ambiguous declarations and overloading
-   - Provides detailed diagnostic information
+    - Supports multiple lookup kinds (`LookupOrdinaryName`, `LookupTagName`, etc.)
+    - Handles ambiguous declarations and overloading
+    - Provides detailed diagnostic information
 
 2. **Sema Lookup System**: 
-   - `Sema::LookupName()` and `Sema::LookupQualifiedName()` for resolution
-   - Supports **lazy loading** through `ExternalSemaSource`
-   - Can defer analysis until template instantiation
+    - `Sema::LookupName()` and `Sema::LookupQualifiedName()` for resolution
+    - Supports **lazy loading** through `ExternalSemaSource`
+    - Can defer analysis until template instantiation
 
 3. **Module System Integration**:
-   - Modern Clang has extensive module support for handling external references
-   - Uses reachability analysis to determine if declarations are accessible
-   - Supports incremental compilation with explicit module dependencies
+    - Modern Clang has extensive module support for handling external references
+    - Uses reachability analysis to determine if declarations are accessible
+    - Supports incremental compilation with explicit module dependencies
 
 ### Deferred Analysis Features:
 - **External Sources**: `MultiplexExternalSemaSource` allows loading declarations from external sources
@@ -636,25 +636,25 @@ Clang employs a **sophisticated deferred analysis** system:
 - `clang/lib/Sema/Sema.cpp`: Main semantic analysis engine
 - `clang/lib/Sema/MultiplexExternalSemaSource.cpp`: External declaration handling
 
-## ACK (Amsterdam Compiler Kit) Semantic Analysis Approach
+## ACK (Amsterdam Compiler Kit) Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 ACK uses a **traditional C compiler approach** with simple, immediate analysis:
 
 1. **Identifier-Based System**: 
-   - Uses `struct idf` (identifier) structures for symbol tracking
-   - `declare_idf()` function handles declaration processing
-   - Links identifiers to their definitions through `id_def` field
+    - Uses `struct idf` (identifier) structures for symbol tracking
+    - `declare_idf()` function handles declaration processing
+    - Links identifiers to their definitions through `id_def` field
 
 2. **Scope Management**:
-   - Uses explicit stack levels for scope tracking
-   - `stack_level_of()` function determines declaration scope
-   - Simple linear search through identifier tables
+    - Uses explicit stack levels for scope tracking
+    - `stack_level_of()` function determines declaration scope
+    - Simple linear search through identifier tables
 
 3. **Error Handling**:
-   - Immediate error reporting for undefined symbols
-   - Uses `error()` and `warning()` functions for semantic issues
-   - Limited deferred analysis capabilities
+    - Immediate error reporting for undefined symbols
+    - Uses `error()` and `warning()` functions for semantic issues
+    - Limited deferred analysis capabilities
 
 ### Analysis Characteristics:
 - **Immediate Processing**: No significant deferred analysis
@@ -666,25 +666,25 @@ ACK uses a **traditional C compiler approach** with simple, immediate analysis:
 - `lang/cem/cemcom/struct.c`: Structure/union tag semantics
 - `lang/cem/cemcom/ch*.c`: Various semantic analysis phases
 
-## .NET Runtime Semantic Analysis Approach
+## .NET Runtime Semantic Analysis Approach [aspirational]
 
-### External Reference Handling
+### External Reference Handling [aspirational]
 The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 
 1. **Metadata-Based Resolution**:
-   - Uses metadata tables for type and method information
-   - `MethodTable` and `TypeHandle` structures for runtime type resolution
-   - Assembly loading through `Assembly` and `PEAssembly` classes
+    - Uses metadata tables for type and method information
+    - `MethodTable` and `TypeHandle` structures for runtime type resolution
+    - Assembly loading through `Assembly` and `PEAssembly` classes
 
 2. **JIT Integration**:
-   - Semantic analysis occurs at **runtime** during JIT compilation
-   - `jitinterface.cpp` provides interface to JIT compiler
-   - Lazy method compilation through `precode` system
+    - Semantic analysis occurs at **runtime** during JIT compilation
+    - `jitinterface.cpp` provides interface to JIT compiler
+    - Lazy method compilation through `precode` system
 
 3. **External Reference Management**:
-   - `dllimport.cpp` handles external assembly references
-   - Runtime callable wrappers for interop scenarios
-   - Reference counting for external object lifetimes
+    - `dllimport.cpp` handles external assembly references
+    - Runtime callable wrappers for interop scenarios
+    - Reference counting for external object lifetimes
 
 ### Deferred Analysis Features:
 - **Lazy JIT Compilation**: Methods compiled only when first called
@@ -697,10 +697,9 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 - `vm/jitinterface.cpp`: JIT compilation interface
 - `vm/dllimport.cpp`: External assembly reference handling
 
-## Comparative Analysis
+## Comparative Analysis [aspirational]
 
-### Semantic Analysis Timing
-
+### Semantic Analysis Timing [aspirational]
 | Compiler | Analysis Timing | Deferred Support | External Resolution |
 |----------|----------------|------------------|-------------------|
 | GCC | Immediate | Limited | Link-time resolution |
@@ -711,8 +710,7 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 | OpenJDK/javac | Multi-phase | Extensive | Class loading |
 | GameVM | None (proposed) | Planned | Module graph |
 
-### External Reference Strategies
-
+### External Reference Strategies [aspirational]
 1. **GCC**: Immediate lookup with placeholder types, resolved at link time
 2. **Clang**: Sophisticated deferred analysis with module system
 3. **ACK**: Simple immediate processing suitable for single-pass compilation
@@ -721,7 +719,7 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 6. **OpenJDK/javac**: Multi-phase deferred analysis with runtime class loading
 7. **GameVM**: Proposed HLIR-level analysis with module graph resolution
 
-### Key Differences
+### Key Differences [aspirational]
 
 #### Deferment Approaches:
 - **Traditional Compilers (GCC, ACK)**: Limited deferment, mostly immediate analysis
@@ -739,9 +737,9 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 - **Cross-Compiler Systems**: Module graph traversal with HLIR resolution
 - **Runtime Systems**: Dynamic loading and JIT compilation
 
-## Conclusions
+## Conclusions [aspirational]
 
-### Industry Trends
+### Industry Trends [aspirational]
 1. **Modern native compilers** (Clang) are moving toward more sophisticated deferred analysis
 2. **Managed compilers** (Roslyn) provide lazy compilation with extensive caching for IDE scenarios
 3. **Java compilers** (OpenJDK/javac) implement multi-phase deferred analysis with poly expressions
@@ -749,15 +747,14 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 5. **Module systems** enable better handling of external references across compilation boundaries
 6. **Runtime systems** (.NET Runtime) provide maximum flexibility with lazy resolution
 
-### Best Practices
+### Best Practices [aspirational]
 1. **Immediate Analysis**: Suitable for simple languages and fast compilation
 2. **Deferred Analysis**: Essential for complex languages with templates/generics
 3. **Multi-Phase Analysis**: Optimal for languages with poly expressions and type inference
 4. **Runtime Resolution**: Optimal for managed environments and dynamic loading
 5. **IR-Level Analysis**: Best for cross-compiler systems with multiple source languages
 
-### Recommendations for Compiler Design
-
+### Recommendations for Compiler Design [aspirational]
 1. **Hybrid Approach**: Combine immediate analysis for local references with deferred analysis for external ones
 2. **Module Integration**: Use explicit module dependencies for better scalability
 3. **Lazy Loading**: Implement on-demand loading for external declarations
@@ -765,25 +762,25 @@ The .NET Runtime uses a **runtime-bound approach** with JIT compilation:
 5. **IDE Integration**: Support speculative analysis for better developer experience
 6. **Language Agnosticism**: Consider IR-level analysis for multi-language systems
 
-## Technical Implementation Details
+## Technical Implementation Details [aspirational]
 
 ### GCC's `build_external_ref()` Function
 ```c
 tree build_external_ref (location_t loc, tree id, bool fun, tree *type)
 {
-  tree ref;
-  tree decl = lookup_name (id);
-  
-  if (decl && decl != error_mark_node) {
-    ref = decl;
-    *type = TREE_TYPE (ref);
-    // Handle underspecified declarations
-  } else if (fun) {
-    // Implicit function declaration
-    ref = implicitly_declare (loc, id);
-  } else {
-    // Error handling for undefined variables
-  }
+    tree ref;
+    tree decl = lookup_name (id);
+    
+    if (decl && decl != error_mark_node) {
+        ref = decl;
+        *type = TREE_TYPE (ref);
+        // Handle underspecified declarations
+    } else if (fun) {
+        // Implicit function declaration
+        ref = implicitly_declare (loc, id);
+    } else {
+        // Error handling for undefined variables
+    }
 }
 ```
 
@@ -837,7 +834,7 @@ public class PerformanceAwareSymbolResolver
         // Check cache first for performance
         if (_cache.TryGetValue(name, out var cached))
             return cached;
-            
+        
         // Load with cycle estimation
         var symbol = LoadSymbolWithCycleEstimate(name, context);
         _cache[name] = symbol;
@@ -848,70 +845,66 @@ public class PerformanceAwareSymbolResolver
 
 This analysis demonstrates the evolution from simple immediate analysis to sophisticated deferred and runtime-based semantic analysis systems in modern compilers, with GameVM representing an innovative approach of **performance-aware, capability-driven semantic analysis** specifically designed for retro gaming development and cross-language compilation.
 
-## Roslyn and .NET Runtime Integration
+## Roslyn and .NET Runtime Integration [aspirational]
 
-### How They Work Together
-
+### How They Work Together [aspirational]
 Roslyn and the .NET Runtime form a **two-phase compilation and execution system**:
 
-#### Phase 1: Compile-Time Analysis (Roslyn)
+#### Phase 1: Compile-Time Analysis (Roslyn) [aspirational]
 1. **Metadata Reference Resolution**: 
-   - Roslyn uses `MetadataReference` objects to reference external assemblies
-   - `CSharpCompilation.Create()` accepts metadata references as input
-   - Assembly metadata is loaded and analyzed during compilation
+    - Roslyn uses `MetadataReference` objects to reference external assemblies
+    - `CSharpCompilation.Create()` accepts metadata references as input
+    - Assembly metadata is loaded and analyzed during compilation
 
 2. **Lazy Compilation**:
-   - `CSharpCompilation` performs on-demand semantic analysis
-   - Types and members are analyzed only when first accessed
-   - Results are cached for subsequent uses
+    - `CSharpCompilation` performs on-demand semantic analysis
+    - Types and members are analyzed only when first accessed
+    - Results are cached for subsequent uses
 
 3. **Emission to Metadata**:
-   - Roslyn emits PE assemblies with rich metadata
-   - `PEModuleBuilder` and `PEAssemblyBuilder` create executable output
-   - Metadata includes type information, method signatures, and assembly references
+    - Roslyn emits PE assemblies with rich metadata
+    - `PEModuleBuilder` and `PEAssemblyBuilder` create executable output
+    - Metadata includes type information, method signatures, and assembly references
 
-#### Phase 2: Runtime Execution (.NET Runtime)
+#### Phase 2: Runtime Execution (.NET Runtime) [aspirational]
 1. **Assembly Loading**:
-   - Runtime loads assemblies created by Roslyn
-   - `ceeload.cpp` handles PE file loading and metadata extraction
-   - Assembly references are resolved through metadata tables
+    - Runtime loads assemblies created by Roslyn
+    - `ceeload.cpp` handles PE file loading and metadata extraction
+    - Assembly references are resolved through metadata tables
 
 2. **JIT Compilation**:
-   - Methods are compiled just-in-time when first called
-   - `jitinterface.cpp` provides interface to JIT compiler
-   - Native code is generated and cached for future calls
+    - Methods are compiled just-in-time when first called
+    - `jitinterface.cpp` provides interface to JIT compiler
+    - Native code is generated and cached for future calls
 
 3. **Runtime Type Resolution**:
-   - `MethodTable` provides fast lookup for method resolution
-   - Types are loaded and resolved on demand from metadata
-   - External references are handled through assembly binding
+    - `MethodTable` provides fast lookup for method resolution
+    - Types are loaded and resolved on demand from metadata
+    - External references are handled through assembly binding
 
-### Key Integration Points
-
+### Key Integration Points [aspirational]
 1. **Metadata Compatibility**:
-   - Roslyn emits metadata in .NET standard format
-   - Runtime consumes this metadata directly
-   - No recompilation needed at runtime
+    - Roslyn emits metadata in .NET standard format
+    - Runtime consumes this metadata directly
+    - No recompilation needed at runtime
 
 2. **Deferred Analysis Handoff**:
-   - Roslyn defers detailed analysis until needed
-   - Runtime performs final analysis during JIT compilation
-   - Provides optimal balance between compile-time and runtime performance
+    - Roslyn defers detailed analysis until needed
+    - Runtime performs final analysis during JIT compilation
+    - Provides optimal balance between compile-time and runtime performance
 
 3. **Assembly Reference Resolution**:
-   - Compile-time: `MetadataReference` objects in Roslyn
-   - Runtime: `AssemblyRef` tables in loaded assemblies
-   - Seamless integration between compilation and execution phases
+    - Compile-time: `MetadataReference` objects in Roslyn
+    - Runtime: `AssemblyRef` tables in loaded assemblies
+    - Seamless integration between compilation and execution phases
 
-### Benefits of This Architecture
-
+### Benefits of This Architecture [aspirational]
 1. **Fast Compilation**: Roslyn can compile quickly by deferring complex analysis
 2. **Rich IDE Support**: Semantic models provide accurate information for development tools
 3. **Runtime Performance**: JIT compilation optimizes for actual execution patterns
 4. **Incremental Updates**: Small changes don't require full recompilation
 
-### Technical Flow Example
-
+### Technical Flow Example [aspirational]
 ```csharp
 // Roslyn compile-time
 var compilation = CSharpCompilation.Create(

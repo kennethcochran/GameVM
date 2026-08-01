@@ -1,6 +1,6 @@
-# Epoch Cassette Vision
+# Epoch Cassette Vision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - Profile: GV.Spec.L1
 - CPU: NEC µPD7810
@@ -12,7 +12,7 @@
 - Successor: Super Cassette Vision
 - Notable Feature: First Japanese cartridge-based game console
 
-## CPU Details
+## CPU Details [implemented]
 ### NEC µPD7810
 #### Architecture Characteristics
 - Processor: 8-bit microcontroller
@@ -36,7 +36,7 @@
 - I/O Controller
 - Memory Controller
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Internal RAM: 128 bytes
 - Work RAM: 1KB
@@ -52,7 +52,7 @@
   - Register space
   - I/O ports
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 128×96
 - Colors: 8
@@ -71,7 +71,7 @@
 - Basic animation
 - Screen masking
 
-## Audio System
+## Audio System [implemented]
 ### Sound Generation
 - Type: Simple tone generator
 - Channels: 1
@@ -88,7 +88,7 @@
 - Sound effects
 - Internal speaker
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Digital joystick
@@ -110,7 +110,7 @@
 - TV connection
 - Mono audio
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Standard model
 - Development units
@@ -129,7 +129,7 @@
 - Cartridge system
 - Basic graphics
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First Japanese cartridge console
 - Microcontroller-based
@@ -161,8 +161,8 @@
   - Domestic market
   - Pioneer system
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - µPD7810 instructions
   - Memory mapping
@@ -178,7 +178,7 @@
   - Sound control
   - I/O mapping
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 4 MHz
 - Graphics: TV refresh
 - Audio: Single channel
@@ -188,14 +188,14 @@
   - System ROM: 1KB
   - Cart ROM: 4KB max
 
-### Special Handling
+### Special Handling [aspirational]
 - Character Graphics
 - Sound Generation
 - Controller Input
 - TV Output
 - Memory Management
 
-## References
+## References [implemented]
 - [Cassette Vision Hardware Manual](http://epoch.jp/cv/manual)
 - [µPD7810 Technical Reference](http://nec.com/upd7810)
 - [Console Development Guide](http://cvdev.jp)

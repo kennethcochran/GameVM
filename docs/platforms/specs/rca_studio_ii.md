@@ -1,6 +1,6 @@
-# RCA Studio II
+# RCA Studio II [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L1
 - CPU: RCA CDP1802 @ 1.76 MHz
 - Release Year: 1977
@@ -10,7 +10,7 @@
 - Predecessor: None (RCA's first console)
 - Successor: None
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: RCA CDP1802 COSMAC
 - Clock Speed: 1.76 MHz
@@ -61,7 +61,7 @@
   - DMA usage
   - Multiple program counters
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - RAM: 512 bytes
 - ROM: 2 KB (built-in programs)
@@ -79,7 +79,7 @@
   - Display control
   - Sound control
 
-## Video System
+## Video System [implemented]
 ### Display Processor
 - Built into CDP1802 CPU
 - Resolution: 64×32 pixels
@@ -119,8 +119,8 @@
   - Sequential memory mapping
   - No hardware acceleration
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Built-in Controllers:
   - Two 10-key keypads
@@ -155,7 +155,7 @@
 - TV Channel Switch
 - Reset Button
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Design
 - Integrated Unit:
   - Built-in keypads
@@ -190,7 +190,7 @@
   - Cost-effective design
   - Educational focus
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - Early cartridge system
 - Microprocessor-based design
@@ -238,7 +238,7 @@
 
 
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 1
 - Sample Rate: N/A (beeper)
@@ -257,7 +257,7 @@
 - DMA Features: None
 - Interrupt Sources: None
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - External interrupt
@@ -273,8 +273,8 @@
 - Available Modes: Single transfer
 - Timing Constraints: CPU halted
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - Native 1802 code
   - Display timing aware
@@ -292,7 +292,7 @@
   - Zero-overhead loops
   - Display timing
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS
 - Audio Update Frequency: As needed
 - Memory Budget:
@@ -305,7 +305,7 @@
   - Basic audio
   - B/W display
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - Software character renderer
   - Display timing management
@@ -319,7 +319,7 @@
   - Display buffer sharing
   - Stack simulation
 
-## References
+## References [implemented]
 - [RCA CDP1802 User Manual](http://www.cosmacelf.com/publications/data-sheets/cdp1802.pdf)
 - [Studio II Technical Reference](http://www.cosmacelf.com/publications/studio-ii/)
 - [1802 Programmer's Reference](http://www.cosmacelf.com/publications/programming/)

@@ -1,41 +1,116 @@
-# Versioning Strategy: Toolchain & Projects
+# GameVM Versioning Strategy
 
-## 1. Toolchain Versioning
-The GameVM compiler, CLI, and standard library follow **Semantic Versioning 2.0.0** (vMajor.Minor.Patch).
-- **Major**: Breaking IR changes or backend removals.
-- **Minor**: New targets, new language frontends, or library additions.
-- **Patch**: Bug fixes and emitter optimizations.
+## 1. Introduction
 
-## 2. Project & ROM Versioning
-Game projects have specific versioning requirements due to hardware burnt into ROMs and persistent save data.
+### 1.1 Purpose [aspirational]
+This document defines the versioning strategy for GameVM, ensuring consistent version identification and dependency resolution across the compiler toolchain.
 
-### 2.1 ROM Metadata
-The compiler supports embedding version metadata into target-specific headers (e.g., the 16-character SNES title field or the Sega Genesis version byte).
+### 1.2 Scope [aspirational]
+- Version numbering scheme
+- Semantic versioning rules
+- Version compatibility policies
+- Dependency version management
 
-```yaml
-# gamevm.yaml
-metadata:
-  version: 1.0.4
-  build_id: "20260131"
-  region: NTSC-U
+### 1.3 Related Documents
+- [Package Management](./PackageManagement.md)
+- [Module Resolution](../compiler/ModuleResolution.md)
+
+## 2. Version Numbering
+
+### 2.1 Semantic Versioning [aspirational]
+GameVM uses [Semantic Versioning 2.0.0](https://semver.org/):
+- **Major**: Breaking changes to public API
+- **Minor**: Backwards-compatible feature additions
+- **Patch**: Backwards-compatible bug fixes
+
+```
+MAJOR.MINOR.PATCH
+  ↑      ↑      ↑
+  1.4.2
+
+  Pre-release: 1.4.2-alpha.1
+  Build metadata: 1.4.2+build.1234
 ```
 
-### 2.2 Save Game Compatibility
-When the project's data structures (Structs/Records) change, save files may become incompatible.
-- **Static Layout**: The GameVM compiler preserves field offsets by default.
-- **Migration**: For major updates, developers should include a "Save Sync" routine that reads the embedded version ID from the save RAM and migrates the data mapping.
+### 2.2 Version Components [aspirational]
+- **Major Version**: Incremented on breaking changes
+- **Minor Version**: Incremented on new features
+- **Patch Version**: Incremented on bug fixes
+- **Pre-release**: Optional, for unstable versions
+- **Build Metadata**: Optional, for build identification
 
-## 3. ELF & Module Versioning
-For systems using the [Dynamic Loading](../compiler/DynamicLoading.md) (ELF) system, versioning ensures that levels or plugins match the core executable.
+## 3. Versioning Policies
 
-- **Interface IDs**: Every dynamic module includes a signature of its export Vtable.
-- **Matching**: The ELF Loader verifies that the `BuildID` of a module matches the `BuildID` of the resident kernel before allowing a relocation/link.
+### 3.1 Breaking Changes [aspirational]
+- Public API changes
+- Behavior changes
+- Configuration format changes
+- Command-line interface changes
 
-## 4. LLIR Versioning
-The LLIR ISA itself is versioned. Binaries emitted for LLIR v1.2 will include a header requirement.
-- **Backward Compatibility**: Newer emitted interpreters (VMs) will support older LLIR bytecode patterns via "Compatibility Opcode Support" if enabled in the compiler configuration.
+### 3.2 Backwards-Compatible Changes [aspirational]
+- New features
+- Bug fixes
+- Performance improvements
+- Documentation updates
 
-## 5. Deployment Tags
-- **Proto**: Rapid iteration, debug headers enabled.
-- **Release**: Full LTO (Link Time Optimization), no debug symbols, retail headers.
-- **Revision**: PATCH updates for a released ROM (primarily for bug-fix releases of digital-only or flash-cart distributions).
+### 3.3 Version Ranges [aspirational]
+- **Exact**: `1.4.2`
+- **Compatible**: `^1.4.2` (>=1.4.2, <2.0.0)
+- **Approximate**: `~1.4.2` (>=1.4.2, <1.5.0)
+- **Wildcard**: `1.4.*`
+
+## 4. Dependency Versioning
+
+### 4.1 Dependency Management [aspirational]
+- Dependencies declared in project configuration
+- Version ranges allow for compatible updates
+- Lock files for reproducible builds
+- Transitive dependency resolution
+
+### 4.2 Version Conflict Resolution [aspirational]
+- Minimum version wins
+- Maximum version fails
+- Compatible range intersection
+- Override support for specific conflicts
+
+## 5. Release Management
+
+### 5.1 Release Process [aspirational]
+1. **Feature Development**: On main branch
+2. **Release Candidates**: Pre-release versions
+3. **Stable Release**: Tagged and published
+4. **Hotfixes**: Applied to release branches
+5. **Maintenance**: Security patches for supported versions
+
+### 5.2 Release Cadence [aspirational]
+- **Minor Releases**: Every 1-2 months
+- **Patch Releases**: As needed for bug fixes
+- **Major Releases**: When breaking changes accumulate
+- **LTS Versions**: Every 2-3 years
+
+## 6. Compatibility Guarantees
+
+### 6.1 Backwards Compatibility [aspirational]
+- Binary compatibility for compiled modules
+- Source compatibility for language frontends
+- API compatibility for tooling
+- Configuration compatibility
+
+### 6.2 Forward Compatibility [aspirational]
+- Read old configuration files
+- Skip unknown fields
+- Support new fields with defaults
+- Deprecation warnings for removed features
+
+## 7. Versioning Tools
+
+### 7.1 Tooling Support [aspirational]
+- Version management CLI
+- Automatic version bumping
+- Changelog generation
+- Release notes generation
+
+## 8. Changelog
+
+### [1.0.0] - 2025-09-16
+- Initial version

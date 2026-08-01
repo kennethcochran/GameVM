@@ -1,6 +1,6 @@
-# Inline Assembly
+# Inline Assembly [aspirational]
 
-## Overview
+## Overview [aspirational]
 
 GameVM supports inline assembly across all frontend languages, allowing developers to write low-level LLIR instructions directly within their high-level code. This enables performance-critical optimizations, hardware-specific operations, and precise control over code generation.
 

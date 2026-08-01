@@ -1,12 +1,12 @@
-# GameVM Modules
+# GameVM Modules [aspirational, outdated]
 
-## Overview
+## Overview [aspirational]
 
 GameVM modules are the fundamental compilation units that bridge language-specific source code with the language-agnostic HLIR (High-Level Intermediate Representation). Each module represents a single source file that can be independently compiled and consumed across different programming languages through the universal HLIR ABI.
 
-## Module Lifecycle
+## Module Lifecycle [aspirational]
 
-### 1. Source Definition
+### 1. Source Definition [aspirational]
 ```
 Language-Specific Source Files
 ├── Game.Graphics.pas        # Pascal source
@@ -15,7 +15,7 @@ Language-Specific Source Files
 └── Utils.Logging.java       # Java source
 ```
 
-### 2. HLIR Transformation
+### 2. HLIR Transformation [aspirational]
 ```
 Source Files → Language Frontend → HLIR Modules
 ├── Game.Graphics.hlirm      # HLIR module
@@ -24,7 +24,7 @@ Source Files → Language Frontend → HLIR Modules
 └── Utils.Logging.hlirm      # HLIR module
 ```
 
-### 3. Binary Compilation
+### 3. Binary Compilation [aspirational]
 ```
 HLIR Modules → HLIR Compiler → Binary HLIR
 ├── Game.Graphics.hlirb      # Binary HLIR
@@ -33,7 +33,7 @@ HLIR Modules → HLIR Compiler → Binary HLIR
 └── Utils.Logging.hlirb      # Binary HLIR
 ```
 
-### 4. Library Assembly
+### 4. Library Assembly [aspirational]
 ```
 Binary HLIR → Library Linker → Libraries
 ├── Game.Graphics.hlirl      # Graphics library
@@ -41,13 +41,13 @@ Binary HLIR → Library Linker → Libraries
 └── Utils.Core.hlirl         # Utilities library
 ```
 
-### 5. Package Distribution
+### 5. Package Distribution [aspirational]
 ```
 Libraries → Packager → Packages
 └── Game.Engine-1.0.0.pkg    # Distribution package
 ```
 
-## Module Structure
+## Module Structure [aspirational]
 
 ### Source Module Definition
 
@@ -135,7 +135,7 @@ namespace Audio {
 }
 ```
 
-### HLIR Module Representation
+### HLIR Module Representation [aspirational]
 
 After compilation, each source module becomes a language-agnostic HLIR module:
 
@@ -172,9 +172,9 @@ interface HLIRModule {
 }
 ```
 
-### Module Naming Conventions
+### Module Naming Conventions [aspirational]
 
-#### File Path to Module Name Mapping
+#### File Path to Module Name Mapping [aspirational]
 | Source File                  | Language | Module Name         |
 | ---------------------------- | -------- | ------------------- |
 | `src/Game/Graphics.pas`      | Pascal   | `Game.Graphics`     |
@@ -190,13 +190,13 @@ interface HLIRModule {
 3. **Unique**: Module names must be unique within the dependency graph
 4. **Descriptive**: Names should clearly indicate purpose and scope
 
-## Module Boundaries
+## Module Boundaries [aspirational]
 
-### Exports
+### Exports [aspirational]
 
 Modules explicitly declare what they make available to other modules:
 
-#### Explicit Exports
+#### Explicit Exports [aspirational]
 ```pascal
 // Pascal
 unit Game.Graphics;
@@ -256,11 +256,11 @@ exports: [
 ]
 ```
 
-### Imports
+### Imports [aspirational]
 
 Modules declare their dependencies explicitly using compile-time resolvable imports:
 
-#### Language-Specific Import Syntax
+#### Language-Specific Import Syntax [aspirational]
 ```pascal
 // Pascal
 uses
@@ -283,13 +283,13 @@ using static Math.Vector;    // Import static members
 using TTypes = System.Types; // Import with alias
 ```
 
-#### Compile-Time Import Restrictions
+#### Compile-Time Import Restrictions [aspirational]
 
 GameVM only supports compile-time resolvable module imports. All require/import statements must use string literals or compile-time constants. This ensures the full dependency graph is known to the compiler, enabling cross-module optimization and dead code elimination.
 
 **Note on Dynamic Loading**: While the *dependency graph* must be static, the actual *loading* of these modules into memory can be deferred to runtime on systems with slow media or RAM constraints. See [Dynamic Loading](DynamicLoading.md) for details on relocatable modules and overlays.
 
-##### Allowed (Compile-Time Resolvable)
+##### Allowed (Compile-Time Resolvable) [aspirational]
 ```lua
 -- String literals
 local graphics = require("game.graphics")
@@ -303,23 +303,23 @@ local backend = require(select_backend())  -- CTFE function
 local module = "game.graphics." .. GRAPHICS_TYPE  -- If GRAPHICS_TYPE is compile-time constant
 ```
 
-##### Dynamic Module Resolution
+##### Dynamic Module Resolution [aspirational]
 
 While GameVM is a compiled system, it supports dynamic module resolution (common in Python, Lua, and Ruby) through two primary mechanisms. These are handled as wrappers around the [Dynamic Loading](DynamicLoading.md) system.
 
-##### 1. The Module Registry (Cartridge/Resident)
+##### 1. The Module Registry (Cartridge/Resident) [aspirational]
 For systems where all code must reside in the primary ROM, the compiler generates a **Module Registry**.
 *   **Discovery**: The compiler identifies all modules included in the project.
 *   **Registry Generation**: A static, sorted table of `Name (String) -> Export Table (Pointer)` is embedded in the binary.
 *   **Resolution**: `import(name_var)` performs a binary search in the registry and returns the Module Object.
 
-##### 2. The ELF Loader (Disk/Network)
+##### 2. The ELF Loader (Disk/Network) [aspirational]
 For systems with slow media, dynamic resolution uses the file system.
 *   **Mapping**: `import("level_" + id)` maps to a file reference (e.g., `LEVEL_1.ELF`).
 *   **Loading**: The runtime invokes the **ELF Loader** to pull the module into RAM and relocate it.
 *   **Resolution**: Returns a handle to the newly loaded and bound module.
 
-#### Implementation: Module Objects
+#### Implementation: Module Objects [aspirational]
 A dynamically resolved module is returned as a **Module Object** (a struct of function pointers). Calls to the module are dispatched via this Vtable, ensuring that once the module is resolved, execution remains high-performance.
 
 ```python
@@ -329,7 +329,7 @@ gfx = __import__(mod_name) # Looks up in Registry or loads ELF
 gfx.draw_sprite(x, y)      # Dispatched via Vtable pointer
 ```
 
-#### Compiler Constraints
+#### Compiler Constraints [aspirational]
 To prevent ROM bloat, the compiler may require explicit declaration of "Dynamic Candidates" in the project configuration:
 ```yaml
 # gamevm.yaml
@@ -337,7 +337,7 @@ dynamic_resolution:
   - modules: ["enemies.*", "levels.level_*"] # Only these modules are registered/emitted as ELF
 ```
 
-#### HLIR Import Representation
+#### HLIR Import Representation [aspirational]
 ```typescript
 imports: [
     {

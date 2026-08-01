@@ -1,6 +1,6 @@
-# Capability Implementation Blueprint
+# Capability Implementation Blueprint [aspirational, implemented]
 
-## 1. Overview
+## 1. Overview [implemented]
 This document defines the technical implementation requirements for enforcing Capability Profiles across the GameVM toolchain. It ensures that the compiler, Standard Library, and HAL share a unified "Capability Awareness" during the compilation pipeline.
 
 ## 2. Compiler Implementation (`GameVM.Compiler.Core`)

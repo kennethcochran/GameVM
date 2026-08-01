@@ -1,6 +1,6 @@
-# NEC PC-FX
+# NEC PC-FX [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L6
 - CPU: NEC V810 RISC
 - CPU Clock: 21.5 MHz
@@ -12,7 +12,7 @@
 - Successor: None
 - Notable Feature: Specialized for 2D sprite manipulation and FMV playback
 
-## CPU Details
+## CPU Details [implemented]
 ### NEC V810
 #### Architecture Characteristics
 - Processor: 32-bit RISC
@@ -34,7 +34,7 @@
 - Motion decoder
 - Rainbow palette processor
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 2MB
 - Video RAM: 1MB (2× 512KB)
@@ -49,7 +49,7 @@
 - $00400000-$00FFFFFF: I/O Space
 - $01000000-$01FFFFFF: CD-ROM Space
 
-## Video System
+## Video System [implemented]
 ### Graphics Processing
 - Resolution: 256×240 to 480×240
 - Colors: 16.7M (24-bit)
@@ -83,7 +83,7 @@
 - FMV overlay
 - Scan line effects
 
-## Audio System
+## Audio System [implemented]
 ### Sound Processor
 - Channels: 16
 - Sample Rate: 44.1 kHz
@@ -101,7 +101,7 @@
 - Volume control
 - Pan control
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Two controller ports
 - Mouse support
@@ -124,7 +124,7 @@
 - RGB (21-pin)
 - RF output (optional)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Standard PC-FX
 - PC-FX GA (add-on graphics card for NEC PC-98)
@@ -142,7 +142,7 @@
 - Motion JPEG support
 - Backup memory
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - RISC processor
 - FMV capabilities
@@ -174,8 +174,8 @@
   - Limited success
   - Niche market
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - V810 instruction set
   - Graphics commands
@@ -191,7 +191,7 @@
   - CD buffer
   - DMA control
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 21.5 MIPS
 - Video: Multiple resolutions
 - Audio: CD quality
@@ -201,14 +201,14 @@
   - CD Buffer: 32KB
   - Backup RAM: 32KB
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Pipeline
 - CD-ROM Access
 - FMV Playback
 - Audio Processing
 - Input Management
 
-## References
+## References [implemented]
 - [PC-FX Technical Manual](http://www.pcfx.com/tech)
 - [V810 Programming Guide](http://www.nec.com/v810)
 - [PC-FX Development Documentation](http://www.pcfxdev.net)

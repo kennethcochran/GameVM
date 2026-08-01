@@ -1,4 +1,4 @@
-# GameVM Documentation
+# GameVM Documentation [aspirational]
 
 GameVM is a high-performance **cross-compiler toolchain** for retro gaming development. It enables developers to write games in modern, high-level languages and compile them into highly optimized binaries for systems ranging from the 2nd to the 5th generation of gaming consoles.
 

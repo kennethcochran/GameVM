@@ -1,6 +1,6 @@
-# Casio PV-1000
+# Casio PV-1000 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: Zilog Z80 (NEC D780C-1)
 - Clock Speed: 3.579 MHz
@@ -10,7 +10,7 @@
 - Predecessor: N/A
 - Successor: Casio PV-2000 (Computer/Console hybrid)
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set Family: Z80
 - Word Size: 8-bit
@@ -34,7 +34,7 @@
 - Known Bottlenecks: Very small RAM (2 KB)
 - Optimization Opportunities: 8x8 Tile-based graphics approach
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 2 KB
 - Layout: 0x0000-0x07FF
@@ -55,7 +55,7 @@
 - I/O Registers: Mapped via dedicated Z80 IN/OUT instructions
 - System Vectors: 0x0000 (Reset), 0x0038 (IM 1)
 
-## Video System
+## Video System [implemented]
 ### Display Characteristics
 - Resolution: 240x192 (Visible) / 256x192 (Full array)
 - Color Depth: 3-bit (8 colors)
@@ -75,7 +75,7 @@
 - HBLANK Duration: Standard
 - Access Windows: Unrestricted
 
-## Audio System
+## Audio System [implemented]
 ### Audio Hardware
 - Sound Channels: 3 (Custom NEC D65010G031 logic)
 - Sample Rate: N/A
@@ -87,27 +87,27 @@
 - Noise: No
 - Sample Playback: No
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available: IRQ
 - Sources: VBLANK
 - Timing: 60 Hz
 - Priority: Standard
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy: Native (Z80)
 - Register Allocation Strategy: Minimal (due to 2KB RAM context)
 - Memory Management Strategy: Static
 - Optimization Opportunities: Pre-shifted software sprites for faster blitting into tile definitions
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 30 fps
 - Audio Update Frequency: 60 Hz
 - Memory Budget: 2 KB RAM
 - Known Limitations: Extremely limited colors and no hardware sprites
 
-## References
+## References [implemented]
 - Wikipedia: Casio PV-1000
 - NEC D65010G031 Technical Summary
 - Casio PV-1000 Homebrew Wiki

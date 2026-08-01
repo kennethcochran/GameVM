@@ -1,6 +1,6 @@
-# Mattel Intellivision
+# Mattel Intellivision [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L2
 - CPU: General Instrument CP1610
 - Clock Speed: 894.886 kHz (NTSC), 894.779 kHz (PAL)
@@ -10,7 +10,7 @@
 - Predecessor: None (Mattel's first console)
 - Successor: Intellivision II, Intellivision III (cancelled)
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Instruction Set: General Instrument CP1600 16-bit architecture
 - Word Size: 16-bit
@@ -73,7 +73,7 @@
   - Interrupt-driven timing
   - Efficient register usage
 
-## Memory Map
+## Memory Map [implemented]
 ### RAM
 - Total Size: 352 bytes main + 240 bytes STIC
 - Layout:
@@ -114,7 +114,7 @@
 - System ROM: $1000-$1FFF
 - Cartridge ROM: $5000-$6FFF
 
-## Video System
+## Video System [implemented]
 ### Standard Television Interface Chip (STIC)
 - Chip: General Instrument AY-3-8900-1
 - Display Resolution: 159×96 pixels (20×12 cards)
@@ -167,8 +167,8 @@
 - Color cycling
 - Card-based system
 
-## Audio System
-## Input/Output System
+## Audio System [implemented]
+## Input/Output System [implemented]
 ### Controller Interface
 - Number of Ports: 2
 - Controller Type: 16-direction disc + 12-button keypad
@@ -205,7 +205,7 @@
 - Power Consumption: ~7W
 - Power LED indicator
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Original Intellivision (1979)
 - Intellivision II (1982)
@@ -235,7 +235,7 @@
 - Expansion port
 - Dual-controller design
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - 16-bit CPU architecture
 - Programmable character generator (GRAM)
@@ -280,7 +280,7 @@
 
 
 
-## Audio System
+## Audio System [implemented]
 ### Programmable Sound Generator (PSG)
 - Chip: General Instrument AY-3-8914
 - Channels: 3 independent + noise
@@ -317,7 +317,7 @@
 - Interrupt Sources: None
 - Control Method: Direct register access
 
-## System Timing
+## System Timing [implemented]
 ### Interrupts
 - Types Available:
   - STIC video interrupt
@@ -334,8 +334,8 @@
 - Available Modes: STIC to GRAM
 - Timing Constraints: Video sync locked
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 16-bit optimized code
   - Efficient register usage
@@ -353,7 +353,7 @@
   - Hardware multiply/divide
   - STIC timing optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Minimum Frame Rate: 60 FPS
 - Audio Update Frequency: Per frame
 - Memory Budget:
@@ -365,7 +365,7 @@
   - Limited RAM
   - Slow CPU clock
 
-### Special Handling
+### Special Handling [aspirational]
 - Graphics Implementation:
   - STIC synchronization
   - MOB (sprite) management
@@ -379,7 +379,7 @@
   - GRAM allocation
   - RAM optimization
 
-## References
+## References [implemented]
 - [Intellivision Technical Reference](http://sdk-1600.spatula-city.org/)
 - [CP1610 Instruction Set](http://spatula-city.org/~im14u2c/intv/tech/cp1600/)
 - [STIC Documentation](http://spatula-city.org/~im14u2c/intv/tech/stic.html)

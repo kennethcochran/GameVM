@@ -1,6 +1,6 @@
-# Nintendo 64
+# Nintendo 64 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L7
 - CPU: NEC VR4300 (MIPS R4300i)
 - CPU Clock: 93.75 MHz
@@ -12,7 +12,7 @@
 - Successor: GameCube
 - Notable Feature: First 64-bit gaming console with built-in 3D graphics capabilities
 
-## CPU Details
+## CPU Details [implemented]
 ### VR4300 (MIPS R4300i)
 #### Architecture Characteristics
 - Processor: 64-bit RISC MIPS III
@@ -43,7 +43,7 @@
 - Anti-aliasing
 - Frame buffer operations
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 4MB (expandable to 8MB)
 - RDRAM Type: Rambus
@@ -61,7 +61,7 @@
 - $1FC00000-$1FC007FF: PIF Boot ROM
 - $80000000-$FFFFFFFF: Virtual Memory Map
 
-## Video System
+## Video System [implemented]
 ### Graphics Features
 - Resolution: 240p/288p to 480i
 - Colors: 16.7M (32-bit)
@@ -91,7 +91,7 @@
 - Fog
 - Display lists
 
-## Audio System
+## Audio System [implemented]
 ### Audio Processing
 - Sample Rate: Up to 44.1 kHz
 - Channels: 16-24 (programmable)
@@ -109,7 +109,7 @@
 - Digital filtering
 - Sound effects
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - Four controller ports
 - Memory card slot (Controller Pak)
@@ -132,7 +132,7 @@
 - RF output
 - RGB (some models)
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Hardware Variants
 - Basic model
 - Expansion Pak model
@@ -151,7 +151,7 @@
 - 64DD (Japan only)
 - Development tools
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - 64-bit architecture
 - Built-in 3D capabilities
@@ -183,8 +183,8 @@
   - Strong first-party
   - Limited third-party
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Code Generation:
   - MIPS III instructions
   - RSP vector operations
@@ -199,7 +199,7 @@
   - Cache control
   - DMA operations
 
-### Performance Targets
+### Performance Targets [aspirational]
 - CPU: 93.75 MHz
 - RCP: 62.5M pixels/sec
 - Audio: 44.1 kHz
@@ -209,14 +209,14 @@
   - RSP IMEM: 4KB
   - RDP Cache: 4KB
 
-### Special Handling
+### Special Handling [aspirational]
 - RSP Microcode
 - RDP Commands
 - Memory Access
 - Audio Processing
 - Controller Input
 
-## References
+## References [implemented]
 - [N64 Programming Manual](http://n64dev.org/docs)
 - [RCP Architecture Guide](http://n64.icequake.net/doc/n64intro)
 - [VR4300 Technical Reference](http://datasheets.chipdb.org/NEC/VR4300)

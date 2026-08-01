@@ -1,6 +1,6 @@
-# NEC PC Engine/TurboGrafx-16
+# NEC PC Engine/TurboGrafx-16 [implemented]
 
-## System Overview
+## System Overview [implemented]
 - Profile: GV.Spec.L4
 - CPU: Hudson HuC6280 (modified 65C02)
 - Clock Speed: 7.16 MHz (1.79 MHz power-save mode)
@@ -11,7 +11,7 @@
 - Successor: PC-FX
 - Notable Feature: First console with CD-ROM add-on
 
-## CPU Details
+## CPU Details [implemented]
 ### Architecture Characteristics
 - Processor: HuC6280 (modified 65C02)
 - Word Size: 8-bit
@@ -67,7 +67,7 @@
   - Hardware math operations
   - Bank switching optimization
 
-## Memory Map
+## Memory Map [implemented]
 ### System Memory
 - Main RAM: 8 KB
 - Video RAM: 64 KB
@@ -87,7 +87,7 @@
   - Timer: $0C00-$0C03
   - I/O: $1000-$1003
 
-## Video System
+## Video System [implemented]
 ### Video Display Processor
 - Custom Hudson HuC6270 VDC
 - Resolution: 256×239 to 512×242
@@ -130,7 +130,7 @@
 - Name Tables
 - Color Tables
 
-## Audio System
+## Audio System [implemented]
 ### Programmable Sound Generator
 - Type: Built-in 6-channel PSG
 - Channels: 6 total
@@ -155,7 +155,7 @@
 - Waveform: 32 4-bit samples
 - Noise: Configurable frequency
 
-## Input/Output System
+## Input/Output System [implemented]
 ### Controller Interface
 - One built-in port (expandable)
 - Controller Features:
@@ -189,7 +189,7 @@
   - 512×242
   - Interlaced modes
 
-## System Integration Features
+## System Integration Features [implemented]
 ### Add-on Systems
 #### CD-ROM²
 - CD-ROM drive
@@ -229,7 +229,7 @@
 - Arcade Card:
   - Enhanced memory/DMA
 
-## Technical Legacy
+## Technical Legacy [implemented]
 ### Hardware Innovations
 - First CD-ROM console add-on
 - Compact design
@@ -255,8 +255,8 @@
   - Launch: ¥24,800/US$199
   - CD-ROM²: ¥59,800/US$399
 
-## GameVM Implementation Notes
-### Compiler Considerations
+## GameVM Implementation Notes [aspirational]
+### Compiler Considerations [aspirational]
 - Preferred Code Generation Strategy:
   - 65C02-based native code
   - Bank switching awareness
@@ -270,7 +270,7 @@
   - CD buffer management
   - DMA optimization
 
-### Performance Targets
+### Performance Targets [aspirational]
 - Frame Rate: 60 Hz
 - CD Access: 150 KB/s
 - Audio Rate: 8-44.1 KHz
@@ -280,14 +280,14 @@
   - CD Buffer: 64 KB
   - System Card: Up to 192 KB
 
-### Special Handling
+### Special Handling [aspirational]
 - CD-ROM Access
 - Bank Switching
 - Audio Mixing
 - Sprite Management
 - Add-on Detection
 
-## References
+## References [implemented]
 - [PC Engine Development Wiki](http://www.pcengine.co.uk/wiki/)
 - [HuC6280 Documentation](http://www.archaicpixels.com/HuC6280)
 - [VDC Documentation](http://www.archaicpixels.com/PC_Engine_VDC)
