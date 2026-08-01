@@ -29,5 +29,14 @@ namespace GameVM.Compiler.Core.IR
         
         /// <summary>Jump instruction (conditional/unconditional)</summary>
         Jump = InstructionMetadataFlags.LLIR_JUMP,
+        
+        /// <summary>Branch instruction</summary>
+        Branch = InstructionMetadataFlags.LLIR_BRANCH,
+        
+        /// <summary>Return instruction</summary>
+        Return = InstructionMetadataFlags.LLIR_RETURN,
+        
+        /// <summary>Syscall instruction</summary>
+        Syscall = InstructionMetadataFlags.LLIR_SYSCALL,
     }
 }

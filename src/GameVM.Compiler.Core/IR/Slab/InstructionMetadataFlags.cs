@@ -53,6 +53,7 @@ namespace GameVM.Compiler.Core.IR.Slab
         public const byte MLIR_BRANCH = 129;
         public const byte MLIR_ASSIGN = 130;
         public const byte MLIR_CALL = 131;
+        public const byte MLIR_RETURN = 132;
 
         // LLIR Instruction Kinds (for LLIR Slab)
         public const byte LLIR_LABEL = 192;
@@ -60,5 +61,8 @@ namespace GameVM.Compiler.Core.IR.Slab
         public const byte LLIR_STORE = 194;
         public const byte LLIR_CALL = 195;
         public const byte LLIR_JUMP = 196;
+        public const byte LLIR_BRANCH = 197;
+        public const byte LLIR_RETURN = 198;
+        public const byte LLIR_SYSCALL = 199;
     }
 }

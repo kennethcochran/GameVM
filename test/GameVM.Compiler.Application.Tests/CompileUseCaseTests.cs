@@ -7,9 +7,11 @@ using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Core.IR.Buffers;
 using Moq.AutoMock;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.SemanticAnalysis;
 
 namespace UnitTests.Application
 {
@@ -24,6 +26,11 @@ namespace UnitTests.Application
         {
             _mocker = new AutoMocker();
             _compileUseCase = _mocker.CreateInstance<CompileUseCase>();
+
+            // Default the semantic analyzer to return success
+            _mocker.GetMock<ISemanticAnalyzer>()
+                .Setup(x => x.AnalyzeSlab(It.IsAny<uint[]>()))
+                .Returns(SemanticAnalysisResult.CreateSuccess());
 
             // Create a temporary file for testing
             _tempFilePath = System.IO.Path.GetTempFileName();
@@ -41,6 +48,7 @@ namespace UnitTests.Application
             var codeGenerator = _mocker.GetMock<ICodeGenerator>();
             var capabilityProvider = _mocker.GetMock<ICapabilityProvider>();
             var capabilityValidator = _mocker.GetMock<ICapabilityValidatorService>();
+            var semanticAnalyzer = _mocker.GetMock<ISemanticAnalyzer>();
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() => new CompileUseCase(
@@ -50,7 +58,8 @@ namespace UnitTests.Application
                 mlirToLlir.Object,
                 codeGenerator.Object,
                 capabilityProvider.Object,
-                capabilityValidator.Object));
+                capabilityValidator.Object,
+                semanticAnalyzer.Object));
         }
 
         [TearDown]
@@ -68,9 +77,10 @@ namespace UnitTests.Application
         {
             // Arrange
             var frontend = _mocker.GetMock<ILanguageFrontend>();
-            var hlir = new Mock<HighLevelIR>().Object;
-            var mlir = new Mock<MidLevelIR>().Object;
-            var llir = new Mock<LowLevelIR>().Object;
+            var astSlab = new uint[] { 0x47494D00, 1, 0, 0, 0, 0 }; // minimal valid slab
+            var hlirSlab = new uint[] { 0x47494D00, 1, 1, 0, 0, 0 };
+            var mlirSlab = new uint[] { 0x47494D00, 1, 2, 0, 0, 0 };
+            var llirSlab = new uint[] { 0x47494D00, 1, 3, 0, 0, 0 };
             var options = new CompilationOptions
             {
                 Target = Architecture.Genesis,
@@ -88,15 +98,22 @@ namespace UnitTests.Application
                 .Setup(p => p.GetSupportedExtensions())
                 .Returns(new List<string>());
             
-            frontend.Setup(x => x.Parse(It.IsAny<string>()))
-                .Returns(hlir);
-            frontend.Setup(x => x.ConvertToMidLevelIR(hlir))
-                .Returns(mlir);
+            frontend.Setup(x => x.ParseToSlab(It.IsAny<string>()))
+                .Returns(astSlab);
+            frontend.Setup(x => x.ConvertToHlirSlab(astSlab))
+                .Returns(hlirSlab);
+            frontend.Setup(x => x.StringPool).Returns(new StringPool());
+            _mocker.GetMock<IMidLevelOptimizer>()
+                .Setup(x => x.OptimizeSlab(hlirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(mlirSlab);
             _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
-                .Setup(x => x.Transform(mlir))
-                .Returns(llir);
+                .Setup(x => x.TransformSlab(mlirSlab, It.IsAny<StringPool>()))
+                .Returns(llirSlab);
+            _mocker.GetMock<ILowLevelOptimizer>()
+                .Setup(x => x.OptimizeSlab(llirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(llirSlab);
             _mocker.GetMock<ICodeGenerator>()
-                .Setup(x => x.Generate(llir, It.IsAny<CodeGenOptions>()))
+                .Setup(x => x.GenerateFromSlab(llirSlab, It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
                 .Returns(new byte[] { 1, 2, 3 });
 
             // Act
@@ -116,9 +133,10 @@ namespace UnitTests.Application
         {
             // Arrange
             var frontend = _mocker.GetMock<ILanguageFrontend>();
-            var hlir = new HighLevelIR { SourceFile = "unknown" };
-            var mlir = new MidLevelIR();
-            var llir = new LowLevelIR();
+            var astSlab = new uint[] { 0x47494D00, 1, 0, 0, 0, 0 };
+            var hlirSlab = new uint[] { 0x47494D00, 1, 1, 0, 0, 0 };
+            var mlirSlab = new uint[] { 0x47494D00, 1, 2, 0, 0, 0 };
+            var llirSlab = new uint[] { 0x47494D00, 1, 3, 0, 0, 0 };
             var options = new CompilationOptions
             {
                 Target = Architecture.Genesis,
@@ -127,8 +145,9 @@ namespace UnitTests.Application
                 Optimize = true
             };
 
-            frontend.Setup(f => f.Parse(It.IsAny<string>())).Returns(hlir);
-            frontend.Setup(f => f.ConvertToMidLevelIR(hlir)).Returns(mlir);
+            frontend.Setup(f => f.ParseToSlab(It.IsAny<string>())).Returns(astSlab);
+            frontend.Setup(f => f.ConvertToHlirSlab(astSlab)).Returns(hlirSlab);
+            frontend.Setup(f => f.StringPool).Returns(new StringPool());
             
             // Mock capability provider for validation
             var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L3 };
@@ -139,11 +158,17 @@ namespace UnitTests.Application
                 .Setup(p => p.GetSupportedExtensions())
                 .Returns(new List<string>());
             
+            _mocker.GetMock<IMidLevelOptimizer>()
+                .Setup(b => b.OptimizeSlab(hlirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(mlirSlab);
             _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
-                .Setup(b => b.Transform(mlir))
-                .Returns(llir);
+                .Setup(b => b.TransformSlab(mlirSlab, It.IsAny<StringPool>()))
+                .Returns(llirSlab);
+            _mocker.GetMock<ILowLevelOptimizer>()
+                .Setup(b => b.OptimizeSlab(llirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(llirSlab);
             _mocker.GetMock<ICodeGenerator>()
-                .Setup(g => g.Generate(llir, It.IsAny<CodeGenOptions>()))
+                .Setup(g => g.GenerateFromSlab(llirSlab, It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
                 .Returns(new byte[0]);
 
             // Act
@@ -457,7 +482,8 @@ namespace UnitTests.Application
                 mlirToLlir,
                 codeGenerator,
                 codeGenerator, // Use same instance for ICapabilityProvider
-                capabilityValidator);
+                capabilityValidator,
+                new BasicSemanticAnalyzer());
         }
 
         #endregion

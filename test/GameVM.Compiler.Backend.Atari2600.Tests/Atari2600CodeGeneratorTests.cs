@@ -4,6 +4,8 @@ using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
 
@@ -19,85 +21,157 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
-    public void Generate_WithEmptyIR_ReturnsSomeOutput()
+    public void GenerateFromSlab_WithNullSlab_ReturnsEmptyArray()
     {
         // Arrange
-        var ir = new LowLevelIR();
         var options = new CodeGenOptions();
 
         // Act
-        var result = _codeGenerator.Generate(ir, options);
+        var result = _codeGenerator.GenerateFromSlab(null!, new StringPool(), options);
 
-        // Assert - just verify it returns some output without crashing
+        // Assert
         Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Empty);
     }
 
     [Test]
-    public void GenerateBytecode_WithEmptyIR_ReturnsSomeOutput()
+    public void GenerateFromSlab_WithEmptySlab_ReturnsEmptyArray()
     {
         // Arrange
-        var ir = new LowLevelIR();
         var options = new CodeGenOptions();
+        var llirSlab = Array.Empty<uint>();
 
         // Act
-        var result = _codeGenerator.GenerateBytecode(ir, options);
+        var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
 
-        // Assert - just verify it returns some output without crashing
+        // Assert
         Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Empty);
     }
 
     [Test]
-    public void Generate_WithValidInputs_DoesNotThrow()
+    public void GenerateFromSlab_WithValidSlab_ReturnsRomSize()
     {
         // Arrange
-        var ir = new LowLevelIR();
         var options = new CodeGenOptions();
+        var llirSlab = new uint[] 
+        { 
+            0x47564D56, // Magic: "GVMV"
+            3,          // Stage: LLIR (3)
+            1,          // Version
+            2,          // Element count: 2 instructions
+            0, 0, 0, 0  // Reserved
+        };
 
-        // Act & Assert
-        Assert.DoesNotThrow(() => _codeGenerator.Generate(ir, options));
+        // Act
+        var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Length, Is.EqualTo(4096)); // Full ROM size
     }
 
     [Test]
-    public void GenerateBytecode_WithValidInputs_DoesNotThrow()
+    public void GenerateFromSlab_WithLoadStoreInstructions_GeneratesCorrectOpcodes()
     {
         // Arrange
-        var ir = new LowLevelIR();
-        var options = new CodeGenOptions();
-
-        // Act & Assert
-        Assert.DoesNotThrow(() => _codeGenerator.GenerateBytecode(ir, options));
-    }
-
-    // RED PHASE: One failing test at a time for GenerateBytecode - bounds checking path
-    [Test]
-    public void GenerateBytecode_WithLargeCode_HandlesBoundsCorrectly()
-    {
-        // Arrange - Test the bounds checking path in GenerateBytecode (line 41: Math.Min(code.Length, rom.Length - 6))
-        var ir = new LowLevelIR();
         var options = new CodeGenOptions();
         
-        // Add many instructions to generate code larger than ROM buffer
-        // ROM buffer is 4096 bytes, minus 6 bytes for vectors = 4090 bytes max
-        // Each LDA/STA pair generates ~4 bytes, so we need >1022 instructions
-        for (int i = 0; i < 1100; i++)  // More than enough to exceed ROM capacity
+        // Build a simple LLIR slab with LOAD and STORE instructions
+        var header = new uint[] { 0x47564D56, 3, 1, 2, 0, 0, 0, 0 }; // 2 elements
+        var loadInstr = new uint[] 
+        { 
+            InstructionMetadata.Encode((byte)LlirInstructionKind.Load, 2, 1), // metadata
+            0x42  // immediate value 0x42
+        };
+        var storeInstr = new uint[]
         {
-            ir.Instructions.Add(new LowLevelIR.LLLoad { Value = $"${i:X2}" });
-            ir.Instructions.Add(new LowLevelIR.LLStore { Address = $"${i:X2}" });
-        }
+            InstructionMetadata.Encode((byte)LlirInstructionKind.Store, 3, 2), // metadata
+            0x80, // address low byte
+            0x00  // address high byte
+        };
+        
+        var llirSlab = new uint[header.Length + loadInstr.Length + storeInstr.Length];
+        Array.Copy(header, 0, llirSlab, 0, header.Length);
+        Array.Copy(loadInstr, 0, llirSlab, header.Length, loadInstr.Length);
+        Array.Copy(storeInstr, 0, llirSlab, header.Length + loadInstr.Length, storeInstr.Length);
 
         // Act
-        var result = _codeGenerator.GenerateBytecode(ir, options);
+        var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Length, Is.EqualTo(4096));
+        
+        // Check that the LOAD instruction generated LDA #0x42 at ROM offset 0 ($F000)
+        Assert.That(result[0], Is.EqualTo(0xA9)); // LDA immediate
+        Assert.That(result[1], Is.EqualTo(0x42)); // value 0x42
+        
+        // Check that the STORE instruction generated STA $0080 at ROM offset 2 ($F002)
+        // STA zero-page (0x85) for address < 0x100
+        Assert.That(result[2], Is.EqualTo(0x85)); // STA zero-page
+        Assert.That(result[3], Is.EqualTo(0x80)); // address low byte
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithReturnInstruction_GeneratesRTS()
+    {
+        // Arrange
+        var options = new CodeGenOptions();
+        var header = new uint[] { 0x47564D56, 3, 1, 1, 0, 0, 0, 0 }; // 1 element
+        var returnInstr = new uint[] 
+        { 
+            InstructionMetadata.Encode((byte)LlirInstructionKind.Return, 1, 0) // metadata
+        };
+        
+        var llirSlab = new uint[header.Length + returnInstr.Length];
+        Array.Copy(header, 0, llirSlab, 0, header.Length);
+        Array.Copy(returnInstr, 0, llirSlab, header.Length, returnInstr.Length);
+
+        // Act
+        var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Length, Is.EqualTo(4096));
+        
+        // Check that RTS was generated at ROM offset 0 ($F000)
+        Assert.That(result[0], Is.EqualTo(0x60)); // RTS
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithLargeCode_HandlesBoundsCorrectly()
+    {
+        // Arrange
+        var options = new CodeGenOptions();
+        
+        // Build a slab with many instructions to test bounds
+        var instructions = new List<uint>();
+        for (int i = 0; i < 500; i++)
+        {
+            // LOAD instruction: metadata + 1 operand
+            instructions.Add(InstructionMetadata.Encode((byte)LlirInstructionKind.Load, 2, 1));
+            instructions.Add((uint)i);
+        }
+        
+        var header = new uint[] { 0x47564D56, 3, 1, (uint)instructions.Count / 2, 0, 0, 0, 0 };
+        var llirSlab = new uint[header.Length + instructions.Count];
+        Array.Copy(header, 0, llirSlab, 0, header.Length);
+        Array.Copy(instructions.ToArray(), 0, llirSlab, header.Length, instructions.Count);
+
+        // Act
+        var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
 
         // Assert
         Assert.That(result, Is.Not.Null);
         Assert.That(result.Length, Is.EqualTo(4096)); // Should always return full ROM size
         
         // Verify reset vectors are set correctly even with large code
-        Assert.That(result[4090], Is.EqualTo(0x00)); // IRQ vector low
-        Assert.That(result[4091], Is.EqualTo(0xF0)); // IRQ vector high  
-        Assert.That(result[4092], Is.EqualTo(0x00)); // Reset vector low
-        Assert.That(result[4093], Is.EqualTo(0xF0)); // Reset vector high
-        Assert.That(result[4094], Is.EqualTo(0x00)); // NMI vector low
-        Assert.That(result[4095], Is.EqualTo(0xF0)); // NMI vector high
+        // Vectors are at the end of ROM (indices 4092-4095 correspond to $FFFC-$FFFF)
+        const int VectorBaseOffset = 0x0FFC; // 4092
+        Assert.That(result[VectorBaseOffset], Is.EqualTo(0x00)); // IRQ vector low
+        Assert.That(result[VectorBaseOffset + 1], Is.EqualTo(0xF0)); // IRQ vector high  
+        Assert.That(result[VectorBaseOffset + 2], Is.EqualTo(0x00)); // Reset vector low
+        Assert.That(result[VectorBaseOffset + 3], Is.EqualTo(0xF0)); // Reset vector high
     }
 }

@@ -3,12 +3,16 @@ using System.Linq;
 using System.Diagnostics.CodeAnalysis;
 using GameVM.Compiler.Core.Enums;
 
+#pragma warning disable CS0618 // Type or member is obsolete
 namespace GameVM.Compiler.Core.IR
 {
     /// <summary>
     /// High-level intermediate representation of source code.
     /// This is the first IR level after parsing, closest to the source language.
     /// </summary>
+#pragma warning disable S1133
+    [System.Obsolete("Part of legacy OOP IR hierarchy. Use slab-based IR (uint[] arrays) for DOD pipeline. Will be removed in future version.")]
+#pragma warning restore S1133
     public class HighLevelIR : IIntermediateRepresentation
     {
         private const string UnknownSourceFile = "unknown";

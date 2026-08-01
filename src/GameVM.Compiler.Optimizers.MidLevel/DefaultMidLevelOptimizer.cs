@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Optimizers.MidLevel
@@ -16,38 +17,63 @@ namespace GameVM.Compiler.Optimizers.MidLevel
     public sealed class DefaultMidLevelOptimizer : IMidLevelOptimizer
     {
         private readonly ArenaAllocator _arena;
+        private readonly HlirSlabToMlirSlabTransformer _hlirSlabToMlirSlabTransformer;
 
         public DefaultMidLevelOptimizer()
         {
             _arena = new ArenaAllocator();
+            _hlirSlabToMlirSlabTransformer = new HlirSlabToMlirSlabTransformer(_arena);
         }
 
         public DefaultMidLevelOptimizer(ArenaAllocator arena)
         {
             _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            _hlirSlabToMlirSlabTransformer = new HlirSlabToMlirSlabTransformer(_arena);
         }
 
         /// <summary>
-        /// Optimizes the given MLIR slab using linear iteration and switch-based processing.
+        /// Optimizes the given HLIR slab using linear iteration and switch-based processing.
+        /// First transforms HLIR to MLIR, then applies optimization passes on the MLIR slab.
         /// </summary>
-        public uint[] OptimizeSlab(uint[] mlirSlab, OptimizationLevel optimizationLevel)
+        public uint[] OptimizeSlab(uint[] hlirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
         {
-            if (mlirSlab == null || mlirSlab.Length < SlabHeader.HeaderIndex.Length)
+            if (hlirSlab == null || hlirSlab.Length < SlabHeader.HeaderIndex.Length)
             {
-                throw new ArgumentException("Invalid MLIR slab: too small or null", nameof(mlirSlab));
+                throw new ArgumentException("Invalid HLIR slab: too small or null", nameof(hlirSlab));
             }
 
-            var header = SlabHeader.Read(mlirSlab);
+            var header = SlabHeader.Read(hlirSlab);
             if (!header.HasValidMagic())
             {
-                throw new ArgumentException("Invalid MLIR slab: invalid magic number");
+                throw new ArgumentException("Invalid HLIR slab: invalid magic number");
             }
 
-            if (header.IrStage != 2) // Stage 2 = MLIR
+            if (header.IrStage != 1) // Stage 1 = HLIR
             {
-                throw new ArgumentException($"Expected MLIR slab (stage 2), got stage {header.IrStage}");
+                throw new ArgumentException($"Expected HLIR slab (stage 1), got stage {header.IrStage}");
             }
 
+            // Transform HLIR slab to MLIR slab using the dedicated transformer
+            var mlirSlab = _hlirSlabToMlirSlabTransformer.Transform(hlirSlab, stringPool);
+            
+            if (mlirSlab == null || mlirSlab.Length == 0)
+            {
+                throw new InvalidOperationException("HlirSlabToMlirSlabTransformer returned null or empty slab");
+            }
+
+            // Validate that we got an MLIR slab (stage 2)
+            var mlirHeader = SlabHeader.Read(mlirSlab);
+            if (!mlirHeader.HasValidMagic())
+            {
+                throw new InvalidOperationException("Transformed slab has invalid magic number");
+            }
+
+            if (mlirHeader.IrStage != 2) // Stage 2 = MLIR
+            {
+                throw new InvalidOperationException($"Expected MLIR slab (stage 2) after transformation, got stage {mlirHeader.IrStage}");
+            }
+
+            // Now optimize the MLIR slab
             _arena.Reset();
 
             int functionCount = 0;
@@ -70,9 +96,9 @@ namespace GameVM.Compiler.Optimizers.MidLevel
                 if (size == 0 || offset + size > mlirSlab.Length)
                     break;
 
-                if (kind == InstructionMetadataFlags.METHOD_DECLARATION)
+                ProcessInstruction(mlirSlab, offset, kind, optimizationLevel);
+                if (kind == InstructionMetadataFlags.MLIR_LABEL)
                 {
-                    ProcessFunction(mlirSlab, offset, size, optimizationLevel);
                     functionCount++;
                 }
 
@@ -86,32 +112,6 @@ namespace GameVM.Compiler.Optimizers.MidLevel
             _arena.Write(newHeaderOffset, finalHeaderData);
 
             return _arena.ToContiguousArray();
-        }
-
-        /// <summary>
-        /// Optimizes a single function in the MLIR slab.
-        /// Uses linear iteration with switch-based instruction processing.
-        /// </summary>
-        private void ProcessFunction(uint[] mlirSlab, int funcOffset, int funcSize, OptimizationLevel level)
-        {
-            int bodyOffset = funcOffset + 2;
-            int bodyEndOffset = funcOffset + funcSize;
-            int currentOffset = bodyOffset;
-
-            while (currentOffset < bodyEndOffset && currentOffset < mlirSlab.Length)
-            {
-                var metadata = mlirSlab[currentOffset];
-                var size = InstructionMetadata.DecodeSize(metadata);
-                var kind = InstructionMetadata.DecodeKind(metadata);
-
-                if (size == 0 || currentOffset + size > mlirSlab.Length)
-                    break;
-
-                // Process instruction using switch on decoded metadata
-                ProcessInstruction(mlirSlab, currentOffset, kind, level);
-
-                currentOffset += size;
-            }
         }
 
         /// <summary>

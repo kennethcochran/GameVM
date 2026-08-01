@@ -6,6 +6,9 @@ namespace GameVM.Compiler.Core.IR
     /// Mid-level intermediate representation.
     /// This is a more optimized form after initial transformations.
     /// </summary>
+#pragma warning disable S1133
+    [System.Obsolete("Part of legacy OOP IR hierarchy. Use slab-based IR (uint[] arrays) for DOD pipeline. Will be removed in future version.")]
+#pragma warning restore S1133
     public class MidLevelIR : IIntermediateRepresentation
     {
         /// <summary>

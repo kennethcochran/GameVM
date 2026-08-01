@@ -1,7 +1,10 @@
+#pragma warning disable CS0618 // Type or member is obsolete
+using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 
+#pragma warning disable CS0618 // Type or member is obsolete
 namespace GameVM.Compiler.Core.IR.Transformers
 {
     public class HlirToMlirTransformer : IIRTransformer<HighLevelIR, MidLevelIR>
@@ -292,7 +295,7 @@ namespace GameVM.Compiler.Core.IR.Transformers
             return foldedResult ?? $"({left} {op.Operator} {right})";
         }
 
-        private static string? TryConstantFolding(string left, string right, string op)
+private static string? TryConstantFolding(string left, string right, string op)
         {
             if (!int.TryParse(left, out int lVal) || !int.TryParse(right, out int rVal))
                 return null;
@@ -305,6 +308,13 @@ namespace GameVM.Compiler.Core.IR.Transformers
                 "/" or "div" => rVal != 0 ? (lVal / rVal).ToString() : "0",
                 _ => null
             };
+        }
+
+        public uint[] TransformSlab(uint[] inputSlab, Buffers.StringPool stringPool)
+        {
+            // WILLIMPLEMENT: proper HighLevelIR slab to MidLevelIR slab conversion
+            // For now, return empty slab to indicate not implemented
+            return Array.Empty<uint>();
         }
     }
 }

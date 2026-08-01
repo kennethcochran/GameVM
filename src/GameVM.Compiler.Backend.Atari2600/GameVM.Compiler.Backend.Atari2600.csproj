@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <NoWarn>CS0618</NoWarn>
     <LangVersion>latest</LangVersion>
     <RootNamespace>GameVM.Compiler.Backend.Atari2600</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

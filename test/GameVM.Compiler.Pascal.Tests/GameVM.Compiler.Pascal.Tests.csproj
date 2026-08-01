@@ -9,6 +9,7 @@
     <IsTestProject>true</IsTestProject>
     
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>CS0618</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

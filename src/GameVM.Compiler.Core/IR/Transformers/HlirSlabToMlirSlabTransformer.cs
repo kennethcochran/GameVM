@@ -1,6 +1,7 @@
 using System;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Buffers;
 using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
 using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
 
@@ -9,16 +10,17 @@ namespace GameVM.Compiler.Core.IR.Transformers
     public sealed class HlirSlabToMlirSlabTransformer
     {
         private readonly ArenaAllocator _arena;
-        private int _labelCounter;
+        private StringPool? _stringPool;
 
         public HlirSlabToMlirSlabTransformer(ArenaAllocator arena)
         {
             _arena = arena ?? throw new ArgumentNullException(nameof(arena));
-            _labelCounter = 0;
         }
 
-        public uint[] Transform(uint[] hlirSlab)
+        public uint[] Transform(uint[] hlirSlab, StringPool stringPool)
         {
+            _stringPool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
+            
             if (hlirSlab == null || hlirSlab.Length < SlabHeader.HeaderIndex.Length)
             {
                 throw new ArgumentException("Invalid HLIR slab: too small or null", nameof(hlirSlab));
@@ -31,7 +33,7 @@ namespace GameVM.Compiler.Core.IR.Transformers
             }
 
             var headerOffset = _arena.Allocate(SlabHeader.HeaderIndex.Length);
-            var headerData = SlabHeader.ForStage(3, 0); // Stage 3 = MLIR
+            var headerData = SlabHeader.ForStage(2, 0); // Stage 2 = MLIR
             var headerBytes = new uint[SlabHeader.HeaderIndex.Length];
             headerData.WriteTo(headerBytes);
             _arena.Write(headerOffset, headerBytes);
@@ -39,6 +41,7 @@ namespace GameVM.Compiler.Core.IR.Transformers
             int offset = SlabHeader.HeaderIndex.Length;
             int functionCount = 0;
 
+            // Process all instructions in the HLIR slab sequentially
             while (offset < hlirSlab.Length)
             {
                 var metadata = hlirSlab[offset];
@@ -48,16 +51,16 @@ namespace GameVM.Compiler.Core.IR.Transformers
                 if (size == 0 || offset + size > hlirSlab.Length)
                     break;
 
-                if (kind == METHOD_DECLARATION)
+                ProcessStatement(hlirSlab, offset, kind);
+                if (kind == HLIR_LABEL)
                 {
-                    ProcessFunction(hlirSlab, offset, size);
                     functionCount++;
                 }
 
                 offset += size;
             }
 
-            var finalHeader = SlabHeader.ForStage(3, (uint)functionCount);
+            var finalHeader = SlabHeader.ForStage(2, (uint)functionCount);
             var finalHeaderData = new uint[SlabHeader.HeaderIndex.Length];
             finalHeader.WriteTo(finalHeaderData);
             _arena.Write(headerOffset, finalHeaderData);
@@ -65,87 +68,59 @@ namespace GameVM.Compiler.Core.IR.Transformers
             return _arena.ToContiguousArray();
         }
 
-        private void ProcessFunction(uint[] hlirSlab, int funcOffset, int funcSize)
+        private void ProcessLabel(uint[] hlirSlab, int funcOffset)
         {
             var funcNameHash = hlirSlab[funcOffset + 1];
-            var bodyOffset = funcOffset + 2;
-
-            // Store function name
-            var nameHashSlot = _arena.Allocate(1);
-            _arena.Write(nameHashSlot, funcNameHash);
-
-            int bodyEndOffset = funcOffset + funcSize;
-            int currentOffset = bodyOffset;
-
-            while (currentOffset < bodyEndOffset && currentOffset < hlirSlab.Length)
-            {
-                var stmtMeta = hlirSlab[currentOffset];
-                var stmtSize = InstructionMetadata.DecodeSize(stmtMeta);
-                var stmtKind = InstructionMetadata.DecodeKind(stmtMeta);
-
-                if (stmtSize == 0 || currentOffset + stmtSize > hlirSlab.Length)
-                    break;
-
-                ProcessStatement(hlirSlab, currentOffset, stmtKind);
-                currentOffset += stmtSize;
-            }
+            
+            // Create MLIR_LABEL for function name: [metadata, nameHash]
+            var labelOffset = _arena.Allocate(2);
+            _arena.Write(labelOffset, Encode(MLIR_LABEL, (byte)2, (byte)1), funcNameHash);
         }
 
         private void ProcessStatement(uint[] hlirSlab, int offset, byte kind)
         {
             switch (kind)
             {
-                case ASSIGNMENT:
+                case HLIR_ASSIGN:
                     ProcessAssignment(hlirSlab, offset);
                     break;
-                case EXPRESSION_STATEMENT:
+                case HLIR_BRANCH:
+                    ProcessBranch(hlirSlab, offset);
+                    break;
+                case HLIR_CALL:
+                    ProcessCall(hlirSlab, offset);
+                    break;
+                case HLIR_RETURN:
+                    ProcessReturn(hlirSlab, offset);
+                    break;
+                case HLIR_LABEL:
+                    ProcessLabel(hlirSlab, offset);
+                    break;
+                case HLIR_VARIABLE:
+                case HLIR_LITERAL:
+                    // These are expressions, handled as expression statements
                     ProcessExpressionStatement(hlirSlab, offset);
                     break;
-                case IF_STATEMENT:
-                    ProcessIfStatement(hlirSlab, offset);
-                    break;
-                case WHILE_STATEMENT:
-                    ProcessWhileStatement(hlirSlab, offset);
-                    break;
-                case RETURN_STATEMENT:
-                    ProcessReturnStatement(hlirSlab, offset);
-                    break;
-                case BLOCK:
-                    ProcessBlock(hlirSlab, offset);
-                    break;
-                case VARIABLE_DECLARATION:
-                    ProcessVariableDeclaration(hlirSlab, offset);
-                    break;
                 default:
-                    if (IsExpressionKind(kind))
-                    {
-                        ProcessExpressionStatement(hlirSlab, offset);
-                    }
+                    // Unknown instruction - preserve as-is or tombstone
+                    CopyInstruction(hlirSlab, offset);
                     break;
             }
         }
 
-        private static bool IsExpressionKind(byte kind)
-        {
-            return kind == LITERAL_INT || kind == LITERAL_STRING || 
-                   kind == LITERAL_BOOL || kind == IDENTIFIER || kind == BINARY_OP;
-        }
-
         private void ProcessAssignment(uint[] hlirSlab, int offset)
         {
-            var targetOffset = hlirSlab[offset + 1];
-            var valueOffset = hlirSlab[offset + 2];
+            // HLIR_ASSIGN: [metadata, targetPoolOffset, valuePoolOffset]
+            if (offset + 2 >= hlirSlab.Length) return;
 
-            var targetStr = ResolveExpression(hlirSlab, targetOffset);
-            var valueStr = ResolveExpression(hlirSlab, valueOffset);
+            var targetPoolOffset = hlirSlab[offset + 1];
+            var valuePoolOffset = hlirSlab[offset + 2];
 
-            var instrSize = 3; // metadata + targetHash + valueHash
+            var instrSize = 3; // metadata + targetPoolOffset + valuePoolOffset
             var startOffset = _arena.Allocate(instrSize);
 
-            var targetHash = (uint)targetStr.GetHashCode();
-            var valueHash = (uint)valueStr.GetHashCode();
-
-            _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetHash, valueHash);
+            // Pass through StringPool offsets directly
+            _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetPoolOffset, valuePoolOffset);
         }
 
         private void ProcessExpressionStatement(uint[] hlirSlab, int offset)
@@ -153,123 +128,95 @@ namespace GameVM.Compiler.Core.IR.Transformers
             var exprOffset = hlirSlab[offset + 1];
             var exprStr = ResolveExpression(hlirSlab, exprOffset);
 
-            var instrSize = 3; // metadata + targetHash + valueHash
+            var instrSize = 3; // metadata + targetPoolOffset + valuePoolOffset
             var startOffset = _arena.Allocate(instrSize);
 
-            var targetHash = (uint)"_temp".GetHashCode();
-            var valueHash = (uint)exprStr.GetHashCode();
+            var targetPoolOffset = _stringPool!.Intern("_temp");
+            var valuePoolOffset = _stringPool!.Intern(exprStr);
 
-            _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetHash, valueHash);
+            _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetPoolOffset, valuePoolOffset);
         }
 
-        private void ProcessIfStatement(uint[] hlirSlab, int offset)
+        private void ProcessBranch(uint[] hlirSlab, int offset)
         {
-            var conditionOffset = hlirSlab[offset + 1];
-            var elseOffset = offset + 4 < hlirSlab.Length ? hlirSlab[offset + 3] : 0;
-            var hasElse = elseOffset != 0 && elseOffset < hlirSlab.Length;
+            // HLIR_BRANCH: [metadata, conditionHash, targetLabelHash]
+            if (offset + 2 >= hlirSlab.Length) return;
 
-            var conditionStr = ResolveExpression(hlirSlab, conditionOffset);
+            var conditionHash = hlirSlab[offset + 1];
+            var targetHash = hlirSlab[offset + 2];
 
-            var thenLabel = $"then_{_labelCounter++}";
-            var endLabel = $"endif_{_labelCounter++}";
-            var elseLabel = hasElse ? $"else_{_labelCounter++}" : endLabel;
+            var conditionStr = $"cond_{conditionHash:X}";
+            var targetStr = $"label_{targetHash:X}";
 
-            EmitLabel(thenLabel);
-            EmitConditionalBranch(conditionStr, elseLabel);
-            EmitLabel(endLabel);
+            var instrSize = 3; // metadata + conditionHash + targetHash
+            var startOffset = _arena.Allocate(instrSize);
+
+            var conditionHashMlir = (uint)conditionStr.GetHashCode();
+            var targetHashMlir = (uint)targetStr.GetHashCode();
+
+            _arena.Write(startOffset, Encode(MLIR_BRANCH, (byte)instrSize, 2), conditionHashMlir, targetHashMlir);
         }
 
-        private void ProcessWhileStatement(uint[] hlirSlab, int offset)
+        private void ProcessCall(uint[] hlirSlab, int offset)
         {
-            var conditionOffset = hlirSlab[offset + 1];
+            // HLIR_CALL: [metadata, functionHash, argHashes...]
+            if (offset + 1 >= hlirSlab.Length) return;
 
-            var conditionStr = ResolveExpression(hlirSlab, conditionOffset);
+            var functionHash = hlirSlab[offset + 1];
 
-            var loopLabel = $"loop_{_labelCounter++}";
-            var endLabel = $"endloop_{_labelCounter++}";
+            var funcName = $"func_{functionHash:X}";
+            var funcHashMlir = (uint)funcName.GetHashCode();
 
-            EmitLabel(loopLabel);
-            EmitConditionalBranch(conditionStr, endLabel);
-            EmitLabel(endLabel);
+            var argCount = 0;
+            if (offset + 2 < hlirSlab.Length)
+            {
+                // Count remaining args
+                argCount = InstructionMetadata.DecodeArgCount(hlirSlab[offset]) - 1;
+            }
+
+            var instrSize = (byte)(2 + argCount);
+            var startOffset = _arena.Allocate(instrSize);
+
+            var buffer = new uint[instrSize];
+            buffer[0] = Encode(MLIR_CALL, instrSize, (byte)(1 + argCount));
+            buffer[1] = funcHashMlir;
+            for (int i = 0; i < argCount && offset + 2 + i < hlirSlab.Length; i++)
+            {
+                buffer[2 + i] = hlirSlab[offset + 2 + i];
+            }
+            _arena.Write(startOffset, buffer);
         }
 
-        private void ProcessReturnStatement(uint[] hlirSlab, int offset)
+        private void ProcessReturn(uint[] hlirSlab, int offset)
         {
+            // HLIR_RETURN: [metadata, exprHash?]
             if (offset + 1 < hlirSlab.Length)
             {
-                var exprOffset = hlirSlab[offset + 1];
-                if (exprOffset < hlirSlab.Length)
-                {
-                    var exprStr = ResolveExpression(hlirSlab, exprOffset);
-                    // In MLIR, return values are handled via assignments to a special return variable
-                    var instrSize = 3;
-                    var startOffset = _arena.Allocate(instrSize);
-                    var targetHash = (uint)"_return".GetHashCode();
-                    var valueHash = (uint)exprStr.GetHashCode();
-                    _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetHash, valueHash);
-                }
-            }
-        }
-
-        private void ProcessBlock(uint[] hlirSlab, int offset)
-        {
-            // BLOCK: [metadata, statementOffset1, statementOffset2, ...]
-            // Process each statement in the block
-            int stmtIndex = offset + 1;
-            while (true)
-            {
-                if (stmtIndex >= hlirSlab.Length) break;
+                var exprHash = hlirSlab[offset + 1];
+                var exprStr = ResolveExpression(hlirSlab, exprHash);
                 
-                uint potentialOffset = hlirSlab[stmtIndex];
-                if (potentialOffset >= hlirSlab.Length) break;
-
-                var meta = hlirSlab[potentialOffset];
-                var size = InstructionMetadata.DecodeSize(meta);
-                if (size == 0 || (int)potentialOffset + size > hlirSlab.Length) break;
-
-                var kind = InstructionMetadata.DecodeKind(meta);
-                ProcessStatement(hlirSlab, (int)potentialOffset, kind);
-                ++stmtIndex;
+                // In MLIR, return values are handled via assignments to a special return variable
+                var instrSize = 3;
+                var startOffset = _arena.Allocate(instrSize);
+                var targetHash = (uint)"_return".GetHashCode();
+                var valueHash = (uint)exprStr.GetHashCode();
+                _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetHash, valueHash);
             }
         }
 
-        private void ProcessVariableDeclaration(uint[] hlirSlab, int offset)
+        private void CopyInstruction(uint[] sourceSlab, int offset)
         {
-            // VARIABLE_DECLARATION: [metadata, typeKind, varNameHash]
-            // In MLIR, variable declarations become assignments with initial values
-            if (hlirSlab.Length < offset + 3) return;
+            if (offset >= sourceSlab.Length) return;
 
-            _ = (byte)hlirSlab[offset + 1];
-            uint varNameHash = hlirSlab[offset + 2];
+            var metadata = sourceSlab[offset];
+            var size = DecodeSize(metadata);
 
-            string varName = $"var_{varNameHash:X}";
+            if (size == 0) return;
 
-            // Check for initializer in next instruction
-            int nextOffset = offset + 3;
-            if (nextOffset < hlirSlab.Length)
-            {
-                var nextMeta = hlirSlab[nextOffset];
-                var nextSize = InstructionMetadata.DecodeSize(nextMeta);
-                var nextKind = InstructionMetadata.DecodeKind(nextMeta);
-
-                if (nextSize > 0 && IsExpressionKind(nextKind))
-                {
-                    var initStr = ResolveExpression(hlirSlab, (uint)nextOffset);
-                    var instrSize = 3;
-                    var startOffset = _arena.Allocate(instrSize);
-                    var targetHash = (uint)varName.GetHashCode();
-                    var valueHash = (uint)initStr.GetHashCode();
-                    _arena.Write(startOffset, Encode(MLIR_ASSIGN, (byte)instrSize, 2), targetHash, valueHash);
-                    return;
-                }
-            }
-
-            // No initializer - just declare with zero
-            var instrSize2 = 3;
-            var startOffset2 = _arena.Allocate(instrSize2);
-            var targetHash2 = (uint)varName.GetHashCode();
-            var valueHash2 = (uint)"0".GetHashCode();
-            _arena.Write(startOffset2, Encode(MLIR_ASSIGN, (byte)instrSize2, 2), targetHash2, valueHash2);
+            var destOffset = _arena.Allocate(size);
+            var buffer = new uint[size];
+            Array.Copy(sourceSlab, offset, buffer, 0, size);
+            _arena.Write(destOffset, buffer);
         }
 
         private string ResolveExpression(uint[] slab, uint exprOffset)
@@ -277,8 +224,8 @@ namespace GameVM.Compiler.Core.IR.Transformers
             if (exprOffset >= slab.Length) return "0";
 
             var metadata = slab[exprOffset];
-            var size = InstructionMetadata.DecodeSize(metadata);
-            var kind = InstructionMetadata.DecodeKind(metadata);
+            var size = DecodeSize(metadata);
+            var kind = DecodeKind(metadata);
 
             if (size == 0 || exprOffset + size > slab.Length) return "0";
 
@@ -328,23 +275,6 @@ namespace GameVM.Compiler.Core.IR.Transformers
             }
 
             return $"({left} {op} {right})";
-        }
-
-        private void EmitLabel(string name)
-        {
-            var instrSize = 2; // metadata + nameHash
-            var startOffset = _arena.Allocate(instrSize);
-            var nameHash = (uint)name.GetHashCode();
-            _arena.Write(startOffset, Encode(MLIR_LABEL, (byte)instrSize, 1), nameHash);
-        }
-
-        private void EmitConditionalBranch(string condition, string target)
-        {
-            var instrSize = 3; // metadata + conditionHash + targetHash
-            var startOffset = _arena.Allocate(instrSize);
-            var conditionHash = (uint)condition.GetHashCode();
-            var targetHash = (uint)target.GetHashCode();
-            _arena.Write(startOffset, Encode(MLIR_BRANCH, (byte)instrSize, 2), conditionHash, targetHash);
         }
     }
 }

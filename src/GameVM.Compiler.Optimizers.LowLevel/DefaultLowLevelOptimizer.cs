@@ -6,6 +6,7 @@ using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Utilities;
+using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Optimizers.LowLevel
 {
@@ -31,7 +32,7 @@ namespace GameVM.Compiler.Optimizers.LowLevel
         /// <summary>
         /// Optimizes the given LLIR slab using linear iteration and switch-based processing.
         /// </summary>
-        public uint[] OptimizeSlab(uint[] llirSlab, Core.Enums.OptimizationLevel optimizationLevel)
+        public uint[] OptimizeSlab(uint[] llirSlab, StringPool stringPool, Core.Enums.OptimizationLevel optimizationLevel)
         {
             if (llirSlab == null || llirSlab.Length < SlabHeader.HeaderIndex.Length)
             {
@@ -61,7 +62,7 @@ namespace GameVM.Compiler.Optimizers.LowLevel
             headerData.WriteTo(headerBytes);
             _arena.Write(newHeaderOffset, headerBytes);
 
-            // Process each function in the LLIR slab
+            // Process each instruction in the LLIR slab
             while (offset < llirSlab.Length)
             {
                 var metadata = llirSlab[offset];
@@ -71,9 +72,9 @@ namespace GameVM.Compiler.Optimizers.LowLevel
                 if (size == 0 || offset + size > llirSlab.Length)
                     break;
 
-                if (kind == InstructionMetadataFlags.METHOD_DECLARATION)
+                ProcessInstruction(llirSlab, offset, kind, optimizationLevel);
+                if (kind == InstructionMetadataFlags.LLIR_LABEL)
                 {
-                    ProcessFunction(llirSlab, offset, size, optimizationLevel);
                     functionCount++;
                 }
 
@@ -87,28 +88,6 @@ namespace GameVM.Compiler.Optimizers.LowLevel
             _arena.Write(newHeaderOffset, finalHeaderData);
 
             return _arena.ToContiguousArray();
-        }
-
-        private void ProcessFunction(uint[] llirSlab, int funcOffset, int funcSize, OptimizationLevel level)
-        {
-            int bodyOffset = funcOffset + 2;
-            int bodyEndOffset = funcOffset + funcSize;
-            int currentOffset = bodyOffset;
-
-            while (currentOffset < bodyEndOffset && currentOffset < llirSlab.Length)
-            {
-                var metadata = llirSlab[currentOffset];
-                var size = InstructionMetadata.DecodeSize(metadata);
-                var kind = InstructionMetadata.DecodeKind(metadata);
-
-                if (size == 0 || currentOffset + size > llirSlab.Length)
-                    break;
-
-                // Process instruction using switch-based dispatch
-                ProcessInstruction(llirSlab, currentOffset, kind, level);
-
-                currentOffset += size;
-            }
         }
 
         /// <summary>

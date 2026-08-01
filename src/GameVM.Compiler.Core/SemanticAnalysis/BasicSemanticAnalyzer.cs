@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
+#pragma warning disable CS0618 // Type or member is obsolete
 
 namespace GameVM.Compiler.Core.SemanticAnalysis
 {

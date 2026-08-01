@@ -4,6 +4,7 @@ using GameVM.Compiler.Core.IR.SlabProcessing;
 using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
+using GameVM.Compiler.Core.IR.Buffers;
 using Antlr4.Runtime;
 using NUnit.Framework;
 
@@ -32,7 +33,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var context = Parse(code);
             var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena);
+            var visitor = new PascalToSlabVisitor(arena, new StringPool());
             visitor.Visit(context);
 
             uint[] slab = visitor.GetSlab();
@@ -58,7 +59,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var context = Parse(code);
             var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena);
+            var visitor = new PascalToSlabVisitor(arena, new StringPool());
             visitor.Visit(context);
 
             uint[] slab = visitor.GetSlab();
@@ -67,15 +68,32 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var header = SlabHeader.Read(slab);
             Assert.That(header.HasValidMagic(), Is.True);
 
-            // First instruction after header should be VARIABLE_DECLARATION (kind 8)
+            // First instruction after header should be METHOD_DECLARATION (kind 10)
             int headerLength = SlabHeader.HeaderIndex.Length;
-            uint varDeclMetadata = slab[headerLength];
-            byte kind = InstructionMetadata.DecodeKind(varDeclMetadata);
-            Assert.That(kind, Is.EqualTo(VARIABLE_DECLARATION), "First instruction should be variable declaration");
-            
-            byte argCount = InstructionMetadata.DecodeArgCount(varDeclMetadata);
-            Assert.That(argCount, Is.EqualTo(2), "Variable declaration should have 2 arguments (type, name)");
-            
+            uint methodDeclMetadata = slab[headerLength];
+            byte methodKind = InstructionMetadata.DecodeKind(methodDeclMetadata);
+            Assert.That(methodKind, Is.EqualTo(METHOD_DECLARATION), "First instruction should be method declaration");
+
+            // The method body (a BLOCK) should contain a VARIABLE_DECLARATION (kind 8)
+            bool foundVarDecl = false;
+            int i = headerLength;
+            while (i < slab.Length)
+            {
+                uint meta = slab[i];
+                byte k = InstructionMetadata.DecodeKind(meta);
+                byte size = InstructionMetadata.DecodeSize(meta);
+                if (k == VARIABLE_DECLARATION)
+                {
+                    foundVarDecl = true;
+                    byte argCount = InstructionMetadata.DecodeArgCount(meta);
+                    Assert.That(argCount, Is.EqualTo(2), "Variable declaration should have 2 arguments (type, name)");
+                    break;
+                }
+                if (size == 0 || i + size > slab.Length) break;
+                i += size;
+            }
+            Assert.That(foundVarDecl, Is.True, "Variable declaration should be present in the method body");
+
             Console.WriteLine(new SlabPrinter(slab).Print());
         }
 
@@ -92,7 +110,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var context = Parse(code);
             var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena);
+            var visitor = new PascalToSlabVisitor(arena, new StringPool());
             visitor.Visit(context);
 
             uint[] slab = visitor.GetSlab();
@@ -120,7 +138,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var context = Parse(code);
             var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena);
+            var visitor = new PascalToSlabVisitor(arena, new StringPool());
             visitor.Visit(context);
 
             uint[] slab = visitor.GetSlab();
@@ -146,7 +164,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var context = Parse(code);
             var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena);
+            var visitor = new PascalToSlabVisitor(arena, new StringPool());
             visitor.Visit(context);
 
             uint[] slab = visitor.GetSlab();
@@ -171,7 +189,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             {
                 var context = Parse(code);
                 var arena = new ArenaAllocator();
-                var visitor = new PascalToSlabVisitor(arena);
+                var visitor = new PascalToSlabVisitor(arena, new StringPool());
                 visitor.Visit(context);
 
                 uint[] slab = visitor.GetSlab();

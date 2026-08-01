@@ -1,4 +1,5 @@
 using GameVM.Compiler.Core.IR;
+#pragma warning disable CS0618 // Type or member is obsolete
 
 namespace GameVM.Compiler.Core.Pipeline
 {

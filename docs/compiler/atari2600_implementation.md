@@ -66,6 +66,14 @@ This document outlines the specific challenges and proposed solutions for implem
 - Bank switching overhead
 - No interrupt support
 
+#### Actual Implementation [implemented]
+The current `Atari2600CodeGenerator.GenerateFromSlab` produces a 4KB ROM (`$F000`-`$FFFF`) from an LLIR slab via linear iteration:
+
+- **Instruction selection**: `LLIR_LOAD` emits `LDA #imm` (`0xA9`); `LLIR_STORE` emits `STA` using **zero-page addressing** (`0x85`) when the target address is `< $100`, otherwise **absolute** (`0x8D`). Zero-page selection is required for the small RAM window of the 2600.
+- **Program termination**: Because a loaded Atari 2600 cartridge has total control of the machine, the generated program never returns. The codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) after the last instruction so the CPU stays at the program's final state instead of falling into zeroed ROM (BRK) and restarting from the reset vector.
+- **Reset/IRQ vectors**: ROM bytes `$FFFC`-`$FFFF` point to `$F000` (start of generated code).
+- **Identifier → address resolution**: The `MidToLowLevelTransformer.TransformSlab` resolves variable identifiers (via the shared `StringPool`) to memory addresses. Known TIA registers (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`→`$07`) map to hardware addresses; all other variables are allocated sequentially starting at zero-page `$80`.
+
 #### Proposed Solutions [implemented, aspirational]
 - **Cycle-Exact Compilation**
   - Track cycle counts during code generation

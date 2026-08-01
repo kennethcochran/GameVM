@@ -3,6 +3,7 @@ using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
@@ -75,7 +76,7 @@ public class DebugPipelineTests
         uint[]? mlirSlab = null;
         if (hlirSlab != null)
         {
-            mlirSlab = midOptimizer.OptimizeSlab(hlirSlab, OptimizationLevel.None);
+            mlirSlab = midOptimizer.OptimizeSlab(hlirSlab, frontend.StringPool!, OptimizationLevel.None);
             TestContext.WriteLine($"MLIR slab length: {mlirSlab?.Length ?? 0}");
             if (mlirSlab != null && mlirSlab.Length > 0)
             {
@@ -87,9 +88,9 @@ public class DebugPipelineTests
         }
 
         uint[]? llirSlab = null;
-        if (mlirSlab != null)
+        if (mlirSlab != null && frontend.StringPool != null)
         {
-            llirSlab = transformer.TransformSlab(mlirSlab);
+            llirSlab = transformer.TransformSlab(mlirSlab, frontend.StringPool!);
             TestContext.WriteLine($"LLIR slab length: {llirSlab?.Length ?? 0}");
             if (llirSlab != null && llirSlab.Length > 0)
             {

@@ -1,4 +1,6 @@
 using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Slab;
 
 namespace GameVM.Compiler.Core.IR.Interfaces
 {
@@ -13,5 +15,13 @@ namespace GameVM.Compiler.Core.IR.Interfaces
         /// Transform from one IR type to another
         /// </summary>
         TOutput Transform(TInput input);
+
+        /// <summary>
+        /// Transform from one IR slab to another IR slab (DOD pipeline)
+        /// </summary>
+        /// <param name="inputSlab">Input IR as slab</param>
+        /// <param name="stringPool">String pool for identifier resolution</param>
+        /// <returns>Output IR as slab</returns>
+        uint[] TransformSlab(uint[] inputSlab, StringPool stringPool);
     }
 }

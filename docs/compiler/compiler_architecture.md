@@ -280,6 +280,17 @@ For detailed information about inline assembly syntax, language integration, and
 - Platform-specific memory layout
 - Debug information embedding (if enabled)
 
+## Identifier Management (StringPool) [implemented]
+
+The DOD pipeline shares a single **`StringPool`** (intern table) across every stage, from the language frontend through code generation. This follows the pattern of production DOD compilers (Carbon's `IdentifierStore`, Zig's `InternPool`, Odin's `InternedString`).
+
+- The frontend interns every identifier once during `ParseToSlab` and stores **StringPool offsets** (compact integer handles) in the AST slab.
+- `AstSlabToHlirSlabTransformer`, `HlirSlabToMlirSlabTransformer`, and `MidToLowLevelTransformer` carry these offsets through the HLIR/MLIR/LLIR slabs unchanged.
+- The backend (`Atari2600CodeGenerator`) and the mid-level transformer resolve offsets back to names via `StringPool.Resolve()` for address mapping and symbol emission.
+- The `CompileUseCase` retrieves the pool from `ILanguageFrontend.StringPool` and threads it into `OptimizeSlab`, `TransformSlab`, and `GenerateFromSlab`.
+
+Identifiers are referenced by pool offset throughout the pipeline — never by `string.GetHashCode()`, which is non-reversible and would prevent downstream stages from recovering the original name.
+
 ## Command Line Interface
 
 ```

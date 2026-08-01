@@ -38,6 +38,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameVM.Compiler.Core\GameVM.Compiler.Core.csproj" />
     <ProjectReference Include="..\..\src\GameVM.Compiler.Optimizers.MidLevel\GameVM.Compiler.Optimizers.MidLevel.csproj" />
+    <ProjectReference Include="..\..\src\GameVM.Compiler.Pascal\GameVM.Compiler.Pascal.csproj" />
   </ItemGroup>
 
 

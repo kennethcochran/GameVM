@@ -9,6 +9,7 @@ using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
 using GameVM.Compiler.Backend.Atari2600;
+using GameVM.Compiler.Core.SemanticAnalysis;
 
 namespace GameVM.Compiler.Specs.Support
 {
@@ -25,7 +26,7 @@ namespace GameVM.Compiler.Specs.Support
         public string? ErrorMessage { get; set; }
         public string? MameOutput { get; set; }
 
-        public CompilerTestContext()
+public CompilerTestContext()
         {
             // Create real compiler with Pascal frontend
             var atari2600Generator = new Atari2600CodeGenerator();
@@ -36,7 +37,8 @@ namespace GameVM.Compiler.Specs.Support
                 new MidToLowLevelTransformer(),
                 atari2600Generator,
                 atari2600Generator, // Use same instance for ICapabilityProvider
-                new GameVM.Compiler.Capabilities.CapabilityValidatorService());
+                new GameVM.Compiler.Capabilities.CapabilityValidatorService(),
+                new BasicSemanticAnalyzer());
         }
 
         /// <summary>
