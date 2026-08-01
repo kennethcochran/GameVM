@@ -459,6 +459,8 @@ build:
 ## 12. Continuous Integration
 
 ### 12.1 CI Configuration
+The primary CI workflow is defined in `.github/workflows/build.yml`. It orchestrates compilation, testing, and static analysis across multiple operating systems.
+
 ```yaml
 # .github/workflows/build.yml
 name: Build
@@ -479,6 +481,9 @@ jobs:
           name: build-output
           path: dist/
 ```
+
+**SonarQube Integration:**
+The CI pipeline integrates with SonarQube for static code analysis and quality gate enforcement. On the `ubuntu-latest` runner, a dedicated job runs `dotnet-sonarscanner` to analyze the codebase and submit results to SonarCloud. The build is configured to **fail if the SonarQube Quality Gate conditions are not met**, ensuring code quality standards are maintained. This is enforced by `sonar.qualitygate.wait=true` during the analysis and a polling mechanism for the quality gate status.
 
 ## 13. Troubleshooting
 

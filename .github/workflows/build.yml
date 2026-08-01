@@ -136,7 +136,7 @@ jobs:
           
           # Run Unit/BDD tests with coverage (only for Sonar on Ubuntu)
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
+            ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" /d:sonar.qualitygate.wait=true
             if [ $? -ne 0 ]; then exit 1; fi
           fi
           
@@ -158,23 +158,32 @@ jobs:
           
       - name: Check SonarQube Quality Gate
         if: matrix.os == 'ubuntu-latest'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: bash
         run: |
-          headers="Authorization: Bearer $SONAR_TOKEN"
           projectKey="kennethcochran_GameVM"
           url="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
-          
-          # Wait for SonarQube processing
-          sleep 30
-          
-          response=$(curl -s -H "$headers" "$url")
-          status=$(echo "$response" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-          
-          echo "Quality Gate Status: $status"
-          
-          if [ "$status" = "ERROR" ]; then
-            echo "Quality Gate failed!"
+
+          # Poll until SonarQube has finished evaluating the quality gate
+          status="NONE"
+          for i in $(seq 1 12); do
+            response=$(curl -s -H "Authorization: Bearer $SONAR_TOKEN" "$url")
+            status=$(echo "$response" | jq -r '.projectStatus.status // empty' 2>/dev/null)
+            echo "Poll $i: quality gate status=$status"
+            if [ "$status" = "OK" ] || [ "$status" = "ERROR" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "$status" = "OK" ]; then
+            echo "Quality Gate passed!"
+          elif [ "$status" = "ERROR" ]; then
+            echo "Quality Gate FAILED:"
+            echo "$response" | jq '.projectStatus.conditions' 2>/dev/null || true
             exit 1
           else
-            echo "Quality Gate passed!"
+            echo "Could not determine Quality Gate status (got: '$status')"
+            exit 1
           fi
