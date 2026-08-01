@@ -67,12 +67,18 @@ This project and everyone participating in it is governed by our [Code of Conduc
    dotnet test
    ```
 
-4. Commit your changes with a clear and descriptive commit message:
+4. Update the affected documentation (see [AGENTS.md](AGENTS.md) "Documentation Update Rules" and `.github/doc-mapping.yaml`). Run the check locally to verify:
+
+   ```bash
+   python3 .github/scripts/doc-sync.py <changed files...>
+   ```
+
+5. Commit your changes with a clear and descriptive commit message:
    ```bash
    git commit -m "Add feature X"
    ```
 
-5. Push your changes to your fork:
+6. Push your changes to your fork:
    ```bash
    git push origin your-branch-name
    ```

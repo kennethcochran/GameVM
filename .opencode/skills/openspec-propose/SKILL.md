@@ -55,6 +55,11 @@ When ready to implement, run /opsx-apply
 
    Use the **TodoWrite tool** to track progress through the artifacts.
 
+   **IMPORTANT**: When creating `tasks.md`, always add a documentation task when
+   the change affects documented behavior:
+   `- [ ] Update affected documentation per AGENTS.md trigger mapping`
+   See `.github/doc-mapping.yaml` for the code-change → doc mapping.
+
    Loop through artifacts in dependency order (artifacts with no pending dependencies first):
 
    a. **For each artifact that is `ready` (dependencies satisfied)**:

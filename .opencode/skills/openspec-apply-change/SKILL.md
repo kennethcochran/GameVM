@@ -77,6 +77,13 @@ Implement tasks from an OpenSpec change.
    - Mark task complete in the tasks file: `- [ ]` → `- [x]`
    - Continue to next task
 
+   **Documentation is mandatory**: Whenever a task changes code, update the
+   affected documentation in the same session per AGENTS.md "Documentation
+   Update Rules" (see `.github/doc-mapping.yaml`). Read the affected doc first,
+   apply `[implemented]`/`[aspirational]`/`[outdated]` tags, and update code
+   examples. If the change has no documented behavior, note that explicitly
+   rather than skipping silently.
+
    **Pause if:**
    - Task is unclear → ask for clarification
    - Implementation reveals a design issue → suggest updating artifacts

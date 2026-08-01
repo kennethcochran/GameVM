@@ -3,18 +3,23 @@ schema: spec-driven
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: .NET 10, C#, NUnit, Reqnroll, ANTLR (JDK 21+ at build time).
+  Domain: Retro game console cross-compiler (HLIR -> MLIR -> LLIR -> bytecode).
+  Conventional commits: feat, fix, refactor, docs, test, chore, ci.
+  EVERY code change MUST include a documentation update task - see AGENTS.md
+  "Documentation Update Rules" and .github/doc-mapping.yaml.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - When the change affects documented behavior, always include a final
+      task: "- [ ] Update affected documentation per AGENTS.md trigger mapping"
+      referencing .github/doc-mapping.yaml
+    - When the change introduces or removes public API surface, include a task
+      to update docs/api/ and XML doc comments

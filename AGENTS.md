@@ -1,6 +1,8 @@
-# GameVM Copilot Instructions
+# GameVM Agent Instructions
 
-This file provides guidance for AI assistants and Copilot models working on the GameVM project.
+This file provides guidance for AI assistants and coding agents working on the GameVM project.
+It supersedes the previous `.github/copilot-instructions.md` and is vendor-neutral: it applies
+to any agent (Copilot, Codex, Cursor, Claude, opencode, etc.).
 
 ## Project Overview
 
@@ -65,7 +67,6 @@ GameVM/
 │   ├── architecture/                # High-level design
 │   └── api/                         # API documentation
 └── GameVM.sln                        # Visual Studio solution
-
 ```
 
 ## Development Guidelines
@@ -155,6 +156,58 @@ Documentation for platforms is in `/docs/platforms/specs/`.
 - Update `/docs/README.md` if adding new sections
 - See `/docs/architecture/DocumentationStandards.md` for style guidelines
 
+## Documentation Update Rules (MANDATORY)
+
+**Every time you modify code, you MUST also update the affected documentation in the same session.**
+Documentation drift is the #1 tracked problem in this repo — do not ship code changes without
+syncing docs. When in doubt, err on the side of updating docs.
+
+### Trigger Mapping
+
+Use `.github/doc-mapping.yaml` as the authoritative mapping. The common cases:
+
+| Code Change | Docs to Update |
+|-------------|----------------|
+| New/updated LLIR instruction | `/docs/compiler/LLIR_ISA.md`, `/docs/compiler/LLIR.md` |
+| New/updated HLIR or MLIR construct | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md` |
+| New/updated backend or platform target | `/docs/platforms/specs/<platform>.md`, `/docs/platforms/README.md` |
+| New/updated optimizer pass | `/docs/optimization.md` |
+| New/updated frontend or language feature | `/docs/compiler/Parser.md`, `/docs/compiler/TypeSystem.md`, `/docs/compiler/LanguageIntegration.md` |
+| Public API surface change (types/methods/signatures) | `/docs/api/` + XML doc comments |
+| Architecture or pipeline change | `/docs/architecture/ArchitectureOverview.md`, `/docs/compiler/compiler_architecture.md` |
+| Dispatch strategy change | `/docs/code-generation.md` |
+| Capability / platform profile change | `/docs/platforms/CapabilityProfiles.md` |
+| IR stage, slab, or transformer change | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md`, `/docs/compiler/LLIR.md` |
+| Build system / tooling change | `/docs/compiler/BuildSystem.md` |
+
+### Update Procedure
+
+1. **Read** the affected doc file(s) first (do not guess their current content).
+2. **Apply the status-tagging convention**: tag each section with one or more of
+   `[implemented]`, `[aspirational]` (planned, not built), or `[outdated]`
+   (built differently than documented, or describing removed functionality).
+3. **Update** code examples and API references to match the current implementation.
+4. **Verify** relative links still resolve and section headers still exist.
+5. **Update** the document's changelog section (if present).
+6. When an interface, capability, or behavior is *removed*, tag the doc section
+   `[outdated]` and describe the replacement — do not silently delete coverage.
+
+### When NOT to Update Docs
+
+- Pure refactors with no behavior/API change (but verify by reading the docs)
+- Test-only changes that add coverage without changing behavior
+- Dependency version bumps with no API change
+
+### Spec Workflow (OpenSpec)
+
+GameVM uses OpenSpec for spec-driven changes. When working on an active change
+under `openspec/changes/`:
+
+- Keep the change's `proposal.md`, `design.md`, and `tasks.md` in sync as you work.
+- Add a documentation task to `tasks.md` when the change affects documented behavior:
+  `- [ ] Update affected documentation per AGENTS.md trigger mapping`
+- When a change ships, its specs are merged into `openspec/specs/` via `openspec sync`.
+
 ## Testing Strategy
 
 ### Unit Tests (NUnit)
@@ -198,7 +251,7 @@ dotnet test /p:CollectCoverage=true
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for detailed contribution guidelines including:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines including:
 - Fork and clone workflow
 - Branch naming conventions
 - Commit message standards
@@ -208,11 +261,11 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) for detailed contribution guideline
 ## Documentation References
 
 Key documents to consult:
-- **Architecture**: [Architecture Overview](../../docs/architecture/ArchitectureOverview.md)
-- **LLIR Specification**: [LLIR ISA](../../docs/compiler/LLIR_ISA.md)
-- **Inline Assembly**: [Inline Assembly Guide](../../docs/compiler/InlineAssembly.md)
-- **Optimization**: [Optimization Features](../../docs/optimization.md)
-- **Code Generation**: [Code Generation Strategies](../../docs/code-generation.md)
+- **Architecture**: [Architecture Overview](docs/architecture/ArchitectureOverview.md)
+- **LLIR Specification**: [LLIR ISA](docs/compiler/LLIR_ISA.md)
+- **Inline Assembly**: [Inline Assembly Guide](docs/compiler/InlineAssembly.md)
+- **Optimization**: [Optimization Features](docs/optimization.md)
+- **Code Generation**: [Code Generation Strategies](docs/code-generation.md)
 
 ## Common Pitfalls to Avoid
 
@@ -221,13 +274,14 @@ Key documents to consult:
 3. **Forgetting register allocation**: Physical registers are scarce on 8/16-bit targets
 4. **Platform-specific optimizations too early**: Focus on architecture-independent optimizations in MLIR first
 5. **Missing width specifiers**: LLIR instructions require explicit width types
+6. **Skipping documentation updates**: See [Documentation Update Rules](#documentation-update-rules-mandatory)
 
 ## Quick Links
 
 - **GitHub Repository**: https://github.com/kennethcochran/GameVM
-- **Main README**: [README.md](../../README.md)
-- **License**: [Unlicense](../../LICENSE)
-- **Code of Conduct**: [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)
+- **Main README**: [README.md](README.md)
+- **License**: [Unlicense](LICENSE)
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## Getting Help
 
