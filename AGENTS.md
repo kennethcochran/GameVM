@@ -1,291 +1,68 @@
-# GameVM Agent Instructions
+## SonarQube Integration — Practical Usage (MUST FOLLOW)
 
-This file provides guidance for AI assistants and coding agents working on the GameVM project.
-It supersedes the previous `.github/copilot-instructions.md` and is vendor-neutral: it applies
-to any agent (Copilot, Codex, Cursor, Claude, opencode, etc.).
+### GUIDE Phase — Before Generating Code
+On **free tier SonarCloud**, Context Augmentation tools (`get_guidelines`, `get_current_architecture`) are unavailable. Instead:
+1. **Reference project standards manually** - Review `/docs/compiler/` and `/docs/platforms/specs/` for language/platform guidance
+2. **Check recent commits** for patterns - Use `git log -p -S "<pattern>" -- src/` to find similar implementations
+3. **Locate existing code with grep/glob** - Use file search for similar functionality before implementing
+4. **When changing architecture/dependencies** - Focus on architecture-independent optimizations first (MLIR level)
 
-## Project Overview
+### VERIFY Phase — After Generating Code
+Use a **combined MCP + CLI approach** based on what's available:
 
-**GameVM** is a cross-compiler toolchain designed for retro video game development. It enables developers to write games in modern, high-level languages (Pascal, C, etc.) and compile them to optimized bytecode for 2nd-5th generation gaming consoles (NES, SNES, Genesis, N64, PlayStation, Atari 2600, etc.).
+1. **Read Phase**: Load current state of relevant source files
 
-### Key Characteristics
-- **Host/Target Philosophy**: Complex analysis/optimization happens on modern hosts; output is tailored binaries (ROM/bytecode)
-- **Multi-stage IR Pipeline**: HLIR (High-Level) → MLIR (Mid-Level) → LLIR (Low-Level)
-- **Platform-Agnostic**: Single codebase supports multiple retro hardware platforms
-- **Early Development**: Project is in active development, not production-ready
+2. **Analysis Phase** (use what's available):
+   - **If MCP `run_advanced_code_analysis` is available** (paid tier):
+     * Call with: filePath, branchName, fileScope (MAIN/TEST)
+   - **Always available via CLI** (free tier):
+     * `sonar list issues -p kennethcochran_GameVM --format table` - See all open issues
+     * `sonar analyze --staged` - Analyze staged changes (secrets, deps, local analysis)
+     * `sonar list issues -p kennethcochran_GameVM --resolved=false --format table` - Unresolved issues only
+     * For specific files: `sonar analyze src/path/to/changes.cs` (analyze local changes)
 
-## Architecture & Core Concepts
+3. **Evaluation & Remediation**:
+   - **For HIGH/BLOCKER severity or SECURITY quality** (from any source):
+     * Call `sonar show rule <RULE_KEY>` to get remediation guidance
+     * Fix the issue according to rule description
+   - **For CLI-detected secrets or dependency risks**:
+     * Remove hardcoded secrets immediately
+     * Update vulnerable dependencies per `sonar analyze dependency-risks` output
 
-### Intermediate Representations (IRs)
-1. **HLIR (High-Level IR)**: Language-agnostic AST preserving high-level semantics
-2. **MLIR (Mid-Level IR)**: Focuses on optimizations and resource management (graph-based structure)
-3. **LLIR (Low-Level IR)**: Accumulator-based VM ISA, close to machine code
+4. **Verification**: 
+   - Re-run `sonar analyze --staged` or `sonar list issues` to confirm fixes
+   - Check quality gate: `sonar show quality-gate -p kennethcochran_GameVM`
 
-### Key Components
-- **Frontends**: Language-specific parsers (Pascal, C)
-- **Compiler Core**: IR transformations and optimizations
-- **Backends**: Platform-specific code generation
-- **Module System**: Dependency management across the codebase
-- **Type System**: Type safety across language boundaries
+### WORKFLOW EXAMPLES
+**Before implementing a feature**:
+- Review similar implementations in codebase
+- Check platform-specific constraints in `/docs/platforms/specs/`
+- Implement following existing patterns
 
-### Dispatch Techniques
-The LLIR can be executed via multiple strategies:
-- **Token Threaded Code (TTC)**: Compact bytecode (1-byte tokens)
-- **Indirect Threaded Code (ITC)**: Jump table dispatch
-- **Direct Threaded Code (DTC)**: Direct implementation pointers
-- **Subroutine Threaded Code (STC)**: Native CALL/RET patterns
-- **Native Code**: Direct machine code generation
+**After making changes**:
+1. Run `sonar analyze --staged` to catch secrets, dependency risks, and basic issues
+2. If MCP available: run `run_advanced_code_analysis` for deep analysis
+3. For any findings: use `sonar show rule <RULE>` to understand fix
+4. Fix HIGH/BLOCKER/SECURITY items before considering work complete
+5. Verify with `sonar analyze --staged` again
 
-### Superinstructions
-- Developer-marked methods using `[Super]` attribute become superinstructions
-- Compiler analyzes candidate methods against structural requirements (size, complexity, parameters)
-- Can combine with inline LLIR assembly for hand-optimized versions
+### AVAILABLE TOOLS BY TIER
+**Free SonarCloud (your current)**:
+- CLI: `sonar analyze`, `sonar list issues`, `sonar show rule`, `sonar show quality-gate`, `sonar analyze secrets`, `sonar analyze dependency-risks`
+- MCP (limited): `projects` toolset (basic project info), `rules` toolset (via `show_rule` if exposed), basic issue querying
+- **NOT available**: `get_guidelines`, `get_current_architecture`, `run_advanced_code_analysis`, Sonar Vortex analysis
 
-## Project Structure
+**Paid SonarCloud (Team/Enterprise)**:
+- All CLI tools above
+- Full MCP toolsets: `cag` (Context Augmentation), `analysis` (Agentic Analysis), plus all free-tier tools
+- Enables full Guide/Verify workflow from the original article
 
-```
-GameVM/
-├── src/                              # Source code
-│   ├── GameVM.Compiler.Core/        # Core compiler infrastructure
-│   ├── GameVM.Compiler.Pascal/      # Pascal frontend
-│   ├── GameVM.Compiler.Application/ # CLI application
-│   ├── GameVM.Compiler.Interaction/ # Language interaction layer
-│   ├── GameVM.Compiler.Backend.Atari2600/
-│   ├── GameVM.Compiler.Optimizers.MidLevel/
-│   ├── GameVM.Compiler.Optimizers.LowLevel/
-│   └── GameVM.DevTools/             # Development utilities
-├── test/                             # Test suites
-│   ├── GameVM.Compiler.*.Tests/     # Unit tests (NUnit)
-│   └── GameVM.Compiler.Specs/       # BDD/Scenario tests (Reqnroll)
-├── docs/                             # Documentation
-│   ├── compiler/                    # Compiler design docs
-│   │   ├── HLIR.md, MLIR.md, LLIR.md
-│   │   ├── LLIR_ISA.md              # ISA specification
-│   │   ├── InlineAssembly.md
-│   │   └── [others]
-│   ├── platforms/specs/             # Hardware specifications
-│   ├── architecture/                # High-level design
-│   └── api/                         # API documentation
-└── GameVM.sln                        # Visual Studio solution
-```
+### TROUBLESHOOTING
+If SonarQube MCP shows "failed":
+1. Verify `SONARQUBE_TOKEN` is exported in shell: `echo $SONARQUBE_TOKEN`
+2. Restart opencode after exporting token
+3. Check container logs: `docker logs sonarqube-mcp` (if running manually)
+4. The server requires ~30-60s to initialize analyzers on first start
 
-## Development Guidelines
-
-### Technology Stack
-- **.NET 10 SDK** required (project uses modern C#)
-- **JDK 21+** required only for ANTLR (parser generation during build)
-- **NUnit** for unit tests
-- **Reqnroll** for BDD scenario tests
-- **ANTLR** for language parsing (Java-based, run at build time)
-
-### Build & Testing
-```bash
-# Restore dependencies
-dotnet restore
-
-# Build solution
-dotnet build
-
-# Run all tests
-dotnet test
-
-# Build specific project
-dotnet build src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj
-```
-
-### Code Organization
-- **Core compiler logic**: `GameVM.Compiler.Core` namespace
-- **Language frontends**: `GameVM.Compiler.Pascal`, `GameVM.Compiler.C` (planned)
-- **IR implementations**: Separate files for HLIR, MLIR, LLIR
-- **Backend implementations**: Per-platform backend projects
-- **Optimization passes**: Separate projects for mid-level and low-level optimizers
-
-### IR-Specific Considerations
-
-#### When Working on HLIR
-- Focus on language semantics and high-level constructs
-- Preserve source location information for debugging
-- Ensure type information is complete and accurate
-- Consider interaction with the module system
-
-#### When Working on MLIR
-- Leverage graph structure for control flow analysis
-- Implement resource analysis (memory usage, stack tracking)
-- Focus on architecture-independent optimizations
-- Coordinate with optimization passes
-
-#### When Working on LLIR
-- Remember it's the virtual machine ISA specification
-- Reference `/docs/compiler/LLIR_ISA.md` for instruction definitions
-- Consider register allocation constraints
-- Account for width types (INT8, INT16, INT32, INT64, PTR, FLOAT32, FLOAT64, BOOL)
-- LLIR instructions: LOAD, STORE, MOV, ADD, SUB, MUL, DIV, MOD, AND, OR, XOR, NOT, SHL, SHR, ROL, ROR, CMP, TEST, JUMP/conditional jumps, CALL, RET, CAST, MEMCPY, MEMSET, MEMCMP, etc.
-
-### Platform Specifications
-
-Key target platforms and their constraints:
-- **Atari 2600**: 2KB RAM, 6502 @ 1.19 MHz (8-bit)
-- **NES**: 2KB RAM, 6502 @ 1.79 MHz (8-bit)
-- **SNES**: 128KB RAM, 65816 @ 3.58 MHz (16-bit)
-- **Genesis/Mega Drive**: 64KB RAM, 68000 @ 7.67 MHz (16-bit)
-- **Nintendo 64**: 4-8MB RAM, R4300i @ 93.75 MHz (32-bit, with JIT support)
-- **PlayStation 1**: 2MB RAM, R3000 @ 33.8688 MHz (32-bit, with basic JIT)
-- **Sega Saturn**: 2MB RAM, dual SH-2 @ 28.6 MHz (32-bit, dual-CPU aware)
-
-Documentation for platforms is in `/docs/platforms/specs/`.
-
-## Common Tasks
-
-### Adding a New Instruction to LLIR
-1. Define the instruction in `/docs/compiler/LLIR_ISA.md`
-2. Create instruction class in `GameVM.Compiler.Core/IR/LowLevelIR.cs`
-3. Implement handling in optimizer passes
-4. Implement in target backends (Atari2600, etc.)
-5. Add corresponding test cases
-
-### Implementing a Backend Optimization
-1. Create file in appropriate optimizer project (MidLevel/LowLevel)
-2. Implement the optimization pass
-3. Add unit tests in corresponding `.Tests` project
-4. Consider performance impact and benchmarks
-
-### Adding Documentation
-- Follow the existing documentation structure
-- Reference related documents using relative links
-- Include code examples where appropriate
-- Update `/docs/README.md` if adding new sections
-- See `/docs/architecture/DocumentationStandards.md` for style guidelines
-
-## Documentation Update Rules (MANDATORY)
-
-**Every time you modify code, you MUST also update the affected documentation in the same session.**
-Documentation drift is the #1 tracked problem in this repo — do not ship code changes without
-syncing docs. When in doubt, err on the side of updating docs.
-
-### Trigger Mapping
-
-Use `.github/doc-mapping.yaml` as the authoritative mapping. The common cases:
-
-| Code Change | Docs to Update |
-|-------------|----------------|
-| New/updated LLIR instruction | `/docs/compiler/LLIR_ISA.md`, `/docs/compiler/LLIR.md` |
-| New/updated HLIR or MLIR construct | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md` |
-| New/updated backend or platform target | `/docs/platforms/specs/<platform>.md`, `/docs/platforms/README.md` |
-| New/updated optimizer pass | `/docs/optimization.md` |
-| New/updated frontend or language feature | `/docs/compiler/Parser.md`, `/docs/compiler/TypeSystem.md`, `/docs/compiler/LanguageIntegration.md` |
-| Public API surface change (types/methods/signatures) | `/docs/api/` + XML doc comments |
-| Architecture or pipeline change | `/docs/architecture/ArchitectureOverview.md`, `/docs/compiler/compiler_architecture.md` |
-| Dispatch strategy change | `/docs/code-generation.md` |
-| Capability / platform profile change | `/docs/platforms/CapabilityProfiles.md` |
-| IR stage, slab, or transformer change | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md`, `/docs/compiler/LLIR.md` |
-| Build system / tooling change | `/docs/compiler/BuildSystem.md` |
-
-### Update Procedure
-
-1. **Read** the affected doc file(s) first (do not guess their current content).
-2. **Apply the status-tagging convention**: tag each section with one or more of
-   `[implemented]`, `[aspirational]` (planned, not built), or `[outdated]`
-   (built differently than documented, or describing removed functionality).
-3. **Update** code examples and API references to match the current implementation.
-4. **Verify** relative links still resolve and section headers still exist.
-5. **Update** the document's changelog section (if present).
-6. When an interface, capability, or behavior is *removed*, tag the doc section
-   `[outdated]` and describe the replacement — do not silently delete coverage.
-
-### When NOT to Update Docs
-
-- Pure refactors with no behavior/API change (but verify by reading the docs)
-- Test-only changes that add coverage without changing behavior
-- Dependency version bumps with no API change
-
-### Spec Workflow (OpenSpec)
-
-GameVM uses OpenSpec for spec-driven changes. When working on an active change
-under `openspec/changes/`:
-
-- Keep the change's `proposal.md`, `design.md`, and `tasks.md` in sync as you work.
-- Add a documentation task to `tasks.md` when the change affects documented behavior:
-  `- [ ] Update affected documentation per AGENTS.md trigger mapping`
-- When a change ships, its specs are merged into `openspec/specs/` via `openspec sync`.
-
-## Testing Strategy
-
-### Unit Tests (NUnit)
-- Located in `test/GameVM.Compiler.*.Tests/`
-- Test individual components in isolation
-- Use descriptive test names following pattern: `Method_Scenario_ExpectedResult`
-
-### BDD Tests (Reqnroll/Gherkin)
-- Located in `test/GameVM.Compiler.Specs/`
-- Scenario-based end-to-end tests covering language features
-- Validate backend code generation
-- Verify behavior correctness
-
-### Running Tests
-```bash
-# Run all tests
-dotnet test
-
-# Run specific test project
-dotnet test test/GameVM.Compiler.Core.Tests/
-
-# Run with coverage
-dotnet test /p:CollectCoverage=true
-```
-
-## Code Standards
-
-### Naming Conventions
-- **Classes**: PascalCase (e.g., `HighLevelIR`, `AtariBackend`)
-- **Methods**: PascalCase (e.g., `CompileModule`, `OptimizeInstructions`)
-- **Variables**: camelCase (e.g., `instructionList`, `optimizationPass`)
-- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_REGISTER_COUNT`)
-- **Namespaces**: PascalCase following project hierarchy
-
-### Code Quality
-- Follow C# style guidelines
-- Use XML documentation comments for public APIs
-- Maintain clear separation of concerns
-- Avoid deep nesting
-- Write testable code with dependency injection
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines including:
-- Fork and clone workflow
-- Branch naming conventions
-- Commit message standards
-- Pull request process
-- Code review expectations
-
-## Documentation References
-
-Key documents to consult:
-- **Architecture**: [Architecture Overview](docs/architecture/ArchitectureOverview.md)
-- **LLIR Specification**: [LLIR ISA](docs/compiler/LLIR_ISA.md)
-- **Inline Assembly**: [Inline Assembly Guide](docs/compiler/InlineAssembly.md)
-- **Optimization**: [Optimization Features](docs/optimization.md)
-- **Code Generation**: [Code Generation Strategies](docs/code-generation.md)
-
-## Common Pitfalls to Avoid
-
-1. **Assuming 32-bit architecture**: Remember, targets range from 8-bit (Atari 2600) to 32-bit (N64)
-2. **Ignoring memory constraints**: ROM/RAM is severely limited on retro platforms
-3. **Forgetting register allocation**: Physical registers are scarce on 8/16-bit targets
-4. **Platform-specific optimizations too early**: Focus on architecture-independent optimizations in MLIR first
-5. **Missing width specifiers**: LLIR instructions require explicit width types
-6. **Skipping documentation updates**: See [Documentation Update Rules](#documentation-update-rules-mandatory)
-
-## Quick Links
-
-- **GitHub Repository**: https://github.com/kennethcochran/GameVM
-- **Main README**: [README.md](README.md)
-- **License**: [Unlicense](LICENSE)
-- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-
-## Getting Help
-
-- Check existing documentation in `/docs/` directory
-- Review test cases for usage examples
-- Look at existing backend implementations for patterns
-- Consult the issue tracker for known problems and discussions
+**Note**: The SonarQube MCP Server must be running (via Docker) for MCP directives to work.
+See `opencode.json` for MCP server configuration.
