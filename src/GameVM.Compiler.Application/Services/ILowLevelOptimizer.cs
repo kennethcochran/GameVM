@@ -12,11 +12,9 @@ namespace GameVM.Compiler.Application.Services
         /// </summary>
         /// <param name="ir">LowLevelIR to optimize</param>
         /// <param name="optimizationLevel">Optimization level to apply</param>
-#pragma warning disable S1133
         /// <returns>Optimized LowLevelIR</returns>
         [System.Obsolete("Use OptimizeSlab for DOD pipeline. Will be removed in future version.")]
         LowLevelIR Optimize(LowLevelIR ir, Core.Enums.OptimizationLevel optimizationLevel);
-#pragma warning restore S1133
 
         /// <summary>
         /// Optimizes the given LLIR slab using linear iteration and switch-based processing (DOD interface).

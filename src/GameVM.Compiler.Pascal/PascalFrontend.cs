@@ -53,7 +53,9 @@ namespace GameVM.Compiler.Pascal
             public void ReportContextSensitivity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, int prediction, ATNConfigSet configs) { }
         }
 
-#pragma warning disable S1133
+        /// <summary>
+        /// Parse source code into AST slab (DOD pipeline)
+        /// </summary>
         [System.Obsolete("Use ParseToSlab for DOD pipeline. Will be removed in future version.")]
         public HighLevelIR Parse(string sourceCode)
         {
@@ -95,7 +97,6 @@ namespace GameVM.Compiler.Pascal
                 return hlir;
             }
         }
-#pragma warning restore S1133
 
         /// <summary>
         /// Parse source code into AST slab (DOD pipeline)

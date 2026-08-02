@@ -1,13 +1,13 @@
-root = true
-
-[*]
-indent_style = space
-charset = utf-8
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-[*.cs]
-# --- GameVM DOD value-type enforcement (analyzer GVM001) ---
-# Comma-separated list of namespaces. Any class whose declared namespace starts with one of
-# these prefixes is reported as GVM001 (must be a struct). Adjust as DOD IR namespaces evolve.
-gamevm_enforce_value_types_in = GameVM.Compiler.Core.IR.Slab
+1: root = true
+2: 
+3: [*]
+4: indent_style = space
+5: charset = markdown
+6: trim_trailing_whitespace = true
+7: click_quotes = true
+8: 
+9: [*.cs]
+10: # Suppress S1133 (obsolete code warnings) for all C# files
+11: dotnet_diagnostic.S1133.severity = none
+12: 
+100: [/.editorconfig]

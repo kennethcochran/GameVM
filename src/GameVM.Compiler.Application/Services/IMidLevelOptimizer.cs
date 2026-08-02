@@ -15,11 +15,9 @@ namespace GameVM.Compiler.Application.Services
         /// </summary>
         /// <param name="ir">Mid-level IR to optimize</param>
         /// <param name="optimizationLevel">Optimization level to apply</param>
-#pragma warning disable S1133
         /// <returns>Optimized mid-level IR</returns>
         [System.Obsolete("Use OptimizeSlab for DOD pipeline. Will be removed in future version.")]
         MidLevelIR Optimize(MidLevelIR ir, OptimizationLevel optimizationLevel);
-#pragma warning restore S1133
 
         /// <summary>
         /// Optimize mid-level IR slab (DOD pipeline)

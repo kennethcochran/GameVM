@@ -15,19 +15,6 @@ namespace GameVM.Compiler.Backend.Atari2600
         
         private const int VectorBaseOffset = 0x0FFC; // Offset from RomStartAddress for vectors ($FFFC - $F000)
 
-        // Legacy OOP methods - not implemented in DOD pipeline
-#pragma warning disable S2325 // Method cannot be static as it implements interface member
-        public byte[] Generate(LowLevelIR ir, CodeGenOptions options)
-        {
-            throw new NotSupportedException("Legacy OOP method. Use GenerateFromSlab for DOD pipeline.");
-        }
-
-        public byte[] GenerateBytecode(LowLevelIR ir, CodeGenOptions options)
-        {
-            throw new NotSupportedException("Legacy OOP method. Use GenerateFromSlab for DOD pipeline.");
-        }
-#pragma warning restore S2325
-
         // DOD pipeline method - Generate from LLIR slab
         public byte[] GenerateFromSlab(uint[] llirSlab, StringPool stringPool, CodeGenOptions options)
         {
