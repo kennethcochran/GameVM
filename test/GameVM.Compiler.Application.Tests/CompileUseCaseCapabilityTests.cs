@@ -49,7 +49,7 @@ public class CompileUseCaseCapabilityTests
         var mlir = new MidLevelIR();
         var llir = new LowLevelIR();
         
-        mockFrontend.Setup(f => f.Parse(It.IsAny<string>())).Returns(hlir);
+        mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<uint[]>())).Returns(hlir);
         mockFrontend.Setup(f => f.ConvertToMidLevelIR(hlir)).Returns(mlir);
         mockMidOptimizer.Setup(o => o.Optimize(mlir, It.IsAny<OptimizationLevel>())).Returns(mlir);
         mockTransformer.Setup(t => t.Transform(mlir)).Returns(llir);
@@ -94,7 +94,7 @@ public class CompileUseCaseCapabilityTests
         };
 
         var hlir = new HighLevelIR { Errors = new List<string>() };
-        mockFrontend.Setup(f => f.Parse(It.IsAny<string>())).Returns(hlir);
+        mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<uint[]>())).Returns(hlir);
 
         // Act
         var result = compileUseCase.Execute("test code", ".pas", options);
@@ -135,7 +135,7 @@ public class CompileUseCaseCapabilityTests
         };
 
         var hlir = new HighLevelIR { Errors = new List<string>() };
-        mockFrontend.Setup(f => f.Parse(It.IsAny<string>())).Returns(hlir);
+        mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<uint[]>())).Returns(hlir);
 
         // Act
         var result = compileUseCase.Execute("test code", ".pas", options);
