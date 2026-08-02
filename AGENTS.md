@@ -1,3 +1,36 @@
+# GameVM Agent Instructions
+
+This file provides guidance for AI assistants and coding agents working on the GameVM project.
+It supersedes the previous `.github/copilot-instructions.md` and is vendor-neutral: it applies
+to any agent (Copilot, Codex, Cursor, Claude, opencode, etc.).
+
+This root file is the entry point for agents. It contains a high-level overview of the project
+and the high-level rules that must always be followed. Area-specific guidance lives in the
+nested AGENTS.md files under `src/`, `docs/`, and `test/`, referenced below.
+
+## Project Overview
+
+**GameVM** is a cross-compiler toolchain designed for retro video game development. It enables developers to write games in modern, high-level languages (Pascal, C, etc.) and compile them to optimized bytecode for 2nd-5th generation gaming consoles (NES, SNES, Genesis, N64, PlayStation, Atari 2600, etc.).
+
+### Key Characteristics
+- **Host/Target Philosophy**: Complex analysis/optimization happens on modern hosts; output is tailored binaries (ROM/bytecode)
+- **Multi-stage IR Pipeline**: HLIR (High-Level) → MLIR (Mid-Level) → LLIR (Low-Level)
+- **Platform-Agnostic**: Single codebase supports multiple retro hardware platforms
+- **Early Development**: Project is in active development, not production-ready
+
+## High-Level Rules (MUST ALWAYS FOLLOW)
+
+1. **Documentation updates are mandatory** with every code change. See [docs/AGENTS.md](docs/AGENTS.md).
+2. **Follow code standards** and architecture conventions. See [src/AGENTS.md](src/AGENTS.md).
+3. **Add tests** for any functional change. See [test/AGENTS.md](test/AGENTS.md).
+4. **Run SonarQube checks** after making changes. See the SonarQube section below.
+
+### Nested Agent Instructions
+
+- [src/AGENTS.md](src/AGENTS.md) — compiler architecture, development guidelines, code standards, common tasks
+- [docs/AGENTS.md](docs/AGENTS.md) — documentation update rules, spec workflow, documentation references
+- [test/AGENTS.md](test/AGENTS.md) — testing strategy
+
 ## SonarQube Integration — Practical Usage (MUST FOLLOW)
 
 ### GUIDE Phase — Before Generating Code
@@ -65,4 +98,23 @@ If SonarQube MCP shows "failed":
 4. The server requires ~30-60s to initialize analyzers on first start
 
 **Note**: The SonarQube MCP Server must be running (via Docker) for MCP directives to work.
-See `opencode.json` for MCP server configuration.
+
+## Common Pitfalls to Avoid
+1. **Assuming 32-bit architecture**: Remember, targets range from 8-bit (Atari 2600) to 32-bit (N64)
+2. **Ignoring memory constraints**: ROM/RAM is severely limited on retro platforms
+3. **Forgetting register allocation**: Physical registers are scarce on 8/16-bit targets
+4. **Platform-specific optimizations too early**: Focus on architecture-independent optimizations in MLIR first
+5. **Missing width specifiers**: LLIR instructions require explicit width types
+6. **Skipping documentation updates**: See [Documentation Update Rules](docs/AGENTS.md)
+
+## Quick Links
+- **GitHub Repository**: https://github.com/kennethcochran/GameVM
+- **Main README**: [README.md](README.md)
+- **License**: [Unlicense](LICENSE)
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+## Getting Help
+- Check existing documentation in `/docs/` directory
+- Review test cases for usage examples
+- Look at existing backend implementations for patterns
+- Consult the issue tracker for known problems and discussions

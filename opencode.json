@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "sonarqube": {
+      "type": "local",
+      "command": [
+        "docker", "run", "--init", "-i", "--rm", "--pull=always",
+        "-e", "SONARQUBE_URL",
+        "-e", "SONARQUBE_TOKEN",
+        "-e", "SONARQUBE_ORG",
+        "-e", "SONARQUBE_PROJECT_KEY",
+        "-e", "SONARQUBE_TOOLSETS",
+        "-v", "/home/kenneth/Projects/GameVM:/app/mcp-workspace:rw",
+        "-v", "sonarqube-mcp-storage:/app/storage:rw",
+        "sonarsource/sonarqube-mcp"
+      ],
+      "environment": {
+        "SONARQUBE_URL": "https://sonarcloud.io",
+        "SONARQUBE_ORG": "kennethcochran",
+        "SONARQUBE_PROJECT_KEY": "kennethcochran_GameVM",
+        "SONARQUBE_TOOLSETS": "cag,analysis,rules"
+      },
+      "enabled": true,
+      "timeout": 120000
+    }
+  }
+}
