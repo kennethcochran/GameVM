@@ -18,8 +18,5 @@ rules:
     - Always include a "Non-goals" section
   tasks:
     - Break tasks into chunks of max 2 hours
-    - When the change affects documented behavior, always include a final
-      task: "- [ ] Update affected documentation per AGENTS.md trigger mapping"
-      referencing .github/doc-mapping.yaml
-    - When the change introduces or removes public API surface, include a task
-      to update docs/api/ and XML doc comments
+    - "When the change affects documented behavior, always include a final task: '- [ ] Update affected documentation per AGENTS.md trigger mapping' referencing .github/doc-mapping.yaml"
+    - "When the change introduces or removes public API surface, include a task to update docs/api/ and XML doc comments"

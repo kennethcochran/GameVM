@@ -10,10 +10,10 @@ nested AGENTS.md files under `src/`, `docs/`, and `test/`, referenced below.
 
 ## Project Overview
 
-**GameVM** is a cross-compiler toolchain designed for retro video game development. It enables developers to write games in modern, high-level languages (Pascal, C, etc.) and compile them to optimized bytecode for 2nd-5th generation gaming consoles (NES, SNES, Genesis, N64, PlayStation, Atari 2600, etc.).
+**GameVM** is a cross-compiler toolchain designed for retro video game development. It enables developers to write games in modern, high-level languages (Pascal, C, etc.) and compile them to optimized **native machine code** for 2nd-5th generation gaming consoles (NES, SNES, Genesis, N64, PlayStation, Atari 2600, etc.).
 
 ### Key Characteristics
-- **Host/Target Philosophy**: Complex analysis/optimization happens on modern hosts; output is tailored binaries (ROM/bytecode)
+- **Host/Target Philosophy**: Complex analysis/optimization happens on modern hosts; output is tailored binaries (ROM)
 - **Multi-stage IR Pipeline**: HLIR (High-Level) → MLIR (Mid-Level) → LLIR (Low-Level)
 - **Platform-Agnostic**: Single codebase supports multiple retro hardware platforms
 - **Early Development**: Project is in active development, not production-ready
