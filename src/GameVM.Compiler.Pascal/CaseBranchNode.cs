@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace GameVM.Compiler.Pascal
 {
     public class CaseBranchNode : PascalAstNode

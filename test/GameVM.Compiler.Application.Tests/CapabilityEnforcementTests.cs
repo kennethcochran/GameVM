@@ -6,9 +6,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.Buffers;
-using System.Collections.Generic;
 
 namespace UnitTests.Application
 {
@@ -18,7 +16,7 @@ namespace UnitTests.Application
         private Mock<ILanguageFrontend> _frontendMock = null!;
         private Mock<IMidLevelOptimizer> _midLevelOptimizerMock = null!;
         private Mock<ILowLevelOptimizer> _lowLevelOptimizerMock = null!;
-        private Mock<IIRTransformer<MidLevelIR, LowLevelIR>> _mlirToLlirMock = null!;
+        private Mock<IIRSlabTransformer> _mlirToLlirMock = null!;
         private Mock<ICodeGenerator> _codeGeneratorMock = null!;
         private Mock<ICapabilityProvider> _capabilityProviderMock = null!;
         private Mock<ICapabilityValidatorService> _capabilityValidatorMock = null!;
@@ -31,7 +29,7 @@ namespace UnitTests.Application
             _frontendMock = new Mock<ILanguageFrontend>();
             _midLevelOptimizerMock = new Mock<IMidLevelOptimizer>();
             _lowLevelOptimizerMock = new Mock<ILowLevelOptimizer>();
-            _mlirToLlirMock = new Mock<IIRTransformer<MidLevelIR, LowLevelIR>>();
+            _mlirToLlirMock = new Mock<IIRSlabTransformer>();
             _codeGeneratorMock = new Mock<ICodeGenerator>();
             _capabilityProviderMock = new Mock<ICapabilityProvider>();
             _capabilityValidatorMock = new Mock<ICapabilityValidatorService>();

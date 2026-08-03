@@ -1,8 +1,4 @@
-using System;
-using System.IO;
 using GameVM.Compiler.Core.IR.Slab;
-using NUnit.Framework;
-
 using GameVM.Compiler.Core.IR.SlabProcessing;
 namespace GameVM.Compiler.Core.Tests.IR.Slab;
 

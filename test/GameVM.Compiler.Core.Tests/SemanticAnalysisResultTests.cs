@@ -1,6 +1,4 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.Interfaces;
-using System.Collections.Generic;
 
 namespace GameVM.Compiler.Core.Tests
 {

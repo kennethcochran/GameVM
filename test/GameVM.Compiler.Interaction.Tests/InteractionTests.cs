@@ -1,8 +1,4 @@
 using NUnit.Framework;
-using GameVM.Compiler.Interaction;
-using GameVM.Compiler.Application;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace GameVM.Compiler.Interaction.Tests;
 

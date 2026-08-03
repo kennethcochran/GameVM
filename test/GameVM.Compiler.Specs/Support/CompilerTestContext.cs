@@ -1,10 +1,4 @@
 using GameVM.Compiler.Application;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.CodeGen;
-using GameVM.Compiler.Core.IR.Transformers;
-using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;

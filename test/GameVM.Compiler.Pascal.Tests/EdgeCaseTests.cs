@@ -1,8 +1,3 @@
-using NUnit.Framework;
-using GameVM.Compiler.Pascal;
-using GameVM.Compiler.Core.IR;
-using System;
-
 namespace GameVM.Compiler.Pascal.Tests;
 
 /// <summary>
@@ -353,11 +348,11 @@ public class EdgeCaseTests
         // Arrange
         var source = "program    Test  ;  var    x   :   Integer  ;  begin    writeln  (  'test'  )  ;  end  .";
 
-        // Act
-        var result = _frontend.Parse(source);
+        // Act - Use DOD pipeline ParseToSlab directly
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]

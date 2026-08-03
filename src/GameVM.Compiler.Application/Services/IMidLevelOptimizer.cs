@@ -1,7 +1,5 @@
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Buffers;
-using System.Diagnostics.CodeAnalysis;
+using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Application.Services
 {
@@ -10,15 +8,6 @@ namespace GameVM.Compiler.Application.Services
     /// </summary>
     public interface IMidLevelOptimizer
     {
-        /// <summary>
-        /// Optimize mid-level IR (legacy OOP interface)
-        /// </summary>
-        /// <param name="ir">Mid-level IR to optimize</param>
-        /// <param name="optimizationLevel">Optimization level to apply</param>
-        /// <returns>Optimized mid-level IR</returns>
-        [System.Obsolete("Use OptimizeSlab for DOD pipeline. Will be removed in future version.")]
-        MidLevelIR Optimize(MidLevelIR ir, OptimizationLevel optimizationLevel);
-
         /// <summary>
         /// Optimize mid-level IR slab (DOD pipeline)
         /// </summary>

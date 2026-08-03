@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
-using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Core.Interfaces
 {
@@ -9,15 +7,6 @@ namespace GameVM.Compiler.Core.Interfaces
     /// </summary>
     public interface ISemanticAnalyzer
     {
-#pragma warning disable CS0618 // Type or member is obsolete
-        /// <summary>
-        /// Performs semantic analysis on the given High-Level IR
-        /// </summary>
-        /// <param name="hlir">The High-Level IR to analyze</param>
-        /// <returns>Result of semantic analysis including any errors found</returns>
-        SemanticAnalysisResult Analyze(HighLevelIR hlir);
-#pragma warning restore CS0618 // Type or member is obsolete
-
         /// <summary>
         /// Analyzes a DOD HLIR slab using linear iteration and switch-based processing.
         /// </summary>

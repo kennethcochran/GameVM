@@ -1,17 +1,13 @@
 using NUnit.Framework;
 using GameVM.Compiler.Application;
-using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
 using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Capabilities;
 using GameVM.Compiler.Core.SemanticAnalysis;
-using System;
-using System.Linq;
 
 namespace GameVM.Compiler.Specs;
 

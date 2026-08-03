@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using GameVM.Compiler.Pascal;
-
 namespace GameVM.Compiler.Pascal
 {
     /// <summary>

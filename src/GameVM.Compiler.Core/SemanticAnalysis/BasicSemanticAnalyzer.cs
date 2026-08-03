@@ -1,44 +1,12 @@
-using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
-#pragma warning disable CS0618 // Type or member is obsolete
 
 namespace GameVM.Compiler.Core.SemanticAnalysis
 {
     public class BasicSemanticAnalyzer : ISemanticAnalyzer
     {
-        public SemanticAnalysisResult Analyze(HighLevelIR hlir)
-        {
-            var result = new SemanticAnalysisResult();
-            
-            if (hlir == null)
-            {
-                result.Success = false;
-                result.Errors.Add("HLIR is null");
-                return result;
-            }
-            
-            // For now, we'll analyze the OOP HLIR structure
-            // In a full DOD implementation, this would process the slab directly
-            if (hlir.Globals != null)
-            {
-                foreach (var global in hlir.Globals.Values)
-                {
-                    if (global is HighLevelIR.Variable variable && string.IsNullOrEmpty(variable.Type?.Name))
-                    {
-                        result.Errors.Add($"Global variable '{variable.Name}' has invalid type");
-                        result.Success = false;
-                    }
-                }
-            }
-            
-            return result;
-        }
-
         /// <summary>
         /// Analyzes a DOD HLIR slab using linear iteration and switch-based processing.
         /// This is the DOD-native semantic analysis that replaces tree traversal patterns.

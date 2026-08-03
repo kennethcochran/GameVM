@@ -13,9 +13,7 @@
  * Enables multi-language support in GameVM.
  */
 
-using System;
 using System.Collections.Generic;
-using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Core.Interfaces
@@ -25,14 +23,6 @@ namespace GameVM.Compiler.Core.Interfaces
     /// </summary>
     public interface ILanguageFrontend
     {
-        /// <summary>
-        /// Parse source code into high-level IR (legacy OOP interface)
-        /// </summary>
-        /// <param name="sourceCode">Source code to parse</param>
-        /// <returns>High-level IR representation</returns>
-        [System.Obsolete("Use ParseToSlab for DOD pipeline. Will be removed in future version.")]
-        HighLevelIR Parse(string sourceCode);
-
         /// <summary>
         /// Parse source code into AST slab (DOD pipeline)
         /// </summary>

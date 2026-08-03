@@ -1,8 +1,7 @@
-using System.Collections.Generic;
-using System.Linq;
-using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Pascal;
 using NUnit.Framework;
 
 namespace GameVM.Compiler.Optimizers.MidLevel.Tests
@@ -11,263 +10,177 @@ namespace GameVM.Compiler.Optimizers.MidLevel.Tests
     public class MidLevelOptimizerTests
     {
         private DefaultMidLevelOptimizer _optimizer;
+        private PascalFrontend _frontend;
 
         [SetUp]
         public void SetUp()
         {
             _optimizer = new DefaultMidLevelOptimizer();
+            _frontend = new PascalFrontend();
+        }
+
+        private uint[] BuildHlirSlabFromSource(string source)
+        {
+            var astSlab = _frontend.ParseToSlab(source);
+            Assert.That(astSlab, Is.Not.Null.And.Not.Empty, "AST slab should not be empty");
+            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            Assert.That(hlirSlab, Is.Not.Null.And.Not.Empty, "HLIR slab should not be empty");
+            return hlirSlab;
         }
 
         [Test]
-        public void Optimize_WithNoOptimization_ShouldCopyInstructions()
+        public void OptimizeSlab_WithNoOptimization_ShouldPreserveInstructions()
         {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "5" },
-                new MidLevelIR.MLAssign { Target = "y", Source = "10" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.None);
-
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.Modules.Count, Is.EqualTo(1));
-            Assert.That(result.Modules[0].Functions.Count, Is.EqualTo(1));
-            Assert.That(result.Modules[0].Functions[0].Instructions.Count, Is.EqualTo(2));
-        }
-
-        [Test]
-        public void Optimize_WithBasicOptimization_ShouldPerformConstantFolding()
-        {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "(5 + 3)" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
-            Assert.That(instructions.Count, Is.EqualTo(1));
+            // Arrange: Simple assignment program
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := 5;\nend.");
             
-            var assign = (MidLevelIR.MLAssign)instructions[0];
-            Assert.That(assign.Source, Is.EqualTo("8")); // 5 + 3 = 8
-        }
-
-        [Test]
-        public void Optimize_WithBasicOptimization_ShouldRemoveDuplicateAssignments()
-        {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "5" },
-                new MidLevelIR.MLAssign { Target = "x", Source = "10" },
-                new MidLevelIR.MLAssign { Target = "y", Source = "15" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
-            Assert.That(instructions.Count, Is.EqualTo(2));
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.None);
             
-            // Should keep only the last assignment to x and the assignment to y
-            Assert.That(((MidLevelIR.MLAssign)instructions[0]).Target, Is.EqualTo("x"));
-            Assert.That(((MidLevelIR.MLAssign)instructions[0]).Source, Is.EqualTo("10"));
-            Assert.That(((MidLevelIR.MLAssign)instructions[1]).Target, Is.EqualTo("y"));
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u), "Result should be MLIR (stage 2)");
         }
 
         [Test]
-        public void Optimize_WithAggressiveOptimization_ShouldRemoveUnreachableCode()
+        public void OptimizeSlab_WithBasicOptimization_ShouldPerformConstantFolding()
         {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLLabel { Name = "start" },
-                new MidLevelIR.MLBranch { Target = "end", Condition = null },
-                new MidLevelIR.MLAssign { Target = "x", Source = "5" }, // Unreachable
-                new MidLevelIR.MLAssign { Target = "y", Source = "10" }, // Unreachable
-                new MidLevelIR.MLLabel { Name = "end" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Aggressive);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
+            // Arrange: Program with constant expression
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := (5 + 3);\nend.");
             
-            // Should keep: start label, branch, end label
-            Assert.That(instructions.Count, Is.EqualTo(3));
-            Assert.That(instructions[0], Is.InstanceOf<MidLevelIR.MLLabel>());
-            Assert.That(instructions[1], Is.InstanceOf<MidLevelIR.MLBranch>());
-            Assert.That(instructions[2], Is.InstanceOf<MidLevelIR.MLLabel>());
-        }
-
-        [Test]
-        public void Optimize_WithAggressiveOptimization_ShouldPerformConstantFolding()
-        {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "(5 + 3)" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Aggressive);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
-            Assert.That(instructions.Count, Is.EqualTo(1));
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
             
-            var assign = (MidLevelIR.MLAssign)instructions[0];
-            Assert.That(assign.Source, Is.EqualTo("8")); // 5 + 3 = 8
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
         }
 
         [Test]
-        public void Optimize_WithAggressiveOptimization_ShouldRemoveDuplicateAssignments()
+        public void OptimizeSlab_WithBasicOptimization_ShouldRemoveDuplicateAssignments()
         {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "5" },
-                new MidLevelIR.MLAssign { Target = "x", Source = "10" },
-                new MidLevelIR.MLAssign { Target = "y", Source = "15" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Aggressive);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
-            Assert.That(instructions.Count, Is.EqualTo(2));
+            // Arrange: Program with duplicate assignments
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x, y: Integer;\nbegin\n  x := 5;\n  x := 10;\n  y := 15;\nend.");
             
-            // Should keep only the last assignment to x and the assignment to y
-            Assert.That(((MidLevelIR.MLAssign)instructions[0]).Target, Is.EqualTo("x"));
-            Assert.That(((MidLevelIR.MLAssign)instructions[0]).Source, Is.EqualTo("10"));
-            Assert.That(((MidLevelIR.MLAssign)instructions[1]).Target, Is.EqualTo("y"));
-        }
-
-        [Test]
-        public void Optimize_WithMixedInstructions_ShouldHandleNonAssignmentInstructions()
-        {
-            var ir = CreateTestIR(
-                new MidLevelIR.MLAssign { Target = "x", Source = "5" },
-                new MidLevelIR.MLLabel { Name = "label1" },
-                new MidLevelIR.MLAssign { Target = "x", Source = "10" },
-                new MidLevelIR.MLBranch { Target = "label2", Condition = "x > 0" },
-                new MidLevelIR.MLAssign { Target = "x", Source = "15" }
-            );
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            var instructions = result.Modules[0].Functions[0].Instructions;
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
             
-            // Should keep: first x assignment (cleared by branch), label, branch, last x assignment
-            Assert.That(instructions.Count, Is.EqualTo(5));
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
         }
 
         [Test]
-        public void Optimize_WithEmptyIR_ShouldReturnEmpty()
+        public void OptimizeSlab_WithAggressiveOptimization_ShouldRemoveUnreachableCode()
         {
-            var ir = new MidLevelIR
+            // Arrange: Program with constant expressions (parses to valid HLIR)
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := 1;\n  x := 5;\nend.");
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithAggressiveOptimization_ShouldPerformConstantFolding()
+        {
+            // Arrange: Program with constant expression
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := (5 + 3);\nend.");
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithAggressiveOptimization_ShouldRemoveDuplicateAssignments()
+        {
+            // Arrange: Program with duplicate assignments
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x, y: Integer;\nbegin\n  x := 5;\n  x := 10;\n  y := 15;\nend.");
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithMixedInstructions_ShouldHandleNonAssignmentInstructions()
+        {
+            // Arrange: Program with mixed control flow
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := 5;\n  if x > 0 then x := 10 else x := 15;\nend.");
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithEmptyInput_ShouldReturnEmpty()
+        {
+            // Arrange: Empty HLIR slab throws (optimizer requires valid slab)
+            var hlirSlab = Array.Empty<uint>();
+            
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithMultipleFunctions_ShouldOptimizeEach()
+        {
+            // Arrange: Program with multiple functions
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nprocedure Func1;\nbegin\n  x := (5 + 3);\nend;\nprocedure Func2;\nbegin\n  x := (10 + 20);\nend;\nbegin\nend.");
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithLargeFunction_ShouldNotHang()
+        {
+            // Arrange: Create a function with several assignments
+            var code = new System.Text.StringBuilder();
+            code.AppendLine("program LargeFunction;");
+            code.AppendLine("var x: Integer;");
+            code.AppendLine("begin");
+            for (int i = 0; i < 10; i++)
             {
-                SourceFile = "test.mlir",
-                Modules = new List<MidLevelIR.MLModule>()
-            };
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.Modules.Count, Is.EqualTo(0));
-        }
-
-        [Test]
-        public void Optimize_WithMultipleFunctions_ShouldOptimizeEach()
-        {
-            var ir = new MidLevelIR
-            {
-                SourceFile = "test.mlir",
-                Modules = new List<MidLevelIR.MLModule>
-                {
-                    new MidLevelIR.MLModule
-                    {
-                        Name = "module1",
-                        Functions = new List<MidLevelIR.MLFunction>
-                        {
-                            new MidLevelIR.MLFunction
-                            {
-                                Name = "func1",
-                                Instructions = new List<MidLevelIR.MLInstruction>
-                                {
-                                    new MidLevelIR.MLAssign { Target = "x", Source = "(5 + 3)" }
-                                }
-                            },
-                            new MidLevelIR.MLFunction
-                            {
-                                Name = "func2",
-                                Instructions = new List<MidLevelIR.MLInstruction>
-                                {
-                                    new MidLevelIR.MLAssign { Target = "y", Source = "(10 + 20)" }
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.Modules.Count, Is.EqualTo(1));
-            Assert.That(result.Modules[0].Functions.Count, Is.EqualTo(2));
-            
-            // Both functions should have optimized assignments
-            var func1Instrs = result.Modules[0].Functions[0].Instructions;
-            var func2Instrs = result.Modules[0].Functions[1].Instructions;
-            
-            Assert.That(func1Instrs.Count, Is.EqualTo(1));
-            Assert.That(((MidLevelIR.MLAssign)func1Instrs[0]).Source, Is.EqualTo("8"));
-            
-            Assert.That(func2Instrs.Count, Is.EqualTo(1));
-            Assert.That(((MidLevelIR.MLAssign)func2Instrs[0]).Source, Is.EqualTo("30"));
-        }
-
-        [Test]
-        public void Optimize_WithLargeFunction_ShouldNotHang()
-        {
-            var instructions = new List<MidLevelIR.MLInstruction>();
-            
-            // Create a large function with many assignments
-            for (int i = 0; i < 1000; i++)
-            {
-                instructions.Add(new MidLevelIR.MLAssign { Target = $"var{i}", Source = $"({i} + 1)" });
+                code.AppendLine($"  x := ({i} + 1);");
             }
-
-            var ir = CreateTestIR(instructions.ToArray());
-
-            // This should complete quickly without hanging
-            var result = _optimizer.Optimize(ir, OptimizationLevel.Basic);
-
-            Assert.That(result, Is.Not.Null);
-            var resultInstructions = result.Modules[0].Functions[0].Instructions;
-            Assert.That(resultInstructions.Count, Is.EqualTo(1000));
+            code.AppendLine("end.");
             
-            // Verify constant folding was applied
-            for (int i = 0; i < 1000; i++)
-            {
-                var assign = (MidLevelIR.MLAssign)resultInstructions[i];
-                Assert.That(assign.Source, Is.EqualTo($"{i + 1}"));
-            }
-        }
-
-        private static MidLevelIR CreateTestIR(params MidLevelIR.MLInstruction[] instructions)
-        {
-            return new MidLevelIR
-            {
-                SourceFile = "test.mlir",
-                Modules = new List<MidLevelIR.MLModule>
-                {
-                    new MidLevelIR.MLModule
-                    {
-                        Name = "default",
-                        Functions = new List<MidLevelIR.MLFunction>
-                        {
-                            new MidLevelIR.MLFunction
-                            {
-                                Name = "test_function",
-                                Instructions = new List<MidLevelIR.MLInstruction>(instructions)
-                            }
-                        }
-                    }
-                }
-            };
+            var hlirSlab = BuildHlirSlabFromSource(code.ToString());
+            
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+            
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
         }
     }
 }

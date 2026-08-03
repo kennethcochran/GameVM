@@ -1,4 +1,3 @@
-using System;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
@@ -6,7 +5,6 @@ using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
 using GameVM.Compiler.Core.IR.Buffers;
 using Antlr4.Runtime;
-using NUnit.Framework;
 
 namespace GameVM.Compiler.Pascal.Tests.Transformers
 {

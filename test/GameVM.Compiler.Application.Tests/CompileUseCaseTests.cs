@@ -41,14 +41,14 @@ namespace UnitTests.Application
         [Test]
         public void Constructor_NullFrontend_ShouldThrowArgumentNullException()
         {
-            // Arrange - Test null validation for frontend parameter
-            var midLevelOptimizer = _mocker.GetMock<IMidLevelOptimizer>();
-            var lowLevelOptimizer = _mocker.GetMock<ILowLevelOptimizer>();
-            var mlirToLlir = _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>();
-            var codeGenerator = _mocker.GetMock<ICodeGenerator>();
-            var capabilityProvider = _mocker.GetMock<ICapabilityProvider>();
-            var capabilityValidator = _mocker.GetMock<ICapabilityValidatorService>();
-            var semanticAnalyzer = _mocker.GetMock<ISemanticAnalyzer>();
+// Arrange - Test null validation for frontend parameter
+             var midLevelOptimizer = _mocker.GetMock<IMidLevelOptimizer>();
+             var lowLevelOptimizer = _mocker.GetMock<ILowLevelOptimizer>();
+             var mlirToLlir = _mocker.GetMock<IIRSlabTransformer>();
+             var codeGenerator = _mocker.GetMock<ICodeGenerator>();
+             var capabilityProvider = _mocker.GetMock<ICapabilityProvider>();
+             var capabilityValidator = _mocker.GetMock<ICapabilityValidatorService>();
+             var semanticAnalyzer = _mocker.GetMock<ISemanticAnalyzer>();
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() => new CompileUseCase(
@@ -106,7 +106,7 @@ namespace UnitTests.Application
             _mocker.GetMock<IMidLevelOptimizer>()
                 .Setup(x => x.OptimizeSlab(hlirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(mlirSlab);
-            _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
+            _mocker.GetMock<IIRSlabTransformer>()
                 .Setup(x => x.TransformSlab(mlirSlab, It.IsAny<StringPool>()))
                 .Returns(llirSlab);
             _mocker.GetMock<ILowLevelOptimizer>()
@@ -161,7 +161,7 @@ namespace UnitTests.Application
             _mocker.GetMock<IMidLevelOptimizer>()
                 .Setup(b => b.OptimizeSlab(hlirSlab, It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(mlirSlab);
-            _mocker.GetMock<IIRTransformer<MidLevelIR, LowLevelIR>>()
+            _mocker.GetMock<IIRSlabTransformer>()
                 .Setup(b => b.TransformSlab(mlirSlab, It.IsAny<StringPool>()))
                 .Returns(llirSlab);
             _mocker.GetMock<ILowLevelOptimizer>()

@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Core.Tests.IR

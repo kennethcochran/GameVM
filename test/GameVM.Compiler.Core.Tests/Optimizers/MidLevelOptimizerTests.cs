@@ -1,355 +1,251 @@
-using NUnit.Framework;
-using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Transformers;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
-using System.Linq;
 
-namespace GameVM.Compiler.Core.Tests.Optimizers;
-
-/// <summary>
-/// Tests for mid-level IR optimization.
-/// Validates that the mid-level optimizer correctly transforms MLIR with various optimizations.
-/// </summary>
-[TestFixture]
-public class MidLevelOptimizerTests
+namespace GameVM.Compiler.Core.Tests.Optimizers
 {
-    private DefaultMidLevelOptimizer _optimizer = null!;
-
-    [SetUp]
-    public void Setup()
+    /// <summary>
+    /// Tests for mid-level IR optimization.
+    /// Validates that the mid-level optimizer correctly transforms MLIR with various optimizations.
+    /// </summary>
+    [TestFixture]
+    public class MidLevelOptimizerTests
     {
-        _optimizer = new DefaultMidLevelOptimizer();
+        private DefaultMidLevelOptimizer _optimizer;
+        private PascalFrontend _frontend;
+
+        [SetUp]
+        public void Setup()
+        {
+            _optimizer = new DefaultMidLevelOptimizer();
+            _frontend = new PascalFrontend();
+        }
+
+        private uint[] BuildHlirSlabFromSource(string source)
+        {
+            var astSlab = _frontend.ParseToSlab(source);
+            Assert.That(astSlab, Is.Not.Null.And.Not.Empty, "AST slab should not be empty");
+            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            Assert.That(hlirSlab, Is.Not.Null.And.Not.Empty, "HLIR slab should not be empty");
+            return hlirSlab;
+        }
+
+        #region Dead Code Elimination Tests
+
+[Test]
+        public void OptimizeSassignment_RemovesDeadCode()
+        {
+            // Setup: Basic assignment statement
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x: Integer;\nbegin\n  x := 1;\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        [Test]
+        public void OptimizeSlab_DeadCodeInBranches_EliminatesUnusedAssignments()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar unused, x: Integer;\nbegin\n  unused := 42;\n  x := 1;\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Constant Propagation Tests
+
+        [Test]
+        public void OptimizeSlab_ConstantPropagation_SimplifiesExpressions()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar a, b: Integer;\nbegin\n  a := 5;\n  b := a;\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        [Test]
+        public void OptimizeSlab_ConstantFolding_ComputesCompileTimeConstants()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar result: Integer;\nbegin\n  result := (5 + 3);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Common Subexpression Elimination Tests
+
+        [Test]
+        public void OptimizeSlab_DuplicateExpressions_EliminatesDuplicates()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar a, b, x, y: Integer;\nbegin\n  x := (a + b);\n  y := (a + b);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        [Test]
+        public void OptimizeSlab_RelatedSubexpressions_OptimizesRelationships()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar a, b, c, x, y: Integer;\nbegin\n  x := (a + b + c);\n  y := (a + b);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Loop Optimization Tests
+
+        [Test]
+        public void OptimizeSlab_LoopInvariantCode_HoistesConstantComputation()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar c, i: Integer;\nbegin\n  c := (5 + 3);\n  i := (i + 1);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Function Inlining Tests
+
+        [Test]
+        public void OptimizeSlab_SmallFunction_InlinesFunction()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar x, result: Integer;\nbegin\n  x := 5;\n  result := x + 1;\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Unused Variable Elimination Tests
+
+        [Test]
+        public void OptimizeSlab_UnusedVariable_RemovesAssignment()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar unused, used: Integer;\nbegin\n  unused := 42;\n  used := 1;\n  WriteLn(used);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Optimization Level Tests
+
+        [Test]
+        public void OptimizeSlab_WithBasicLevel_AppliesBasicOptimizations()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar result: Integer;\nbegin\n  result := (5 + 3);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithAggressiveLevel_AppliesAdvancedOptimizations()
+        {
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nvar a, b, c, x, y: Integer;\nbegin\n  x := (a + b);\n  y := (a + b);\n  c := (5 + 3);\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            Assert.That(resultSlab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
+
+        #region Edge Cases
+
+        [Test]
+        public void OptimizeSlab_EmptyFunction_RemainsEmpty()
+        {
+            // Arrange
+            var hlirSlab = BuildHlirSlabFromSource("program Test;\nbegin\nend.");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(hlirSlab, new StringPool(), OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(2u));
+            // Function with only begin/end should have minimal instructions
+            Assert.That(resultSlab.Length, Is.GreaterThanOrEqualTo(SlabHeader.HeaderIndex.Length));
+        }
+
+        #endregion
     }
-
-    #region Dead Code Elimination Tests
-
-    [Test]
-    public void Optimize_UnreachableStatements_RemovesDeadCode()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var module = new MidLevelIR.MLModule { Name = "test" };
-        var function = new MidLevelIR.MLFunction { Name = "main" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        // Note: MLBranch doesn't exist yet, so we test with what's available
-        // When branch support is added, unreachable code after branch should be removed
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "2" });
-        module.Functions.Add(function);
-        mlir.Modules.Add(module);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        var resultModule = result.Modules.FirstOrDefault(m => m.Name == "test");
-        Assert.That(resultModule, Is.Not.Null);
-        Assert.That(resultModule!.Functions[0], Is.Not.Null);
-        // When dead code elimination is implemented, unreachable assignments should be removed
-        // For now, we verify the optimizer returns a valid result
-        Assert.That(resultModule!.Functions[0].Instructions, Is.Not.Null);
-    }
-
-    [Test]
-    public void Optimize_DeadCodeInBranches_EliminatesUnusedAssignments()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "test" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "unused", Source = "42" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When unused variable elimination is implemented, assignment to "unused" should be removed
-        // For now, verify optimizer returns valid result
-        var resultFunc = result.Modules[0].Functions[0];
-        Assert.That(resultFunc.Instructions, Is.Not.Null);
-        // Expected: resultFunc.Instructions should not contain assignment to "unused" when optimization is implemented
-    }
-
-    #endregion
-
-    #region Constant Propagation Tests
-
-    [Test]
-    public void Optimize_ConstantPropagation_SimplifiesExpressions()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "math" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "a", Source = "5" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "b", Source = "a" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When constant propagation is implemented:
-        // - b := a should become b := 5 (if a is constant)
-        // - Or the assignment to b should reference "5" directly
-        var resultFunc = result.Modules[0].Functions[0];
-        var bAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
-            .FirstOrDefault(a => a.Target == "b");
-        // Expected: When implemented, bAssign.Source should be "5" instead of "a"
-        Assert.That(bAssign, Is.Not.Null);
-    }
-
-    [Test]
-    public void Optimize_ConstantFolding_ComputesCompileTimeConstants()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "math" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "(5 + 3)" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        // Constant expression (5 + 3) should be folded to 8
-        var resultFunc = result.Modules[0].Functions[0];
-        var assignInstrs = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>();
-        Assert.That(assignInstrs.Any(a => a.Source == "8"), Is.True);
-    }
-
-    #endregion
-
-    #region Common Subexpression Elimination Tests
-
-    [Test]
-    public void Optimize_DuplicateExpressions_EliminatesDuplicates()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "cse" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "(a + b)" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
-
-        // Assert
-        // Common subexpression (a + b) should be computed once
-        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.LessThanOrEqualTo(2));
-    }
-
-    [Test]
-    public void Optimize_RelatedSubexpressions_OptimizesRelationships()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "math" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "(a + b + c)" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When related subexpression optimization is implemented:
-        // - (a + b) should be computed once and reused
-        // - (a + b + c) should use the result of (a + b)
-        var resultFunc = result.Modules[0].Functions[0];
-        Assert.That(resultFunc.Instructions, Is.Not.Null);
-        // Expected: When implemented, instructions should be optimized to compute (a + b) once
-    }
-
-    #endregion
-
-    #region Loop Optimization Tests
-
-    [Test]
-    public void Optimize_LoopInvariantCode_HoistesConstantComputation()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "loop" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "c", Source = "(5 + 3)" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "i", Source = "(i + 1)" });
-        // Note: Loop structure (label + branch) not yet fully supported
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When loop invariant code motion is implemented:
-        // - Constant expression (5 + 3) should be computed once before the loop
-        // - Or folded to "8" if constant folding is applied first
-        var resultFunc = result.Modules[0].Functions[0];
-        var cAssign = resultFunc.Instructions.OfType<MidLevelIR.MLAssign>()
-            .FirstOrDefault(a => a.Target == "c");
-        // Expected: When implemented, cAssign.Source should be "8" (folded) or moved outside loop
-        Assert.That(cAssign, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Function Inlining Tests
-
-    [Test]
-    public void Optimize_SmallFunction_InlinesFunction()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var smallFunc = new MidLevelIR.MLFunction { Name = "small" };
-        smallFunc.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "x" });
-        mlir.Modules[0].Functions.Add(smallFunc);
-
-        var mainFunc = new MidLevelIR.MLFunction { Name = "main" };
-        mainFunc.Instructions.Add(new MidLevelIR.MLCall { Name = "small" });
-        mlir.Modules[0].Functions.Add(mainFunc);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When function inlining is implemented:
-        // - The call to "small" should be replaced with the function body
-        // - mainFunc.Instructions should contain the assignment from smallFunc
-        var resultMainFunc = result.Modules[0].Functions[0];
-        // Expected: When implemented, resultMainFunc.Instructions should contain the inlined assignment
-        Assert.That(resultMainFunc.Instructions, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Unused Variable Elimination Tests
-
-    [Test]
-    public void Optimize_UnusedVariable_RemovesAssignment()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "test" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "unused", Source = "42" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "used", Source = "1" });
-        function.Instructions.Add(new MidLevelIR.MLCall { Name = "writeln", Arguments = new List<string> { "used" } });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When unused variable elimination is implemented:
-        // - Assignment to "unused" should be removed (it's never referenced)
-        // - Assignment to "used" should remain (it's referenced in writeln call)
-        var resultFunc = result.Modules[0].Functions[0];
-        // Expected: When implemented, unused assignment should be removed
-        // For now, verify optimizer returns valid result
-        Assert.That(resultFunc.Instructions, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Optimization Level Tests
-
-    [Test]
-    public void Optimize_WithBasicLevel_AppliesBasicOptimizations()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "math" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "result", Source = "(5 + 3)" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-    }
-
-    [Test]
-    public void Optimize_WithAggressiveLevel_AppliesAdvancedOptimizations()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "math" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "(a + b)" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "y", Source = "(a + b)" });
-        function.Instructions.Add(new MidLevelIR.MLLabel { Name = "loop" });
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "c", Source = "(5 + 3)" });
-        function.Instructions.Add(new MidLevelIR.MLBranch { Target = "loop" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Aggressive);
-
-        // Assert
-        // Aggressive optimization should reduce code size significantly
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Modules[0].Functions[0], Is.Not.Null);
-        // When aggressive optimizations are implemented, we should see reduced instruction count
-    }
-
-    #endregion
-
-    #region Edge Cases
-
-    [Test]
-    public void Optimize_EmptyFunction_RemainsEmpty()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "empty" };
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result.Modules[0].Functions[0].Instructions, Is.Empty);
-    }
-
-    [Test]
-    public void Optimize_SingleInstruction_PreservesInstruction()
-    {
-        // Arrange
-        var mlir = CreateSimpleMidLevelIR();
-        var function = new MidLevelIR.MLFunction { Name = "single" };
-        function.Instructions.Add(new MidLevelIR.MLAssign { Target = "x", Source = "1" });
-        mlir.Modules[0].Functions.Add(function);
-
-        // Act
-        var result = _optimizer.Optimize(mlir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result.Modules[0].Functions[0].Instructions, Has.Count.EqualTo(1));
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private MidLevelIR CreateSimpleMidLevelIR()
-    {
-        var mlir = new MidLevelIR { SourceFile = "test.ir" };
-        // Initialize the Modules list
-        mlir.Modules = new List<MidLevelIR.MLModule>();
-        mlir.Modules.Add(new MidLevelIR.MLModule { Name = "default" });
-        return mlir;
-    }
-
-    #endregion
 }

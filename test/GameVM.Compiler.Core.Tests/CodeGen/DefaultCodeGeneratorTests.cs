@@ -1,8 +1,6 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.CodeGen;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.Exceptions;
 
 namespace GameVM.Compiler.Core.Tests.CodeGen
 {

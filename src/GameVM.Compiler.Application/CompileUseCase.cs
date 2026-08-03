@@ -12,17 +12,11 @@
  * Central coordinator for the compilation workflow.
  */
 
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Slab;
-using System.Diagnostics.CodeAnalysis;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core;
-using System.Linq;
-using GameVM.Compiler.Core.SemanticAnalysis;
 
 namespace GameVM.Compiler.Application
 {
@@ -34,7 +28,7 @@ namespace GameVM.Compiler.Application
         private readonly ILanguageFrontend _frontend;
         private readonly IMidLevelOptimizer _midLevelOptimizer;
         private readonly ILowLevelOptimizer _lowLevelOptimizer;
-        private readonly IIRTransformer<MidLevelIR, LowLevelIR> _mlirToLlir;
+        private readonly IIRSlabTransformer _mlirToLlir;
         private readonly ICodeGenerator _codeGenerator;
          private readonly ICapabilityProvider _capabilityProvider;
         private readonly ICapabilityValidatorService _capabilityValidator;
@@ -44,7 +38,7 @@ namespace GameVM.Compiler.Application
             ILanguageFrontend frontend,
             IMidLevelOptimizer midLevelOptimizer,
             ILowLevelOptimizer lowLevelOptimizer,
-            IIRTransformer<MidLevelIR, LowLevelIR> mlirToLlir,
+            IIRSlabTransformer mlirToLlir,
             ICodeGenerator codeGenerator,
             ICapabilityProvider capabilityProvider,
             ICapabilityValidatorService capabilityValidator,
@@ -115,15 +109,13 @@ namespace GameVM.Compiler.Application
                  var semanticResult = _semanticAnalyzer.AnalyzeSlab(hlirSlab);
                  if (!semanticResult.Success)
                  {
-                     var hlir = new HighLevelIR { SourceFile = "<source>" };
-                     hlir.Errors.AddRange(semanticResult.Errors);
                      return new CompilationResult
                      {
                          Success = false,
                          Code = Array.Empty<byte>(),
                          SourceFile = extension,
                          Target = options.Target,
-                         ErrorMessage = string.Join("; ", hlir.Errors)
+                         ErrorMessage = string.Join("; ", semanticResult.Errors)
                      };
                  }
 
@@ -158,15 +150,13 @@ namespace GameVM.Compiler.Application
                 uint[] mlirSlab = _midLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, options.OptimizationLevel);
                 if (mlirSlab == null || mlirSlab.Length == 0)
                 {
-                    var hlir = new HighLevelIR { SourceFile = "<source>" };
-                    hlir.Errors.Add("Failed to optimize HLIR slab to MLIR slab");
                     return new CompilationResult
                     {
                         Success = false,
                         Code = Array.Empty<byte>(),
                         SourceFile = extension,
                         Target = options.Target,
-                        ErrorMessage = string.Join("; ", hlir.Errors)
+                        ErrorMessage = "Failed to optimize HLIR slab to MLIR slab"
                     };
                 }
 
@@ -174,15 +164,13 @@ namespace GameVM.Compiler.Application
                 uint[] llirSlab = _mlirToLlir.TransformSlab(mlirSlab, stringPool);
                 if (llirSlab == null || llirSlab.Length == 0)
                 {
-                    var hlir = new HighLevelIR { SourceFile = "<source>" };
-                    hlir.Errors.Add("Failed to convert MLIR slab to LLIR slab");
                     return new CompilationResult
                     {
                         Success = false,
                         Code = Array.Empty<byte>(),
                         SourceFile = extension,
                         Target = options.Target,
-                        ErrorMessage = string.Join("; ", hlir.Errors)
+                        ErrorMessage = "Failed to convert MLIR slab to LLIR slab"
                     };
                 }
 

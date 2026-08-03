@@ -1,316 +1,460 @@
-using NUnit.Framework;
 using GameVM.Compiler.Optimizers.LowLevel;
-using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
-using System.Linq;
+using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
+using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
 
-namespace GameVM.Compiler.Backend.Atari2600.Tests.Optimizers;
-
-/// <summary>
-/// Tests for low-level IR optimization targeting the Atari 2600.
-/// Validates register allocation, instruction peepholing, and branch optimization.
-/// </summary>
-[TestFixture]
-public class LowLevelOptimizerTests
+namespace GameVM.Compiler.Backend.Atari2600.Tests.Optimizers
 {
-    private DefaultLowLevelOptimizer _optimizer = null!;
-
-    [SetUp]
-    public void Setup()
+    /// <summary>
+    /// Tests for low-level IR optimization targeting the Atari 2600.
+    /// Validates register allocation, instruction peepholing, and branch optimization.
+    /// </summary>
+    [TestFixture]
+    public class LowLevelOptimizerTests
     {
-        _optimizer = new DefaultLowLevelOptimizer();
-    }
+        private DefaultLowLevelOptimizer _optimizer;
 
-    #region Register Allocation Tests
-
-    [Test]
-    public void Optimize_RegisterAllocation_EffectivelyAllocatesX_Y_A()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-        // Note: X and Y register support would need to be added to LLIR
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "2" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$81" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Is.Not.Null);
-        // When register allocation is implemented, X and Y registers should be used effectively
-        Assert.That(result.Instructions, Has.Count.GreaterThanOrEqualTo(0));
-    }
-
-    [Test]
-    public void Optimize_RegisterReuse_MinimizesRegisterUsage()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "2" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$81" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Is.Not.Null);
-        // A register should be reused effectively
-        // When optimization is implemented, redundant loads/stores might be eliminated
-        Assert.That(result.Instructions.Count, Is.GreaterThanOrEqualTo(0));
-    }
-
-    #endregion
-
-    #region Instruction Peepholing Tests
-
-    [Test]
-    public void Optimize_RedundantLoad_EliminatesUnnecessaryLoad()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" }); // Redundant
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-
-        var originalCount = llir.Instructions.Count;
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When peepholing is implemented, redundant load should be removed
-        var loads = result.Instructions.OfType<LowLevelIR.LLLoad>().ToList();
-        // Expected: When implemented, loads.Count() should be <= 1
-        Assert.That(loads.Count, Is.LessThanOrEqualTo(originalCount));
-    }
-
-    [Test]
-    public void Optimize_LoadStoreLoadPattern_OptimizesCacheAccess()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-        // Note: LLLoad with Address property doesn't exist yet, so we simulate with value
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" }); // Could be optimized
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When optimization is implemented, optimizer should recognize that A still contains the stored value
-        // and eliminate the redundant load
-        Assert.That(result.Instructions, Is.Not.Null);
-    }
-
-    [Test]
-    public void Optimize_LoadWithoutStore_RemovesDeadLoad()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "10" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-
-        var originalCount = llir.Instructions.Count;
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // First load is dead; only second load is needed
-        // When dead load elimination is implemented, first load should be removed
-        var loads = result.Instructions.OfType<LowLevelIR.LLLoad>().ToList();
-        // Expected: When implemented, loads.Count() should be <= 1
-        Assert.That(loads.Count, Is.LessThanOrEqualTo(originalCount));
-    }
-
-    #endregion
-
-    #region Branch Optimization Tests
-
-    [Test]
-    public void Optimize_UnconditionalBranchAtEnd_RemovesUnreachableCode()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        // Note: LLBranch doesn't exist yet, so we test with what's available
-        // When branch support is added, unreachable code after branch should be removed
-        llir.Instructions.Add(new LowLevelIR.LLLabel { Name = "exit" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "2" }); // Would be unreachable after branch
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When branch optimization is implemented, unreachable load after branch should be removed
-        var loads = result.Instructions.OfType<LowLevelIR.LLLoad>().ToList();
-        Assert.That(loads.Count, Is.GreaterThanOrEqualTo(0));
-    }
-
-    [Test]
-    public void Optimize_RedundantBranches_EliminatesJumpToNextInstruction()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLabel { Name = "here" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        // Note: LLBranch doesn't exist yet
-        llir.Instructions.Add(new LowLevelIR.LLLabel { Name = "next" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "2" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When branch optimization is implemented, jump to next sequential instruction should be removed
-        Assert.That(result.Instructions, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Memory Access Optimization Tests
-
-    [Test]
-    public void Optimize_ZeroPageAccess_PreferredOverAbsolute()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "42" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" }); // Zero page
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "84" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$2000" }); // Absolute
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When memory optimization is implemented, zero-page access should be preferred for locality
-        // and code size (fewer bytes per instruction)
-        Assert.That(result.Instructions, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Loop Optimization Tests
-
-    [Test]
-    public void Optimize_SimpleLoop_UnrollsIfSmall()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLabel { Name = "loop" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-        // Note: LLBranch doesn't exist yet, so we can't create a complete loop structure
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // When loop unrolling is implemented, small loops may be unrolled or optimized
-        Assert.That(result.Instructions, Is.Not.Null);
-    }
-
-    #endregion
-
-    #region Optimization Level Tests
-
-    [Test]
-    public void Optimize_WithBasicLevel_AppliesBasicOptimizations()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-        llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = "$80" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Is.Not.Null);
-        // When basic optimizations are implemented, redundant loads should be removed
-    }
-
-    [Test]
-    public void Optimize_WithAggressiveLevel_ReducesCodeSize()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        for (int i = 0; i < 5; i++)
+        [SetUp]
+        public void Setup()
         {
-            llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "5" });
-            llir.Instructions.Add(new LowLevelIR.LLStore { Register = "A", Address = $"${0x80 + i:X2}" });
+            _optimizer = new DefaultLowLevelOptimizer();
         }
 
-        var beforeCount = llir.Instructions.Count;
+        private static uint[] CreateLlirSlab(params uint[] instructions)
+        {
+            var header = SlabHeader.ForStage(3, (uint)instructions.Length / 2); // Stage 3 = LLIR
+            var headerBytes = new uint[SlabHeader.HeaderIndex.Length];
+            header.WriteTo(headerBytes);
+            
+            var slab = new List<uint>(headerBytes);
+            slab.AddRange(instructions);
+            
+            return slab.ToArray();
+        }
 
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Aggressive);
+        private static uint[] BuildLlirInstructions(params uint[][] instructionBlocks)
+        {
+            var allInstructions = new List<uint>();
+            foreach (var block in instructionBlocks)
+            {
+                allInstructions.AddRange(block);
+            }
+            return CreateLlirSlab(allInstructions.ToArray());
+        }
 
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        // Aggressive optimization should reduce instruction count when implemented
-        // For now, verify optimizer returns valid result
-        Assert.That(result.Instructions.Count, Is.LessThanOrEqualTo(beforeCount));
+        private static uint EncodeLoad()
+        {
+            return Encode(LLIR_LOAD, 3, 2); // size=3 (metadata + 2 operands), argCount=2
+        }
+
+        private static uint EncodeStore()
+        {
+            return Encode(LLIR_STORE, 3, 2);
+        }
+
+        private static uint EncodeLabel()
+        {
+            return Encode(LLIR_LABEL, 2, 1);
+        }
+
+        #region Register Allocation Tests
+
+        [Test]
+        public void OptimizeSlab_RegisterAllocation_EffectivelyAllocatesXYARegisters()
+        {
+            // Arrange: Load and store sequences that could benefit from register allocation
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, $01
+                new uint[] { EncodeStore(), 3u, 1u },  // LLStore $80, A
+                new uint[] { EncodeLoad(), 1u, 4u },  // LLLoad A, $02
+                new uint[] { EncodeStore(), 5u, 1u }   // LLStore $81, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("$01");
+            stringPool.Intern("$80");
+            stringPool.Intern("$02");
+            stringPool.Intern("$81");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u)); // Should remain LLIR
+            // Register allocation might not reduce instruction count, but should produce valid LLIR
+            Assert.That(header.ElementCount, Is.GreaterThanOrEqualTo(0));
+        }
+
+        [Test]
+        public void OptimizeSlab_RegisterReuse_MinimizesRegisterUsage()
+        {
+            // Arrange: Repeated loads/stores using same register
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 1
+                new uint[] { EncodeStore(), 3u, 1u },  // LLStore $80, A
+                new uint[] { EncodeLoad(), 1u, 4u },  // LLLoad A, 2
+                new uint[] { EncodeStore(), 5u, 1u }   // LLStore $81, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("$01");
+            stringPool.Intern("$80");
+            stringPool.Intern("$02");
+            stringPool.Intern("$81");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // Optimization might eliminate redundant loads/stores
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        #endregion
+
+        #region Instruction Peepholing Tests
+
+        [Test]
+        public void OptimizeSlab_RedundantLoad_EliminatesUnnecessaryLoad()
+        {
+            // Arrange: Load A, Load A (same value), Store A
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 5
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 5 (redundant)
+                new uint[] { EncodeStore(), 3u, 1u }  // LLStore $80, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("5");
+            stringPool.Intern("$80");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, redundant load should be eliminated
+            Assert.That(header.ElementCount, Is.LessThanOrEqualTo(2));
+        }
+
+        [Test]
+        public void OptimizeSlab_LoadStoreLoadPattern_OptimizesCacheAccess()
+        {
+            // Arrange: Store A, Load A (same value), Store A again
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeStore(), 1u, 1u },  // LLStore $80, A
+                new uint[] { EncodeLoad(), 1u, 1u },   // LLLoad A, 5
+                new uint[] { EncodeStore(), 1u, 1u }   // LLStore $80, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("$80");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, should recognize A already has the stored value
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        [Test]
+        public void OptimizeSlab_LoadWithoutStore_RemovesDeadLoad()
+        {
+            // Arrange: Load A (5), Load A (10), Store A (10) - first load is dead
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 5
+                new uint[] { EncodeLoad(), 1u, 3u },  // LLLoad A, 10
+                new uint[] { EncodeStore(), 3u, 1u }  // LLStore $80, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("5");
+            stringPool.Intern("10");
+            stringPool.Intern("$80");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, first load should be eliminated
+            var loads = GetLoadInstructions(resultSlab);
+            Assert.That(loads.Count, Is.LessThanOrEqualTo(1));
+        }
+
+        #endregion
+
+        #region Branch Optimization Tests
+
+        [Test]
+        public void OptimizeSlab_UnconditionalBranchAtEnd_RemovesUnreachableCode()
+        {
+            // Arrange: Load, Label, Load (unreachable after branch)
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 1
+                new uint[] { EncodeLabel(), 2u },         // Label "exit"
+                new uint[] { EncodeLoad(), 1u, 3u }   // LLLoad A, 2 (would be unreachable after branch)
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("1");
+            stringPool.Intern("exit");
+            stringPool.Intern("2");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, unreachable load should be removed
+            var loads = GetLoadInstructions(resultSlab);
+            Assert.That(loads.Count, Is.GreaterThanOrEqualTo(0));
+        }
+
+        [Test]
+        public void OptimizeSlab_RedundantBranches_EliminatesJumpToNextInstruction()
+        {
+            // Arrange: Label, Load, Label, Load
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLabel(), 1u },         // Label "here"
+                new uint[] { EncodeLoad(), 1u, 2u },   // LLLoad A, 1
+                new uint[] { EncodeLabel(), 2u },         // Label "next"
+                new uint[] { EncodeLoad(), 1u, 3u }   // LLLoad A, 2
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("here");
+            stringPool.Intern("A");
+            stringPool.Intern("1");
+            stringPool.Intern("next");
+            stringPool.Intern("2");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, jump to next instruction should be removed
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        #endregion
+
+        #region Memory Access Optimization Tests
+
+        [Test]
+        public void OptimizeSlab_ZeroPageAccess_PreferredOverAbsolute()
+        {
+            // Arrange: Load, Store (zero page), Load, Store (absolute)
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 42
+                new uint[] { EncodeStore(), 2u, 1u },  // LLStore $80, A (zero page)
+                new uint[] { EncodeLoad(), 3u, 4u },  // LLLoad A, 84
+                new uint[] { EncodeStore(), 5u, 3u }   // LLStore $2000, A (absolute)
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("42");
+            stringPool.Intern("$80");
+            stringPool.Intern("84");
+            stringPool.Intern("$2000");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, zero-page access should be preferred
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        #endregion
+
+        #region Loop Optimization Tests
+
+        [Test]
+        public void OptimizeSlab_SimpleLoop_UnrollsIfSmall()
+        {
+            // Arrange: Label, Load (loop body)
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLabel(), 1u },         // Label "loop"
+                new uint[] { EncodeLoad(), 1u, 2u }   // LLLoad A, 1
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("loop");
+            stringPool.Intern("A");
+            stringPool.Intern("1");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, small loops may be unrolled or optimized
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        #endregion
+
+        #region Optimization Level Tests
+
+        [Test]
+        public void OptimizeSlab_WithBasicLevel_AppliesBasicOptimizations()
+        {
+            // Arrange: Redundant load
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 5
+                new uint[] { EncodeLoad(), 1u, 2u },  // LLLoad A, 5 (duplicate)
+                new uint[] { EncodeStore(), 2u, 1u }   // LLStore $80, A
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("5");
+            stringPool.Intern("$80");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, redundant loads should be removed
+            Assert.That(resultSlab, Is.Not.Null);
+        }
+
+        [Test]
+        public void OptimizeSlab_WithAggressiveLevel_ReducesCodeSize()
+        {
+            // Arrange: Multiple redundant loads
+            var instructionBlocks = new List<uint[]>();
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("$80");
+
+            for (int i = 0; i < 5; i++)
+            {
+                instructionBlocks.Add(new uint[] { EncodeLoad(), 1u, 2u }); // LLLoad A, 5
+                instructionBlocks.Add(new uint[] { EncodeStore(), 2u, 1u }); // LLStore $80, A
+            }
+
+            var slab = BuildLlirInstructions(instructionBlocks.ToArray());
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Aggressive);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            // When implemented, should reduce instruction count
+            Assert.That(resultSlab.Count, Is.LessThanOrEqualTo(10));
+        }
+
+        #endregion
+
+        #region Edge Cases
+
+        [Test]
+        public void OptimizeSlab_EmptyLLIR_RemainsEmpty()
+        {
+            // Arrange: Empty LLIR slab throws (optimizer requires valid slab)
+            var slab = Array.Empty<uint>();
+
+            // Act & Assert
+            Assert.Throws<ArgumentException>(() => _optimizer.OptimizeSlab(slab, new StringPool(), OptimizationLevel.Basic));
+        }
+
+        [Test]
+        public void OptimizeSlab_SingleInstruction_PreservesInstruction()
+        {
+            // Arrange
+            var slab = BuildLlirInstructions(
+                new uint[] { EncodeLoad(), 1u, 2u }  // LLLoad A, 1
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("1");
+
+            // Act
+            var resultSlab = _optimizer.OptimizeSlab(slab, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            Assert.That(resultSlab, Is.Not.Null.And.Not.Empty);
+            var header = SlabHeader.Read(resultSlab);
+            Assert.That(header.IrStage, Is.EqualTo(3u));
+            Assert.That(resultSlab, Is.Not.Null);
+            Assert.That(GetInstructionCount(resultSlab), Is.GreaterThanOrEqualTo(1));
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+private static int GetInstructionCount(uint[] slab)
+        {
+            var header = SlabHeader.Read(slab);
+            return (int)header.ElementCount;
+        }
+
+        private static List<uint[]> GetLoadInstructions(uint[] slab)
+        {
+            var loads = new List<uint[]>();
+            var offset = SlabHeader.HeaderIndex.Length;
+
+            while (offset < slab.Length)
+            {
+                var metadata = slab[offset];
+                var kind = (byte)(metadata >> 26 & 0x3F);
+                var size = (byte)((metadata >> 21) & 0x1F);
+
+                if (kind == LLIR_LOAD)
+                {
+                    var instruction = new uint[size];
+                    Array.Copy(slab, offset, instruction, 0, size);
+                    loads.Add(instruction);
+                }
+
+                offset += size;
+            }
+
+            return loads;
+        }
+
+        #endregion
     }
-
-    #endregion
-
-    #region Edge Cases
-
-    [Test]
-    public void Optimize_EmptyLLIR_RemainsEmpty()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Is.Empty);
-    }
-
-    [Test]
-    public void Optimize_SingleInstruction_PreservesInstruction()
-    {
-        // Arrange
-        var llir = CreateSimpleLLIR();
-        llir.Instructions.Add(new LowLevelIR.LLLoad { Register = "A", Value = "1" });
-
-        // Act
-        var result = _optimizer.Optimize(llir, OptimizationLevel.Basic);
-
-        // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Instructions, Has.Count.GreaterThanOrEqualTo(1));
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private LowLevelIR CreateSimpleLLIR()
-    {
-        return new LowLevelIR { SourceFile = "test.ll" };
-    }
-
-    #endregion
 }

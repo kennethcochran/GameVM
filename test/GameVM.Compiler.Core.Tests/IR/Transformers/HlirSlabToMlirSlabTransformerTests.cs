@@ -1,10 +1,8 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Pascal;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
 
 namespace GameVM.Compiler.Core.Tests.IR.Transformers
 {

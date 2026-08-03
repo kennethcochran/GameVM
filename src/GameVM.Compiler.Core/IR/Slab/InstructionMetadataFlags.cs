@@ -1,5 +1,3 @@
-using System;
-
 namespace GameVM.Compiler.Core.IR.Slab
 {
     /// <summary>

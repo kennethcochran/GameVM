@@ -106,6 +106,7 @@ If SonarQube MCP shows "failed":
 4. **Platform-specific optimizations too early**: Focus on architecture-independent optimizations in MLIR first
 5. **Missing width specifiers**: LLIR instructions require explicit width types
 6. **Skipping documentation updates**: See [Documentation Update Rules](docs/AGENTS.md)
+7. **Suppressing compiler warnings**: NEVER use `#pragma warning disable`, `#pragma warning restore`, or `.editorconfig` severity overrides for compiler warnings or SonarQube rules. The ONLY exception is ANTLR-generated parser/lexer/visitor/listener code in `src/*/ANTLR/` directories, where warnings 0162, 0219, 1591, 419, 1591 may be suppressed. All other suppression is forbidden — fix the root cause instead.
 
 ## Quick Links
 - **GitHub Repository**: https://github.com/kennethcochran/GameVM

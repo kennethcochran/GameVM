@@ -1,8 +1,5 @@
-using NUnit.Framework;
-using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
-using System.Collections.Generic;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
 

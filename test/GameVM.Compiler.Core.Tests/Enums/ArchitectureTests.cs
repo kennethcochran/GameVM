@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Core.Tests.Enums;

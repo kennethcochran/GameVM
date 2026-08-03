@@ -3,7 +3,6 @@ namespace GameVM.Compile
     using Compiler.Application;
     using Compiler.Application.Services;
     using Compiler.Core.IR.Interfaces;
-    using Compiler.Core.IR;
     using Compiler.Optimizers.MidLevel;
     using Compiler.Optimizers.LowLevel;
     using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +27,7 @@ namespace GameVM.Compile
                 services.AddSingleton<ILowLevelOptimizer, DefaultLowLevelOptimizer>();
 
                 // Register transformers
-                services.AddSingleton<IIRTransformer<MidLevelIR, LowLevelIR>, MidToLowLevelTransformer>();
+                services.AddSingleton<IIRSlabTransformer, MidToLowLevelTransformer>();
 
                 // Register frontend
                 services.AddSingleton<ILanguageFrontend, PascalFrontend>();
@@ -60,7 +59,7 @@ namespace GameVM.Compile
             {
                 var input = parseResult.GetValue(inputOption);
                 var output = parseResult.GetValue(outputOption);
-                
+
                 if (!ValidateArguments(input, output))
                 {
                     return;

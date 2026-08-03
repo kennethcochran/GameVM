@@ -1,29 +1,30 @@
-using System;
-using System.Collections.Generic;
 using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Pascal
 {
     /// <summary>
-    /// Holds shared state during AST transformation
+    /// Holds shared state during AST transformation (DOD pipeline - slab-based)
     /// </summary>
     public class TransformationContext
     {
-        public HighLevelIR IR { get; }
+        public uint[] IrSlab { get; }
+        public StringPool StringPool { get; }
         public string SourceFile { get; }
-        public Dictionary<string, HighLevelIR.HlType> TypeCache { get; }
+        public Dictionary<string, string> TypeCache { get; }
         private readonly List<Dictionary<string, IRSymbol>> _symbolTables;
         public Dictionary<string, IRSymbol> SymbolTable => _symbolTables[_symbolTables.Count - 1];
-        public Stack<HighLevelIR.Function> FunctionScope { get; }
+        public Stack<uint> FunctionScope { get; }
         public List<string> Errors { get; }
 
-        public TransformationContext(string sourceFile, HighLevelIR ir)
+        public TransformationContext(string sourceFile, uint[] irSlab, StringPool stringPool)
         {
             SourceFile = sourceFile ?? "<unknown>";
-            IR = ir ?? throw new ArgumentNullException(nameof(ir));
-            TypeCache = new Dictionary<string, HighLevelIR.HlType>(StringComparer.OrdinalIgnoreCase);
+            IrSlab = irSlab ?? throw new ArgumentNullException(nameof(irSlab));
+            StringPool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
+            TypeCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             _symbolTables = new List<Dictionary<string, IRSymbol>> { new(StringComparer.OrdinalIgnoreCase) };
-            FunctionScope = new Stack<HighLevelIR.Function>();
+            FunctionScope = new Stack<uint>();
             Errors = new List<string>();
         }
 
@@ -62,32 +63,6 @@ namespace GameVM.Compiler.Pascal
                     return symbol;
             }
             return null;
-        }
-
-        public void AddGlobalFunction(HighLevelIR.Function function)
-        {
-            var module = IR.Modules.FirstOrDefault();
-            if (module == null)
-            {
-                module = new HlModule { Name = "default" };
-                IR.Modules.Add(module);
-            }
-            module.Functions.Add(function);
-        }
-
-        public HighLevelIR.HlType GetOrCreateBasicType(string typeName)
-        {
-            if (!TypeCache.TryGetValue(typeName, out var type))
-            {
-                type = new HighLevelIR.BasicType(SourceFile, typeName);
-                System.Diagnostics.Debug.WriteLine($"Created new BasicType: Name='{type.Name}', Type='{type.GetType().Name}'");
-                TypeCache[typeName] = type;
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"Retrieved cached type: Name='{type.Name}', Type='{type.GetType().Name}'");
-            }
-            return type;
         }
 
         public void AddError(string message)

@@ -1,18 +1,4 @@
 using NUnit.Framework;
-using System.IO;
-using System.CommandLine;
-using Moq;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using GameVM.Compiler.Application;
-using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Optimizers.MidLevel;
-using GameVM.Compiler.Optimizers.LowLevel;
-using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Pascal;
-using GameVM.Compiler.Backend.Atari2600;
 
 namespace GameVM.Compile.Tests;
 

@@ -1,4 +1,3 @@
-using System;
 using GameVM.Compiler.Core.IR.Slab;
 
 namespace GameVM.Compiler.Core.IR

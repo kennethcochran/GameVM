@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using Antlr4.Runtime;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;

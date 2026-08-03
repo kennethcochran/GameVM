@@ -1,9 +1,5 @@
-using NUnit.Framework;
-using System.Collections.Generic;
-using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.Buffers;
 

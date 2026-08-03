@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Pascal;
 

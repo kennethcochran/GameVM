@@ -1,6 +1,4 @@
 using GameVM.Compiler.Core.IR.Slab;
-using NUnit.Framework;
-
 using GameVM.Compiler.Core.IR.Buffers;
 namespace GameVM.Compiler.Core.Tests.IR.Slab;
 

@@ -6,8 +6,6 @@ using Antlr4.Runtime.Atn;
 using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
@@ -18,7 +16,6 @@ namespace GameVM.Compiler.CSharp
 {
     public class CSharpFrontend : ILanguageFrontend
     {
-        private readonly HlirToMlirTransformer _hlirToMlir = new HlirToMlirTransformer();
         private StringPool _stringPool = new StringPool();
         private List<string> _lastParseErrors = new List<string>();
 
@@ -51,52 +48,6 @@ namespace GameVM.Compiler.CSharp
             public void ReportAmbiguity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, bool exact, BitSet ambigAlts, ATNConfigSet configs) { }
             public void ReportAttemptingFullContext(Parser recognizer, DFA dfa, int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) { }
             public void ReportContextSensitivity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, int prediction, ATNConfigSet configs) { }
-        }
-
-        public HighLevelIR Parse(string sourceCode)
-        {
-            try
-            {
-                _lastParseErrors.Clear();
-
-                var inputStream = new AntlrInputStream(sourceCode);
-                var lexer = new CSharpLexer(inputStream);
-                var commonTokenStream = new CommonTokenStream(lexer);
-                var parser = new CSharpParser(commonTokenStream);
-
-                var errorListener = new CollectingErrorListener();
-                lexer.AddErrorListener(errorListener);
-                parser.AddErrorListener(errorListener);
-
-                var context = parser.program();
-
-                if (_lastParseErrors.Any())
-                {
-                    var hlir = new HighLevelIR { SourceFile = "<source>" };
-                    hlir.Errors.Add(string.Join("; ", _lastParseErrors));
-                    return hlir;
-                }
-
-                var visitor = new CSharpToSlabVisitor(new ArenaAllocator());
-                visitor.Visit(context);
-
-                uint[] astSlab = visitor.GetSlab();
-
-                var astToHlirTransformer = new CSharpAstToHlirTransformer("<source>");
-                return astToHlirTransformer.Transform(astSlab);
-            }
-            catch (Exception ex)
-            {
-                _lastParseErrors.Clear();
-                var hlir = new HighLevelIR { SourceFile = "<source>" };
-                hlir.Errors.Add($"Failed to parse C# code: {ex.Message}");
-                return hlir;
-            }
-        }
-
-        public MidLevelIR ConvertToMidLevelIR(HighLevelIR hlir)
-        {
-            return _hlirToMlir.Transform(hlir);
         }
 
         public uint[] ParseToSlab(string sourceCode)

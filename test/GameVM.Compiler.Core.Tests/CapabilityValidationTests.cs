@@ -1,8 +1,5 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Attributes;
-using GameVM.Compiler.Core;
-using System.Collections.Generic;
 
 namespace GameVM.Compiler.Core.Tests
 {

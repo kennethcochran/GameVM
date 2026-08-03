@@ -1,7 +1,4 @@
-using System.IO;
-using System.Threading.Tasks;
 using GameVM.Compiler.Application;
-using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Interaction

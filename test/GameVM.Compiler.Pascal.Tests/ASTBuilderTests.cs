@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using NUnit.Framework;
-using GameVM.Compiler.Pascal;
-
 namespace GameVM.Compiler.Pascal.Tests
 {
     [TestFixture]

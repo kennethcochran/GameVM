@@ -1,6 +1,4 @@
-using System;
 using GameVM.Compiler.Core.Exceptions;
-using NUnit.Framework;
 
 namespace UnitTests.Core.Exceptions
 {

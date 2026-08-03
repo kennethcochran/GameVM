@@ -1,8 +1,6 @@
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
 using System;
 using System.Collections.Generic;

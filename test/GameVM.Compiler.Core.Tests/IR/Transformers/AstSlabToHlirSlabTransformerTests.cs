@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;

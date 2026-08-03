@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
@@ -86,7 +83,7 @@ namespace GameVM.Compiler.Optimizers.MidLevel
             headerData.WriteTo(headerBytes);
             _arena.Write(newHeaderOffset, headerBytes);
 
-            // Process each function in the MLIR slab
+            // Process each instruction in the MLIR slab
             while (offset < mlirSlab.Length)
             {
                 var metadata = mlirSlab[offset];
@@ -251,175 +248,6 @@ namespace GameVM.Compiler.Optimizers.MidLevel
             var buffer = new uint[size];
             Array.Copy(sourceSlab, offset, buffer, 0, size);
             _arena.Write(destOffset, buffer);
-        }
-
-        /// <summary>
-        /// Optimizes the OOP MidLevelIR (legacy interface).
-        /// Delegates to the slab-based optimizer if possible.
-        /// </summary>
-        public MidLevelIR Optimize(MidLevelIR ir, OptimizationLevel optimizationLevel)
-        {
-            ArgumentNullException.ThrowIfNull(ir);
-
-            // Legacy OOP optimizer for backward compatibility
-            var optimized = new MidLevelIR { SourceFile = ir.SourceFile };
-            optimized.Modules.Clear();
-
-            foreach (var global in ir.Globals)
-            {
-                optimized.Globals[global.Key] = global.Value;
-            }
-
-            foreach (var module in ir.Modules)
-            {
-                var optimizedModule = new MidLevelIR.MLModule { Name = module.Name };
-                
-                foreach (var function in module.Functions)
-                {
-                    var optimizedFunction = OptimizeFunction(function, optimizationLevel);
-                    optimizedModule.Functions.Add(optimizedFunction);
-                }
-                
-                optimized.Modules.Add(optimizedModule);
-            }
-
-            if (optimized.Modules.Count == 0 && ir.Modules.Count > 0)
-            {
-                optimized.Modules.Add(new MidLevelIR.MLModule { Name = "default" });
-            }
-
-            return optimized;
-        }
-
-        private MidLevelIR.MLFunction OptimizeFunction(MidLevelIR.MLFunction function, OptimizationLevel level)
-        {
-            var optimized = new MidLevelIR.MLFunction
-            {
-                Name = function.Name,
-                Instructions = new List<MidLevelIR.MLInstruction>()
-            };
-
-            if (level >= OptimizationLevel.Basic)
-            {
-                var instructions = ProcessBasicOptimizations(function.Instructions, level);
-                optimized.Instructions = RemoveDuplicateAssignments(instructions);
-            }
-            else
-            {
-                optimized.Instructions = new List<MidLevelIR.MLInstruction>(function.Instructions);
-            }
-
-            return optimized;
-        }
-
-        private static List<MidLevelIR.MLInstruction> ProcessBasicOptimizations(List<MidLevelIR.MLInstruction> instructions, OptimizationLevel level)
-        {
-            var result = new List<MidLevelIR.MLInstruction>();
-            bool inUnreachableBlock = false;
-
-            foreach (var instr in instructions)
-            {
-                if (ShouldSkipInstruction(instr, level, inUnreachableBlock))
-                {
-                    continue;
-                }
-
-                if (instr is MidLevelIR.MLLabel)
-                {
-                    inUnreachableBlock = false;
-                }
-
-                var processedInstr = ProcessInstruction(instr);
-                if (processedInstr != null)
-                {
-                    result.Add(processedInstr);
-                }
-
-                if (IsUnreachableBranch(instr, level))
-                {
-                    inUnreachableBlock = true;
-                }
-            }
-
-            return result;
-        }
-
-        private static bool ShouldSkipInstruction(MidLevelIR.MLInstruction instr, OptimizationLevel level, bool inUnreachableBlock)
-        {
-            return level >= OptimizationLevel.Aggressive && inUnreachableBlock && instr is not MidLevelIR.MLLabel;
-        }
-
-        private static MidLevelIR.MLInstruction? ProcessInstruction(MidLevelIR.MLInstruction instr)
-        {
-            if (instr is MidLevelIR.MLAssign assign)
-            {
-                var optimizedSource = OptimizeAssignmentSource(assign.Source);
-                return new MidLevelIR.MLAssign { Target = assign.Target, Source = optimizedSource };
-            }
-
-            return instr;
-        }
-
-        private static string OptimizeAssignmentSource(string source)
-        {
-            if (source == "(5 + 3)") return "8";
-
-            if (source.StartsWith('(') && source.EndsWith(')') && source.Contains(" + "))
-            {
-                var parts = source.Substring(1, source.Length - 2).Split('+');
-                if (parts.Length == 2)
-                {
-                    var left = parts[0].Trim();
-                    var right = parts[1].Trim();
-                    
-                    if (int.TryParse(left, out var leftVal) && int.TryParse(right, out var rightVal))
-                    {
-                        return (leftVal + rightVal).ToString();
-                    }
-                }
-            }
-
-            return source;
-        }
-
-        private static bool IsUnreachableBranch(MidLevelIR.MLInstruction instr, OptimizationLevel level)
-        {
-            return instr is MidLevelIR.MLBranch branch && branch.Condition == null && level >= OptimizationLevel.Aggressive;
-        }
-
-        private static List<MidLevelIR.MLInstruction> RemoveDuplicateAssignments(List<MidLevelIR.MLInstruction> instructions)
-        {
-            if (instructions == null || instructions.Count == 0)
-                return new List<MidLevelIR.MLInstruction>();
-
-            var result = new List<MidLevelIR.MLInstruction>();
-            var lastAssignments = new Dictionary<string, MidLevelIR.MLAssign>();
-
-            for (int i = 0; i < instructions.Count; i++)
-            {
-                var instruction = instructions[i];
-
-                if (instruction is MidLevelIR.MLAssign assign)
-                {
-                    lastAssignments[assign.Target] = assign;
-                }
-                else
-                {
-                    foreach (var kvp in lastAssignments.OrderBy(x => instructions.IndexOf(x.Value)))
-                    {
-                        result.Add(kvp.Value);
-                    }
-                    lastAssignments.Clear();
-                    result.Add(instruction);
-                }
-            }
-
-            foreach (var kvp in lastAssignments.OrderBy(x => instructions.IndexOf(x.Value)))
-            {
-                result.Add(kvp.Value);
-            }
-
-            return result;
         }
     }
 }

@@ -1,6 +1,3 @@
-using NUnit.Framework;
-using GameVM.Compiler.Backend.Atari2600;
-
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
 
 [TestFixture]
