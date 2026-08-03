@@ -19,7 +19,7 @@
 ## 2. AST Stage — Pascal Frontend
 
 - [ ] 2.1 Update `PascalFrontend.ParseToSlab` to return `InstList` (AST stage) instead of `uint[]`
-- [ ] 2.2 Update `PascalToSlabVisitor` to emit into `InstListBuilder` (AST stage) using tagged-union AoS per Odin
+- [ ] 2.2 Update `PascalToSlabVisitor` to emit into `InstListBuilder` (AST stage) using `InstList` SoA layout (parallel arrays + extra pool), not Odin-style AoS
 - [ ] 2.3 Keep `AstSlabToHlirSlabTransformer` input as `InstList` (AST); output `InstList` (HLIR)
 - [ ] 2.4 Update `PascalFrontend.ConvertToHlirSlab` signature: `InstList ConvertToHlirSlab(InstList astSlab)`
 - [ ] 2.5 Update `PascalFrontend.StringPool` integration with new `InstList` extra pool
