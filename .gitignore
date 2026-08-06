@@ -471,3 +471,4 @@ MAME0*
 *.msi
 *.installer
 *.setup
+CoverageReports/
