@@ -20,7 +20,7 @@ nested AGENTS.md files under `src/`, `docs/`, and `test/`, referenced below.
 
 ## High-Level Rules (MUST ALWAYS FOLLOW)
 
-1. **Documentation updates are mandatory** with every code change. See [docs/AGENTS.md](docs/AGENTS.md).
+1. **Documentation updates are mandatory** with every code change. See [docs/AGENTS.md](docs/AGENTS.md) for the **Three-Pocket Strategy** and the `gstack document-release` gate.
 2. **Follow code standards** and architecture conventions. See [src/AGENTS.md](src/AGENTS.md).
 3. **Add tests** for any functional change. See [test/AGENTS.md](test/AGENTS.md).
 4. **Run SonarQube checks** after making changes. See the SonarQube section below.
@@ -133,3 +133,28 @@ Five canonical roles mapped 1:1 to label strings: `needs-triage`, `needs-info`, 
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+
+## Mandatory Pre-Commit Hooks (DO NOT DISABLE)
+
+This repository uses client-side Git pre-commit hooks managed by [Husky.Net](https://github.com/alirezanet/Husky.Net). These hooks enforce critical quality gates before any code is committed. **You MUST NOT bypass or disable these hooks.**
+
+### Pre-Commit Tasks (`.husky/task-runner.json`)
+
+1.  **`clean-test-results`**: Ensures a clean test run by removing previous test artifacts.
+2.  **`run-tests-with-coverage`**: Executes the full test suite and collects code coverage. **All tests MUST pass.**
+3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check. Methods exceeding the configured complexity/coverage threshold (`.husky/csx/crap-gate.csx`) will fail the commit. **You MUST reduce complexity or increase test coverage.**
+4.  **`validate-docs`**: Runs `gstack document-release` to verify documentation consistency with code changes. **Any detected documentation drift MUST be resolved before committing.** (See `docs/AGENTS.md` for the Three-Pocket Strategy).
+
+### Consequences of Disabling Hooks
+
+Attempting to disable or bypass these hooks (e.g., using `git commit --no-verify`) will be considered a severe violation of project guidelines. The CI/CD pipeline will still enforce these checks, leading to build failures and requiring manual remediation. Your commits will be rejected.
+
+### Purpose
+
+These hooks exist to ensure:
+- Code quality and test coverage are consistently high.
+- Architectural decisions (in `docs/adr/`) and current reality (`CONTEXT.md`) are always synchronized with the codebase.
+- The `docs/` folder accurately reflects the implemented state, not aspirational features.
+
+If a hook fails, you **MUST** address the underlying issue by fixing the code or documentation, and then re-attempt the commit. Do not assume the hook is faulty; it reflects a real quality gap.

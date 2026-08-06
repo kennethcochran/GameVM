@@ -3,70 +3,37 @@
 This file provides guidance for AI assistants and coding agents working on documentation
 and docs-related workflows in the GameVM project. It supplements the [root AGENTS.md](../AGENTS.md).
 
-## Documentation Update Rules (MANDATORY)
+## Documentation Strategy: The Three-Pocket System
 
-**Every time you modify code, you MUST also update the affected documentation in the same session.**
-Documentation drift is the #1 tracked problem in this repo — do not ship code changes without
-syncing docs. When in doubt, err on the side of updating docs.
+To solve documentation drift and keep AI agents focused, GameVM uses a strict "Three-Pocket" strategy:
 
-### Scope of Documentation Updates
+1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
+2.  **`openspec/specs/<id>/spec.md` (Aspirational/Planned):** Features that do not exist yet (e.g., the Hardware Abstraction Layer, Package Management, or the VM Runtime). They are **prohibited** from living in the `docs/` folder until they are implemented.
+3.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
 
-**Only update documentation that is directly affected by the specific change being implemented.**
-Do not perform global sweeps to update status tags across unrelated documents. The OpenSpec change
-(`proposal.md`, `design.md`, `tasks.md`) defines the scope — update only the docs that the
-trigger mapping links to the code changes in that change.
+## Mandatory Documentation Rules
 
-**WARNING:** Do not make global documentation updates (e.g., changing [aspirational] to [implemented]
-across multiple files) without a corresponding code change that justifies those updates. Each
-documentation update must be tied to a specific code change in the current OpenSpec change or
-a directly related code modification. Making sweeping documentation updates without code changes
-violates the principle that documentation should reflect the actual state of the implementation.
+**1. Never Write Aspirational Docs**
+If you are designing a feature that doesn't exist yet, write a design document or a spec in `openspec/`. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
 
-### Trigger Mapping
+**2. The "True North" Update Rule**
+If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/LLIR), or the structural invariants of the compiler, you **must** update `CONTEXT.md` in the exact same session. 
+*   Do not just tag sections as `[implemented]`. 
+*   Rewrite the section to describe the actual code you just wrote.
 
-Use `.github/doc-mapping.yaml` as the authoritative mapping. The common cases:
+**3. Vocabulary Enforcement**
+You MUST use the exact terminology defined in the `## Domain Glossary` section of `CONTEXT.md`. Do not invent synonyms. Do not use alternative capitalization or hyphenation.
 
-| Code Change | Docs to Update |
-|-------------|----------------|
-| New/updated LLIR instruction | `/docs/compiler/LLIR_ISA.md`, `/docs/compiler/LLIR.md` |
-| New/updated HLIR or MLIR construct | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md` |
-| New/updated backend or platform target | `/docs/platforms/specs/<platform>.md`, `/docs/platforms/README.md` |
-| New/updated optimizer pass | `/docs/optimization.md` |
-| New/updated frontend or language feature | `/docs/compiler/Parser.md`, `/docs/compiler/TypeSystem.md`, `/docs/compiler/LanguageIntegration.md` |
-| Public API surface change (types/methods/signatures) | `/docs/api/` + XML doc comments |
-| Architecture or pipeline change | `/docs/architecture/ArchitectureOverview.md`, `/docs/compiler/compiler_architecture.md` |
-| Dispatch strategy change | `/docs/code-generation.md` |
-| Capability / platform profile change | `/docs/platforms/CapabilityProfiles.md` |
-| IR stage, slab, or transformer change | `/docs/compiler/HLIR.md`, `/docs/compiler/MLIR.md`, `/docs/compiler/LLIR.md` |
-| Build system / tooling change | `/docs/compiler/BuildSystem.md` |
+**4. The `gstack document-release` Gate**
+Before completing a coding session, you must run `gstack document-release`. 
+This tool scans the git diff, compares it against the Diataxis coverage map (reference / how-to / tutorial / explanation) of your `CONTEXT.md` and related docs, and flags any drift. If it catches a missing update, you must fix it before committing your final solution.
 
-### Update Procedure
+## The OpenSpec Workflow for New Work
 
-1. **Read** the affected doc file(s) first (do not guess their current content).
-2. **Apply the status-tagging convention**: tag each section with one or more of
-   `[implemented]`, `[aspirational]` (planned, not built), or `[outdated]`
-   (built differently than documented, or describing removed functionality).
-3. **Update** code examples and API references to match the current implementation.
-4. **Verify** relative links still resolve and section headers still exist.
-5. **Update** the document's changelog section (if present).
-6. When an interface, capability, or behavior is *removed*, tag the doc section
-   `[outdated]` and describe the replacement — do not silently delete coverage.
-
-### When NOT to Update Docs
-
-- Pure refactors with no behavior/API change (but verify by reading the docs)
-- Test-only changes that add coverage without changing behavior
-- Dependency version bumps with no API change
-
-### Spec Workflow (OpenSpec)
-
-GameVM uses OpenSpec for spec-driven changes. When working on an active change
-under `openspec/changes/`:
-
-- Keep the change's `proposal.md`, `design.md`, and `tasks.md` in sync as you work.
-- Add a documentation task to `tasks.md` when the change affects documented behavior:
-  `- [ ] Update affected documentation per AGENTS.md trigger mapping`
-- When a change ships, its specs are merged into `openspec/specs/` via `openspec sync`.
+When working on a new feature under `openspec/changes/`:
+*   The feature starts as a spec in `openspec/specs/`.
+*   Once the implementation is complete, **copy the relevant architecture/API details from the feature's spec and paste them into `CONTEXT.md`**, converting them from aspirational to implemented.
+*   Delete or archive the feature's spec once it is merged into `CONTEXT.md`.
 
 ## Adding Documentation
 
@@ -79,7 +46,8 @@ under `openspec/changes/`:
 ## Documentation References
 
 Key documents to consult:
-- **Architecture**: [Architecture Overview](architecture/ArchitectureOverview.md)
+- **The True North**: [CONTEXT.md](../../CONTEXT.md) (Start here! This is the actual state of the project)
+- **Decisions/ADRs**: [docs/adr/](adr/) (The logic behind why the code looks the way it does)
 - **LLIR Specification**: [LLIR ISA](compiler/LLIR_ISA.md)
 - **Inline Assembly**: [Inline Assembly Guide](compiler/InlineAssembly.md)
 - **Optimization**: [Optimization Features](optimization.md)

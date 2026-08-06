@@ -24,6 +24,13 @@
         "TestResults/crap-check",
         "30"
       ]
+    },
+    {
+      "name": "validate-docs",
+      "command": "gstack",
+      "args": [
+        "document-release"
+      ]
     }
   ]
 }
