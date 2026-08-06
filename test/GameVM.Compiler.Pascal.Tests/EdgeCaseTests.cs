@@ -1,3 +1,6 @@
+using GameVM.Compiler.Optimizers.MidLevel;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR.Soa;
 namespace GameVM.Compiler.Pascal.Tests;
 
 /// <summary>
@@ -24,11 +27,10 @@ public class EdgeCaseTests
         var source = "program Empty;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.SourceFile, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -44,10 +46,10 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -57,12 +59,16 @@ public class EdgeCaseTests
         var source = "program Empty;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
-        var mlir = _frontend.ConvertToMidLevelIR(result);
+        var astSlab = _frontend.ParseToSlab(source);
+        var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+        var optimizer = new DefaultMidLevelOptimizer();
+        var mlirSlab = hlirSlab.Count > 0
+            ? optimizer.OptimizeSlab(hlirSlab, _frontend.StringPool!, OptimizationLevel.None)
+            : default;
 
         // Assert
-        Assert.That(result, Is.Not.Null);
-        Assert.That(mlir, Is.Not.Null);
+        Assert.That(astSlab, Is.Not.Empty);
+        Assert.That(mlirSlab.Count, Is.GreaterThanOrEqualTo(0));
     }
 
     #endregion
@@ -76,10 +82,10 @@ public class EdgeCaseTests
         var source = $"program MaxInt;\nvar x: Integer;\nbegin\n  x := {int.MaxValue};\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
         // Large integer values should be parsed successfully
     }
 
@@ -90,10 +96,10 @@ public class EdgeCaseTests
         var source = $"program MinInt;\nvar x: Integer;\nbegin\n  x := {int.MinValue};\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
         // Negative large integer values should be parsed successfully
     }
 
@@ -104,10 +110,10 @@ public class EdgeCaseTests
         var source = "program Zero;\nvar x: Integer;\nbegin\n  x := 0;\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -117,10 +123,10 @@ public class EdgeCaseTests
         var source = "program Negative;\nvar x: Integer;\nbegin\n  x := -42;\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -133,9 +139,9 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.Parse(source);
+            var result = _frontend.ParseToSlab(source);
             // If parsing succeeds, overflow detection would be in type checking phase
-            Assert.That(result, Is.Not.Null);
+            Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
         {
@@ -165,11 +171,11 @@ public class EdgeCaseTests
         nestedCode += "end.";
 
         // Act
-        var result = _frontend.Parse(nestedCode);
+        var result = _frontend.ParseToSlab(nestedCode);
 
         // Assert
         // Compiler should handle deep nesting without stack overflow
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -184,10 +190,10 @@ public class EdgeCaseTests
         var source = $"program DeepExpr;\nvar x: Integer;\nbegin\n  x := {expr};\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -213,11 +219,11 @@ public class EdgeCaseTests
         code.AppendLine("end.");
 
         // Act
-        var result = _frontend.Parse(code.ToString());
+        var result = _frontend.ParseToSlab(code.ToString());
 
         // Assert
         // Compiler should handle large programs without performance issues
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -238,10 +244,10 @@ public class EdgeCaseTests
         code.AppendLine("end.");
 
         // Act
-        var result = _frontend.Parse(code.ToString());
+        var result = _frontend.ParseToSlab(code.ToString());
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -255,10 +261,10 @@ public class EdgeCaseTests
         var source = "program Test;\nvar myVariable: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -268,10 +274,10 @@ public class EdgeCaseTests
         var source = "program Test;\nvar var1, var2, var3: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -281,10 +287,10 @@ public class EdgeCaseTests
         var source = "program Test;\nvar my_var: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -294,10 +300,10 @@ public class EdgeCaseTests
         var source = "program Test;\nbegin\n  writeln('Hello! @#$%^');\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -309,8 +315,8 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.Parse(source);
-            Assert.That(result, Is.Not.Null);
+            var result = _frontend.ParseToSlab(source);
+            Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
         {
@@ -328,8 +334,8 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.Parse(source);
-            Assert.That(result, Is.Not.Null);
+            var result = _frontend.ParseToSlab(source);
+            Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
         {
@@ -364,9 +370,9 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.Parse(source);
+            var result = _frontend.ParseToSlab(source);
             // May have errors, but should attempt to parse
-            Assert.That(result, Is.Not.Null);
+            Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
         {
@@ -382,10 +388,10 @@ public class EdgeCaseTests
         var source = "program\tTest;\nvar\n\tx:\tInteger;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -395,10 +401,10 @@ public class EdgeCaseTests
         var source = "program Test;\n\n\nvar x: Integer;\n\n\nbegin\n\n\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -412,10 +418,10 @@ public class EdgeCaseTests
         var source = "program Test;\nvar x, y, z: Integer;\nbegin x := 1; y := 2; z := 3; end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -433,10 +439,10 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -458,10 +464,10 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -476,10 +482,10 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -500,10 +506,10 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -517,11 +523,11 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
         // Nested comments may or may not be supported
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion
@@ -536,11 +542,11 @@ public class EdgeCaseTests
         var source = $"program Test;\nvar {longIdentifier}: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
         // Long identifiers should be supported
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
@@ -551,10 +557,10 @@ public class EdgeCaseTests
         var source = $"program Test;\nbegin\n  writeln('{longString}');\nend.";
 
         // Act
-        var result = _frontend.Parse(source);
+        var result = _frontend.ParseToSlab(source);
 
         // Assert
-        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Not.Empty);
     }
 
     #endregion

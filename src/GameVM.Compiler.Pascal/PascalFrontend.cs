@@ -92,20 +92,6 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Parse source code into HighLevelIR (legacy OOP API for backward compatibility)
-        /// </summary>
-        [Obsolete("Use ParseToSlab for DOD pipeline. This method is kept for backward compatibility.")]
-        public HighLevelIR Parse(string sourceCode)
-        {
-            var astSlab = ParseToSlab(sourceCode);
-            if (astSlab.Count == 0)
-                return new HighLevelIR { SourceFile = "<unknown>" };
-
-            _ = ConvertToHlirSlab(astSlab);
-            return ConvertSlabToHighLevelIR();
-        }
-
-        /// <summary>
         /// Convert AST slab to HLIR slab (DOD pipeline) - takes/returns InstList
         /// </summary>
         public InstList ConvertToHlirSlab(InstList astSlab)
@@ -117,32 +103,5 @@ namespace GameVM.Compiler.Pascal
             return transformer.Transform(astSlab);
         }
 
-        /// <summary>
-        /// Convert HLIR to MidLevelIR (legacy OOP API for backward compatibility)
-        /// </summary>
-        [Obsolete("Use DOD pipeline with slabs. This method is kept for backward compatibility.")]
-        public MidLevelIR ConvertToMidLevelIR(HighLevelIR hlir)
-        {
-            // For now, return a basic MidLevelIR for backward compatibility
-            // In a full implementation, this would use the DOD pipeline
-            return new MidLevelIR
-            {
-                SourceFile = hlir?.SourceFile ?? "<unknown>",
-                Modules = new List<MidLevelIR.MLModule>()
-            };
-        }
-
-        /// <summary>
-        /// Convert HLIR slab to HighLevelIR object (for backward compatibility)
-        /// </summary>
-        private HighLevelIR ConvertSlabToHighLevelIR()
-        {
-            // Basic conversion - in practice this would deserialize the slab
-            return new HighLevelIR
-            {
-                SourceFile = "<parsed>",
-                Modules = new List<HlModule>()
-            };
-        }
     }
 }
