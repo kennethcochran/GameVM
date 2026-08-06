@@ -157,24 +157,25 @@ public class EdgeCaseTests
     [Test]
     public void Parse_DeeplyNestedBlocks_Succeeds()
     {
-        // Arrange - Create deeply nested if statements (50 levels)
+        // Arrange - Create properly nested if/then/else chains (20 levels deep).
+        // Each else is the statement of the enclosing then, forming a valid
+        // nested conditional in Pascal.
         var nestedCode = "program DeepNest;\nvar x: Integer;\nbegin\n";
-        for (int i = 0; i < 20; i++) // Reduced to 20 to avoid parser issues
+        for (int i = 0; i < 20; i++)
         {
             nestedCode += "  if true then\n";
         }
-        nestedCode += "    x := 1;\n";
+        nestedCode += "    x := 1\n";   // no semicolon before the first else
         for (int i = 0; i < 20; i++)
         {
-            nestedCode += "  else\n    x := 0;\n";
+            nestedCode += "  else\n    x := 0\n";
         }
-        nestedCode += "end.";
+        nestedCode += ";\nend.";
 
         // Act
         var result = _frontend.ParseToSlab(nestedCode);
 
-        // Assert
-        // Compiler should handle deep nesting without stack overflow
+        // Assert - Compiler should handle deep nesting without stack overflow
         Assert.That(result, Is.Not.Empty);
     }
 
@@ -367,18 +368,13 @@ public class EdgeCaseTests
         // Arrange
         var source = "programTest;varx:Integer;beginwriteln('test');end.";
 
-        // Act
-        try
-        {
-            var result = _frontend.ParseToSlab(source);
-            // May have errors, but should attempt to parse
-            Assert.That(result, Is.Not.Empty);
-        }
-        catch (Exception ex)
-        {
-            // No whitespace may cause parsing errors
-            Assert.That(ex, Is.Not.Null);
-        }
+        // Act - Use ParseToSlab (DOD pipeline). ANTLR parser should attempt to parse.
+        // Even if whitespace is missing, the parser should generate the AST with IDs.
+        // The _frontend.ParseToSlab method should not throw an exception for missing whitespace.
+        var result = _frontend.ParseToSlab(source);
+
+        // Assert - Compiler should handle minimal whitespace, returning a valid AST.
+        Assert.That(result, Is.Not.Empty);
     }
 
     [Test]
