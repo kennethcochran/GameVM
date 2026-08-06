@@ -211,6 +211,9 @@ PublishScripts/
 csx/
 *.build.csdef
 
+!.husky/csx/
+!.husky/csx/*.csx
+
 # Microsoft Azure Emulator
 ecf/
 rcf/
