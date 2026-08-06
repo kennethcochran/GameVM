@@ -153,9 +153,9 @@ Documentation for platforms is in `/docs/platforms/specs/`.
 - Maintain clear separation of concerns
 - Avoid deep nesting
 - Write testable code with dependency injection
+- **All warnings are treated as errors** - including SonarQube warnings and Roslyn analyzer warnings. Do not ignore or suppress warnings; fix the root cause instead.
 
 ## Contributing
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines including:
 - Fork and clone workflow
 - Branch naming conventions

@@ -119,3 +119,17 @@ If SonarQube MCP shows "failed":
 - Review test cases for usage examples
 - Look at existing backend implementations for patterns
 - Consult the issue tracker for known problems and discussions
+
+## Agent skills
+
+### Issue tracker
+
+Issues live on GitHub (kennethcochran/GameVM). Uses the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles mapped 1:1 to label strings: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.

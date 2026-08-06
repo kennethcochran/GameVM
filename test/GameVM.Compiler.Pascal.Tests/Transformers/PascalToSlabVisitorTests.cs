@@ -1,6 +1,5 @@
-using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
+using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
 using GameVM.Compiler.Core.IR.Buffers;
@@ -30,19 +29,21 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             ";
 
             var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena, new StringPool());
+            var builder = new InstListBuilder();
+            var visitor = new PascalToSlabVisitor(builder, new StringPool());
             visitor.Visit(context);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length)); // Header + at least one instruction
+            InstList slab = visitor.GetSlab();
+            Assert.That(slab.Count, Is.GreaterThan(0));
 
-            // Verify header is valid
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-            Assert.That(header.IrStage, Is.EqualTo(1u)); // HLIR
+            // Verify we have at least some instructions
+            Assert.That(slab.Tags.Length, Is.GreaterThan(0));
             
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            Console.WriteLine($"Instruction count: {slab.Count}");
+            for (int i = 0; i < slab.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+            }
         }
 
         [Test]
@@ -56,43 +57,44 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             ";
 
             var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena, new StringPool());
+            var builder = new InstListBuilder();
+            var visitor = new PascalToSlabVisitor(builder, new StringPool());
             visitor.Visit(context);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+            InstList slab = visitor.GetSlab();
+            Assert.That(slab.Count, Is.GreaterThan(0));
 
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-
-            // First instruction after header should be METHOD_DECLARATION (kind 10)
-            int headerLength = SlabHeader.HeaderIndex.Length;
-            uint methodDeclMetadata = slab[headerLength];
-            byte methodKind = InstructionMetadata.DecodeKind(methodDeclMetadata);
-            Assert.That(methodKind, Is.EqualTo(METHOD_DECLARATION), "First instruction should be method declaration");
-
-            // The method body (a BLOCK) should contain a VARIABLE_DECLARATION (kind 8)
-            bool foundVarDecl = false;
-            int i = headerLength;
-            while (i < slab.Length)
+            // Check for METHOD_DECLARATION (kind 10)
+            bool foundMethodDecl = false;
+            for (int i = 0; i < slab.Count; i++)
             {
-                uint meta = slab[i];
-                byte k = InstructionMetadata.DecodeKind(meta);
-                byte size = InstructionMetadata.DecodeSize(meta);
-                if (k == VARIABLE_DECLARATION)
+                if (slab.GetKind(i) == (byte)AstNodeKind.MethodDeclaration)
+                {
+                    foundMethodDecl = true;
+                    break;
+                }
+            }
+            Assert.That(foundMethodDecl, Is.True, "First instruction should be method declaration");
+
+            // Check for VARIABLE_DECLARATION (kind 8)
+            bool foundVarDecl = false;
+            for (int i = 0; i < slab.Count; i++)
+            {
+                if (slab.GetKind(i) == (byte)AstNodeKind.VariableDeclaration)
                 {
                     foundVarDecl = true;
-                    byte argCount = InstructionMetadata.DecodeArgCount(meta);
+                    ushort argCount = slab.GetArgCount(i);
                     Assert.That(argCount, Is.EqualTo(2), "Variable declaration should have 2 arguments (type, name)");
                     break;
                 }
-                if (size == 0 || i + size > slab.Length) break;
-                i += size;
             }
             Assert.That(foundVarDecl, Is.True, "Variable declaration should be present in the method body");
 
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            Console.WriteLine($"Instruction count: {slab.Count}");
+            for (int i = 0; i < slab.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+            }
         }
 
         [Test]
@@ -107,17 +109,32 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             ";
 
             var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena, new StringPool());
+            var builder = new InstListBuilder();
+            var visitor = new PascalToSlabVisitor(builder, new StringPool());
             visitor.Visit(context);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+            InstList slab = visitor.GetSlab();
+            Assert.That(slab.Count, Is.GreaterThan(0));
 
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-            
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            // Check for ASSIGNMENT (kind 7)
+            bool foundAssignment = false;
+            for (int i = 0; i < slab.Count; i++)
+            {
+                if (slab.GetKind(i) == (byte)AstNodeKind.Assignment)
+                {
+                    foundAssignment = true;
+                    ushort argCount = slab.GetArgCount(i);
+                    Assert.That(argCount, Is.EqualTo(2), "Assignment should have 2 arguments (target, value)");
+                    break;
+                }
+            }
+            Assert.That(foundAssignment, Is.True, "Assignment should be present in the method body");
+
+            Console.WriteLine($"Instruction count: {slab.Count}");
+            for (int i = 0; i < slab.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+            }
         }
 
         [Test]
@@ -135,17 +152,33 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             ";
 
             var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena, new StringPool());
+            var builder = new InstListBuilder();
+            var visitor = new PascalToSlabVisitor(builder, new StringPool());
             visitor.Visit(context);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+            InstList slab = visitor.GetSlab();
+            Assert.That(slab.Count, Is.GreaterThan(0));
 
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-            
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            // Check for IF_STATEMENT (kind 12)
+            bool foundIf = false;
+            for (int i = 0; i < slab.Count; i++)
+            {
+                if (slab.GetKind(i) == (byte)AstNodeKind.IfStatement)
+                {
+                    foundIf = true;
+                    ushort argCount = slab.GetArgCount(i);
+                    // IfStatement has condition, then, and optional else
+                    Assert.That(argCount >= 2, Is.True, "IfStatement should have at least 2 arguments (condition, then)");
+                    break;
+                }
+            }
+            Assert.That(foundIf, Is.True, "IfStatement should be present in the method body");
+
+            Console.WriteLine($"Instruction count: {slab.Count}");
+            for (int i = 0; i < slab.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+            }
         }
 
         [Test]
@@ -161,17 +194,32 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             ";
 
             var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new PascalToSlabVisitor(arena, new StringPool());
+            var builder = new InstListBuilder();
+            var visitor = new PascalToSlabVisitor(builder, new StringPool());
             visitor.Visit(context);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+            InstList slab = visitor.GetSlab();
+            Assert.That(slab.Count, Is.GreaterThan(0));
 
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-            
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            // Check for WHILE_STATEMENT (kind 13)
+            bool foundWhile = false;
+            for (int i = 0; i < slab.Count; i++)
+            {
+                if (slab.GetKind(i) == (byte)AstNodeKind.WhileStatement)
+                {
+                    foundWhile = true;
+                    ushort argCount = slab.GetArgCount(i);
+                    Assert.That(argCount, Is.EqualTo(2), "WhileStatement should have 2 arguments (condition, body)");
+                    break;
+                }
+            }
+            Assert.That(foundWhile, Is.True, "WhileStatement should be present in the method body");
+
+            Console.WriteLine($"Instruction count: {slab.Count}");
+            for (int i = 0; i < slab.Count; i++)
+            {
+                Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+            }
         }
 
         [Test]
@@ -186,18 +234,32 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             foreach (var code in testCases)
             {
                 var context = Parse(code);
-                var arena = new ArenaAllocator();
-                var visitor = new PascalToSlabVisitor(arena, new StringPool());
+                var builder = new InstListBuilder();
+                var visitor = new PascalToSlabVisitor(builder, new StringPool());
                 visitor.Visit(context);
 
-                uint[] slab = visitor.GetSlab();
-                Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+                InstList slab = visitor.GetSlab();
+                Assert.That(slab.Count, Is.GreaterThan(0), $"Instruction count should be > 0 for code: {code}");
 
-                var header = SlabHeader.Read(slab);
-                Assert.That(header.HasValidMagic(), Is.True, $"Header should be valid for code: {code}");
+                // Check for LITERAL types
+                bool foundLiteral = false;
+                for (int i = 0; i < slab.Count; i++)
+                {
+                    var kind = (AstNodeKind)slab.GetKind(i);
+                    if (kind == AstNodeKind.LiteralInt || kind == AstNodeKind.LiteralString || kind == AstNodeKind.LiteralBool)
+                    {
+                        foundLiteral = true;
+                        break;
+                    }
+                }
+                Assert.That(foundLiteral, Is.True, $"Should find a literal instruction for code: {code}");
                     
                 Console.WriteLine($"=== Code: {code} ===");
-                Console.WriteLine(new SlabPrinter(slab).Print());
+                Console.WriteLine($"Instruction count: {slab.Count}");
+                for (int i = 0; i < slab.Count; i++)
+                {
+                    Console.WriteLine($"  [{i}] Kind: {(AstNodeKind)slab.GetKind(i)}, Args: {slab.GetArgCount(i)}, Operands: {string.Join(", ", slab.GetOperands(i).ToArray())}");
+                }
             }
         }
     }

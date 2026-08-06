@@ -15,6 +15,7 @@
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Exceptions;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Application.Services;
 using GameVM.Compiler.Core.Interfaces;
 
@@ -47,7 +48,7 @@ namespace GameVM.Compiler.Application
             _frontend = frontend ?? throw new ArgumentNullException(nameof(frontend));
             _midLevelOptimizer = midLevelOptimizer ?? throw new ArgumentNullException(nameof(midLevelOptimizer));
             _lowLevelOptimizer = lowLevelOptimizer ?? throw new ArgumentNullException(nameof(lowLevelOptimizer));
-            _mlirToLlir = mlirToLlir;
+            _mlirToLlir = mlirToLlir ?? throw new ArgumentNullException(nameof(mlirToLlir));
             _codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
             _capabilityProvider = capabilityProvider ?? throw new ArgumentNullException(nameof(capabilityProvider));
             _capabilityValidator = capabilityValidator ?? throw new ArgumentNullException(nameof(capabilityValidator));
@@ -59,8 +60,8 @@ namespace GameVM.Compiler.Application
             try
             {
                 // Parse source code to AST slab (DOD pipeline)
-                uint[] astSlab = _frontend.ParseToSlab(sourceCode);
-                if (astSlab == null || astSlab.Length == 0)
+                InstList astSlab = _frontend.ParseToSlab(sourceCode);
+                if (astSlab.Count == 0)
                 {
                     string errorMsg = "Failed to parse source code to AST slab";
                     if (_frontend.LastParseErrors != null && _frontend.LastParseErrors.Any())
@@ -77,9 +78,9 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-// Convert AST slab to HLIR slab (DOD pipeline)
-                uint[] hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
-                if (hlirSlab == null || hlirSlab.Length == 0)
+                // Convert AST slab to HLIR slab (DOD pipeline)
+                InstList hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+                if (hlirSlab.Count == 0)
                 {
                     return new CompilationResult
                     {
@@ -105,50 +106,49 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-// Perform semantic analysis on HLIR slab (DOD pipeline)
-                 var semanticResult = _semanticAnalyzer.AnalyzeSlab(hlirSlab);
-                 if (!semanticResult.Success)
-                 {
-                     return new CompilationResult
-                     {
-                         Success = false,
-                         Code = Array.Empty<byte>(),
-                         SourceFile = extension,
-                         Target = options.Target,
-                         ErrorMessage = string.Join("; ", semanticResult.Errors)
-                     };
-                 }
+                // Perform semantic analysis on HLIR slab - use InstList directly
+                var semanticResult = _semanticAnalyzer.AnalyzeSlab(hlirSlab, stringPool);
+                if (!semanticResult.Success)
+                {
+                    return new CompilationResult
+                    {
+                        Success = false,
+                        Code = Array.Empty<byte>(),
+                        SourceFile = extension,
+                        Target = options.Target,
+                        ErrorMessage = string.Join("; ", semanticResult.Errors)
+                    };
+                }
 
-                 // Validate Capability Profile
-                 if (options.Enforcement == EnforcementLevel.Strict)
-                 {
-                     // First, validate that the backend supports the requested profile and extensions
-                     var backendProfile = _capabilityProvider.GetCapabilityProfile();
-                     var backendExtensions = _capabilityProvider.GetSupportedExtensions();
-                     
-                     var backendViolations = ValidateBackendCapabilities(options, backendProfile, backendExtensions);
-                     if (backendViolations.Any())
-                     {
-                         return new CompilationResult
-                         {
-                             Success = false,
-                             Code = Array.Empty<byte>(),
-                             SourceFile = extension,
-                             Target = options.Target,
-                             ErrorMessage = $"Backend capability violations: {string.Join("; ", backendViolations)}"
-                         };
-                     }
+                // Validate Capability Profile
+                if (options.Enforcement == EnforcementLevel.Strict)
+                {
+                    // First, validate that the backend supports the requested profile and extensions
+                    var backendProfile = _capabilityProvider.GetCapabilityProfile();
+                    var backendExtensions = _capabilityProvider.GetSupportedExtensions();
+                    
+                    var backendViolations = ValidateBackendCapabilities(options, backendProfile, backendExtensions);
+                    if (backendViolations.Any())
+                    {
+                        return new CompilationResult
+                        {
+                            Success = false,
+                            Code = Array.Empty<byte>(),
+                            SourceFile = extension,
+                            Target = options.Target,
+                            ErrorMessage = $"Backend capability violations: {string.Join("; ", backendViolations)}"
+                        };
+                    }
 
-                     // Then validate the code against the backend's actual capabilities
-                     // For slab-based validation, we need to convert slab to IR for validation?
-                     // For now, we skip HLIR validation and rely on later stages
-                     _ = _capabilityValidator; // suppress unused field warning until slab validation is implemented
-                     // WILLIMPLEMENT: slab-based validation for DOD pipeline
-                 }
+                    // Then validate the code against the backend's actual capabilities
+                    // For slab-based validation, we need to convert slab to IR for validation?
+                    // For now, we skip HLIR validation and rely on later stages
+                    _ = _capabilityValidator; // suppress unused field warning until slab validation is implemented
+                }
 
-                // Optimize HLIR slab to MLIR slab (DOD pipeline)
-                uint[] mlirSlab = _midLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, options.OptimizationLevel);
-                if (mlirSlab == null || mlirSlab.Length == 0)
+                // Optimize HLIR slab to MLIR slab (DOD pipeline) - use InstList directly
+                InstList mlirSlab = _midLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, options.OptimizationLevel);
+                if (mlirSlab.Count == 0)
                 {
                     return new CompilationResult
                     {
@@ -160,9 +160,9 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-                // Convert MLIR slab to LLIR slab (DOD pipeline)
-                uint[] llirSlab = _mlirToLlir.TransformSlab(mlirSlab, stringPool);
-                if (llirSlab == null || llirSlab.Length == 0)
+                // Convert MLIR slab to LLIR slab (DOD pipeline) - now using InstList directly
+                InstList llirSlab = _mlirToLlir.TransformSlab(mlirSlab, stringPool);
+                if (llirSlab.Count == 0)
                 {
                     return new CompilationResult
                     {
@@ -174,8 +174,9 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-                // Optimize LLIR slab (DOD pipeline)
+                // Optimize LLIR slab (DOD pipeline) - bridge InstList to InstList and back
                 llirSlab = _lowLevelOptimizer.OptimizeSlab(llirSlab, stringPool, options.OptimizationLevel);
+                // No need to convert back to uint[] since GenerateFromSlab accepts InstList
 
                 // Generate bytecode from LLIR slab (DOD pipeline)
                 var codeGenOptions = new CodeGenOptions
@@ -311,7 +312,7 @@ namespace GameVM.Compiler.Application
 
         /// <summary>
         /// Code dispatch strategy to use
-        /// </        /// </summary>
+        /// </summary>
         public DispatchStrategy DispatchStrategy { get; set; }
 
         /// <summary>
@@ -321,7 +322,7 @@ namespace GameVM.Compiler.Application
 
         /// <summary>
         /// Whether to optimize the generated code
-        /// </summary>
+        /// </>
         public bool Optimize { get; set; }
 
         /// <summary>
@@ -351,19 +352,19 @@ namespace GameVM.Compiler.Application
     public class CompilationResult
     {
         /// <summary>
-        /// Whether compilation was successful
+        /// Whether compilation succeeded
         /// </summary>
         public bool Success { get; set; }
 
         /// <summary>
         /// Generated code
         /// </summary>
-        public required byte[] Code { get; set; }
+        public byte[] Code { get; set; } = Array.Empty<byte>();
 
         /// <summary>
-        /// Source file that was compiled
+        /// Source file name
         /// </summary>
-        public required string SourceFile { get; set; }
+        public string SourceFile { get; set; } = string.Empty;
 
         /// <summary>
         /// Target architecture
@@ -371,13 +372,13 @@ namespace GameVM.Compiler.Application
         public Architecture Target { get; set; }
 
         /// <summary>
-        /// The profile used for this compilation
+        /// Capability profile
         /// </summary>
         public CapabilityLevel Profile { get; set; }
 
         /// <summary>
         /// Error message if compilation failed
         /// </summary>
-        public required string ErrorMessage { get; set; }
+        public string ErrorMessage { get; set; } = string.Empty;
     }
 }

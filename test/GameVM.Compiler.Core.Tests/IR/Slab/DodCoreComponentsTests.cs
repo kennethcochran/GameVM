@@ -1,4 +1,5 @@
 using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 namespace GameVM.Compiler.Core.Tests.IR.Slab;
 
@@ -60,12 +61,13 @@ public class DiagnosticJournalTests
     public void Record_And_TryGet_RoundTrips()
     {
         var journal = new DiagnosticJournal();
-        journal.Record(12, 100, 110, 42);
+        var index = InstIndex.FromInt(12);
+        journal.Record(index, 100, 110, 42);
 
         Assert.That(journal.Count, Is.EqualTo(1));
-        Assert.That(journal.Has(12), Is.True);
-        Assert.That(journal.TryGet(12, out var entry), Is.True);
-        Assert.That(entry.SlabOffset, Is.EqualTo(12u));
+        Assert.That(journal.Has(index), Is.True);
+        Assert.That(journal.TryGet(index, out var entry), Is.True);
+        Assert.That(entry.InstIndex, Is.EqualTo(index));
         Assert.That(entry.SourceStart, Is.EqualTo(100u));
         Assert.That(entry.SourceEnd, Is.EqualTo(110u));
         Assert.That(entry.DiagnosticCode, Is.EqualTo(42u));
@@ -75,11 +77,12 @@ public class DiagnosticJournalTests
     public void Record_SameOffset_Replaces()
     {
         var journal = new DiagnosticJournal();
-        journal.Record(12, 100, 110, 1);
-        journal.Record(12, 200, 210, 2);
+        var index = InstIndex.FromInt(12);
+        journal.Record(index, 100, 110, 1);
+        journal.Record(index, 200, 210, 2);
 
         Assert.That(journal.Count, Is.EqualTo(1));
-        Assert.That(journal.TryGet(12, out var entry), Is.True);
+        Assert.That(journal.TryGet(index, out var entry), Is.True);
         Assert.That(entry.DiagnosticCode, Is.EqualTo(2u));
     }
 
@@ -87,17 +90,18 @@ public class DiagnosticJournalTests
     public void TryGet_Missing_ReturnsFalse()
     {
         var journal = new DiagnosticJournal();
-        Assert.That(journal.TryGet(99, out _), Is.False);
+        Assert.That(journal.TryGet(InstIndex.FromInt(99), out _), Is.False);
     }
 
     [Test]
     public void Remove_DeletesEntry()
     {
         var journal = new DiagnosticJournal();
-        journal.Record(12, 100, 110, 1);
-        Assert.That(journal.Remove(12), Is.True);
+        var index = InstIndex.FromInt(12);
+        journal.Record(index, 100, 110, 1);
+        Assert.That(journal.Remove(index), Is.True);
         Assert.That(journal.Count, Is.EqualTo(0));
-        Assert.That(journal.Has(12), Is.False);
+        Assert.That(journal.Has(index), Is.False);
     }
 
     [Test]
@@ -105,14 +109,15 @@ public class DiagnosticJournalTests
     {
         // Default capacity 16; record 20 distinct offsets to force growth.
         var journal = new DiagnosticJournal();
-        for (uint i = 0; i < 20; i++)
-            journal.Record(100 + i, i, i + 1, i);
+        for (int i = 0; i < 20; i++)
+            journal.Record(InstIndex.FromInt(100 + i), (uint)i, (uint)(i + 1), (uint)i);
 
         Assert.That(journal.Count, Is.EqualTo(20));
-        for (uint i = 0; i < 20; i++)
+        for (int i = 0; i < 20; i++)
         {
-            Assert.That(journal.TryGet(100 + i, out var entry), Is.True);
-            Assert.That(entry.DiagnosticCode, Is.EqualTo(i));
+            var index = InstIndex.FromInt(100 + i);
+            Assert.That(journal.TryGet(index, out var entry), Is.True);
+            Assert.That(entry.DiagnosticCode, Is.EqualTo((uint)i));
         }
     }
 
@@ -120,15 +125,15 @@ public class DiagnosticJournalTests
     public void Record_AfterSwapRemove_RetainsCorrectEntry()
     {
         var journal = new DiagnosticJournal();
-        journal.Record(1, 0, 0, 10);
-        journal.Record(2, 0, 0, 20);
-        journal.Record(3, 0, 0, 30);
-        journal.Remove(2); // swap-remove middle entry
+        journal.Record(InstIndex.FromInt(1), 0, 0, 10);
+        journal.Record(InstIndex.FromInt(2), 0, 0, 20);
+        journal.Record(InstIndex.FromInt(3), 0, 0, 30);
+        journal.Remove(InstIndex.FromInt(2)); // swap-remove middle entry
 
         Assert.That(journal.Count, Is.EqualTo(2));
-        Assert.That(journal.TryGet(1, out var e1), Is.True); Assert.That(e1.DiagnosticCode, Is.EqualTo(10u));
-        Assert.That(journal.TryGet(3, out var e3), Is.True); Assert.That(e3.DiagnosticCode, Is.EqualTo(30u));
-        Assert.That(journal.Has(2), Is.False);
+        Assert.That(journal.TryGet(InstIndex.FromInt(1), out var e1), Is.True); Assert.That(e1.DiagnosticCode, Is.EqualTo(10u));
+        Assert.That(journal.TryGet(InstIndex.FromInt(3), out var e3), Is.True); Assert.That(e3.DiagnosticCode, Is.EqualTo(30u));
+        Assert.That(journal.Has(InstIndex.FromInt(2)), Is.False);
     }
 }
 
@@ -224,64 +229,3 @@ public class TlvSectionTests
     }
 }
 
-public class SlabRelocatorTests
-{
-    [Test]
-    public void Relocate_Unmapped_ReturnsOriginal()
-    {
-        var reloc = new SlabRelocator();
-        Assert.That(reloc.Relocate(50), Is.EqualTo(50));
-    }
-
-    [Test]
-    public void AddReloc_Then_Relocate_MapsOffset()
-    {
-        var reloc = new SlabRelocator();
-        reloc.AddReloc(10, 40);
-        Assert.That(reloc.Relocate(10), Is.EqualTo(40));
-        Assert.That(reloc.HasReloc(10), Is.True);
-        Assert.That(reloc.RelocCount, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void PatchSlab_RewritesRegisteredOperandOffsets()
-    {
-        // Build a slab: header(6) + block at offset 6 (size 2, operand at +1 = 7 initially 10)
-        var slab = new uint[9];
-        slab[0] = SlabHeader.Magic;
-        slab[1] = 1; slab[2] = 0; slab[3] = 1; slab[4] = 1; slab[5] = 0;
-        slab[6] = GameVM.Compiler.Core.Utilities.MetadataEncoder.Encode(1, 2, 1); // size 2
-        slab[7] = 10; // operand = old offset 10
-        slab[8] = 0;
-
-        var reloc = new SlabRelocator();
-        reloc.AddReloc(10, 40);
-
-        reloc.PatchSlab(slab, new[] { 1 }); // operand at block-relative index 1
-
-        Assert.That(slab[7], Is.EqualTo(40u));
-    }
-
-    [Test]
-    public void AddReloc_BeyondCapacity_GrowsAndKeepsAll()
-    {
-        // Default capacity 16; register 20 relocations to force growth.
-        var reloc = new SlabRelocator();
-        for (int i = 0; i < 20; i++)
-            reloc.AddReloc(i, i + 100);
-
-        Assert.That(reloc.RelocCount, Is.EqualTo(20));
-        for (int i = 0; i < 20; i++)
-            Assert.That(reloc.Relocate(i), Is.EqualTo(i + 100));
-    }
-
-    [Test]
-    public void AddReloc_DuplicateOldOffset_UpdatesNewOffset()
-    {
-        var reloc = new SlabRelocator();
-        reloc.AddReloc(10, 40);
-        reloc.AddReloc(10, 99);
-        Assert.That(reloc.RelocCount, Is.EqualTo(1));
-        Assert.That(reloc.Relocate(10), Is.EqualTo(99));
-    }
-}

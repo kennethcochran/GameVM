@@ -1,5 +1,7 @@
+using System;
+using NUnit.Framework;
 using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.Utilities;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 namespace GameVM.Compiler.Core.Tests.IR.Slab;
 
@@ -16,7 +18,7 @@ public class CfgTableTests
     [Test]
     public void Constructor_WithNegativeBlockCount_Throws()
     {
-        Assert.Throws<System.ArgumentOutOfRangeException>(() => new CfgTable(-1, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CfgTable(-1, 0));
     }
 
     [Test]
@@ -53,59 +55,55 @@ public class CfgTableTests
 
 public class CfgConstructionPassTests
 {
-    private static uint[] BuildSlab(params uint[] instructions)
+    private static InstList BuildList(
+        InstructionFlag flags0 = InstructionFlag.None,
+        InstructionFlag flags1 = InstructionFlag.None,
+        InstructionFlag flags2 = InstructionFlag.None,
+        InstructionFlag flags3 = InstructionFlag.None)
     {
-        var slab = new uint[6 + instructions.Length];
-        slab[0] = 0x4741564D;
-        slab[1] = 1;
-        slab[2] = 0;
-        slab[3] = 1;
-        slab[4] = (uint)instructions.Length;
-        slab[5] = 0;
-        Array.Copy(instructions, 0, slab, 6, instructions.Length);
-        return slab;
+        var builder = new InstListBuilder();
+        builder.Add(1, flags0, 0);
+        builder.Add(2, flags1, 0);
+        builder.Add(3, flags2, 0);
+        builder.Add(4, flags3, 0);
+        return builder.Build();
     }
 
     [Test]
     public void Build_SingleLinearBlock_OneBlockNoEdges()
     {
-        var slab = BuildSlab(
-            MetadataEncoder.Encode(1, 1, 0),
-            MetadataEncoder.Encode(2, 1, 0),
-            MetadataEncoder.Encode(3, 1, 0));
         // No terminators -> single block, no edges
+        var slab = BuildList();
         var pass = new CfgConstructionPass(slab);
         var table = pass.Build(_ => new int[0]);
 
         Assert.That(table.BlockCount, Is.EqualTo(1));
-        Assert.That(table.GetBlockOffset(0), Is.EqualTo(6));
+        Assert.That(table.GetBlockOffset(0), Is.EqualTo(0));
         Assert.That(table.GetSuccessors(0), Is.Empty);
     }
 
     [Test]
     public void Build_BranchSplitsBlocks_AndRecordsEdge()
     {
-        // Block A: instr@6 (term -> target@9), instr@7, instr@8
-        // Block B: instr@9
-        var slab = BuildSlab(
-            MetadataEncoder.Encode(1, 1, 0, isTerminator: true), // @6 jumps to @9
-            MetadataEncoder.Encode(2, 1, 0),                     // @7
-            MetadataEncoder.Encode(3, 1, 0),                     // @8
-            MetadataEncoder.Encode(4, 1, 0));                    // @9 (leader)
+        // Block A: instr@0 (term -> target@3), instr@1, instr@2
+        // Block B: instr@3
+        var slab = BuildList(InstructionFlag.Terminator, InstructionFlag.None, InstructionFlag.None, InstructionFlag.None);
         var pass = new CfgConstructionPass(slab);
-        var table = pass.Build(offset => offset == 6 ? new[] { 9 } : new int[0]);
+        var table = pass.Build(idx => idx == 0 ? new[] { 3 } : new int[0]);
 
         Assert.That(table.BlockCount, Is.EqualTo(2));
-        Assert.That(table.GetBlockOffset(0), Is.EqualTo(6));
-        Assert.That(table.GetBlockOffset(1), Is.EqualTo(9));
+        Assert.That(table.GetBlockOffset(0), Is.EqualTo(0));
+        Assert.That(table.GetBlockOffset(1), Is.EqualTo(3));
         Assert.That(table.GetSuccessors(0), Is.EquivalentTo(new[] { 1 }));
     }
 
     [Test]
     public void Build_ReturnTerminator_CreatesBlockButNoEdge()
     {
-        var slab = BuildSlab(
-            MetadataEncoder.Encode(1, 1, 0, isTerminator: true)); // @6 returns (no target)
+        // Single terminator returning (no target)
+        var builder = new InstListBuilder();
+        builder.Add(1, InstructionFlag.Terminator, 0);
+        var slab = builder.Build();
         var pass = new CfgConstructionPass(slab);
         var table = pass.Build(_ => new int[0]);
 
@@ -116,24 +114,50 @@ public class CfgConstructionPassTests
     [Test]
     public void Build_PostTerminatorInstruction_IsLeader()
     {
-        // @6 terminator (target@9); @7 falls through -> leader; @9 leader (target)
-        var slab = BuildSlab(
-            MetadataEncoder.Encode(1, 1, 0, isTerminator: true), // @6 -> @9
-            MetadataEncoder.Encode(2, 1, 0),                     // @7 leader (fall-through)
-            MetadataEncoder.Encode(3, 1, 0),                     // @8
-            MetadataEncoder.Encode(4, 1, 0));                    // @9 leader (target)
+        // @0 terminator -> @3; @1 falls through -> leader; @3 leader (target)
+        var slab = BuildList(InstructionFlag.Terminator, InstructionFlag.None, InstructionFlag.None, InstructionFlag.None);
         var pass = new CfgConstructionPass(slab);
-        var table = pass.Build(offset => offset == 6 ? new[] { 9 } : new int[0]);
+        var table = pass.Build(idx => idx == 0 ? new[] { 3 } : new int[0]);
 
-        // Leaders: @6 (entry/jump), @9 (target) => 2 blocks
+        // Leaders: @0 and @3 => 2 blocks
         Assert.That(table.BlockCount, Is.EqualTo(2));
-        Assert.That(table.GetBlockOffset(0), Is.EqualTo(6));
-        Assert.That(table.GetBlockOffset(1), Is.EqualTo(9));
+        Assert.That(table.GetBlockOffset(0), Is.EqualTo(0));
+        Assert.That(table.GetBlockOffset(1), Is.EqualTo(3));
     }
 
     [Test]
     public void Constructor_WithTooShortSlab_Throws()
     {
-        Assert.Throws<System.ArgumentException>(() => new CfgConstructionPass(new uint[3]));
+        // An empty InstList has no entry instruction and is invalid for CFG construction.
+        Assert.Throws<ArgumentException>(
+            () => new CfgConstructionPass(new InstListBuilder().Build()).Build(_ => new int[0]));
+    }
+
+    [Test]
+    public void Build_PopulatesInstListBlockIdsWithBlockIdHandles()
+    {
+        // Arrange: two blocks (0: instr@0-1, 1: instr@2-3) with a branch from @0 to @2
+        var slab = BuildList(InstructionFlag.Terminator, InstructionFlag.None, InstructionFlag.None, InstructionFlag.None);
+        var pass = new CfgConstructionPass(slab);
+        var table = pass.Build(idx => idx == 0 ? new[] { 2 } : new int[0]);
+
+        // Act & Assert: verify InstList.BlockIds[] contains BlockId handle values
+        // BlockId handle mapping: 0 = unassigned, 1+ = assigned block ID (blockIndex + 1)
+        ReadOnlySpan<int> blockIds = slab.BlockIds;
+
+        // Instruction 0: leader of block 0 => BlockId.FromInt(0 + 1) = 1
+        Assert.That(blockIds[0], Is.EqualTo(1), "Instruction 0 should be in block 0");
+        // Instruction 1: in block 0 => BlockId.FromInt(0 + 1) = 1
+        Assert.That(blockIds[1], Is.EqualTo(1), "Instruction 1 should be in block 0");
+        // Instruction 2: leader of block 1 => BlockId.FromInt(1 + 1) = 2
+        Assert.That(blockIds[2], Is.EqualTo(2), "Instruction 2 should be in block 1");
+        // Instruction 3: in block 1 => BlockId.FromInt(1 + 1) = 2
+        Assert.That(blockIds[3], Is.EqualTo(2), "Instruction 3 should be in block 1");
+
+        // Also verify CfgTable still works correctly
+        Assert.That(table.BlockCount, Is.EqualTo(2));
+        Assert.That(table.GetBlockOffset(0), Is.EqualTo(0));
+        Assert.That(table.GetBlockOffset(1), Is.EqualTo(2));
+        Assert.That(table.GetSuccessors(0), Is.EqualTo(new[] { 1 }));
     }
 }

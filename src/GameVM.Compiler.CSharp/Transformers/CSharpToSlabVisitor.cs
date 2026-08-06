@@ -1,50 +1,37 @@
-using System;
-using System.Collections.Generic;
-using Antlr4.Runtime;
 using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
+using GameVM.Compiler.Core.IR.Buffers;
+using Antlr4.Runtime;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.CSharp.ANTLR;
+using static GameVM.Compiler.Core.IR.Soa.InstConstants;
 
 namespace GameVM.Compiler.CSharp.Transformers
 {
     public class CSharpToSlabVisitor : CSharpBaseVisitor<object>
     {
-        private readonly ArenaAllocator _arena;
-        private uint _headerOffset;
+        private readonly InstListBuilder _builder;
+        private readonly StringPool _stringPool;
+        // Inlined from former InstructionMetadataFlags (deleted)
+        private const byte VARIABLE_DECLARATION = 8;
+        private const byte LITERAL_INT = 1;
+        private const byte LITERAL_STRING = 2;
+        private const byte LITERAL_BOOL = 3;
+        private const byte IDENTIFIER = 4;
 
-        public CSharpToSlabVisitor(ArenaAllocator arena)
+        public CSharpToSlabVisitor(InstListBuilder builder, StringPool stringPool)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+            _stringPool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
         }
 
-        public uint[] GetSlab()
+        public InstList GetSlab()
         {
-            return _arena.ToContiguousArray();
-        }
-
-        public uint HeaderOffset => _headerOffset;
-
-        public override object VisitProgram(CSharpParser.ProgramContext context)
-        {
-            // Allocate header space at offset 0
-            _headerOffset = _arena.Allocate(SlabHeader.HeaderIndex.Length);
-            
-            // Create header with proper magic and write it
-            var header = SlabHeader.ForStage(irStage: 1, elementCount: 0);
-            uint[] headerData = new uint[SlabHeader.HeaderIndex.Length];
-            header.WriteTo(headerData);
-            _arena.Write(_headerOffset, headerData);
-            
-            return base.VisitProgram(context);
+            return _builder.Build();
         }
 
         public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
         {
-            // Allocate space for VARIABLE_DECLARATION instruction: metadata + 2 args = 3 uints
-            uint startOffset = _arena.Allocate(3);
-            
+            // VARIABLE_DECLARATION: [typeKind, nameOffset]
             string typeNameStr = context.type().GetText();
             byte typeKind = typeNameStr switch
             {
@@ -55,18 +42,23 @@ namespace GameVM.Compiler.CSharp.Transformers
             };
 
             string varName = context.identifier().GetText();
+            uint nameOffset = _stringPool.Intern(varName);
 
-            // VARIABLE_DECLARATION instruction: [metadata, typeKind, varNameHash]
-            _arena.Write(startOffset, Encode(VARIABLE_DECLARATION, 3, 2), typeKind, (uint)varName.GetHashCode());
-
+            // Always allocate 3 args: typeKind, nameOffset, initValue (0 if no initializer)
+            uint initValue = 0u;
             if (context.expression() != null)
             {
-                uint exprOffset = (uint)VisitExpression(context.expression());
-                // Store the expression result as the third argument (initializer value)
-                _arena.Write(startOffset + 2, exprOffset);
+                var exprObj = VisitExpression(context.expression());
+                if (exprObj is int exprInt && exprInt >= 0)
+                {
+                    initValue = (uint)exprInt;
+                }
             }
 
-            return startOffset;
+            int index = _builder.Add(VARIABLE_DECLARATION, InstructionFlag.None, 3, 0,
+                (uint)typeKind, nameOffset, initValue);
+
+            return index;
         }
 
         public override object VisitExpression(CSharpParser.ExpressionContext context)
@@ -85,34 +77,35 @@ namespace GameVM.Compiler.CSharp.Transformers
         public override object VisitLiteral(CSharpParser.LiteralContext context)
         {
             // Allocate space for literal instruction: metadata + 1 value = 2 uints
-            uint startOffset = _arena.Allocate(2);
             if (context.INT_LITERAL() != null)
             {
                 int value = int.Parse(context.INT_LITERAL().GetText());
-                _arena.Write(startOffset, Encode(LITERAL_INT, 2, 1), (uint)value);
+                int index = _builder.Add(LITERAL_INT, InstructionFlag.None, 1, 0, (uint)value);
+                return index;
             }
             else if (context.STRING_LITERAL() != null)
             {
                 string text = context.STRING_LITERAL().GetText();
-                uint stringId = (uint)text.GetHashCode();
-                _arena.Write(startOffset, Encode(LITERAL_STRING, 2, 1), stringId);
+                uint stringId = _stringPool.Intern(text);
+                int index = _builder.Add(LITERAL_STRING, InstructionFlag.None, 1, 0, stringId);
+                return index;
             }
             else if (context.BOOL_LITERAL() != null)
             {
                 bool value = context.BOOL_LITERAL().GetText() == "true";
-                _arena.Write(startOffset, Encode(LITERAL_BOOL, 2, 1), value ? 1u : 0u);
+                int index = _builder.Add(LITERAL_BOOL, InstructionFlag.None, 1, 0, value ? 1u : 0u);
+                return index;
             }
-            return startOffset;
+            return 0; // default
         }
 
         public override object VisitIdentifier(CSharpParser.IdentifierContext context)
         {
             // Allocate space for identifier instruction: metadata + 1 id = 2 uints
-            uint startOffset = _arena.Allocate(2);
             string name = context.GetText();
-            uint nameId = (uint)name.GetHashCode();
-            _arena.Write(startOffset, Encode(IDENTIFIER, 2, 1), nameId);
-            return startOffset;
+            uint nameId = _stringPool.Intern(name);
+            int index = _builder.Add(IDENTIFIER, InstructionFlag.None, 1, 0, nameId);
+            return index;
         }
     }
 }

@@ -1,9 +1,11 @@
+using System;
 using GameVM.Compiler.Application.Services;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
-using GameVM.Compiler.Core.IR.Buffers;
-using GameVM.Compiler.Core.Enums;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
+using GameVM.Compiler.Core.IR.Soa;
 
 namespace GameVM.Compiler.Optimizers.LowLevel
 {
@@ -13,20 +15,60 @@ namespace GameVM.Compiler.Optimizers.LowLevel
     /// </summary>
     public sealed class DefaultLowLevelOptimizer : ILowLevelOptimizer
     {
-        private readonly ArenaAllocator _arena;
+        private const byte LLIR_LOAD = (byte)LlirInstructionKind.Load;
+        private const byte LLIR_STORE = (byte)LlirInstructionKind.Store;
 
-        public DefaultLowLevelOptimizer()
+        /// <summary>
+        /// Optimizes the given LLIR slab using InstList (DOD SoA format).
+        /// </summary>
+        public InstList OptimizeSlab(InstList llirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
         {
-            _arena = new ArenaAllocator();
-        }
+            if (llirSlab.Count == 0)
+            {
+                return llirSlab;
+            }
 
-        public DefaultLowLevelOptimizer(ArenaAllocator arena)
-        {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            var builder = new InstListBuilder(llirSlab.Count);
+
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                byte kind = llirSlab.GetKind(i);
+                ushort argCount = llirSlab.GetArgCount(i);
+                ReadOnlySpan<uint> operands = llirSlab.GetOperands(i);
+
+                bool skip = false;
+
+                if (optimizationLevel != OptimizationLevel.None)
+                {
+                    switch (kind)
+                    {
+                        case LLIR_LOAD:
+                            if (optimizationLevel == OptimizationLevel.Basic || optimizationLevel == OptimizationLevel.Aggressive)
+                            {
+                                skip = IsOverwrittenLoad(llirSlab, i, operands);
+                            }
+                            break;
+
+                        case LLIR_STORE:
+                            if (optimizationLevel == OptimizationLevel.Basic || optimizationLevel == OptimizationLevel.Aggressive)
+                            {
+                                skip = IsRedundantStore(llirSlab, i, operands);
+                            }
+                            break;
+                    }
+                }
+
+                if (!skip)
+                {
+                    builder.Append(kind, InstructionFlag.None, argCount, 0, operands);
+                }
+            }
+
+            return builder.Build();
         }
 
         /// <summary>
-        /// Optimizes the given LLIR slab using linear iteration and switch-based processing.
+        /// Legacy API for backward compatibility - converts uint[] to InstList, optimizes, converts back.
         /// </summary>
         public uint[] OptimizeSlab(uint[] llirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
         {
@@ -41,176 +83,162 @@ namespace GameVM.Compiler.Optimizers.LowLevel
                 throw new ArgumentException("Invalid LLIR slab: invalid magic number");
             }
 
-            if (header.IrStage != 3) // Stage 3 = LLIR
+            if (header.IrStage != 3)
             {
                 throw new ArgumentException($"Expected LLIR slab (stage 3), got stage {header.IrStage}");
             }
 
-            // Reset arena and prepare to build optimized slab
-            _arena.Reset();
-
-            // Copy header (we'll update the instruction count later)
-            var headerBytes = new uint[SlabHeader.HeaderIndex.Length];
-            Array.Copy(llirSlab, 0, headerBytes, 0, SlabHeader.HeaderIndex.Length);
-            var headerOffset = _arena.Allocate(SlabHeader.HeaderIndex.Length);
-            _arena.Write(headerOffset, headerBytes);
-
-            int instructionCount = 0;
-            int offset = SlabHeader.HeaderIndex.Length;
-
-            // Process each instruction
-            while (offset < llirSlab.Length)
-            {
-                var metadata = llirSlab[offset];
-                var size = InstructionMetadata.DecodeSize(metadata);
-                var kind = InstructionMetadata.DecodeKind(metadata);
-
-                if (size == 0 || offset + size > llirSlab.Length)
-                    break;
-
-                // Apply optimizations based on level
-                bool skip = false;
-                switch (optimizationLevel)
-                {
-                    case OptimizationLevel.None:
-                        // No optimization - copy as-is
-                        CopyInstruction(llirSlab, offset);
-                        break;
-                    case OptimizationLevel.Basic:
-                        skip = ApplyBasicOptimizations(llirSlab, ref offset, size, kind);
-                        break;
-                    case OptimizationLevel.Aggressive:
-                        skip = ApplyAggressiveOptimizations(llirSlab, ref offset, size, kind);
-                        break;
-                }
-
-                if (!skip)
-                {
-                    instructionCount++;
-                }
-
-                // Move to next instruction (whether we copied it or skipped it)
-                offset += size;
-            }
-
-            // Update header with actual instruction count
-            var updatedHeader = SlabHeader.ForStage(3, (uint)instructionCount);
-            var updatedHeaderBytes = new uint[SlabHeader.HeaderIndex.Length];
-            updatedHeader.WriteTo(updatedHeaderBytes);
-            _arena.Write(0, updatedHeaderBytes); // Write at start of arena
-
-            return _arena.ToContiguousArray();
+            var instList = ConvertFromLegacySlab(llirSlab);
+            var optimized = OptimizeSlab(instList, stringPool, optimizationLevel);
+            return ConvertToLegacySlab(optimized);
         }
 
-        private bool ApplyBasicOptimizations(uint[] slab, ref int offset, int size, byte kind)
+        /// <summary>
+        /// Checks if a STORE is redundant: the previous instruction is a LOAD with
+        /// identical operands (load-store pair reduction — the store writes back
+        /// the value that was just loaded, which is a no-op).
+        /// </summary>
+        private static bool IsRedundantStore(InstList llirSlab, int instIndex, ReadOnlySpan<uint> operands)
         {
-            switch (kind)
-            {
-                case LLIR_STORE:
-                    // Basic optimization: eliminate redundant load-store pairs
-                    return EliminateRedundantStore(slab, ref offset, size);
-                default:
-                    CopyInstruction(slab, offset);
-                    return false;
-            }
-        }
-
-        private bool ApplyAggressiveOptimizations(uint[] slab, ref int offset, int size, byte kind)
-        {
-            switch (kind)
-            {
-                case LLIR_LOAD:
-                    // Aggressive: eliminate dead loads (simplified)
-                    return EliminateDeadLoad(slab, ref offset, size);
-                case LLIR_STORE:
-                    // Aggressive: eliminate redundant stores
-                    return EliminateRedundantStore(slab, ref offset, size);
-                default:
-                    CopyInstruction(slab, offset);
-                    return false;
-            }
-        }
-
-        private bool EliminateRedundantStore(uint[] slab, ref int offset, int size)
-        {
-            // Simple check: if this store is preceded by a load to same register with same value
-            if (offset < SlabHeader.HeaderIndex.Length + size)
+            if (operands.Length < 2 || instIndex <= 0)
                 return false;
 
-            int prevOffset = offset - size;
-            if (prevOffset < SlabHeader.HeaderIndex.Length)
+            int prevIndex = instIndex - 1;
+            if (llirSlab.GetKind(prevIndex) != LLIR_LOAD)
                 return false;
 
-            var prevMetadata = slab[prevOffset];
-            var prevKind = InstructionMetadata.DecodeKind(prevMetadata);
+            if (llirSlab.GetArgCount(prevIndex) < 2)
+                return false;
 
-            if (prevKind == LLIR_LOAD)
+            uint prevReg = llirSlab.GetOperand(prevIndex, 0);
+            uint prevVal = llirSlab.GetOperand(prevIndex, 1);
+            uint currReg = operands[0];
+            uint currVal = operands[1];
+
+            return currReg == prevReg && currVal == prevVal;
+        }
+
+        /// <summary>
+        /// Checks if a LOAD is overwritten: a subsequent LOAD to the same register occurs
+        /// before any STORE consumes its value.
+        /// </summary>
+        private static bool IsOverwrittenLoad(InstList llirSlab, int instIndex, ReadOnlySpan<uint> operands)
+        {
+            if (operands.Length < 1)
+                return false;
+
+            uint reg = operands[0];
+
+            for (int i = instIndex + 1; i < llirSlab.Count; i++)
             {
-                // Check if same register and value
-                var currReg = slab[offset + 1];
-                var currVal = slab[offset + 2];
-                var prevReg = slab[prevOffset + 1];
-                var prevVal = slab[prevOffset + 2];
-                
-                if (currReg == prevReg && currVal == prevVal)
+                byte nextKind = llirSlab.GetKind(i);
+                ushort nextArgCount = llirSlab.GetArgCount(i);
+
+                if (nextKind == LLIR_STORE && nextArgCount >= 1)
                 {
-                    // Skip this store - it's redundant
-                    return true;
+                    uint storeReg = llirSlab.GetOperand(i, 0);
+                    if (storeReg == reg)
+                    {
+                        return false; // Load's value IS used by this store
+                    }
+                }
+                else if (nextKind == LLIR_LOAD && nextArgCount >= 1)
+                {
+                    uint loadReg = llirSlab.GetOperand(i, 0);
+                    if (loadReg == reg)
+                    {
+                        return true; // Overwritten before use — dead
+                    }
                 }
             }
-            
-            CopyInstruction(slab, offset);
+
+            // No subsequent load or store found — keep the load (might be consumed externally)
             return false;
         }
 
-        private bool EliminateDeadLoad(uint[] slab, ref int offset, int size)
+        /// <summary>
+        /// Converts a legacy uint[] LLIR slab to InstList.
+        /// </summary>
+        private static InstList ConvertFromLegacySlab(uint[] slab)
         {
-            // Simple dead load elimination: if load is not followed by a store to same register
-            if (offset + size * 2 > slab.Length) // Not enough space for load + potential store
+            var header = SlabHeader.Read(slab);
+            int count = (int)header.ElementCount;
+
+            var tags = new byte[count];
+            var flags = new ushort[count];
+            var argCounts = new ushort[count];
+            var fixedOps = new uint[count * InstConstants.MAX_FIXED_OPS];
+            var extraOffsets = new uint[count];
+
+            int opIndex = 0;
+            int dataOffset = SlabHeader.HeaderIndex.Length;
+            for (int i = 0; i < count; i++)
             {
-                CopyInstruction(slab, offset);
-                return false;
+                uint meta = slab[dataOffset + i];
+                tags[i] = (byte)(meta & 0xFF);
+                argCounts[i] = (ushort)((meta >> 14) & 0x3F);
+
+                for (int j = 0; j < argCounts[i] && j < InstConstants.MAX_FIXED_OPS; j++)
+                {
+                    fixedOps[i * InstConstants.MAX_FIXED_OPS + j] = slab[dataOffset + count + opIndex + j];
+                }
+                opIndex += (int)argCounts[i];
+                extraOffsets[i] = 0;
             }
 
-            _ = slab[offset];
-            var reg = slab[offset + 1];
+            var actualOperands = new uint[opIndex];
+            Array.Copy(slab, dataOffset + count, actualOperands, 0, opIndex);
 
-            // Check if next instruction is a store of the same register
-            int nextOffset = offset + size;
-            if (nextOffset < slab.Length)
+            return new InstList(
+                tags,
+                flags,
+                argCounts,
+                fixedOps,
+                actualOperands,
+                extraOffsets,
+                new int[count],
+                count,
+                (uint)opIndex
+            );
+        }
+
+        /// <summary>
+        /// Converts an InstList to a legacy uint[] LLIR slab.
+        /// </summary>
+        private static uint[] ConvertToLegacySlab(InstList slab)
+        {
+            int count = slab.Count;
+            int operandCount = 0;
+            for (int i = 0; i < count; i++)
             {
-                var nextMetadata = slab[nextOffset];
-                var nextSize = InstructionMetadata.DecodeSize(nextMetadata);
-                var nextKind = InstructionMetadata.DecodeKind(nextMetadata);
-                
-                if (nextKind == LLIR_STORE && 
-                    nextSize == 3 && // metadata + 2 operands
-                    slab[nextOffset + 1] == reg) // Same register
+                operandCount += slab.GetArgCount(i);
+            }
+
+            int headerSize = SlabHeader.HeaderIndex.Length;
+            int metaSize = count;
+            int totalSize = headerSize + metaSize + operandCount;
+
+            var result = new uint[totalSize];
+
+            var newHeader = SlabHeader.ForStage(3, (uint)count, (uint)operandCount);
+            newHeader.WriteTo(result);
+
+            int opIndex = 0;
+            for (int i = 0; i < count; i++)
+            {
+                byte kind = slab.GetKind(i);
+                ushort argCount = slab.GetArgCount(i);
+                uint meta = (uint)kind | ((uint)argCount << 14);
+                result[headerSize + i] = meta;
+
+                var operands = slab.GetOperands(i);
+                for (int j = 0; j < argCount && j < operands.Length; j++)
                 {
-                    // This load's value is immediately stored - not dead
-                    CopyInstruction(slab, offset);
-                    return false;
+                    result[headerSize + metaSize + opIndex++] = operands[j];
                 }
             }
 
-            // This load is dead - skip it
-            offset += size;
-            return true;
-        }
-
-        private void CopyInstruction(uint[] slab, int offset)
-        {
-            if (offset >= slab.Length) return;
-
-            var metadata = slab[offset];
-            var size = InstructionMetadata.DecodeSize(metadata);
-
-            if (size == 0) return;
-
-            var destOffset = _arena.Allocate(size);
-            var buffer = new uint[size];
-            Array.Copy(slab, offset, buffer, 0, size);
-            _arena.Write(destOffset, buffer);
+            return result;
         }
     }
 }

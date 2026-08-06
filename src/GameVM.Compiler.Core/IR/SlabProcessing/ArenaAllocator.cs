@@ -56,6 +56,30 @@ public sealed class ArenaAllocator
 
         return offset;
     }
+    /// <summary>
+    /// Allocates an array of the specified type and count in the arena.
+    /// </summary>
+    /// <typeparam name="T">The element type (must be unmanaged).</typeparam>
+    /// <param name="count">The number of elements to allocate.</param>
+    /// <returns>A managed array to be used as backing storage for InstList parallel arrays.</returns>
+    public T[] AllocateArray<T>(int count) where T : unmanaged
+    {
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count), "Allocation count must be positive.");
+
+        // Calculate size in uints (each uint = 4 bytes)
+        int elementSize = System.Runtime.InteropServices.Marshal.SizeOf<T>();
+        int totalBytes = count * elementSize;
+        int uintCount = (totalBytes + 3) / 4; // Round up to uint boundary
+
+        // Allocate space in the arena (advances bump pointer for accounting)
+        Allocate(uintCount);
+
+        // Return a managed array as the backing storage
+        // The caller constructs InstList over these arrays
+        return new T[count];
+    }
+
 
     /// <summary>
     /// Writes uint values to the arena at the specified offset.

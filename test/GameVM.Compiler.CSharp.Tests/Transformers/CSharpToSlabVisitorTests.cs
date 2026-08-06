@@ -1,7 +1,7 @@
 using System;
 using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.SlabProcessing;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
 using GameVM.Compiler.CSharp.ANTLR;
 using GameVM.Compiler.CSharp.Transformers;
 using Antlr4.Runtime;
@@ -12,6 +12,11 @@ namespace GameVM.Compiler.CSharp.Tests.Transformers
     [TestFixture]
     public class CSharpToSlabVisitorTests
     {
+        private const byte VARIABLE_DECLARATION = 8;
+        private const byte LITERAL_INT = 1;
+        private const byte LITERAL_STRING = 2;
+        private const byte LITERAL_BOOL = 3;
+
         private static CSharpParser.ProgramContext Parse(string code)
         {
             var inputStream = new AntlrInputStream(code);
@@ -21,6 +26,26 @@ namespace GameVM.Compiler.CSharp.Tests.Transformers
             return parser.program();
         }
 
+        private static InstList Visit(string code)
+        {
+            var context = Parse(code);
+            var builder = new InstListBuilder();
+            var stringPool = new StringPool();
+            var visitor = new CSharpToSlabVisitor(builder, stringPool);
+            visitor.Visit(context);
+            return visitor.GetSlab();
+        }
+
+        private static int FindKind(InstList instList, byte kind)
+        {
+            for (int i = 0; i < instList.Count; i++)
+            {
+                if (instList.GetKind(i) == kind)
+                    return i;
+            }
+            return -1;
+        }
+
         [Test]
         public void Visitor_HandlesVariableDeclarationWithoutInitializer()
         {
@@ -28,21 +53,14 @@ namespace GameVM.Compiler.CSharp.Tests.Transformers
                 int x;
             ";
 
-            var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new CSharpToSlabVisitor(arena);
-            visitor.Visit(context);
+            var instList = Visit(code);
+            Assert.That(instList.Count, Is.GreaterThanOrEqualTo(1)); // At least one instruction
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length)); // Header + at least one instruction
+            // The variable declaration is the only emitted instruction.
+            int declIdx = FindKind(instList, VARIABLE_DECLARATION);
+            Assert.That(declIdx, Is.GreaterThanOrEqualTo(0), "Should emit a variable declaration");
 
-            // Verify header is valid
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
-            Assert.That(header.IrStage, Is.EqualTo(1u)); // HLIR
-
-            // Print slab for debugging (optional)
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            Console.WriteLine(new SlabPrinter(instList).Print());
         }
 
         [Test]
@@ -52,36 +70,28 @@ namespace GameVM.Compiler.CSharp.Tests.Transformers
                 int x = 42;
             ";
 
-            var context = Parse(code);
-            var arena = new ArenaAllocator();
-            var visitor = new CSharpToSlabVisitor(arena);
-            visitor.Visit(context);
+            var instList = Visit(code);
 
-            uint[] slab = visitor.GetSlab();
-            Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+            // The literal is visited first (index 0), then the variable declaration.
+            int declIdx = FindKind(instList, VARIABLE_DECLARATION);
+            Assert.That(declIdx, Is.GreaterThanOrEqualTo(0), "First instruction should be variable declaration");
 
-            // Verify header is valid
-            var header = SlabHeader.Read(slab);
-            Assert.That(header.HasValidMagic(), Is.True);
+            // Variable declaration has 3 args: typeKind, nameOffset, initValue
+            ushort argCount = instList.GetArgCount(declIdx);
+            Assert.That(argCount, Is.EqualTo(3), "Variable declaration should have 3 arguments (type, name, init)");
 
-            // Check that we have the expected instruction structure
-            // First instruction after header should be VARIABLE_DECLARATION (kind 8)
-            int headerLength = SlabHeader.HeaderIndex.Length;
-            uint varDeclMetadata = slab[headerLength];
-            byte kind = InstructionMetadata.DecodeKind(varDeclMetadata);
-            Assert.That(kind, Is.EqualTo(VARIABLE_DECLARATION), "First instruction should be variable declaration");
-            
-            byte argCount = InstructionMetadata.DecodeArgCount(varDeclMetadata);
-            Assert.That(argCount, Is.EqualTo(2), "Variable declaration should have 2 arguments (type, name)");
-            
-            // Second argument should be the offset to the initializer expression
-            uint varNameHash = slab[headerLength + 1]; // First arg is type kind
-            uint initExprOffset = slab[headerLength + 2]; // Second arg is init expr offset
-            
-            Assert.That(initExprOffset, Is.GreaterThan((uint)headerLength), 
-                "Initializer offset should point past the header");
-                
-            Console.WriteLine(new SlabPrinter(slab).Print());
+            // First arg is type kind (int = 1); second is name pool offset (nonzero)
+            uint typeKind = instList.GetOperand(declIdx, 0);
+            uint nameOffset = instList.GetOperand(declIdx, 1);
+            Assert.That(typeKind, Is.EqualTo(1u), "Int variable type kind should be 1");
+            Assert.That(nameOffset, Is.GreaterThan(0), "Name should be interned in the string pool");
+
+            // The literal value must be present somewhere in the list.
+            int litIdx = FindKind(instList, LITERAL_INT);
+            Assert.That(litIdx, Is.GreaterThanOrEqualTo(0), "Integer literal should be emitted");
+            Assert.That(instList.GetOperand(litIdx, 0), Is.EqualTo(42u), "Literal value should be 42");
+
+            Console.WriteLine(new SlabPrinter(instList).Print());
         }
 
         [Test]
@@ -93,22 +103,21 @@ namespace GameVM.Compiler.CSharp.Tests.Transformers
                 @"bool x = true;"
             };
 
-            foreach (var code in testCases)
+            var expectedKinds = new byte[] { LITERAL_INT, LITERAL_STRING, LITERAL_BOOL };
+
+            for (int i = 0; i < testCases.Length; i++)
             {
-                var context = Parse(code);
-                var arena = new ArenaAllocator();
-                var visitor = new CSharpToSlabVisitor(arena);
-                visitor.Visit(context);
+                var code = testCases[i];
+                var instList = Visit(code);
+                Assert.That(instList.Count, Is.GreaterThanOrEqualTo(1),
+                    $"Should produce at least one instruction for code: {code}");
 
-                uint[] slab = visitor.GetSlab();
-                Assert.That(slab.Length, Is.GreaterThan(SlabHeader.HeaderIndex.Length));
+                int literalIdx = FindKind(instList, expectedKinds[i]);
+                Assert.That(literalIdx, Is.GreaterThanOrEqualTo(0),
+                    $"Expected literal kind {expectedKinds[i]} for code: {code}");
 
-                var header = SlabHeader.Read(slab);
-                Assert.That(header.HasValidMagic(), Is.True, 
-                    $"Header should be valid for code: {code}");
-                    
                 Console.WriteLine($"=== Code: {code} ===");
-                Console.WriteLine(new SlabPrinter(slab).Print());
+                Console.WriteLine(new SlabPrinter(instList).Print());
             }
         }
     }

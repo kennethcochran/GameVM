@@ -140,87 +140,13 @@ GameVM currently has **no semantic analysis implementation** and focuses on pars
 
 ### Semantic Analysis Recommendations [aspirational]
 
-#### 1. Source Location Infrastructure Enhancement [aspirational]
+#### 1. Source Location Infrastructure Enhancement [outdated]
 
-**Current State**: GameVM has `IRSourceLocation` class and `IRNode.Location` property, but AST nodes don't capture source location during parsing.
+**[outdated]** The legacy OOP AST node hierarchy (`PascalAstNode`, `ASTBuilder`, and all `*Node` classes) was removed in the OOP→DOD pipeline migration. GameVM now emits instructions directly to a `uint[]` slab from the ANTLR parse tree (see `PascalToSlabVisitor`), so the object-graph approach described below no longer applies.
 
-**Required Changes**: Enhance AST nodes to carry source location information and populate `IRNode.Location` during AST → HLIR transformation.
+**Original intent**: Capture source location information during parsing and propagate it into IR.
 
-##### **Step 1: Enhance AST Base Class**
-```csharp
-// Update PascalASTNode.cs
-public abstract class PascalAstNode
-{
-    public virtual IList<PascalAstNode> Children => new List<PascalAstNode>();
-    public int Line { get; set; }
-    public int Column { get; set; }
-    public int StartOffset { get; set; }
-    public int EndOffset { get; set; }
-}
-```
-
-##### **Step 2: Update AST Node Classes**
-```csharp
-// Example: VariableNode.cs
-public class VariableNode : ExpressionNode
-{
-    public required string Name { get; set; }
-    public int Line { get; set; }
-    public int Column { get; set; }
-    public int StartOffset { get; set; }
-    public int EndOffset { get; set; }
-}
-```
-
-##### **Step 3: Update ASTBuilder**
-```csharp
-// Update ASTBuilder.cs methods to capture location
-public VariableNode CreateVariable(string name, int line, int column, int startOffset, int endOffset)
-{
-    return new VariableNode 
-    { 
-        Name = name,
-        Line = line,
-        Column = column,
-        StartOffset = startOffset,
-        EndOffset = endOffset
-    };
-}
-```
-
-##### **Step 4: Update Transformer**
-```csharp
-// In PascalAstToHlirTransformer.cs
-private IRNode TransformNode(PascalAstNode astNode)
-{
-    var hlirNode = CreateHlirNode(astNode);
-    hlirNode.Location = new IRSourceLocation
-    {
-        File = _sourceFile,
-        Line = astNode.Line,
-        Column = astNode.Column,
-        StartPosition = astNode.StartOffset,
-        EndPosition = astNode.EndOffset
-    };
-    return hlirNode;
-}
-```
-
-##### **Step 5: Update ANTLR Integration**
-```csharp
-// In PascalFrontend.cs - capture location during parsing
-private sealed class PascalErrorListener : BaseErrorListener
-{
-    public List<string> Errors { get; } = new();
-    public Dictionary<string, (int line, int column)> NodeLocations { get; } = new();
-    
-    public override void VisitTerminal(ITerminalNode node)
-    {
-        var location = node.Symbol.Line.ToString();
-        NodeLocations[node.Symbol.Text] = (node.Symbol.Line, node.Symbol.Column);
-    }
-}
-```
+**Replacement approach**: Source location tracking should be implemented against the DOD pipeline — either by recording location metadata in the AST-stage slab instruction blocks, or as a side table keyed by `InstIndex` at the HLIR stage (parallel to the `DiagnosticJournal` proposal). The ANTLR error listener in `PascalFrontend.cs` remains the integration point for parse errors; only the OOP AST node plumbing is obsolete.
 
 #### 2. HLIR-Level Semantic Analysis [aspirational]
 
@@ -581,12 +507,16 @@ public class CrossLanguageError : SemanticError
 
 ### Key Files for Implementation [aspirational]
 
-#### Source Location Infrastructure:
-- `src/GameVM.Compiler.Pascal/PascalASTNode.cs` - Add location properties to base class
-- `src/GameVM.Compiler.Pascal/VariableNode.cs` - Add location to all AST node classes
-- `src/GameVM.Compiler.Pascal/ASTBuilder.cs` - Update methods to capture location parameters
-- `src/GameVM.Compiler.Pascal/PascalAstToHlirTransformer.cs` - Populate `IRNode.Location` during transformation
-- `src/GameVM.Compiler.Pascal/PascalFrontend.cs` - Enhance ANTLR listener for position tracking
+#### Source Location Infrastructure [outdated]:
+- `src/GameVM.Compiler.Pascal/PascalASTNode.cs` - **[deleted]** — legacy OOP AST base class removed
+- `src/GameVM.Compiler.Pascal/VariableNode.cs` - **[deleted]** — legacy AST node class removed
+- `src/GameVM.Compiler.Pascal/ASTBuilder.cs` - **[deleted]** — legacy AST builder removed
+- `src/GameVM.Compiler.Pascal/PascalAstToHlirTransformer.cs` - **[deleted/renamed]** — now `AstSlabToHlirSlabTransformer` operates on `uint[]` slab
+- `src/GameVM.Compiler.Pascal/PascalFrontend.cs` - **still valid** — ANTLR integration point; location tracking would be added to AST-stage slab instructions
+
+**Replacement approach**: Implement source location metadata as:
+1. A dedicated `LocationIndex` field in AST-stage instruction blocks (parallel to the `DiagnosticJournal` concept), or
+2. A side table `LocationIndex[]` keyed by `InstIndex` at the HLIR stage, populated by the ANTLR listener in `PascalFrontend.cs`
 
 #### Semantic Analysis Core:
 - `src/GameVM.Compiler.Core/SemanticAnalysis/` - New directory for semantic analyzer

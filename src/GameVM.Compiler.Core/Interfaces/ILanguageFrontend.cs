@@ -15,6 +15,7 @@
 
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 
 namespace GameVM.Compiler.Core.Interfaces
 {
@@ -24,11 +25,11 @@ namespace GameVM.Compiler.Core.Interfaces
     public interface ILanguageFrontend
     {
         /// <summary>
-        /// Parse source code into AST slab (DOD pipeline)
+        /// Parse source code into AST slab (DOD pipeline) - returns SoA InstList
         /// </summary>
         /// <param name="sourceCode">Source code to parse</param>
-        /// <returns>AST slab as uint array</returns>
-        uint[] ParseToSlab(string sourceCode);
+        /// <returns>AST slab as InstList</returns>
+        InstList ParseToSlab(string sourceCode);
 
         /// <summary>
         /// Gets the syntax error messages from the last parse attempt (DOD pipeline).
@@ -43,10 +44,10 @@ namespace GameVM.Compiler.Core.Interfaces
         StringPool? StringPool { get; }
 
         /// <summary>
-        /// Convert AST slab to HLIR slab (DOD pipeline)
+        /// Convert AST slab to HLIR slab (DOD pipeline) - takes/returns InstList
         /// </summary>
         /// <param name="astSlab">AST slab to convert</param>
-        /// <returns>HLIR slab as uint array</returns>
-        uint[] ConvertToHlirSlab(uint[] astSlab);
+        /// <returns>HLIR slab as InstList</returns>
+        InstList ConvertToHlirSlab(InstList astSlab);
     }
 }

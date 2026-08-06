@@ -9,27 +9,23 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.CSharp.ANTLR;
 using GameVM.Compiler.CSharp.Transformers;
+using GameVM.Compiler.Core.IR.Transformers;
 
 namespace GameVM.Compiler.CSharp
 {
     public class CSharpFrontend : ILanguageFrontend
     {
-        private StringPool _stringPool = new StringPool();
-        private List<string> _lastParseErrors = new List<string>();
-
-        /// <summary>
-        /// Gets the syntax error messages from the last parse attempt.
-        /// </summary>
-        public IReadOnlyList<string>? LastParseErrors => _lastParseErrors.Count > 0 ? _lastParseErrors : null;
-
+        private readonly StringPool _stringPool = new StringPool();
         /// <summary>
         /// Gets the string pool from the last parse attempt (DOD pipeline).
         /// Populated after successful ParseToSlab.
         /// </summary>
         public StringPool? StringPool => _stringPool;
-
+        public IReadOnlyList<string>? LastParseErrors => _lastParseErrors;
+        private readonly List<string> _lastParseErrors = new();
         // Custom ANTLR error listener to capture syntax error messages
         private sealed class CollectingErrorListener : IParserErrorListener, IAntlrErrorListener<int>
         {
@@ -50,7 +46,7 @@ namespace GameVM.Compiler.CSharp
             public void ReportContextSensitivity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, int prediction, ATNConfigSet configs) { }
         }
 
-        public uint[] ParseToSlab(string sourceCode)
+        public InstList ParseToSlab(string sourceCode)
         {
             try
             {
@@ -68,26 +64,27 @@ namespace GameVM.Compiler.CSharp
                 var context = parser.program();
 
                 if (_lastParseErrors.Any())
-                    return Array.Empty<uint>();
+                    return default;
 
-                var visitor = new CSharpToSlabVisitor(new ArenaAllocator());
+                var builder = new InstListBuilder();
+                var visitor = new CSharpToSlabVisitor(builder, _stringPool);
                 visitor.Visit(context);
-                return visitor.GetSlab();
+
+                return builder.Build();
             }
             catch (Exception)
             {
                 _lastParseErrors.Clear();
-                return Array.Empty<uint>();
+                return default;
             }
         }
 
-        public uint[] ConvertToHlirSlab(uint[] astSlab)
+        public InstList ConvertToHlirSlab(InstList astSlab)
         {
-            if (astSlab == null || astSlab.Length == 0)
-                return Array.Empty<uint>();
+            if (astSlab.Count == 0)
+                return default;
 
-            var arena = new ArenaAllocator();
-            var transformer = new AstSlabToHlirSlabTransformer(arena);
+            var transformer = new AstSlabToHlirSlabTransformer(_stringPool);
             return transformer.Transform(astSlab);
         }
     }

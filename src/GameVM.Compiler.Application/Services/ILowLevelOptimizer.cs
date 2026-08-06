@@ -1,3 +1,4 @@
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Application.Services
@@ -13,7 +14,7 @@ namespace GameVM.Compiler.Application.Services
         /// <param name="llirSlab">The LLIR slab to optimize</param>
         /// <param name="stringPool">String pool for identifier resolution</param>
         /// <param name="optimizationLevel">Optimization level to apply</param>
-        /// <returns>Optimized LLIR slab as uint array</returns>
-        uint[] OptimizeSlab(uint[] llirSlab, StringPool stringPool, Core.Enums.OptimizationLevel optimizationLevel);
+        /// <returns>Optimized LLIR slab</returns>
+        InstList OptimizeSlab(InstList llirSlab, StringPool stringPool, Core.Enums.OptimizationLevel optimizationLevel);
     }
 }

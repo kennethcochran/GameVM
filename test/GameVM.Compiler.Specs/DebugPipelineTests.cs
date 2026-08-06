@@ -8,12 +8,14 @@ using GameVM.Compiler.Optimizers.LowLevel;
 using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Capabilities;
 using GameVM.Compiler.Core.SemanticAnalysis;
+using GameVM.Compiler.Core.IR.Soa;
 
 namespace GameVM.Compiler.Specs;
 
 [TestFixture]
 public class DebugPipelineTests
 {
+
     [Test]
     public void Debug_PipelineStages()
     {
@@ -50,52 +52,39 @@ public class DebugPipelineTests
         }
 
         var astSlab = frontend.ParseToSlab(sourceCode);
-        TestContext.WriteLine($"AST slab length: {astSlab?.Length ?? 0}");
-        if (astSlab != null && astSlab.Length > 0)
+        TestContext.WriteLine($"AST slab Count: {astSlab.Count}");
+        if (astSlab.Count > 0)
         {
-            var header = SlabHeader.Read(astSlab);
-            TestContext.WriteLine($"AST: Stage={header.IrStage}, ElemCount={header.ElementCount}");
-            for (int i = 0; i < Math.Min(20, astSlab.Length); i++)
-                TestContext.WriteLine($"  [{i}]=0x{astSlab[i]:X8}");
+            for (int i = 0; i < Math.Min(20, astSlab.Count); i++)
+                TestContext.WriteLine($"  [{i}]=Kind:{astSlab.GetKind(i)}, Args:{astSlab.GetArgCount(i)}");
         }
 
-        uint[]? hlirSlab = astSlab != null ? frontend.ConvertToHlirSlab(astSlab) : null;
-        TestContext.WriteLine($"HLIR slab length: {hlirSlab?.Length ?? 0}");
-        if (hlirSlab != null && hlirSlab.Length > 0)
+        InstList hlirSlab = frontend.ConvertToHlirSlab(astSlab);
+        TestContext.WriteLine($"HLIR slab Count: {hlirSlab.Count}");
+        if (hlirSlab.Count > 0)
         {
-            var header = SlabHeader.Read(hlirSlab);
-            TestContext.WriteLine($"HLIR: Stage={header.IrStage}, ElemCount={header.ElementCount}");
-            for (int i = 0; i < Math.Min(20, hlirSlab.Length); i++)
-                TestContext.WriteLine($"  [{i}]=0x{hlirSlab[i]:X8}");
+            for (int i = 0; i < Math.Min(20, hlirSlab.Count); i++)
+                TestContext.WriteLine($"  [{i}]=Kind:{hlirSlab.GetKind(i)}, Args:{hlirSlab.GetArgCount(i)}");
         }
 
-        uint[]? mlirSlab = null;
-        if (hlirSlab != null)
+        InstList mlirSlab = default;
+        if (hlirSlab.Count > 0)
         {
             mlirSlab = midOptimizer.OptimizeSlab(hlirSlab, frontend.StringPool!, OptimizationLevel.None);
-            TestContext.WriteLine($"MLIR slab length: {mlirSlab?.Length ?? 0}");
-            if (mlirSlab != null && mlirSlab.Length > 0)
-            {
-                var header = SlabHeader.Read(mlirSlab);
-                TestContext.WriteLine($"MLIR: Stage={header.IrStage}, ElemCount={header.ElementCount}");
-                for (int i = 0; i < Math.Min(20, mlirSlab.Length); i++)
-                    TestContext.WriteLine($"  [{i}]=0x{mlirSlab[i]:X8}");
-            }
+            TestContext.WriteLine($"MLIR slab count: {mlirSlab.Count}");
+            for (int i = 0; i < Math.Min(20, mlirSlab.Count); i++)
+                TestContext.WriteLine($"  [{i}]=Kind:{mlirSlab.GetKind(i)}, Args:{mlirSlab.GetArgCount(i)}");
         }
 
-        uint[]? llirSlab = null;
-        if (mlirSlab != null && frontend.StringPool != null)
+        InstList llirSlab;
+        if (mlirSlab.Count > 0 && frontend.StringPool != null)
         {
             llirSlab = transformer.TransformSlab(mlirSlab, frontend.StringPool!);
-            TestContext.WriteLine($"LLIR slab length: {llirSlab?.Length ?? 0}");
-            if (llirSlab != null && llirSlab.Length > 0)
-            {
-                var header = SlabHeader.Read(llirSlab);
-                TestContext.WriteLine($"LLIR: Stage={header.IrStage}, ElemCount={header.ElementCount}");
-                for (int i = 0; i < Math.Min(20, llirSlab.Length); i++)
-                    TestContext.WriteLine($"  [{i}]=0x{llirSlab[i]:X8}");
-            }
+            TestContext.WriteLine($"LLIR slab count: {llirSlab.Count}");
+            for (int i = 0; i < Math.Min(20, llirSlab.Count); i++)
+                TestContext.WriteLine($"  [{i}]=Kind:{llirSlab.GetKind(i)}, Args:{llirSlab.GetArgCount(i)}");
         }
+
 
         Assert.Pass("Debug test completed");
     }

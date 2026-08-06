@@ -1,0 +1,254 @@
+using GameVM.Compiler.Application.Services;
+using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Transformers;
+using System;
+
+namespace GameVM.Compiler.Optimizers.MidLevel
+{
+    /// <summary>
+    /// DOD mid-level optimizer that processes MLIR slabs using linear iteration.
+    /// Replaces visitor patterns with switch-based instruction processing on decoded metadata.
+    /// </summary>
+    public sealed class DefaultMidLevelOptimizer : IMidLevelOptimizer
+    {
+        private readonly HlirSlabToMlirSlabTransformer _hlirSlabToMlirSlabTransformer;
+
+        public DefaultMidLevelOptimizer()
+        {
+            _hlirSlabToMlirSlabTransformer = new HlirSlabToMlirSlabTransformer();
+        }
+
+        public DefaultMidLevelOptimizer(ArenaAllocator arena)
+        {
+            _hlirSlabToMlirSlabTransformer = new HlirSlabToMlirSlabTransformer();
+        }
+
+        /// <summary>
+        /// Optimizes the given HLIR slab using linear iteration and switch-based processing.
+        /// First transforms HLIR to MLIR, then applies optimization passes on the MLIR slab.
+        /// </summary>
+        public InstList OptimizeSlab(InstList hlirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
+        {
+            if (hlirSlab.Count == 0)
+            {
+                throw new ArgumentException("Invalid HLIR slab: too small or null", nameof(hlirSlab));
+            }
+
+            // Transform HLIR slab to MLIR slab using the dedicated transformer
+            InstList mlirSlab = _hlirSlabToMlirSlabTransformer.Transform(hlirSlab, stringPool);
+
+            if (mlirSlab.Count == 0)
+            {
+                throw new InvalidOperationException("HlirSlabToMlirSlabTransformer returned empty slab");
+            }
+
+            // Validate that we got an MLIR slab (stage 2) - check via kind values
+            // MLIR instructions have kinds >= 128 (from MlirInstructionKind enum)
+            bool isMlir = false;
+            ReadOnlySpan<byte> tags = mlirSlab.Tags;
+            for (int i = 0; i < tags.Length; i++)
+            {
+                byte kind = tags[i];
+                if (kind >= 128)
+                {
+                    isMlir = true;
+                    break;
+                }
+            }
+
+            if (!isMlir)
+            {
+                throw new InvalidOperationException($"Expected MLIR slab after transformation, got non-MLIR instructions");
+            }
+
+            // Now optimize the MLIR slab using InstListBuilder
+            var builder = new InstListBuilder();
+
+            int functionCount = 0;
+
+            // Process each instruction in the MLIR slab - stride-only iteration
+            for (int i = 0; i < tags.Length; i++)
+            {
+                byte kind = tags[i];
+
+                ProcessInstruction(mlirSlab, i, kind, optimizationLevel, builder);
+                if (kind == InstructionMetadataFlags.MLIR_LABEL)
+                {
+                    functionCount++;
+                }
+            }
+
+            // Build optimized MLIR InstList
+            InstList optimizedMlirSlab = builder.Build();
+            
+            return optimizedMlirSlab;
+        }
+
+        /// <summary>
+        /// Processes a single MLIR instruction using switch-based dispatch on decoded metadata.
+        /// This replaces the visitor pattern with data-oriented switch statements.
+        /// </summary>
+        private static void ProcessInstruction(InstList slab, int instIdx, byte kind, OptimizationLevel level, InstListBuilder builder)
+        {
+            // Switch-based instruction processing replaces virtual dispatch/visitor pattern
+            switch (kind)
+            {
+                case InstructionMetadataFlags.MLIR_ASSIGN:
+                    ProcessAssign(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.MLIR_LABEL:
+                    ProcessLabel(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.MLIR_BRANCH:
+                    ProcessBranch(slab, instIdx, level, builder);
+                    break;
+                case InstructionMetadataFlags.MLIR_CALL:
+                    ProcessCall(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.RETURN_STATEMENT:
+                    ProcessReturn(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.VARIABLE_DECLARATION:
+                    ProcessVariable(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.BLOCK:
+                    ProcessBlock(slab, instIdx, builder);
+                    break;
+                case InstructionMetadataFlags.EXPRESSION_STATEMENT:
+                    ProcessExpressionStatement(slab, instIdx, builder);
+                    break;
+                default:
+                    // Unknown instruction - preserve as-is or tombstone
+                    if (level >= OptimizationLevel.Aggressive)
+                    {
+                        // In aggressive mode, drop unknown instructions
+                    }
+                    else
+                    {
+                        CopyInstruction(slab, instIdx, builder);
+                    }
+                    break;
+            }
+        }
+
+        private static void ProcessAssign(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            // MLIR_ASSIGN: [metadata, targetPoolOffset, valuePoolOffset]
+            // Direct SoA access instead of InstructionMetadata.Decode*
+            ushort argCount = slab.ArgCounts[instIdx];
+            if (argCount < 2) return;
+
+            // For now, just copy the instruction
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessLabel(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            // MLIR_LABEL: [metadata, labelPoolOffset]
+            // For now, keep all labels
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessBranch(InstList slab, int instIdx, OptimizationLevel level, InstListBuilder builder)
+        {
+            // MLIR_BRANCH: [metadata, conditionPoolOffset, targetLabelPoolOffset]
+            ushort argCount = slab.ArgCounts[instIdx];
+            if (argCount < 2) return;
+
+            if (level >= OptimizationLevel.Aggressive)
+            {
+                // Dead code elimination: check if branch is unconditional and target is unreachable
+                // Direct fixedOps access instead of InstructionMetadata.Decode*
+                uint conditionPoolOffset = slab.FixedOps[instIdx * InstConstants.MAX_FIXED_OPS];
+                if (conditionPoolOffset == 0) // Unconditional branch
+                {
+                    // Could tombstone subsequent unreachable code
+                    // For now, keep branch
+                }
+            }
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessCall(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            // MLIR_CALL: [metadata, functionPoolOffset, argPoolOffsets...]
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessReturn(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessVariable(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessBlock(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            // BLOCK: [metadata, statementPoolOffset1, statementPoolOffset2, ...]
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+        private static void ProcessExpressionStatement(InstList slab, int instIdx, InstListBuilder builder)
+        {
+            CopyInstruction(slab, instIdx, builder);
+        }
+
+/// <summary>
+        /// Copies an instruction from source slab to builder.
+        /// Used for out-of-place transformation where we build a new optimized slab.
+        /// </summary>
+        private static void CopyInstruction(InstList sourceSlab, int instIdx, InstListBuilder builder)
+        {
+            if (instIdx >= sourceSlab.Count) return;
+
+            byte kind = sourceSlab.Tags[instIdx];
+            ushort flags = sourceSlab.Flags[instIdx];
+            ushort argCount = sourceSlab.ArgCounts[instIdx];
+            // int blockId = sourceSlab.GetBlockId(instIdx); // Not used
+
+            ReadOnlySpan<uint> operands = sourceSlab.GetOperands(instIdx);
+
+            // Add to builder - note: builder.Add takes individual operands, not a span
+            // We need to expand the operands
+            if (argCount == 0)
+            {
+                builder.Add(kind, (InstructionFlag)flags, 0);
+            }
+            else if (argCount == 1)
+            {
+                builder.Add(kind, (InstructionFlag)flags, 1, operands[0]);
+            }
+            else if (argCount == 2)
+            {
+                builder.Add(kind, (InstructionFlag)flags, 2, operands[0], operands[1]);
+            }
+            else if (argCount == 3)
+            {
+                builder.Add(kind, (InstructionFlag)flags, 3, operands[0], operands[1], operands[2]);
+            }
+            else if (argCount == 4)
+            {
+                builder.Add(kind, (InstructionFlag)flags, 4, operands[0], operands[1], operands[2], operands[3]);
+            }
+            else
+            {
+                // For >4 operands, use the extra pool path
+                // We'll just pass first 4 and let builder handle the rest
+                // Actually, InstListBuilder has MAX_FIXED_OPS = 4, so >4 goes to extra pool
+                // Let's just pass what we have
+                builder.Add(kind, (InstructionFlag)flags, (ushort)Math.Min((int)argCount, 4), 
+                    argCount > 0 ? operands[0] : 0,
+                    argCount > 1 ? operands[1] : 0,
+                    argCount > 2 ? operands[2] : 0,
+                    argCount > 3 ? operands[3] : 0);
+            }
+        }
+    }
+}

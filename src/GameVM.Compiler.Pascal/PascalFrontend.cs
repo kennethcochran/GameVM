@@ -4,6 +4,7 @@ using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Transformers;
@@ -49,9 +50,9 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Parse source code into AST slab (DOD pipeline)
+        /// Parse source code into AST slab (DOD pipeline) - returns SoA InstList
         /// </summary>
-        public uint[] ParseToSlab(string sourceCode)
+        public InstList ParseToSlab(string sourceCode)
         {
             try
             {
@@ -71,23 +72,22 @@ namespace GameVM.Compiler.Pascal
                 if (errorListener.Errors.Any())
                 {
                     _lastParseErrors = errorListener.Errors;
-                    return Array.Empty<uint>();
+                    return default;
                 }
 
                 _stringPool = new StringPool();
 
-                var visitor = new PascalToSlabVisitor(new ArenaAllocator(), _stringPool);
+                var builder = new InstListBuilder();
+                var visitor = new PascalToSlabVisitor(builder, _stringPool);
                 visitor.Visit(context);
 
-                uint[] astSlab = visitor.GetSlab();
-
-                return astSlab;
+                return builder.Build();
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[ParseToSlab] Error: {ex.Message}");
                 Console.Error.WriteLine(ex.StackTrace);
-                return Array.Empty<uint>();
+                return default;
             }
         }
 
@@ -98,7 +98,7 @@ namespace GameVM.Compiler.Pascal
         public HighLevelIR Parse(string sourceCode)
         {
             var astSlab = ParseToSlab(sourceCode);
-            if (astSlab == null || astSlab.Length == 0)
+            if (astSlab.Count == 0)
                 return new HighLevelIR { SourceFile = "<unknown>" };
 
             _ = ConvertToHlirSlab(astSlab);
@@ -106,15 +106,14 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Convert AST slab to HLIR slab (DOD pipeline)
+        /// Convert AST slab to HLIR slab (DOD pipeline) - takes/returns InstList
         /// </summary>
-        public uint[] ConvertToHlirSlab(uint[] astSlab)
+        public InstList ConvertToHlirSlab(InstList astSlab)
         {
-            if (astSlab == null || astSlab.Length == 0)
-                return Array.Empty<uint>();
+            if (astSlab.Count == 0)
+                return default;
 
-            var arena = new ArenaAllocator();
-            var transformer = new AstSlabToHlirSlabTransformer(arena, _stringPool);
+            var transformer = new AstSlabToHlirSlabTransformer(_stringPool);
             return transformer.Transform(astSlab);
         }
 

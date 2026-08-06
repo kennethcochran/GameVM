@@ -21,6 +21,65 @@ A game written for the **Atari 2600** that utilizes only the Standard Library an
 3. **Bespoke Interpretation**: The ISA is designed to be emitted as optimized, non-switched machine code (via the [Internal Assembly API](InternalAssemblyAPI.md)), making the virtual "CPU" feel as fast as a native one.
 4. **Intrinsic Promotion**: Blurs the line between functions and opcodes, allowing complex game logic (like `MoveSprites`) to be promoted to a native-speed "Superinstruction."
 
+
+## Represented as an SoA InstList [implemented]
+
+**For the shipped pipeline, LLIR is an SoA `InstList` — a flat array-based intermediate, not a class hierarchy.** Every instruction is a set of parallel arrays in `GameVM.Compiler.Core.IR.Soa.InstList`. The low-level instructions below are the *virtual* ISA the 6502 backend lowers, not a bytecode serialization.
+
+## InstList layout (LLIR stage) [implemented]
+
+An LLIR program is an `InstList` with parallel arrays indexed by instruction position:
+
+| Array | Type | Meaning |
+| ----- | ---- | ------- |
+| `Tags` | `byte[]` | Instruction kind (an `LlirInstructionKind` value) |
+| `Flags` | `ushort[]` | Bitwise `InstructionFlag` flags (`Terminator`, `Diagnostic`) |
+| `ArgCounts` | `ushort[]` | Number of operands per instruction |
+| `FixedOps` | `uint[]` | Fixed operand slots (`InstConstants.MAX_FIXED_OPS` = 4 per instruction) |
+| `Extra` | `uint[]` | Variable-length operand pool for instructions with >4 operands |
+| `ExtraOffsets` | `uint[]` | Per-instruction offset into the extra pool |
+| `BlockIds` | `int[]` | CFG basic-block ID per instruction (`0` = unassigned) |
+
+### Construction
+
+LLIR stages are built with `InstListBuilder`:
+
+```csharp
+var builder = new InstListBuilder();
+builder.Add((byte)LlirInstructionKind.Load,  InstructionFlag.None, 0, 0, numericValue); // LDA #imm
+builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, targetAddr, 0); // STA zp
+InstList llir = builder.Build();
+```
+
+`InstListBuilder.Add(kind, flags, blockId, operands…)` appends and returns the new `InstIndex`. When the operand count exceeds `MAX_FIXED_OPS` (4) the builder spills all operands to the contiguous `Extra` pool (caching the first 4 in `FixedOps` for fast access). `Build()` trims the arrays to exactly `Count`/`ExtraUsed`.
+
+### Operand access
+All readers use the canonical accessors:
+- `ReadOnlySpan<uint> GetOperands(int instIdx)` — fast path over `FixedOps` when `ArgCount <= 4`, else a contiguous `Extra` region.
+- `uint GetOperand(int instIdx, int operandIdx)` — a single operand (e.g. address resolution).
+- `int GetOperandOffset(int instIdx, int operandIdx)` — absolute index into the underlying flat arrays (used at codegen time for address resolution).
+- `byte GetKind(int)`, `ushort GetFlags(int)`, `ushort GetArgCount(int)`, `int GetBlockId(int)`, plus raw spans `Tags/Flags/ArgCounts/BlockIds/FixedOps/Extra` for stride-only iteration, and `InstMetadata` (`Index`, `IsTerminator`, `IsDiagnostic`) holds.
+
+### Actually implemented instruction set (6502-adjacent) [implemented]
+The shipped `LlirInstructionKind` enumerates a small, 6502-adjacent opcode set (values are the tag bytes stored in `Tags`):
+
+| Kind | Byte | Operands | 6502 mapping |
+| ---- | ---- | -------- | ------------ |
+| `Label` | 192 (0xC0) | `[funcNameHash]` — function/block entry | emits address (JSR target) |
+| `Load` | 193 (0xC1) | `[reg, value]` or `[reg, addrLow, addrHigh]` | `LDA #imm` / `LDA abs` |
+| `Store` | 194 (0xC2) | `[reg, addrLow, addrHigh?]` | `STA zp` / `STA abs` (zero-page chosen when address < `$100`) |
+| `Call` | 195 (0xC3) | `[target]` | `JSR` |
+| `Jump` | 196 (0xC4) | `[target]` | `JMP` |
+| `Branch` | 197 (0xC5) | `[condition?, target]` | conditional `BEQ/BNE/…` |
+| `Return` | 198 (0xC6) | — | `RTS` |
+| `Syscall` | 199 (0xC7) | `[vector]` | os/RIOT trap |
+
+`MidToLowLevelTransformer.TransformSlab(mlirSlab, stringPool)` lowers MLIR to this ISA: `Assign` becomes `Load`+`Store` (resolving identifiers to TIA registers or zero-page `$80+` slots via the `StringPool`), `Call`/`Branch`/`Return` are mapped one-to-one, and structured nodes map to `Nop`. The `Atari2600CodeGenerator.GenerateFromSlab(llirSlab, stringPool, options)` then emits a 4KB ROM from this `InstList` by linear iteration.
+
+## Candidate design notes (aspirational)
+
+The remainder of this document describes the *aspirational* accumulator-ISA thread the LLIR design intends to preserve. Refer to [LLIR_ISA.md](LLIR_ISA.md) for the authoritative opcode reference.
+
 ## Virtual Machine Architecture [aspirational]
 
 ### Virtual Register File [aspirational]

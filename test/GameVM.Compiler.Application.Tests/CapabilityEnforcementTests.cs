@@ -7,6 +7,9 @@ using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Slab;
+using System.Collections.Generic;
 
 namespace UnitTests.Application
 {
@@ -34,7 +37,7 @@ namespace UnitTests.Application
             _capabilityProviderMock = new Mock<ICapabilityProvider>();
             _capabilityValidatorMock = new Mock<ICapabilityValidatorService>();
             _semanticAnalyzerMock = new Mock<ISemanticAnalyzer>();
-            _semanticAnalyzerMock.Setup(x => x.AnalyzeSlab(It.IsAny<uint[]>()))
+            _semanticAnalyzerMock.Setup(x => x.AnalyzeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
                 .Returns(SemanticAnalysisResult.CreateSuccess());
 
             _useCase = new CompileUseCase(
@@ -61,37 +64,72 @@ namespace UnitTests.Application
                 Enforcement = EnforcementLevel.Strict
             };
 
-            var astSlab = new uint[] { 0x47564D56, 0, 1, 1, 0, 0, 0, 0 }; // AST slab with 1 element
-            var hlirSlab = new uint[] { 0x47564D56, 1, 1, 1, 0, 0, 0, 0 }; // HLIR slab with 1 element
-            var mlirSlab = new uint[] { 0x47564D56, 2, 1, 1, 0, 0, 0, 0 }; // MLIR slab with 1 element
-            var llirSlab = new uint[] { 0x47564D56, 3, 1, 1, 0, 0, 0, 0 }; // LLIR slab with 1 element
-            var bytecode = new byte[4096];
+            var astSlab = new InstList(
+                new byte[] { 0x01 },
+                new ushort[] { 0x00 },
+                new ushort[] { 0x02 },
+                new uint[] { 0x00000000, 0x00000000 },
+                new uint[] { 0x00000001, 0x00000002 },
+                new uint[] { 0x00000004 },
+                new int[] { 0 },
+                1,
+                2);
+            var hlirSlab = new InstList(
+                new byte[] { 0x01 },
+                new ushort[] { 0x00 },
+                new ushort[] { 0x02 },
+                new uint[] { 0x00000000, 0x00000000 },
+                new uint[] { 0x00000001, 0x00000002 },
+                new uint[] { 0x00000004 },
+                new int[] { 0 },
+                1,
+                2);
             
-                        // Mock the frontend to return AST slab and HLIR slab, and a StringPool
             _frontendMock.Setup(f => f.ParseToSlab(It.IsAny<string>()))
                 .Returns(astSlab);
-            _frontendMock.Setup(f => f.ConvertToHlirSlab(It.IsAny<uint[]>()))
+            _frontendMock.Setup(f => f.ConvertToHlirSlab(It.IsAny<InstList>()))
                 .Returns(hlirSlab);
             _frontendMock.Setup(f => f.StringPool)
                 .Returns(new StringPool());
 
+            var mlirSlab = new InstList(
+                new byte[] { 0x47, 0x56, 0x4D, 0x56, 2, 1, 1, 1 },
+                new ushort[] { 0x0000 },
+                new ushort[] { 0x0000 },
+                new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                new uint[] { },
+                new uint[] { 0x00000000 },
+                new int[] { 0 },
+                1,
+                0);
+            var llirSlab = new InstList(
+                new byte[] { 0x47, 0x56, 0x4D, 0x56, 3, 1, 1, 1 },
+                new ushort[] { 0x0000 },
+                new ushort[] { 0x0000 },
+                new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                new uint[] { },
+                new uint[] { 0x00000000 },
+                new int[] { 0 },
+                1,
+                0);
+            var bytecode = new byte[4096];
+
             // Mock mid-level optimizer to return MLIR slab
-            _midLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+            _midLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(mlirSlab);
 
             // Mock MLIR to LLIR transformer - use TransformSlab method
-            _mlirToLlirMock.Setup(t => t.TransformSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>()))
+            _mlirToLlirMock.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
                 .Returns(llirSlab);
 
             // Mock low-level optimizer
-            _lowLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+            _lowLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(llirSlab);
 
             // Mock code generator
-            _codeGeneratorMock.Setup(g => g.GenerateFromSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
+            _codeGeneratorMock.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
                 .Returns(bytecode);
 
-            // Mock capability provider to return backend capabilities (L1 only)
             var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L1 };
             _capabilityProviderMock.Setup(p => p.GetCapabilityProfile())
                 .Returns(backendProfile);
@@ -118,29 +156,63 @@ namespace UnitTests.Application
                 Enforcement = EnforcementLevel.Strict
             };
 
-            var astSlab = new uint[] { 0x47564D56, 0, 1, 1, 0, 0, 0, 0 };
-            var hlirSlab = new uint[] { 0x47564D56, 1, 1, 1, 0, 0, 0, 0 };
-            var mlirSlab = new uint[] { 0x47564D56, 2, 1, 1, 0, 0, 0, 0 };
-            var llirSlab = new uint[] { 0x47564D56, 3, 1, 1, 0, 0, 0, 0 };
-            var bytecode = new byte[4096];
+            var astSlab = new InstList(
+                new byte[] { 0x01 },
+                new ushort[] { 0x00 },
+                new ushort[] { 0x02 },
+                new uint[] { 0x00000000, 0x00000000 },
+                new uint[] { 0x00000001, 0x00000002 },
+                new uint[] { 0x00000004 },
+                new int[] { 0 },
+                1,
+                2);
+            var hlirSlab = new InstList(
+                new byte[] { 0x01 },
+                new ushort[] { 0x00 },
+                new ushort[] { 0x02 },
+                new uint[] { 0x00000000, 0x00000000 },
+                new uint[] { 0x00000001, 0x00000002 },
+                new uint[] { 0x00000004 },
+                new int[] { 0 },
+                1,
+                2);
             
-_frontendMock.Setup(f => f.ParseToSlab(It.IsAny<string>()))
-                 .Returns(astSlab);
-             _frontendMock.Setup(f => f.ConvertToHlirSlab(It.IsAny<uint[]>()))
-                 .Returns(hlirSlab);
-             _frontendMock.Setup(f => f.StringPool)
-                 .Returns(new StringPool());
+            _frontendMock.Setup(f => f.ParseToSlab(It.IsAny<string>()))
+                .Returns(astSlab);
+            _frontendMock.Setup(f => f.ConvertToHlirSlab(It.IsAny<InstList>()))
+                .Returns(hlirSlab);
+            _frontendMock.Setup(f => f.StringPool)
+                .Returns(new StringPool());
 
-             _midLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+            var mlirSlab = new InstList(
+                new byte[] { 0x47, 0x56, 0x4D, 0x56, 2, 1, 1, 1 },
+                new ushort[] { 0x0000 },
+                new ushort[] { 0x0000 },
+                new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                new uint[] { },
+                new uint[] { 0x00000000 },
+                new int[] { 0 },
+                1,
+                0);
+            var llirSlab = new InstList(
+                new byte[] { 0x47, 0x56, 0x4D, 0x56, 3, 1, 1, 1 },
+                new ushort[] { 0x0000 },
+                new ushort[] { 0x0000 },
+                new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                new uint[] { },
+                new uint[] { 0x00000000 },
+                new int[] { 0 },
+                1,
+                0);
+            var bytecode = new byte[4096];
+
+            _midLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(mlirSlab);
-
-            _mlirToLlirMock.Setup(t => t.TransformSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>()))
+            _mlirToLlirMock.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
                 .Returns(llirSlab);
-
-            _lowLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+            _lowLevelOptimizerMock.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
                 .Returns(llirSlab);
-
-            _codeGeneratorMock.Setup(g => g.GenerateFromSlab(It.IsAny<uint[]>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
+            _codeGeneratorMock.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
                 .Returns(bytecode);
 
             var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L1 };

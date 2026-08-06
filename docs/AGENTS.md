@@ -9,6 +9,19 @@ and docs-related workflows in the GameVM project. It supplements the [root AGENT
 Documentation drift is the #1 tracked problem in this repo — do not ship code changes without
 syncing docs. When in doubt, err on the side of updating docs.
 
+### Scope of Documentation Updates
+
+**Only update documentation that is directly affected by the specific change being implemented.**
+Do not perform global sweeps to update status tags across unrelated documents. The OpenSpec change
+(`proposal.md`, `design.md`, `tasks.md`) defines the scope — update only the docs that the
+trigger mapping links to the code changes in that change.
+
+**WARNING:** Do not make global documentation updates (e.g., changing [aspirational] to [implemented]
+across multiple files) without a corresponding code change that justifies those updates. Each
+documentation update must be tied to a specific code change in the current OpenSpec change or
+a directly related code modification. Making sweeping documentation updates without code changes
+violates the principle that documentation should reflect the actual state of the implementation.
+
 ### Trigger Mapping
 
 Use `.github/doc-mapping.yaml` as the authoritative mapping. The common cases:

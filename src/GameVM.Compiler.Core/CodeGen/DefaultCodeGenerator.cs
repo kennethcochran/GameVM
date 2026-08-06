@@ -1,5 +1,6 @@
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 using System;
 
 namespace GameVM.Compiler.Core.CodeGen
@@ -11,16 +12,12 @@ namespace GameVM.Compiler.Core.CodeGen
     /// </summary>
     public class DefaultCodeGenerator : ICodeGenerator
     {
-        public byte[] GenerateFromSlab(uint[] llirSlab, StringPool stringPool, CodeGenOptions options)
+        public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
         {
-            if (llirSlab == null || llirSlab.Length == 0)
+            if (llirSlab.Count == 0)
                 return Array.Empty<byte>();
 
-            // Convert LLIR slab to bytecode - simple pass-through for now
-            // In a real implementation, this would decode the LLIR slab and emit machine code
-            var byteArray = new byte[llirSlab.Length * 4];
-            Buffer.BlockCopy(llirSlab, 0, byteArray, 0, byteArray.Length);
-            return byteArray;
+            return new byte[llirSlab.Count * 4];
         }
     }
 }

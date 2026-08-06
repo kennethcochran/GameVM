@@ -1,0 +1,234 @@
+using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Core.IR.Buffers;
+using System;
+using System.Collections.Generic;
+
+namespace GameVM.Compiler.Backend.Atari2600
+{
+    public class Atari2600CodeGenerator : ICodeGenerator, ICapabilityProvider
+    {
+        private const int RomSize = 4096; // 4K ROM
+        private const int VectorBaseOffset = 0x0FFC; // Offset from RomStartAddress for vectors ($FFFC - $F000)
+
+        // DOD pipeline method - Generate from LLIR slab
+        public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
+        {
+            return GenerateFromInstList(llirSlab);
+        }
+
+        private static byte[] GenerateFromInstList(InstList llirSlab)
+        {
+            if (llirSlab.Count == 0)
+                return Array.Empty<byte>();
+
+            var rom = new byte[RomSize]; // 4K ROM
+            Array.Clear(rom, 0, rom.Length);
+            var currentAddress = 0; // Offset within ROM (0 = $F000)
+
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                byte kindByte = llirSlab.GetKind(i);
+                LlirInstructionKind kind = (LlirInstructionKind)kindByte;
+                ReadOnlySpan<uint> operands = llirSlab.GetOperands(i);
+
+                int bytesWritten = 0;
+
+                switch (kind)
+                {
+                    case LlirInstructionKind.Load:
+                        // LDA #immediate
+                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0xA9; // LDA #immediate
+                            rom[currentAddress++] = (byte)operands[0];
+                            bytesWritten = 2;
+                        }
+                        break;
+                    case LlirInstructionKind.Store:
+                        // STA address
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            uint addrLo = operands[0];
+                            uint addrHi = operands[1];
+                            int address = (int)(addrLo | (addrHi << 8));
+                            if (address < 0x100)
+                            {
+                                // Zero-page addressing (STA zp)
+                                rom[currentAddress++] = 0x85; // STA zp
+                                rom[currentAddress++] = (byte)address;
+                                bytesWritten = 2;
+                            }
+                            else
+                            {
+                                // Absolute addressing (STA abs)
+                                rom[currentAddress++] = 0x8D; // STA absolute
+                                rom[currentAddress++] = (byte)addrLo;
+                                rom[currentAddress++] = (byte)addrHi;
+                                bytesWritten = 3;
+                            }
+                        }
+                        break;
+                    case LlirInstructionKind.Call:
+                        // JSR absolute
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0x20; // JSR absolute
+                            rom[currentAddress++] = (byte)operands[0];
+                            rom[currentAddress++] = (byte)operands[1];
+                            bytesWritten = 3;
+                        }
+                        break;
+                    case LlirInstructionKind.Label:
+                        // Skip labels - no code generated
+                        bytesWritten = 0;
+                        break;
+                    case LlirInstructionKind.Jump:
+                        // JMP absolute
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0x4C; // JMP absolute
+                            rom[currentAddress++] = (byte)operands[0];
+                            rom[currentAddress++] = (byte)operands[1];
+                            bytesWritten = 3;
+                        }
+                        break;
+                    case LlirInstructionKind.Branch:
+                        // BCC (generic branch) - relative branch, offset is signed byte
+                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0x90; // BCC
+                            rom[currentAddress++] = (byte)operands[0]; // offset
+                            bytesWritten = 2;
+                        }
+                        break;
+                    case LlirInstructionKind.Return:
+                        // RTS
+                        if (currentAddress < RomSize)
+                        {
+                            rom[currentAddress++] = 0x60; // RTS
+                            bytesWritten = 1;
+                        }
+                        break;
+                    case LlirInstructionKind.Syscall:
+                        // JSR to address (high byte in operand[1], low in operand[0])
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0x20; // JSR
+                            rom[currentAddress++] = (byte)operands[0];
+                            rom[currentAddress++] = (byte)(operands[1] >> 8);
+                            bytesWritten = 3;
+                        }
+                        break;
+                    default:
+                        // Unknown instruction - generate NOP (or skip)
+                        if (currentAddress < RomSize)
+                        {
+                            rom[currentAddress++] = 0xEA; // NOP
+                            bytesWritten = 1;
+                        }
+                        break;
+                }
+
+                // If we couldn't write the full instruction due to lack of space, break.
+                if (bytesWritten == 0)
+                {
+                    // Failed to write instruction due to space constraints or missing operands
+                    break;
+                }
+            }
+
+            // Emit a self-loop (JMP *) so the program stays at its final state.
+            // Atari 2600 programs never return; the CPU loops forever.
+            if (currentAddress + 3 <= RomSize)
+            {
+                // Store JMP* instruction
+                rom[currentAddress] = 0x4C; // JMP absolute
+                rom[currentAddress + 1] = 0xFF; // low byte of * (currentAddress)
+                rom[currentAddress + 2] = 0xFF; // high byte of * (currentAddress)
+                // Note: * is the address of this JMP instruction, which is currentAddress
+                // But note: the address in the ROM is $F000 + currentAddress
+                // So the absolute address we want to jump to is $F000 + currentAddress
+                // We have already written the JMP opcode, now we need to write the address.
+                // However, note that the two bytes we are about to write are for the address of the JMP instruction itself.
+                // This is correct: JMP * means jump to the address of the JMP instruction.
+                // But note: the JMP instruction is 3 bytes, so the address of the JMP instruction is the address of the opcode.
+                // We are writing the address as two bytes: low then high.
+                // The address we want is the current address of the JMP opcode (which is the value of currentAddress at the start of the instruction).
+                // However, we have already incromented currentAddress by the bytesWritten of the previous instructions.
+                // We want to jump to the instruction we are about to write? Actually, we want to jump to the instruction we just wrote?
+                // The self-loop should jump to the instruction we just wrote? Or to the next instruction?
+                // The original code did: 
+                //   int loopAddr = 0xF000 + currentAddress; // CPU address of this JMP instruction
+                //   rom[currentAddress] = 0x4C;             // JMP absolute
+                //   rom[currentAddress + 1] = (byte)(loopAddr & 0xFF);         // low byte
+                //   rom[currentAddress + 2] = (byte)((loopAddr >> 8) & 0xFF);  // high byte
+                // This suggests that the JMP instruction is at address (0xF000 + currentAddress) and we are jumping to that same address.
+                // So we are jumping to the JMP instruction itself, creating an infinite loop.
+                // We are currently at the point after writing the last instruction's bytes, and currentAddress points to the next free byte.
+                // We want to write a JMP instruction that jumps to the address of the JMP instruction we are about to write.
+                // But note: we haven't written the JMP instruction yet.
+                // Let's compute the address of the JMP instruction we are about to write: it is $F000 + currentAddress.
+                // We want to jump to that address.
+                // So we set:
+                //   rom[currentAddress] = 0x4C; // JMP absolute
+                //   rom[currentAddress + 1] = (byte)( (0xF000 + currentAddress) & 0xFF );
+                //   rom[currentAddress + 2] = (byte)( (0xF000 + currentAddress) >> 8 );
+                int loopAddr = 0xF000 + currentAddress; // CPU address of the JMP instruction we are about to write
+                rom[currentAddress] = 0x4C;             // JMP absolute
+                rom[currentAddress + 1] = (byte)(loopAddr & 0xFF);         // low byte
+                rom[currentAddress + 2] = (byte)((loopAddr >> 8) & 0xFF);  // high byte
+                // We have written 3 bytes for the JMP instruction.
+                currentAddress += 3;
+            }
+
+            // Set up interrupt vectors at the end of ROM (indices 4092-4095 correspond to $FFFC-$FFFF)
+            // Array indices: 0 = $F000, so $FFFC = index 4092 (0xFFFC - 0xF000 = 0x0FFC = 4092)
+            if (RomSize >= VectorBaseOffset + 4)
+            {
+                // Clear the vector table area
+                Array.Clear(rom, VectorBaseOffset, 4);
+                // Set interrupt vectors to point to our self-loop (which is at the end of the ROM we used)
+                // The self-loop starts at the address of the JMP instruction we just wrote.
+                // The address of the JMP instruction is: 0xF000 + (currentAddress - 3) [because we just wrote 3 bytes for the JMP]
+                int selfLoopAddress = 0xF000 + (currentAddress - 3);
+                rom[VectorBaseOffset]     = (byte)(selfLoopAddress & 0xFF);         // IRQ vector low
+                rom[VectorBaseOffset + 1] = (byte)((selfLoopAddress >> 8) & 0xFF); // IRQ vector high
+                rom[VectorBaseOffset + 2] = (byte)(selfLoopAddress & 0xFF);         // Reset vector low
+                rom[VectorBaseOffset + 3] = (byte)((selfLoopAddress >> 8) & 0xFF); // Reset vector high
+            }
+
+            return rom;
+        }
+
+        // ICapabilityProvider implementation
+        public CapabilityProfile GetCapabilityProfile()
+        {
+            return new CapabilityProfile
+            {
+                BaseLevel = CapabilityLevel.L1,
+                Extensions = new HashSet<string> 
+                { 
+                    "Ext.Math.Fast",      // DPC chip math acceleration
+                    "Ext.Snd.Polyphonic"  // DPC chip polyphonic audio
+                },
+                InjectedCapabilities = new Dictionary<string, CapabilityLevel>
+                {
+                    { "Ext.Math.Fast", CapabilityLevel.L3 },  // Fast math operations
+                    { "Ext.Snd.Polyphonic", CapabilityLevel.L4 }  // Multi-channel audio
+                }
+            };
+        }
+
+        public IEnumerable<string> GetSupportedExtensions()
+        {
+            return new[] 
+            { 
+                "Ext.Math.Fast",      // DPC chip math acceleration
+                "Ext.Snd.Polyphonic"  // DPC chip polyphonic audio
+            };
+        }
+    }
+}

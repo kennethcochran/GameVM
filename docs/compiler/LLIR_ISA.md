@@ -1,12 +1,48 @@
-# LLIR Instruction Set Architecture (ISA) Specification [aspirational]
+# LLIR Instruction Set Architecture (ISA) Specification [implemented, aspirational]
 
-## Overview [aspirational]
+## Overview [implemented]
 
-This document provides the complete specification for the LLIR instruction set. The LLIR is an accumulator-based virtual ISA designed for efficient threaded code execution across 2nd-5th generation gaming consoles.
+This document provides the specification for the LLIR instruction set. The LLIR is an accumulator-based virtual ISA designed for efficient code execution across 2nd-5th generation gaming consoles. **The shipped implementation uses a compact, 6502-adjacent opcode set stored as a SoA `InstList`.** The aspirational full ISA below is preserved for reference.
 
-## Instruction Format
+## Represented as an SoA `InstList` [implemented]
 
-### Basic Instruction Structure
+LLIR instructions are stored in a `InstList` — parallel arrays of tag bytes, flags, arg counts, and fixed/extra operand pools. The reader accesses operands via `GetOperands(instIdx)` (returning a `ReadOnlySpan<uint>`) or `GetOperand(instIdx, operandIdx)` for individual operands. No object hierarchy is created; iteration is stride-only over the `Tags` plane. See `LLIR.md` for the full layout and the `InstConstants.MAX_FIXED_OPS` (4) fast-vs-slow operand threshold.
+
+## Actual implementation instruction set [implemented]
+
+The shipped LLIR instruction set is minimal and 6502-adjacent. It is stored as a SoA `InstList` with `LlirInstructionKind` tag bytes:
+
+### Opcode specification [implemented]
+
+| Kind | Byte | Operands | Description |
+| ---- | ---- | -------- | ----------- |
+| `Label` | 192 (0xC0) | `[funcNameHash]` | Entry point / control-flow label (also acts as function entry point for `Proc`) |
+| `Load` | 193 (0xC1) | `[reg, value]` or `[reg, addrLow, addrHigh]` | Load immediate or from address into accumulator or register |
+| `Store` | 194 (0xC2) | `[reg, addrLow, addrHigh?]` | Store accumulator/register to memory (zero-page when `< $100`) |
+| `Call` | 195 (0xC3) | `[target]` | Call subroutine (JSR) |
+| `Jump` | 196 (0xC4) | `[target]` | Unconditional jump (JMP) |
+| `Branch` | 197 (0xC5) | `[condition?, target]` | Conditional branch (BEQ/BNE etc.) |
+| `Return` | 198 (0xC6) | — | Return from subroutine (RTS) |
+| `Syscall` | 199 (0xC7) | `[vector]` | Operating system/TIA vector trap |
+
+### Operand format [implemented]
+
+Operands are `uint` values encoded as follows:
+
+- **Registers** — `0` = accumulator (A), `1` = R0, `2` = R1, etc.
+- **Address** — low byte first, high byte optional. Zero-page form (`addrLow only`) is chosen when the resolved address `< $100` (e.g., variable in zero page `$80`-`$FF` for Atari 2600).
+- **Function name** — 32-bit hash from the `StringPool` (computed by `MidToLowLevelTransformer`).
+- **Condition** — `0` = true (JUMPZ/JUMPN), `1` = false (JUMPNZ).
+
+The transformation to actual machine code is performed by `MidToLowLevelTransformer.TransformSlab(mlirSlab, stringPool)` (MLIR → LLIR), then `Atari2600CodeGenerator.GenerateFromSlab(llirSlab, stringPool, options)` (LLIR → 6502 ROM).
+
+## Aspirational wider ISA (reference) [aspirational]
+
+The remainder of this document describes the aspirational full ISA for 8-bit/16-bit/32/64-bit targets and the dispatch techniques (DTC, ITC, STC, TTC). The shipped pipeline uses the tiny 6502-adjacent subset above to generate compact 4KB ROMs for the Atari 2600. Refer to `LLIR.md` for the "virtual machine architecture" discussion.
+
+## Aspirational Instruction Format (reference) [aspirational]
+
+### Basic Instruction Structure [aspirational]
 ```
 [Opcode] [Operand1] [Operand2] [Width] [Flags]
 ```

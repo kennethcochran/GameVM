@@ -21,11 +21,9 @@ public class ValueTypeIsolationTests
         typeof(SlabHeader),
         typeof(LocalSlotIndex),
         typeof(TlvEntry),
-        typeof(InstructionMetadataFlags),
         typeof(DiagnosticJournal),
         typeof(DiagnosticEntry),
         typeof(HashedSymbolTable),
-        typeof(SlabRelocator),
     };
 
     [Test]

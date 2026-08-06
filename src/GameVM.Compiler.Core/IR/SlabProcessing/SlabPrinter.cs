@@ -1,21 +1,16 @@
 using System;
 using System.IO;
 using System.Text;
-using GameVM.Compiler.Core.Utilities;
 
 using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Soa;
 namespace GameVM.Compiler.Core.IR.SlabProcessing;
 
 /// <summary>
-/// Translates a raw <c>uint[]</c> instruction slab into a readable pseudo-assembly text
+/// Translates an <see cref="InstList"/> instruction slab into a readable pseudo-assembly
 /// representation. This is a debugging/diagnostic utility mandated by the design as a strict
 /// prerequisite before writing optimization passes: debugging raw integer arrays is
 /// prohibitively difficult otherwise.
-///
-/// Layout consumed: a 6-index standardized header (see <see cref="SlabHeader"/>), followed by
-/// self-describing instruction blocks. Each block starts with a 32-bit metadata word
-/// (<see cref="InstructionMetadata"/>) encoding kind/size/arg-count/flags, followed by
-/// <c>size - 1</c> payload uints.
 /// </summary>
 public sealed class SlabPrinter
 {
@@ -60,16 +55,16 @@ public sealed class SlabPrinter
         "MEMCMP", // 27
     };
 
-    private readonly uint[] _slab;
+    private readonly InstList _slab;
 
-    /// <summary>Initializes the printer over a raw instruction slab.</summary>
-    public SlabPrinter(uint[] slab)
+    /// <summary>Initializes the printer over an InstList instruction slab.</summary>
+    public SlabPrinter(InstList slab)
     {
-        _slab = slab ?? throw new ArgumentNullException(nameof(slab));
+        _slab = slab;
     }
 
     /// <summary>
-    /// Renders the entire slab (header + instruction blocks) to a single string.
+    /// Renders the entire slab to a single string.
     /// </summary>
     public string Print()
     {
@@ -80,49 +75,33 @@ public sealed class SlabPrinter
     }
 
     /// <summary>
-    /// Renders the slab to the given writer (header summary, then one line per instruction block,
+    /// Renders the slab to the given writer (one line per instruction block,
     /// with block boundaries marked after terminator instructions).
     /// </summary>
     public void Print(TextWriter writer)
     {
         if (writer == null)
             throw new ArgumentNullException(nameof(writer));
-        if (_slab.Length < HeaderLength)
-            throw new ArgumentException($"Slab must contain at least {HeaderLength} indices for the header");
 
-        var header = SlabHeader.Read(_slab);
-        header.Validate((uint)_slab.Length);
-
-        writer.WriteLine("; === slab header ===");
-        writer.WriteLine($"; magic    = 0x{header.MagicNumber:X8}");
-        writer.WriteLine($"; version  = {header.Major}.{header.Minor}");
-        writer.WriteLine($"; ir-stage = {header.IrStage} ({IrStageName(header.IrStage)})");
-        writer.WriteLine($"; elements = {header.ElementCount}");
-        writer.WriteLine($"; symbols  = {(header.SymbolTableOffset == 0 ? "none" : header.SymbolTableOffset.ToString())}");
         writer.WriteLine("; === instructions ===");
 
         int offset = HeaderLength;
-        while (offset < _slab.Length)
+        for (int i = 0; i < _slab.Count; i++)
         {
-            var metadata = _slab[offset];
-            var size = MetadataDecoder.DecodeSize(metadata);
-            if (size == 0)
-                throw new InvalidOperationException($"Block at {offset} has zero size (corrupt slab)");
-
-            var kind = MetadataDecoder.DecodeKind(metadata);
-            var argCount = MetadataDecoder.DecodeArgCount(metadata);
-            var isTerminator = MetadataDecoder.DecodeIsTerminator(metadata);
-            var hasDiagnostic = MetadataDecoder.DecodeHasDiagnostic(metadata);
+            byte kind = _slab.GetKind(i);
+            ushort argCount = _slab.GetArgCount(i);
+            ReadOnlySpan<uint> operands = _slab.GetOperands(i);
+            ushort flags = _slab.GetFlags(i);
+            bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
+            bool hasDiagnostic = (flags & (ushort)InstructionFlag.Diagnostic) != 0;
 
             var mnemonic = Mnemonic(kind);
             var line = new StringBuilder();
             line.Append($"{offset,5}: {mnemonic}");
 
-            // Remaining payload uints after the metadata word are the instruction arguments.
-            var argCountClamped = Math.Min(argCount, (int)size - 1);
-            for (int i = 0; i < argCountClamped; i++)
+            for (int j = 0; j < argCount; j++)
             {
-                line.Append($" {_slab[offset + 1 + i]:X8}");
+                line.Append($" {operands[j]:X8}");
             }
 
             if (isTerminator)
@@ -135,7 +114,8 @@ public sealed class SlabPrinter
             if (isTerminator)
                 writer.WriteLine("; --- basic block boundary ---");
 
-            offset += size;
+            // Each instruction occupies 1 (header slot) + argCount slots in the flat layout
+            offset += 1 + argCount;
         }
     }
 
@@ -143,13 +123,4 @@ public sealed class SlabPrinter
     {
         return kind < KindMnemonics.Length ? KindMnemonics[kind] : $"UNK.{kind}";
     }
-
-    private static string IrStageName(uint stage) => stage switch
-    {
-        0 => "AST",
-        1 => "HLIR",
-        2 => "MLIR",
-        3 => "LLIR",
-        _ => "UNKNOWN",
-    };
 }

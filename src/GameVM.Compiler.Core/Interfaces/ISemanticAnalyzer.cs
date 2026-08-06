@@ -1,5 +1,6 @@
 using System.Collections.Generic;
-
+using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 namespace GameVM.Compiler.Core.Interfaces
 {
     /// <summary>
@@ -12,7 +13,7 @@ namespace GameVM.Compiler.Core.Interfaces
         /// </summary>
         /// <param name="hlirSlab">The HLIR slab to analyze</param>
         /// <returns>Result of semantic analysis including any errors found</returns>
-        SemanticAnalysisResult AnalyzeSlab(uint[] hlirSlab);
+        SemanticAnalysisResult AnalyzeSlab(InstList hlirSlab, StringPool stringPool);
     }
 
     /// <summary>

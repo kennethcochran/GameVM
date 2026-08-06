@@ -2,6 +2,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
 
@@ -16,6 +17,20 @@ public class Atari2600CodeGeneratorTests
         _codeGenerator = new Atari2600CodeGenerator();
     }
 
+    private static InstList CreateEmptyInstList()
+    {
+        return new InstList(
+            Array.Empty<byte>(),
+            Array.Empty<ushort>(),
+            Array.Empty<ushort>(),
+            Array.Empty<uint>(),
+            Array.Empty<uint>(),
+            Array.Empty<uint>(),
+            Array.Empty<int>(),
+            0,
+            0);
+    }
+
     [Test]
     public void GenerateFromSlab_WithNullSlab_ReturnsEmptyArray()
     {
@@ -23,7 +38,7 @@ public class Atari2600CodeGeneratorTests
         var options = new CodeGenOptions();
 
         // Act
-        var result = _codeGenerator.GenerateFromSlab(null!, new StringPool(), options);
+        var result = _codeGenerator.GenerateFromSlab(CreateEmptyInstList(), new StringPool(), options);
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -35,7 +50,7 @@ public class Atari2600CodeGeneratorTests
     {
         // Arrange
         var options = new CodeGenOptions();
-        var llirSlab = Array.Empty<uint>();
+        var llirSlab = CreateEmptyInstList();
 
         // Act
         var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
@@ -50,14 +65,24 @@ public class Atari2600CodeGeneratorTests
     {
         // Arrange
         var options = new CodeGenOptions();
-        var llirSlab = new uint[] 
-        { 
-            0x47564D56, // Magic: "GVMV"
-            3,          // Stage: LLIR (3)
-            1,          // Version
-            2,          // Element count: 2 instructions
-            0, 0, 0, 0  // Reserved
-        };
+        
+        // Create a minimal LLIR slab with 2 instructions
+        var llirSlab = new InstList(
+            new byte[] { 
+                0x47, 0x56, 0x4D, 0x56, // Magic: "GVMV"
+                3,                       // Stage: LLIR (3)
+                1,                       // Version
+                2, 0                     // Element count: 2 instructions (ushort)
+            },
+            new ushort[] { 0x0000, 0x0000 }, // flags
+            new ushort[] { 0x0000, 0x0000 }, // argCount=0
+            new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000 }, // fixedOps (4 per instruction)
+            new uint[] { }, // empty extra pool
+            new uint[] { 0x00000000, 0x00000000 }, // extraOffsets
+            new int[] { 0, 0 }, // blockIds
+            2, // count
+            0  // extraUsed
+        );
 
         // Act
         var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
@@ -74,23 +99,34 @@ public class Atari2600CodeGeneratorTests
         var options = new CodeGenOptions();
         
         // Build a simple LLIR slab with LOAD and STORE instructions
-        var header = new uint[] { 0x47564D56, 3, 1, 2, 0, 0, 0, 0 }; // 2 elements
-        var loadInstr = new uint[] 
-        { 
-            InstructionMetadata.Encode((byte)LlirInstructionKind.Load, 2, 1), // metadata
-            0x42  // immediate value 0x42
-        };
-        var storeInstr = new uint[]
-        {
-            InstructionMetadata.Encode((byte)LlirInstructionKind.Store, 3, 2), // metadata
-            0x80, // address low byte
-            0x00  // address high byte
-        };
-        
-        var llirSlab = new uint[header.Length + loadInstr.Length + storeInstr.Length];
-        Array.Copy(header, 0, llirSlab, 0, header.Length);
-        Array.Copy(loadInstr, 0, llirSlab, header.Length, loadInstr.Length);
-        Array.Copy(storeInstr, 0, llirSlab, header.Length + loadInstr.Length, storeInstr.Length);
+        // LLIR_LOAD = 0x22, LLIR_STORE = 0x24
+        var llirSlab = new InstList(
+            new byte[] 
+            { 
+                (byte)LlirInstructionKind.Load,    // 193
+                (byte)LlirInstructionKind.Store    // 194
+            },
+            new ushort[] 
+            { 
+                0x0000, // flags for LOAD
+                0x0000  // flags for STORE
+            },
+            new ushort[] 
+            { 
+                0x0002, // argCount=2 for LOAD (target + value)
+                0x0003  // argCount=3 for STORE (target + address low + address high)
+            },
+            new uint[] 
+            { 
+                0x00000001, 0x00000042, 0x00000000, 0x00000000, // LOAD: target=1, value=0x42
+                0x00000002, 0x00000080, 0x00000000, 0x00000000  // STORE: target=2, addr=0x80
+            },
+            new uint[] { }, // empty extra pool
+            new uint[] { 0x00000000, 0x00000004 }, // extraOffsets
+            new int[] { 0, 0 }, // blockIds
+            2, // count
+            0  // extraUsed
+        );
 
         // Act
         var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
@@ -114,15 +150,22 @@ public class Atari2600CodeGeneratorTests
     {
         // Arrange
         var options = new CodeGenOptions();
-        var header = new uint[] { 0x47564D56, 3, 1, 1, 0, 0, 0, 0 }; // 1 element
-        var returnInstr = new uint[] 
-        { 
-            InstructionMetadata.Encode((byte)LlirInstructionKind.Return, 1, 0) // metadata
-        };
         
-        var llirSlab = new uint[header.Length + returnInstr.Length];
-        Array.Copy(header, 0, llirSlab, 0, header.Length);
-        Array.Copy(returnInstr, 0, llirSlab, header.Length, returnInstr.Length);
+        // LLIR_RETURN = 0x27
+        var llirSlab = new InstList(
+            new byte[] 
+            { 
+                (byte)LlirInstructionKind.Return    // 198
+            },
+            new ushort[] { 0x0000 }, // flags
+            new ushort[] { 0x0001 }, // argCount=1 for RETURN
+            new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 }, // fixedOps
+            new uint[] { }, // empty extra pool
+            new uint[] { 0x00000000 }, // extraOffsets
+            new int[] { 0 }, // blockIds
+            1, // count
+            0  // extraUsed
+        );
 
         // Act
         var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);
@@ -142,18 +185,39 @@ public class Atari2600CodeGeneratorTests
         var options = new CodeGenOptions();
         
         // Build a slab with many instructions to test bounds
-        var instructions = new List<uint>();
+        var instructions = new List<byte>();
+        var fixedOps = new List<uint>();
+        var flags = new List<ushort>();
+        var argCounts = new List<ushort>();
+        var extraOffsets = new List<uint>();
+        var blockIds = new List<int>();
+        
+        uint extraUsed = 0;
         for (int i = 0; i < 500; i++)
         {
             // LOAD instruction: metadata + 1 operand
-            instructions.Add(InstructionMetadata.Encode((byte)LlirInstructionKind.Load, 2, 1));
-            instructions.Add((uint)i);
+            instructions.Add((byte)LlirInstructionKind.Load);
+            flags.Add(0x0000);
+            argCounts.Add(0x0002); // target + value
+            fixedOps.Add((uint)i); // target register
+            fixedOps.Add((uint)i); // immediate value
+            fixedOps.Add(0x00000000);
+            fixedOps.Add(0x00000000);
+            extraOffsets.Add(extraUsed);
+            blockIds.Add(0);
         }
         
-        var header = new uint[] { 0x47564D56, 3, 1, (uint)instructions.Count / 2, 0, 0, 0, 0 };
-        var llirSlab = new uint[header.Length + instructions.Count];
-        Array.Copy(header, 0, llirSlab, 0, header.Length);
-        Array.Copy(instructions.ToArray(), 0, llirSlab, header.Length, instructions.Count);
+        var llirSlab = new InstList(
+            instructions.ToArray(),
+            flags.ToArray(),
+            argCounts.ToArray(),
+            fixedOps.ToArray(),
+            Array.Empty<uint>(), // empty extra pool
+            extraOffsets.ToArray(),
+            blockIds.ToArray(),
+            500, // count
+            0    // extraUsed
+        );
 
         // Act
         var result = _codeGenerator.GenerateFromSlab(llirSlab, new StringPool(), options);

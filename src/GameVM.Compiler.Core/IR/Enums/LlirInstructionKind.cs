@@ -1,4 +1,3 @@
-using GameVM.Compiler.Core.IR.Slab;
 
 namespace GameVM.Compiler.Core.IR
 {
@@ -12,30 +11,30 @@ namespace GameVM.Compiler.Core.IR
         Unknown = 0,
         
         /// <summary>NOP / empty instruction</summary>
-        Nop = InstructionMetadataFlags.NOP,
+        Nop = 0,
         
         /// <summary>Label instruction for control flow</summary>
-        Label = InstructionMetadataFlags.LLIR_LABEL,
+        Label = 192,
         
         /// <summary>Load instruction</summary>
-        Load = InstructionMetadataFlags.LLIR_LOAD,
+        Load = 193,
         
         /// <summary>Store instruction</summary>
-        Store = InstructionMetadataFlags.LLIR_STORE,
+        Store = 194,
         
         /// <summary>Call instruction</summary>
-        Call = InstructionMetadataFlags.LLIR_CALL,
+        Call = 195,
         
         /// <summary>Jump instruction (conditional/unconditional)</summary>
-        Jump = InstructionMetadataFlags.LLIR_JUMP,
+        Jump = 196,
         
         /// <summary>Branch instruction</summary>
-        Branch = InstructionMetadataFlags.LLIR_BRANCH,
+        Branch = 197,
         
         /// <summary>Return instruction</summary>
-        Return = InstructionMetadataFlags.LLIR_RETURN,
+        Return = 198,
         
         /// <summary>Syscall instruction</summary>
-        Syscall = InstructionMetadataFlags.LLIR_SYSCALL,
+        Syscall = 199,
     }
 }

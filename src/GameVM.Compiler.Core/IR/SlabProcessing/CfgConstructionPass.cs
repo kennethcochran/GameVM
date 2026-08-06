@@ -1,122 +1,126 @@
-using GameVM.Compiler.Core.Utilities;
-
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Slab;
+
 namespace GameVM.Compiler.Core.IR.SlabProcessing
 {
     /// <summary>
-    /// Builds a <see cref="CfgTable"/> from a linear instruction slab by identifying
+    /// Builds a <see cref="CfgTable"/> from an <see cref="InstList"/> by identifying
     /// basic-block leaders and assigning stable Block IDs. Leaders are: the entry
     /// instruction, and every instruction reported by the successor resolver as a
     /// control-flow target of a terminator. The resolver is the single source of truth
-    /// for control flow (it decides which offsets are jump targets and/or fall-through
-    /// successors), so no fall-through heuristic is applied here.
+    /// for control flow (it decides which instruction indices are jump targets and/or
+    /// fall-through successors), so no fall-through heuristic is applied here.
     /// </summary>
     public sealed class CfgConstructionPass
     {
-        private readonly uint[] _slab;
+        private readonly InstList _slab;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CfgConstructionPass"/> class.
-        /// </summary>
-        public CfgConstructionPass(uint[] slab)
+        /// </note>
+        /// <param name="slab">The instruction list to build the CFG from.</param>
+        /// <exception cref="ArgumentException">Thrown when the slab is empty.</exception>
+        public CfgConstructionPass(InstList slab)
         {
-            _slab = slab ?? throw new System.ArgumentNullException(nameof(slab));
-            if (_slab.Length < 6)
-                throw new System.ArgumentException("Slab must contain at least 6 indices for the header");
+            if (slab.Count == 0)
+                throw new System.ArgumentException("Slab must contain at least one instruction", nameof(slab));
+            _slab = slab;
         }
 
         /// <summary>
-        /// Constructs the CFG. The <paramref name="successorResolver"/> returns the slab
-        /// offsets of all instructions that are control-flow successors of the terminator
-        /// at the given offset (e.g. the jump target, and/or the fall-through instruction).
-        /// Return an empty array for a terminator with no successors (e.g. return).
+        /// Constructs the CFG. The <paramref name="successorResolver"/> returns the
+        /// instruction indices of all instructions that are control-flow successors of
+        /// the terminator at the given index (e.g. the jump target, and/or the
+        /// fall-through instruction). Return an empty array for a terminator with no
+        /// successors (e.g. return).
         /// </summary>
+        /// <returns>The constructed control flow graph.</returns>
         public CfgTable Build(System.Func<int, int[]> successorResolver)
         {
-            var isLeader = new bool[_slab.Length];
+            // Step 1: Identify basic-block leaders.
+            // Leaders are: the entry instruction, and every instruction reported by the
+            // successor resolver as a control-flow target of a terminator.
+            var isLeader = new bool[_slab.Count];
 
-            // Entry instruction (first block after header) is always a leader.
-            int entry = 6;
-            if (entry < _slab.Length)
-                isLeader[entry] = true;
+            // Entry instruction (first instruction) is always a leader.
+            if (_slab.Count > 0)
+                isLeader[0] = true;
 
             // First pass: walk instructions, mark targets reported by the resolver as leaders.
-            int offset = entry;
-            while (offset < _slab.Length)
+            for (int i = 0; i < _slab.Count; i++)
             {
-                uint metadata = _slab[offset];
-                int size = MetadataDecoder.DecodeSize(metadata);
-                if (size <= 0)
-                    break;
-
-                if (MetadataDecoder.DecodeIsTerminator(metadata))
+                ushort flags = _slab.GetFlags(i);
+                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
+                if (isTerminator)
                 {
-                    int[] successors = successorResolver(offset);
+                    int[] successors = successorResolver(i);
                     if (successors != null)
                     {
                         foreach (int target in successors)
                         {
-                            if (target >= 0 && target < isLeader.Length)
+                            if (target >= 0 && target < _slab.Count)
                                 isLeader[target] = true;
                         }
                     }
                 }
-
-                offset += size;
             }
 
-            // Assign Block IDs to leaders in slab order.
+            // Step 2: Assign block IDs to each instruction in order.
+            // Instructions between leaders (inclusive) belong to the same block.
             int blockCount = 0;
-            var blockIdAt = new int[_slab.Length];
-            for (int i = 0; i < isLeader.Length; i++)
+            var blockIdAt = new int[_slab.Count];
+            int currentBlockId = -1; // will be incremented to 0 for first block
+
+            for (int i = 0; i < _slab.Count; i++)
             {
                 if (isLeader[i])
                 {
-                    blockIdAt[i] = blockCount;
+                    currentBlockId++;
                     blockCount++;
                 }
-                else
-                {
-                    blockIdAt[i] = -1;
-                }
+                blockIdAt[i] = currentBlockId;
             }
 
-            // Per-block outgoing-edge counts, sized once blockCount is known.
+            // Step 3: Populate InstList.BlockIds[] with BlockId handle values:
+            // 0 = unassigned (BlockId.Unassigned), 1+ = assigned block ID (BlockId.FromInt(blockIndex + 1))
+            for (int i = 0; i < _slab.Count; i++)
+            {
+                if (blockIdAt[i] >= 0)
+                    _slab.SetBlockId(i, blockIdAt[i] + 1); // Convert to BlockId storage format
+                else
+                    _slab.SetBlockId(i, 0); // BlockId.Unassigned.Value
+            }
+
+            // Step 4: Count edges and build CfgTable.
             var edgeWritten = new int[blockCount];
 
             // Count edges to size the flat adjacency list.
             int edgePairs = 0;
-            offset = entry;
-            while (offset < _slab.Length)
+            for (int i = 0; i < _slab.Count; i++)
             {
-                uint metadata = _slab[offset];
-                int size = MetadataDecoder.DecodeSize(metadata);
-                if (size <= 0)
-                    break;
-
-                if (MetadataDecoder.DecodeIsTerminator(metadata))
+                ushort flags = _slab.GetFlags(i);
+                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
+                if (isTerminator)
                 {
-                    int[] successors = successorResolver(offset);
+                    int[] successors = successorResolver(i);
                     if (successors != null)
                     {
                         foreach (int target in successors)
                         {
-                            if (target >= 0 && blockIdAt[target] >= 0)
+                            if (target >= 0 && target < _slab.Count && blockIdAt[target] >= 0)
                             {
                                 edgePairs++;
-                                edgeWritten[blockIdAt[offset]]++;
+                                edgeWritten[blockIdAt[i]]++;
                             }
                         }
                     }
                 }
-
-                offset += size;
             }
 
             var table = new CfgTable(blockCount, edgePairs);
 
-            // Populate blockOffsets.
-            for (int i = 0; i < isLeader.Length; i++)
+            // Populate blockOffsets: map block ID -> first instruction index in that block.
+            for (int i = 0; i < _slab.Count; i++)
             {
                 if (isLeader[i])
                     table.SetBlockOffset(blockIdAt[i], i);
@@ -131,23 +135,19 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
 
             // Populate edges (source, target) pairs, using edgeStart as the write cursor.
             var edgeCursor = (int[])edgeStart.Clone();
-            offset = entry;
-            while (offset < _slab.Length)
+            for (int i = 0; i < _slab.Count; i++)
             {
-                uint metadata = _slab[offset];
-                int size = MetadataDecoder.DecodeSize(metadata);
-                if (size <= 0)
-                    break;
-
-                if (MetadataDecoder.DecodeIsTerminator(metadata))
+                ushort flags = _slab.GetFlags(i);
+                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
+                if (isTerminator)
                 {
-                    int[] successors = successorResolver(offset);
+                    int[] successors = successorResolver(i);
                     if (successors != null)
                     {
-                        int srcBlock = blockIdAt[offset];
+                        int srcBlock = blockIdAt[i];
                         foreach (int target in successors)
                         {
-                            if (target >= 0 && blockIdAt[target] >= 0)
+                            if (target >= 0 && target < _slab.Count && blockIdAt[target] >= 0)
                             {
                                 int dstBlock = blockIdAt[target];
                                 int slot = edgeCursor[srcBlock];
@@ -158,8 +158,6 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
                         }
                     }
                 }
-
-                offset += size;
             }
 
             // Record per-block edge spans.

@@ -1,4 +1,5 @@
 using GameVM.Compiler.Core.SemanticAnalysis;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Core.Tests
@@ -8,6 +9,31 @@ namespace GameVM.Compiler.Core.Tests
     {
         private PascalFrontend _frontend = null!;
         private BasicSemanticAnalyzer _analyzer = null!;
+        private static InstList BuildSlab(params byte[] kinds)
+        {
+            if (kinds.Length == 0)
+                return new InstList(Array.Empty<byte>(), Array.Empty<ushort>(), Array.Empty<ushort>(), Array.Empty<uint>(), Array.Empty<uint>(), Array.Empty<uint>(), Array.Empty<int>(), 0, 0);
+
+            var tags = new byte[kinds.Length];
+            var flags = new ushort[kinds.Length];
+            var argCounts = new ushort[kinds.Length];
+            var fixedOps = new uint[kinds.Length * InstConstants.MAX_FIXED_OPS];
+            var extra = new uint[0];
+            var extraOffsets = new uint[kinds.Length];
+            var blockIds = new int[kinds.Length];
+
+            for (int i = 0; i < kinds.Length; i++)
+            {
+                tags[i] = kinds[i];
+                flags[i] = 0;
+                argCounts[i] = 0;
+                Array.Fill(fixedOps, 0u, i * InstConstants.MAX_FIXED_OPS, InstConstants.MAX_FIXED_OPS);
+                extraOffsets[i] = 0;
+                blockIds[i] = 0;
+            }
+
+            return new InstList(tags, flags, argCounts, fixedOps, extra, extraOffsets, blockIds, kinds.Length, 0);
+        }
 
         [SetUp]
         public void Setup()
@@ -23,10 +49,10 @@ namespace GameVM.Compiler.Core.Tests
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 42;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
             var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
-            Assert.That(hlirSlab, Is.Not.Null.And.Not.Empty);
+            var stringPool = _frontend.StringPool!;
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab);
+            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
@@ -40,13 +66,14 @@ namespace GameVM.Compiler.Core.Tests
             var sourceCode = "program Test;\nvar x: Real;\nbegin\n  x := 42;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
             var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
-            Assert.That(hlirSlab, Is.Not.Null.And.Not.Empty);
+            var stringPool = _frontend.StringPool!;
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab);
+            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
+            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]
@@ -63,23 +90,21 @@ namespace GameVM.Compiler.Core.Tests
                 end.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
             var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
-            Assert.That(hlirSlab, Is.Not.Null.And.Not.Empty);
+            var stringPool = _frontend.StringPool!;
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab);
+            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
+            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]
         public void AnalyzeSlab_ReturnsError_ForEmptySlab()
         {
-            // Arrange
-            var emptySlab = new uint[0];
-
             // Act
-            var result = _analyzer.AnalyzeSlab(emptySlab);
+            var result = _analyzer.AnalyzeSlab(BuildSlab(), _frontend.StringPool!);
 
             // Assert
             Assert.That(result.Success, Is.False);
@@ -89,11 +114,9 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_ReturnsError_ForInvalidMagicNumber()
         {
-            // Arrange - invalid magic number
-            var invalidSlab = new uint[] { 0x12345678, 1, 0, 0, 0, 0 };
-
-            // Act
-            var result = _analyzer.AnalyzeSlab(invalidSlab);
+            var invalidSlab = BuildSlab((byte)0x01);
+            var stringPool = _frontend.StringPool!;
+            var result = _analyzer.AnalyzeSlab(invalidSlab, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.False);
@@ -103,11 +126,9 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_ReturnsError_ForWrongStage()
         {
-            // Arrange - stage 0 (AST) instead of stage 1 (HLIR)
-            var wrongStageSlab = new uint[] { 0x47494D00, 0, 1, 0, 0, 0 }; // Magic="GIM", stage=0
-
-            // Act
-            var result = _analyzer.AnalyzeSlab(wrongStageSlab);
+            var wrongStageSlab = BuildSlab((byte)0x01);
+            var stringPool = _frontend.StringPool!;
+            var result = _analyzer.AnalyzeSlab(wrongStageSlab, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.False);

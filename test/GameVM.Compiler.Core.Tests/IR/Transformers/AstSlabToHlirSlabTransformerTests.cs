@@ -1,51 +1,61 @@
 using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadataFlags;
-using static GameVM.Compiler.Core.IR.Slab.InstructionMetadata;
+using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR;
 
 namespace GameVM.Compiler.Core.Tests.IR.Transformers;
 
 public class AstSlabToHlirSlabTransformerTests
 {
-    private readonly ArenaAllocator _arena = new ArenaAllocator();
+    private readonly StringPool _stringPool = new StringPool();
     private readonly AstSlabToHlirSlabTransformer _transformer;
 
     public AstSlabToHlirSlabTransformerTests()
     {
-        _transformer = new AstSlabToHlirSlabTransformer(_arena, new StringPool());
+        _transformer = new AstSlabToHlirSlabTransformer(_stringPool);
     }
 
     [Test]
     public void Transform_SingleAssignment_ProducesHlirAssign()
     {
-        // AST slab layout:
-        // [0-5]   Header
-        // [6-8]   METHOD_DECLARATION [metadata, name=0, bodyOffset=9]
-        // [9-11]  BLOCK [metadata, stmt1=12, stmt2=15]
-        // [12-14] VARIABLE_DECLARATION [metadata, typeKind=1(Integer), nameOffset=0]
-        // [15-17] ASSIGNMENT [metadata, target=18(IDENTIFIER), value=20(LITERAL_INT)]
-        // [18-19] IDENTIFIER [metadata, nameOffset=0]
-        // [20-21] LITERAL_INT [metadata, value=42]
-        uint[] astSlab = new uint[]
-        {
-            SlabHeader.Magic, 1, 0, 0, 1, 0,
-            Encode(METHOD_DECLARATION, 3, 2), 0u, 9u,
-            Encode(BLOCK, 3, 2), 12u, 15u,
-            Encode(VARIABLE_DECLARATION, 3, 2), 1u, 0u,
-            Encode(ASSIGNMENT, 3, 2), 18u, 20u,
-            Encode(IDENTIFIER, 2, 1), 0u,
-            Encode(LITERAL_INT, 2, 1), 42u
-        };
+        // AST slab layout via InstListBuilder:
+        // - METHOD_DECLARATION: [name=0, bodyOffset=BLOCK]
+        // - BLOCK: [stmt1=VAR_DECL, stmt2=ASSIGNMENT]
+        // - VARIABLE_DECLARATION: [typeKind=1, nameOffset=x]
+        // - ASSIGNMENT: [target=IDENT(x), value=LITERAL_INT(42)]
+        
+        var builder = new InstListBuilder();
+        var xOffset = _stringPool.Intern("x");
 
-        uint[] result = _transformer.Transform(astSlab);
+        // Use temporary indices to construct AST
+        // Since builder appends sequentially, let's build from bottom up to get indices or use placeholders:
+        // Index 0: VARIABLE_DECLARATION (Integer, x)
+        int varDeclIdx = builder.Add((byte)AstNodeKind.VariableDeclaration, InstructionFlag.None, 2, 1u, xOffset);
+        
+        // Index 1: IDENTIFIER (x)
+        int identIdx = builder.Add((byte)AstNodeKind.Identifier, InstructionFlag.None, 1, xOffset);
+        
+        // Index 2: LITERAL_INT (42)
+        int literalIdx = builder.Add((byte)AstNodeKind.LiteralInt, InstructionFlag.None, 1, 42u);
+        
+        // Index 3: ASSIGNMENT (identIdx, literalIdx)
+        int assignIdx = builder.Add((byte)AstNodeKind.Assignment, InstructionFlag.None, 2, (uint)identIdx, (uint)literalIdx);
+        
+        // Index 4: BLOCK [varDeclIdx, assignIdx]
+        int blockIdx = builder.Add((byte)AstNodeKind.Block, InstructionFlag.None, 2, (uint)varDeclIdx, (uint)assignIdx);
+        
+        // Index 5: METHOD_DECLARATION [nameOffset, blockIdx]
+        builder.Add((byte)AstNodeKind.MethodDeclaration, InstructionFlag.None, 2, xOffset, (uint)blockIdx);
 
-        Assert.That(SlabHeader.Read(result).IrStage, Is.EqualTo(1u));
+        InstList astSlab = builder.Build();
+        InstList result = _transformer.Transform(astSlab);
+
+        Assert.That(result.Count, Is.GreaterThan(0));
         bool assignFound = false;
-        for (int i = SlabHeader.HeaderIndex.Length; i < result.Length; i++)
+        for (int i = 0; i < result.Count; i++)
         {
-            if (DecodeKind(result[i]) == HLIR_ASSIGN)
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Assign)
             {
                 assignFound = true;
                 break;

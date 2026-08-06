@@ -1,4 +1,4 @@
-using GameVM.Compiler.Core.IR.Slab;
+using System;
 
 namespace GameVM.Compiler.Core.IR
 {
@@ -12,51 +12,51 @@ namespace GameVM.Compiler.Core.IR
         Unknown = 0,
         
         /// <summary>NOP / empty instruction</summary>
-        Nop = InstructionMetadataFlags.NOP,
+        Nop = 0,
         
         /// <summary>Label instruction for control flow</summary>
-        Label = InstructionMetadataFlags.MLIR_LABEL,
+        Label = 128,
         
         /// <summary>Branch instruction (conditional/unconditional)</summary>
-        Branch = InstructionMetadataFlags.MLIR_BRANCH,
+        Branch = 129,
         
         /// <summary>Assignment instruction (MLIR style)</summary>
-        Assign = InstructionMetadataFlags.MLIR_ASSIGN,
+        Assign = 130,
         
         /// <summary>Call instruction (MLIR style)</summary>
-        Call = InstructionMetadataFlags.MLIR_CALL,
+        Call = 131,
         
         /// <summary>Return instruction</summary>
-        Return = InstructionMetadataFlags.RETURN_STATEMENT,
+        Return = 16,
         
         /// <summary>Variable declaration</summary>
-        Variable = InstructionMetadataFlags.VARIABLE_DECLARATION,
+        Variable = 8,
         
         /// <summary>Block statement</summary>
-        Block = InstructionMetadataFlags.BLOCK,
+        Block = 15,
         
         /// <summary>Expression statement</summary>
-        ExpressionStatement = InstructionMetadataFlags.EXPRESSION_STATEMENT,
+        ExpressionStatement = 17,
         
         /// <summary>Function declaration</summary>
-        FunctionDeclaration = InstructionMetadataFlags.METHOD_DECLARATION,
+        FunctionDeclaration = 10,
         
         /// <summary>Function call</summary>
-        FunctionCall = InstructionMetadataFlags.METHOD_CALL,
+        FunctionCall = 11,
         
         /// <summary>Function parameter</summary>
-        FunctionParameter = InstructionMetadataFlags.FUNCTION_PARAMETER,
+        FunctionParameter = 18,
         
         /// <summary>Function body</summary>
-        FunctionBody = InstructionMetadataFlags.FUNCTION_BODY,
+        FunctionBody = 19,
         
         /// <summary>Function signature</summary>
-        FunctionSignature = InstructionMetadataFlags.FUNCTION_SIGNATURE,
+        FunctionSignature = 20,
         
         /// <summary>Class declaration</summary>
-        ClassDeclaration = InstructionMetadataFlags.CLASS_DECLARATION,
+        ClassDeclaration = 21,
         
         /// <summary>Namespace declaration</summary>
-        NamespaceDeclaration = InstructionMetadataFlags.NAMESPACE_DECLARATION
+        NamespaceDeclaration = 22
     }
 }
