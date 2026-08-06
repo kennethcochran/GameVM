@@ -27,13 +27,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      
+
       # --- Platform-Specific MAME Installation ---
-      
+
       - name: Install MAME (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt-get update
           sudo apt-get install -y mame
           echo "MAME installation completed"
 
@@ -88,13 +87,13 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --global dotnet-coverage
-          
+
       - name: Install dotnet-coverage (Linux/macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           dotnet tool install --global dotnet-coverage
-          
+
       - name: Build and analyze (Windows)
         if: matrix.os == 'windows-latest'
         env:
@@ -103,16 +102,16 @@ jobs:
         run: |
           dotnet build
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          
+
           # Install .NET tools (including reportgenerator)
           dotnet tool restore
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          
+
           # Run Unit/BDD tests with coverage (no Sonar on Windows)
           # Use full path to dotnet-coverage to ensure it's found
           & dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          
+
           # Verify coverage file exists
           if (Test-Path "coverage.xml") {
             Write-Host "Coverage file created successfully"
@@ -120,7 +119,7 @@ jobs:
           } else {
             Write-Host "Warning: Coverage file not found"
           }
-          
+
       - name: Build and analyze (Linux/macOS)
         if: matrix.os != 'windows-latest'
         env:
@@ -129,20 +128,20 @@ jobs:
         run: |
           dotnet build
           if [ $? -ne 0 ]; then exit 1; fi
-          
+
           # Install .NET tools (including reportgenerator)
           dotnet tool restore
           if [ $? -ne 0 ]; then exit 1; fi
-          
+
           # Run Unit/BDD tests with coverage (only for Sonar on Ubuntu)
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" /d:sonar.qualitygate.wait=true
             if [ $? -ne 0 ]; then exit 1; fi
           fi
-          
+
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
           if [ $? -ne 0 ]; then exit 1; fi
-          
+
           # Verify coverage file exists
           if [ -f "coverage.xml" ]; then
             echo "Coverage file created successfully"
@@ -150,12 +149,12 @@ jobs:
           else
             echo "Warning: Coverage file not found"
           fi
-          
+
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             ~/.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
             if [ $? -ne 0 ]; then exit 1; fi
           fi
-          
+
       - name: Check SonarQube Quality Gate
         if: matrix.os == 'ubuntu-latest'
         env:
