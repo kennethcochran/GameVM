@@ -68,32 +68,6 @@ namespace GameVM.Compiler.Optimizers.LowLevel
         }
 
         /// <summary>
-        /// Legacy API for backward compatibility - converts uint[] to InstList, optimizes, converts back.
-        /// </summary>
-        public uint[] OptimizeSlab(uint[] llirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
-        {
-            if (llirSlab == null || llirSlab.Length < SlabHeader.HeaderIndex.Length)
-            {
-                throw new ArgumentException("Invalid LLIR slab: too small or null", nameof(llirSlab));
-            }
-
-            var header = SlabHeader.Read(llirSlab);
-            if (!header.HasValidMagic())
-            {
-                throw new ArgumentException("Invalid LLIR slab: invalid magic number");
-            }
-
-            if (header.IrStage != 3)
-            {
-                throw new ArgumentException($"Expected LLIR slab (stage 3), got stage {header.IrStage}");
-            }
-
-            var instList = ConvertFromLegacySlab(llirSlab);
-            var optimized = OptimizeSlab(instList, stringPool, optimizationLevel);
-            return ConvertToLegacySlab(optimized);
-        }
-
-        /// <summary>
         /// Checks if a STORE is redundant: the previous instruction is a LOAD with
         /// identical operands (load-store pair reduction — the store writes back
         /// the value that was just loaded, which is a no-op).
@@ -154,91 +128,6 @@ namespace GameVM.Compiler.Optimizers.LowLevel
 
             // No subsequent load or store found — keep the load (might be consumed externally)
             return false;
-        }
-
-        /// <summary>
-        /// Converts a legacy uint[] LLIR slab to InstList.
-        /// </summary>
-        private static InstList ConvertFromLegacySlab(uint[] slab)
-        {
-            var header = SlabHeader.Read(slab);
-            int count = (int)header.ElementCount;
-
-            var tags = new byte[count];
-            var flags = new ushort[count];
-            var argCounts = new ushort[count];
-            var fixedOps = new uint[count * InstConstants.MAX_FIXED_OPS];
-            var extraOffsets = new uint[count];
-
-            int opIndex = 0;
-            int dataOffset = SlabHeader.HeaderIndex.Length;
-            for (int i = 0; i < count; i++)
-            {
-                uint meta = slab[dataOffset + i];
-                tags[i] = (byte)(meta & 0xFF);
-                argCounts[i] = (ushort)((meta >> 14) & 0x3F);
-
-                for (int j = 0; j < argCounts[i] && j < InstConstants.MAX_FIXED_OPS; j++)
-                {
-                    fixedOps[i * InstConstants.MAX_FIXED_OPS + j] = slab[dataOffset + count + opIndex + j];
-                }
-                opIndex += (int)argCounts[i];
-                extraOffsets[i] = 0;
-            }
-
-            var actualOperands = new uint[opIndex];
-            Array.Copy(slab, dataOffset + count, actualOperands, 0, opIndex);
-
-            return new InstList(
-                tags,
-                flags,
-                argCounts,
-                fixedOps,
-                actualOperands,
-                extraOffsets,
-                new int[count],
-                count,
-                (uint)opIndex
-            );
-        }
-
-        /// <summary>
-        /// Converts an InstList to a legacy uint[] LLIR slab.
-        /// </summary>
-        private static uint[] ConvertToLegacySlab(InstList slab)
-        {
-            int count = slab.Count;
-            int operandCount = 0;
-            for (int i = 0; i < count; i++)
-            {
-                operandCount += slab.GetArgCount(i);
-            }
-
-            int headerSize = SlabHeader.HeaderIndex.Length;
-            int metaSize = count;
-            int totalSize = headerSize + metaSize + operandCount;
-
-            var result = new uint[totalSize];
-
-            var newHeader = SlabHeader.ForStage(3, (uint)count, (uint)operandCount);
-            newHeader.WriteTo(result);
-
-            int opIndex = 0;
-            for (int i = 0; i < count; i++)
-            {
-                byte kind = slab.GetKind(i);
-                ushort argCount = slab.GetArgCount(i);
-                uint meta = (uint)kind | ((uint)argCount << 14);
-                result[headerSize + i] = meta;
-
-                var operands = slab.GetOperands(i);
-                for (int j = 0; j < argCount && j < operands.Length; j++)
-                {
-                    result[headerSize + metaSize + opIndex++] = operands[j];
-                }
-            }
-
-            return result;
         }
     }
 }

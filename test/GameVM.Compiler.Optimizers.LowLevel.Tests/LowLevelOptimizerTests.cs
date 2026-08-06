@@ -310,5 +310,28 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             // Assert
             Assert.That(resultList.Count, Is.EqualTo(1000)); // Should be 1000 loads
         }
+
+        [Test]
+        public void OptimizeSlab_WithOptimizationLevelNone_AndRedundantLoadStore_ShouldNotOptimize()
+        {
+            // Arrange: Redundant load-store pair (same operands)
+            var instList = CreateLlirInstList(
+                new uint[] { LLIR_LOAD, 1u, 2u },  // LLLoad A, $80
+                new uint[] { LLIR_STORE, 1u, 2u }   // LLStore $80, A (redundant - same address)
+            );
+
+            var stringPool = new StringPool();
+            stringPool.Intern("A");
+            stringPool.Intern("$80");
+
+            // Act
+            var resultList = _optimizer.OptimizeSlab(instList, stringPool, OptimizationLevel.None);
+
+            // Assert: With OptimizationLevel.None, no optimizations should be applied
+            Assert.That(resultList.Count, Is.EqualTo(2));
+            Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+            Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
+        }
+
     }
 }
