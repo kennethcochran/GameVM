@@ -1,43 +1,7 @@
-# API Documentation [aspirational]
+# API Documentation
 
-This directory contains API documentation for the GameVM system.
+The compiler's **implemented public API is canonical in [`CONTEXT.md`](../../CONTEXT.md)** under *Core APIs (C#)*: `InstList`, `InstListBuilder`, `StringPool`, and the IR transformer/optimizer/codegen interfaces in `GameVM.Compiler.Core`.
 
-## Overview
+**Planned / aspirational API surface** (HAL interfaces, standard library, language features, runtime/VM interfaces) lives as OpenSpec specs in [`openspec/specs/`](../../openspec/specs/) — see `hal-interfaces/`, `standard-library/`, `common-language-features/`, `runtime-interfaces/`.
 
-The GameVM provides various APIs for different use cases:
-
-- Compiler APIs
-- Runtime APIs
-- Debugging APIs
-- Extension APIs
-
-## API Categories
-
-### Compiler APIs
-- Interfaces for compiler frontends
-- Backend integration APIs
-- Optimization APIs
-
-### Runtime APIs
-- Virtual machine runtime
-- Memory management
-- Thread management
-
-### Debugging APIs
-- Debug information access
-- Breakpoint management
-- Symbol resolution
-
-### Extension APIs
-- Plugin system
-- Custom backend development
-- Language integration
-
-## Documentation
-
-- `APIDocumentation.md` - Complete API reference
-- `InterfaceSpecification.md` - Interface specifications
-
-## Getting Started
-
-See the main [README](../README.md) for an overview of the GameVM project and how to get started.
+This `api/` directory no longer holds separate reference files; implemented API is in `CONTEXT.md`, aspirational API is in `openspec/specs/`.

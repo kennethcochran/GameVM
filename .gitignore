@@ -412,7 +412,6 @@ temp/
 
 # Documentation build directories
 docs/_build/
-docs/api/
 docs/html/
 
 # Project specific folders (temporarily allowed for coverage analysis)
@@ -475,3 +474,7 @@ MAME0*
 *.installer
 *.setup
 CoverageReports/
+ 
+# Ephemeral local-markdown issue tracker wayfinding scratch space
+.scratch/
+!.scratch/.gitkeep

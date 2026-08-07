@@ -124,8 +124,8 @@ describe('Parser', () => {
 
 ### 8.1 Resources
 - [SDD Workflow](./SDDWorkflow.md)
-- [API Documentation](../api/APIDocumentation.md)
-- [Component Specifications](./ComponentSpecs/)
+- [CONTEXT.md](../../CONTEXT.md) — implemented-reality "True North" reference
+- [docs/README.md](../README.md) — documentation index
 
 ## 9. FAQ
 

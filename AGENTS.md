@@ -1,13 +1,5 @@
 # GameVM Agent Instructions
 
-This file provides guidance for AI assistants and coding agents working on the GameVM project.
-It supersedes the previous `.github/copilot-instructions.md` and is vendor-neutral: it applies
-to any agent (Copilot, Codex, Cursor, Claude, opencode, etc.).
-
-This root file is the entry point for agents. It contains a high-level overview of the project
-and the high-level rules that must always be followed. Area-specific guidance lives in the
-nested AGENTS.md files under `src/`, `docs/`, and `test/`, referenced below.
-
 ## Project Overview
 
 **GameVM** is a cross-compiler toolchain designed for retro video game development. It enables developers to write games in modern, high-level languages (Pascal, C, etc.) and compile them to optimized **native machine code** for 2nd-5th generation gaming consoles (NES, SNES, Genesis, N64, PlayStation, Atari 2600, etc.).
@@ -20,7 +12,7 @@ nested AGENTS.md files under `src/`, `docs/`, and `test/`, referenced below.
 
 ## High-Level Rules (MUST ALWAYS FOLLOW)
 
-1. **Documentation updates are mandatory** with every code change. See [docs/AGENTS.md](docs/AGENTS.md) for the **Three-Pocket Strategy** and the `gstack document-release` gate.
+1. **Documentation updates are mandatory** with every semantic code change. See [docs/DOC-IMPACT.md](docs/DOC-IMPACT.md) for a checklist on *which* documentation pocket to update. The `doc-sync-gate.csx` hook enforces this; use `override-no-doc: <reason>` in commit message to explicitly bypass.
 2. **Follow code standards** and architecture conventions. See [src/AGENTS.md](src/AGENTS.md).
 3. **Add tests** for any functional change. See [test/AGENTS.md](test/AGENTS.md).
 4. **Run SonarQube checks** after making changes. See the SonarQube section below.
@@ -62,7 +54,7 @@ Use a **combined MCP + CLI approach** based on what's available:
      * Remove hardcoded secrets immediately
      * Update vulnerable dependencies per `sonar analyze dependency-risks` output
 
-4. **Verification**: 
+4. **Verification**:
    - Re-run `sonar analyze --staged` or `sonar list issues` to confirm fixes
    - Check quality gate: `sonar show quality-gate -p kennethcochran_GameVM`
 
@@ -124,7 +116,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Issues live on GitHub (kennethcochran/GameVM). Uses the `gh` CLI. See `docs/agents/issue-tracker.md`.
+The repo's issue tracker is the **filesystem, organised as the Three-Pocket Strategy**: `CONTEXT.md` (implemented reality), `openspec/specs/` (planned), `docs/adr/` (decisions). Ephemeral ideation/wayfinder maps live in `.scratch/`. **GitHub Issues is the intake inbox only** — external bug reports and ideas, closed with a pointer once distilled into a filesystem artifact. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -144,7 +136,10 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 1.  **`clean-test-results`**: Ensures a clean test run by removing previous test artifacts.
 2.  **`run-tests-with-coverage`**: Executes the full test suite and collects code coverage. **All tests MUST pass.**
 3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check. Methods exceeding the configured complexity/coverage threshold (`.husky/csx/crap-gate.csx`) will fail the commit. **You MUST reduce complexity or increase test coverage.**
-4.  **`validate-docs`**: Runs `gstack document-release` to verify documentation consistency with code changes. **Any detected documentation drift MUST be resolved before committing.** (See `docs/AGENTS.md` for the Three-Pocket Strategy).
+
+### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
+
+1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md, ADRs, or openspec). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
 
 ### Consequences of Disabling Hooks
 

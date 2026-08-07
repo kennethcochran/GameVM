@@ -1,4 +1,4 @@
-name: SonarQube
+name: Build & Test
 on:
   push:
     branches:
@@ -186,3 +186,10 @@ jobs:
             echo "Could not determine Quality Gate status (got: '$status')"
             exit 1
           fi
+      # --- Documentation Quality Gate (Deterministic C# Script) ---
+      - name: Run Documentation Sync Gate
+        id: doc_sync_gate
+        run: dotnet husky exec .github/scripts/doc-sync-gate.csx --args ${{ github.base_ref }}
+        shell: bash
+        if: matrix.os == 'ubuntu-latest'
+        # This step is blocking: if the script exits with non-zero, the build fails

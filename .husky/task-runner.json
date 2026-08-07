@@ -3,11 +3,15 @@
   "tasks": [
     {
       "name": "clean-test-results",
+      "group": "pre-commit",
       "command": "dotnet",
-      "args": ["clean"]
+      "args": [
+        "clean"
+      ]
     },
     {
       "name": "run-tests-with-coverage",
+      "group": "pre-commit",
       "command": "dotnet",
       "args": [
         "test"
@@ -15,6 +19,7 @@
     },
     {
       "name": "validate-crap-scores",
+      "group": "pre-commit",
       "command": "dotnet",
       "args": [
         "husky",
@@ -27,9 +32,14 @@
     },
     {
       "name": "validate-docs",
-      "command": "gstack",
+      "group": "commit-msg",
+      "command": "dotnet",
       "args": [
-        "document-release"
+        "husky",
+        "exec",
+        ".github/scripts/doc-sync-gate.csx",
+        "--args",
+        "${args}"
       ]
     }
   ]

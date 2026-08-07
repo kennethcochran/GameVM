@@ -211,5 +211,6 @@ LDA #42
 - Verify all links
 
 ## 7. Related Documents
-- [Architecture Overview](./ArchitectureOverview.md)
-- [Type System](../compiler/TypeSystem.md)
+- [CONTEXT.md](../../CONTEXT.md) — the "True North" implemented-reality reference (start here)
+- [docs/AGENTS.md](../AGENTS.md) — the Three-Pocket documentation strategy (mandatory rules)
+- [docs/README.md](../README.md) — documentation index
