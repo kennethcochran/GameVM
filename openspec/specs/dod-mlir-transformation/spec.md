@@ -1,21 +1,22 @@
 # dod-mlir-transformation Specification
 
 ## Purpose
-TBD - created by archiving change redesign-compiler-pipeline-dod. Update Purpose after archive.
+The HLIR-to-MLIR transformation uses a Struct-of-Arrays InstList representation throughout. IR is represented as parallel arrays (`byte[] Tags`, `ushort[] Flags`, `ushort[] ArgCounts`, `uint[] FixedOps`, `uint[] Extra`, `uint[] ExtraOffsets`, `int[] BlockIds`). Metadata is stored per-index across these arrays, not in a packed header per block.
+
 ## Requirements
 ### Requirement: DOD MLIR Structure
-The Mid-Level Intermediate Representation (MLIR) MUST use a single unified memory slab with self-describing instruction blocks instead of object-oriented node hierarchies.
+The Mid-Level Intermediate Representation (MLIR) MUST be a Struct-of-Arrays `InstList` with parallel primitive arrays for instruction properties, not object-oriented node hierarchies.
 
 #### Scenario: Creating MLIR instructions
 - **WHEN** the `HlirToMlirTransformer` processes HLIR nodes
-- **THEN** it allocates MLIR instruction blocks in the slab and returns their offsets
+- **THEN** it appends to the MLIR `InstList` via `InstListBuilder`, writing to `Tags[i]`, `Flags[i]`, `ArgCounts[i]`, `FixedOps[...]`, `Extra[...]`, `ExtraOffsets[i]`, `BlockIds[i]`.
 
 ### Requirement: Offset and Block-based MLIR References
-MLIR instructions within a local block MUST reference operands using 32-bit offsets within the slab, while control flow branch/jump instructions MUST reference stable Basic Block IDs.
+MLIR instructions within a local block MUST reference operands using 32-bit offsets within the slab (`InstIndex` or `StringPool` offsets), while control flow branch/jump instructions MUST reference stable Basic Block IDs via `BlockId` handles.
 
 #### Scenario: Building MLIR control flow
 - **WHEN** transforming HLIR control structures (if, while) to MLIR
-- **THEN** branch instructions store stable Basic Block IDs rather than absolute slab offsets or label object references.
+- **THEN** branch instructions store stable `BlockId` handles rather than absolute slab offsets or label object references.
 
 ### Requirement: Local Slot Cross-Block References
 MLIR instructions MUST use local slot indices for cross-block dependencies instead of SSA virtual registers or raw slab offsets.
@@ -29,19 +30,19 @@ The `HlirToMlirTransformer` MUST process HLIR slab using linear iteration with s
 
 #### Scenario: Processing HLIR modules
 - **WHEN** transforming HLIR modules to MLIR
-- **THEN** the transformer iterates linearly through the HLIR slab using a switch on decoded node types
+- **THEN** the transformer iterates linearly through the HLIR slab using a switch on decoded instruction kinds.
 
 ### Requirement: MLIR Instruction Enum
-MLIR instructions MUST use an enum discriminator (`MlirInstructionKind`) encoded in the metadata header to denote instruction type rather than relying on class polymorphism and `is`/`as` operators.
+MLIR instructions MUST use an enum discriminator (`MlirInstructionKind`) encoded in the `Tags` array to denote instruction type rather than relying on class polymorphism and `is`/`as` operators.
 
 #### Scenario: Dispatching MLIR instruction processing
 - **WHEN** an optimizer processes MLIR instructions
-- **THEN** it decodes the metadata header to get `instruction.Kind` (the enum value) and switches on it instead of using virtual method dispatch
+- **THEN** it reads the `Tags` array and switches on the enum value instead of using virtual method dispatch.
 
 ### Requirement: Contiguous MLIR Optimization
 Mid-level optimization passes MUST iterate through the MLIR slab linearly whenever the operation is order-independent, instead of traversing logical control flow graphs recursively.
 
 #### Scenario: Applying constant propagation
 - **WHEN** constant propagation is executed on MLIR
-- **THEN** it iterates sequentially through the slab, reading each instruction's metadata header to identify assignments with constant sources, without graph traversal
+- **THEN** it iterates sequentially through the slab, reading each instruction's `Tags[i]` to identify assignments with constant sources, without graph traversal.
 

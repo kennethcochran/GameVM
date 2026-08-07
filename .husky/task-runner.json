@@ -14,7 +14,9 @@
       "group": "pre-commit",
       "command": "dotnet",
       "args": [
-        "test"
+        "test",
+        "--collect:'XPlat Code Coverage'",
+        "--results-directory:TestResults/crap-check"
       ]
     },
     {
