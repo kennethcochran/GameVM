@@ -1,6 +1,6 @@
 # GameVM Context & Glossary
 
-> **CONTEXT.md** is the high-fidelity, single-file source of truth for the GameVM compiler. It is **owned by the `docs/AGENTS.md` "Three-Pocket Strategy"** (Pocket #1: Implemented Reality). If it describes something not in the code, move the description to `openspec/specs/` as a spec.
+> **CONTEXT.md** is the high-fidelity, single-file source of truth for the GameVM compiler. It is **owned by `docs/AGENTS.md`**. If it describes something not in the code, that content is aspirational and lives under `.scratch/` until implemented.
 
 ---
 
@@ -137,12 +137,9 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 - **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`); `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`→`$07`); others allocate sequentially from zero-page `$80`.
 - **Frontend:** Pascal (`PascalFrontend`, `PascalToSlabVisitor`) — parses directly into an AST `InstList`.
 - **Optimization:** `DefaultMidLevelOptimizer` (host-side) and `DefaultLowLevelOptimizer` (target-aware, Atari-specific).
-- **Dispatch:** Direct Threaded Code (DTC) and Token Threaded Code (TTC) are implemented. Subroutine Threaded Code (STC) and Indirect Threaded Code (ITC) are planned but currently *outdated/aspirational* and live in `openspec/specs/`.
+- **Dispatch:** Direct Threaded Code (DTC) and Token Threaded Code (TTC) are implemented. Subroutine Threaded Code (STC) and Indirect Threaded Code (ITC) are planned but currently *outdated/aspirational*.
 - **Testing:** 484 tests, `dotnet test` must pass. SonarQube quality gate is enforced on CI.
 
 ### Aspirational / Not Yet Implemented
 
-The following live in `openspec/specs/` as proposals, not here:
-- Hardware Abstraction Layer (HAL) for graphics/audio/input.
-- Virtual Machine target runtime with dynamic loading.
-- Package management system.
+These are not implemented and are tracked as planned specs under `.scratch/` if pursued:

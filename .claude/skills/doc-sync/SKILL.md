@@ -1,11 +1,11 @@
 ---
 name: doc-sync
-description: Enforce documentation updates using gstack document-release. This skill acts as a wrapper to ensure all code changes are accompanied by relevant documentation updates in CONTEXT.md and ADRs.  It is triggered by AGENTS.md "Documentation Update Rules" and should be run before committing any significant code changes.
+description: Enforce documentation updates using the doc-sync-gate.csx hook. This skill ensures all code changes are accompanied by relevant documentation updates in CONTEXT.md and docs/adr/. It is triggered by AGENTS.md "Documentation Update Rules" and should be run before committing any significant code changes.
 ---
 
-# Doc-Sync Skill (powered by gstack document-release)
+# Doc-Sync Skill
 
-This skill ensures every code change is accompanied by the necessary documentation updates, leveraging `gstack document-release` for enforcement and reporting. It follows the **Three-Pocket Documentation Strategy** defined in `docs/AGENTS.md`.
+This skill ensures every code change is accompanied by the necessary documentation updates, verified by the `doc-sync-gate.csx` hook. It follows the documentation model defined in `docs/AGENTS.md`.
 
 ## When to Use
 
@@ -15,53 +15,44 @@ This skill ensures every code change is accompanied by the necessary documentati
 
 ## Workflow
 
-1.  **Run `gstack document-release`**:
+1.  **Run the doc gate**:
 
     ```bash
-    gstack document-release
+    dotnet tool run dotnet-script .github/scripts/doc-sync-gate.csx -- origin/main
+    ```
+
+    or through husky:
+
+    ```bash
+    dotnet husky exec .github/scripts/doc-sync-gate.csx --args origin/main
     ```
 
     This command automatically:
-    *   Scans the git diff for changed code files.
-    *   Identifies affected documentation (`CONTEXT.md`, `docs/adr/`, and other relevant files based on internal Diataxis mapping).
-    *   Generates a coverage map, identifying documentation gaps or inconsistencies.
-    *   Reports any missing updates or drift. If the build pipeline is configured to fail on `document-release` errors, this will prevent commits until docs are in sync.
+    *   Diffs the staged/semantic code changes.
+    *   Determines whether they touch the doc surface (`CONTEXT.md`/`docs/`).
+    *   Blocks (exit 1) if a semantic change has no documentation update and no `override-no-doc: <reason>`.
 
 2.  **Address reported issues**:
-    *   If `gstack document-release` reports missing updates, you **must** update the identified documentation files (`CONTEXT.md`, ADRs, etc.) according to the **Three-Pocket Documentation Strategy**.
-    *   Specifically, ensure `CONTEXT.md` reflects the **implemented reality**, moving aspirational content to `openspec/specs/` if necessary.
+    *   If the gate reports missing updates, update the identified documentation files (`CONTEXT.md`, `docs/adr/`, `docs/`) per `docs/DOC-IMPACT.md`.
+    *   Ensure `CONTEXT.md` reflects the **implemented reality**; planned work lives under `.scratch/<feature>/spec.md`, not `docs/`.
     *   For architectural decisions, create or update an ADR in `docs/adr/`.
 
-3.  **Re-run `gstack document-release`**:
-    *   Repeat step 1 until the command reports `OK`, indicating all documentation is in sync with the code changes.
+3.  **Re-run the gate**:
+    *   Repeat step 1 until it exits `0` (PASS), indicating all documentation is in sync with the code changes.
 
 ## Rules of Thumb
 
+- **Err on the side of updating docs.** If in doubt, update.
+- **When NOT to update**: pure refactors with no behavior/API change, test-only coverage additions, dependency bumps with no API change. Note this explicitly rather than skipping silently, or add `override-no-doc: <reason>` to the commit message.
+- **Never silently delete coverage** — tag `[outdated]` and describe the replacement.
+- **Never bypass the hook** — fix the root cause instead.
 
 ## Output
 
-Expect output similar to `gstack document-release`:
+Report what you updated, e.g.:
 
 ```
-# gstack document-release output
-
-✔ Checking for doc drift against git diff...
-✔ Updating docs/AGENTS.md with Three-Pocket Strategy guidelines.
-✔ Analyzing code changes in src/GameVM.Compiler.Core/IR/InstList.cs
-
-Missing documentation updates:
-
-
-Documentation status: WARNING - Some code changes require documentation updates.
-```
-
-Once all issues are resolved, the output will indicate success:
-
-```
-# gstack document-release output
-
-✔ Checking for doc drift against git diff...
-✔ All documentation is up-to-date with code changes.
-
-Documentation status: OK
+Updated CONTEXT.md (reflected implemented pipeline)
+Updated docs/adr/0012-slab-soa.md (recorded the decision)
+doc-sync gate: PASS
 ```

@@ -2,10 +2,6 @@
 
 The following files have been modified or created since work started on `slab-soa-refactor`:
 
-## Specifications & Design
-- `openspec/changes/slab-soa-refactor/design.md`
-- `openspec/changes/slab-soa-refactor/proposal.md`
-- `openspec/changes/slab-soa-refactor/tasks.md`
 
 ## Compiler Pipeline (Core)
 - `src/GameVM.Compiler.Core/IR/Soa/InstList.cs` (New SoA InstList layout)

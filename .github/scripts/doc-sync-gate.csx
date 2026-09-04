@@ -136,7 +136,7 @@ try
         f.EndsWith(".csproj") || f.EndsWith(".sln") || f.EndsWith(".props") || f.EndsWith(".targets");
 
     bool IsDocPocket(string f) =>
-        f == "CONTEXT.md" || f.StartsWith("docs/") || f.StartsWith("openspec/");
+        f == "CONTEXT.md" || f.StartsWith("docs/");
 
     var codeFiles = semantic.Where(HasImpact).ToList();
     var docFiles = semantic.Where(IsDocPocket).ToList();

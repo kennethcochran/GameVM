@@ -10,7 +10,7 @@ This directory holds the **hardware capability catalog** for the retro platforms
 
 ## Status
 
-The hardware catalog is reference material (category D of the Three-Pocket strategy): it stays in `docs/`. The **Capability Profile *system*** (the L1–L7 `GV.Spec` hardware-contract mechanism) is planned and lives as an OpenSpec spec in [`openspec/specs/capability-profiles/`](../../openspec/specs/capability-profiles/).
+The hardware catalog is reference material: it stays in `docs/`. The **Capability Profile *system*** (the L1–L7 `GV.Spec` hardware-contract mechanism) is planned work.
 
 ## Current implementation reality
 
@@ -19,7 +19,7 @@ Only the **Atari 2600** backend is implemented today (see [`CONTEXT.md`](../../C
 ## Adding a platform
 
 1. Add/have a reference spec in `specs/`.
-2. Track the target's build in OpenSpec (see [`openspec/specs/`](../../openspec/specs/)).
+2. Track the target's build as planned work under `.scratch/`.
 3. Implement the backend; update `CONTEXT.md` when it ships.
 
 See [Compiler docs](../compiler/README.md) for how the pipeline produces platform binaries.

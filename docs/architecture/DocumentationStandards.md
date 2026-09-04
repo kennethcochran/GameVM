@@ -212,5 +212,5 @@ LDA #42
 
 ## 7. Related Documents
 - [CONTEXT.md](../../CONTEXT.md) — the "True North" implemented-reality reference (start here)
-- [docs/AGENTS.md](../AGENTS.md) — the Three-Pocket documentation strategy (mandatory rules)
+- [docs/AGENTS.md](../AGENTS.md) — the documentation rules (mandatory)
 - [docs/README.md](../README.md) — documentation index

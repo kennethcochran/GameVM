@@ -5,7 +5,7 @@ description: Sync documentation with code changes. Use after making code changes
 
 # Doc-Sync Skill
 
-Ensures every code change is accompanied by the documentation updates it requires.
+Ensures every code change is accompanied by the documentation updates it requires, verified by the `doc-sync-gate.csx` hook.
 
 ## When to Use
 
@@ -17,14 +17,7 @@ Ensures every code change is accompanied by the documentation updates it require
 
 ### 1. Determine which docs are affected
 
-Run the check against your changed files:
-
-```bash
-python3 .github/scripts/doc-sync.py <changed file 1> <changed file 2> ...
-```
-
-The authoritative mapping is `.github/doc-mapping.yaml` — read it to understand
-which docs map to which code paths. The common triggers:
+Consult `docs/DOC-IMPACT.md` to decide which documentation a change requires. The common triggers:
 
 | Code Change | Docs |
 |-------------|------|
@@ -33,37 +26,42 @@ which docs map to which code paths. The common triggers:
 | Backend/platform | `docs/platforms/README.md`, `docs/platforms/specs/` |
 | Optimizer pass | `docs/optimization.md` |
 | Frontend/language | `docs/compiler/Parser.md`, `TypeSystem.md`, `LanguageIntegration.md` |
-| Public API | `docs/api/` + XML doc comments |
-| Architecture/pipeline | `docs/architecture/ArchitectureOverview.md`, `compiler_architecture.md` |
+| Public API | `CONTEXT.md` + XML doc comments |
+| Architecture/pipeline | `CONTEXT.md`, `docs/architecture/` |
 | Dispatch strategy | `docs/code-generation.md` |
 | Capability profile | `docs/platforms/CapabilityProfiles.md` |
 | Build/tooling | `docs/compiler/BuildSystem.md` |
 
 ### 2. Update each affected doc
 
-For each doc flagged by the script (or mapped in the YAML):
+For each affected doc:
 
 1. **Read** the file first — never guess its current content.
 2. **Tag each section** with the status convention:
    - `[implemented]` — feature exists in code
-   - `[aspirational]` — planned, not built
+   - `[aspirational]` — planned, not built (tracked under `.scratch/`, not `docs/`)
    - `[outdated]` — built differently than documented (or removed); describe the replacement, don't delete
 3. **Update** code examples and API references to match the current implementation.
 4. **Verify** relative links still resolve and headers still exist.
 5. **Update** the document's changelog section (if present).
 
-### 3. Verify
+Implemented behavior lands in `CONTEXT.md`/`docs/adr/`/`docs/` in the same commit; planned work lives under `.scratch/<feature>/spec.md`.
 
-Re-run the check with your changed files (code + updated docs). It should report
-`OK`. Example:
+### 3. Verify with the doc gate
+
+Run the real gate against your base ref (the exact CI invocation):
 
 ```bash
-python3 .github/scripts/doc-sync.py \
-  src/GameVM.Compiler.Core/IR/LowLevelIR.cs \
-  docs/compiler/LLIR_ISA.md \
-  docs/compiler/LLIR.md
-# => doc-sync: OK - all code changes are accompanied by documentation updates.
+dotnet tool run dotnet-script .github/scripts/doc-sync-gate.csx -- origin/main
 ```
+
+or through husky:
+
+```bash
+dotnet husky exec .github/scripts/doc-sync-gate.csx --args origin/main
+```
+
+It exits `0` (PASS) when every semantic change has a `CONTEXT.md`/`docs/` update, or an `override-no-doc: <reason>` is present. If it exits `1`, update the affected docs and re-run until PASS. Never bypass the hook.
 
 ## Rules of Thumb
 
@@ -79,5 +77,5 @@ Report what you updated, e.g.:
 ```
 Updated docs/compiler/LLIR.md (added X instruction, tagged [implemented])
 Updated docs/compiler/LLIR_ISA.md (opcode table, tagged [implemented])
-doc-sync check: OK
+doc-sync gate: PASS
 ```

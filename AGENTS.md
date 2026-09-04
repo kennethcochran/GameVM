@@ -12,7 +12,7 @@
 
 ## High-Level Rules (MUST ALWAYS FOLLOW)
 
-1. **Documentation updates are mandatory** with every semantic code change. See [docs/DOC-IMPACT.md](docs/DOC-IMPACT.md) for a checklist on *which* documentation pocket to update. The `doc-sync-gate.csx` hook enforces this; use `override-no-doc: <reason>` in commit message to explicitly bypass.
+1. **Documentation updates are mandatory** with every semantic code change. See [docs/DOC-IMPACT.md](docs/DOC-IMPACT.md) for a checklist on *which* documentation to update. The `doc-sync-gate.csx` hook enforces this; use `override-no-doc: <reason>` in commit message to explicitly bypass.
 2. **Follow code standards** and architecture conventions. See [src/AGENTS.md](src/AGENTS.md).
 3. **Add tests** for any functional change. See [test/AGENTS.md](test/AGENTS.md).
 4. **Run SonarQube checks** after making changes. See the SonarQube section below.
@@ -116,7 +116,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-The repo's issue tracker is the **filesystem, organised as the Three-Pocket Strategy**: `CONTEXT.md` (implemented reality), `openspec/specs/` (planned), `docs/adr/` (decisions). Ephemeral ideation/wayfinder maps live in `.scratch/`. **GitHub Issues is the intake inbox only** — external bug reports and ideas, closed with a pointer once distilled into a filesystem artifact. See `docs/agents/issue-tracker.md`.
+Work is tracked as local markdown under `.scratch/<feature>/`: one `spec.md` per feature plus `issues/<NN>-<slug>.md` tickets. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -139,7 +139,7 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 ### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
 
-1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md, ADRs, or openspec). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
+1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md or docs/adr/). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
 
 ### Consequences of Disabling Hooks
 

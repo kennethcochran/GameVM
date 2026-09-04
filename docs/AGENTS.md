@@ -3,18 +3,19 @@
 This file provides guidance for AI assistants and coding agents working on documentation
 and docs-related workflows in the GameVM project. It supplements the [root AGENTS.md](../AGENTS.md).
 
-## Documentation Strategy: The Three-Pocket System
+## Documentation Strategy
 
-To solve documentation drift and keep AI agents focused, GameVM uses a strict "Three-Pocket" strategy:
+GameVM documentation lives in two persistent locations, plus an ephemeral planned-work area:
 
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
-2.  **`openspec/specs/<id>/spec.md` (Aspirational/Planned):** Features that do not exist yet (e.g., the Hardware Abstraction Layer, Package Management, or the VM Runtime). They are **prohibited** from living in the `docs/` folder until they are implemented.
-3.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
+2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
+
+Planned work that does not exist yet lives as `.scratch/<feature>/spec.md` until it is implemented, then moves into `CONTEXT.md`/`docs/`.
 
 ## Mandatory Documentation Rules
 
 **1. Never Write Aspirational Docs**
-If you are designing a feature that doesn't exist yet, write a design document or a spec in `openspec/`. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
+If you are designing a feature that doesn't exist yet, track it as a `.scratch/<feature>/spec.md` spec. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
 
 **2. The "True North" Update Rule**
 If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/LLIR), or the structural invariants of the compiler, you **must** update `CONTEXT.md` in the exact same session. 
@@ -24,16 +25,13 @@ If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/
 **3. Vocabulary Enforcement**
 You MUST use the exact terminology defined in the `## Domain Glossary` section of `CONTEXT.md`. Do not invent synonyms. Do not use alternative capitalization or hyphenation.
 
-**4. The `gstack document-release` Gate**
-Before completing a coding session, you must run `gstack document-release`. 
-This tool scans the git diff, compares it against the Diataxis coverage map (reference / how-to / tutorial / explanation) of your `CONTEXT.md` and related docs, and flags any drift. If it catches a missing update, you must fix it before committing your final solution.
+**4. The Doc Gate**
+The `doc-sync-gate.csx` script (run by the husky `validate-docs` commit-msg hook and by CI) verifies that semantic code changes are accompanied by documentation updates. It blocks the commit unless `CONTEXT.md`/`docs/` were touched or an `override-no-doc: <reason>` is present. Never bypass it.
 
-## The OpenSpec Workflow for New Work
+## Starting New Work
 
-When working on a new feature under `openspec/changes/`:
-*   The feature starts as a spec in `openspec/specs/`.
-*   Once the implementation is complete, **copy the relevant architecture/API details from the feature's spec and paste them into `CONTEXT.md`**, converting them from aspirational to implemented.
-*   Delete or archive the feature's spec once it is merged into `CONTEXT.md`.
+New work follows the Matt flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `.scratch/`. A feature spec lives at `.scratch/<feature>/spec.md`; once implemented, its architecture/API details move into `CONTEXT.md`.
+
 
 ## Adding Documentation
 

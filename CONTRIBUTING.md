@@ -67,11 +67,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
    dotnet test
    ```
 
-4. Update the affected documentation (see [AGENTS.md](AGENTS.md) "Documentation Update Rules" and `.github/doc-mapping.yaml`). Run the check locally to verify:
-
-   ```bash
-   python3 .github/scripts/doc-sync.py <changed files...>
-   ```
+4. Update the affected documentation per [`docs/DOC-IMPACT.md`](docs/DOC-IMPACT.md) (see [AGENTS.md](AGENTS.md) "Documentation Update Rules"). The `doc-sync-gate.csx` pre-commit hook verifies semantic code changes are accompanied by documentation updates; run it locally to confirm before committing.
 
 5. Commit your changes with a clear and descriptive commit message:
    ```bash
