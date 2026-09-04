@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Core.Enums;
-using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
@@ -9,6 +8,7 @@ using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Capabilities;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Ast;
 
 namespace GameVM.Compiler.Specs;
 
@@ -51,15 +51,18 @@ public class DebugPipelineTests
             TestContext.WriteLine($"First bytes: {firstBytes}");
         }
 
-        var astSlab = frontend.ParseToSlab(sourceCode);
-        TestContext.WriteLine($"AST slab Count: {astSlab.Count}");
-        if (astSlab.Count > 0)
+        var astTree = frontend.ParseToSlab(sourceCode);
+        TestContext.WriteLine($"AST tree Count: {astTree.Count}");
+        if (astTree.Count > 0)
         {
-            for (int i = 0; i < Math.Min(20, astSlab.Count); i++)
-                TestContext.WriteLine($"  [{i}]=Kind:{astSlab.GetKind(i)}, Args:{astSlab.GetArgCount(i)}");
+            for (int i = 0; i < Math.Min(20, astTree.Count); i++)
+            {
+                var node = astTree[i];
+                TestContext.WriteLine($"  [{i}]=Kind:{(PascalAstNodeKind)astTree.GetKind(i)}, Flags:{node.Flags}, Payload:{node.Payload}, FirstChild:{node.FirstChild}, ChildCount:{node.ChildCount}");
+            }
         }
 
-        InstList hlirSlab = frontend.ConvertToHlirSlab(astSlab);
+        InstList hlirSlab = frontend.ConvertToHlirSlab(astTree);
         TestContext.WriteLine($"HLIR slab Count: {hlirSlab.Count}");
         if (hlirSlab.Count > 0)
         {

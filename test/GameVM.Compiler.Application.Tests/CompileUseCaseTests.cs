@@ -13,7 +13,7 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Slab;
+using GameVM.Compiler.Core.IR.Ast;
 using System.Collections.Generic;
 
 namespace UnitTests.Application
@@ -39,21 +39,23 @@ namespace UnitTests.Application
             var capabilityValidatorMock = _mocker.GetMock<ICapabilityValidatorService>();
             var semanticAnalyzerMock = _mocker.GetMock<ISemanticAnalyzer>();
 
+            // Create a simple AstTree with one node (METHOD_DECLARATION)
+            var testAstTree = new AstTree(new GameVM.Compiler.Core.IR.Ast.AstNode[]
+            {
+                new GameVM.Compiler.Core.IR.Ast.AstNode(
+                    kind: 10, // MethodDeclaration
+                    flags: 0,
+                    payload: 0,
+                    firstChild: -1,
+                    childCount: 0
+                )
+            }, 1);
+
             // Set up common mocks that both tests need
             frontendMock.Setup(x => x.ParseToSlab(It.IsAny<string>()))
-                .Returns(new InstList(
-                    new byte[] { 0x01 }, // tags (dummy AST_ASSIGN)
-                    new ushort[] { 0x0000 }, // flags
-                    new ushort[] { 0x0002 }, // argCount=2
-                    new uint[] { 0x00000000, 0x00000000 }, // fixedOps (2 slots)
-                    new uint[] { 0x00000001, 0x00000002 }, // extra pool (2 operands)
-                    new uint[] { 0x00000004 }, // extraOffsets[0] = 4 (start of operands)
-                    new int[] { 0 }, // blockIds[0] = 0
-                    1, // count
-                    2  // extraUsed
-                ));
+                .Returns(testAstTree);
 
-            frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<InstList>()))
+            frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<AstTree>()))
                 .Returns(new InstList(
                     new byte[] { 0x01 }, // tags (dummy HLIR_ASSIGN)
                     new ushort[] { 0x0000 }, // flags
@@ -154,39 +156,13 @@ namespace UnitTests.Application
             };
 
             // Act
-            var result = _compileUseCase.Execute("print(1)", _tempFilePath, options);
-
-            // Assert
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Success, Is.True);
-                Assert.That(result.Code, Is.Not.Null);
-                Assert.That(result.ErrorMessage, Is.Empty);
-            });
-        }
-
-        [Test]
-        public void Execute_ValidFile_ReturnsSuccess()
-        {
-            // Arrange - all dependencies are already set up in Setup method
-            var options = new CompilationOptions
-            {
-                Target = Architecture.Genesis,
-                DispatchStrategy = DispatchStrategy.DirectThreadedCode,
-                GenerateDebugInfo = false,
-                Optimize = true
-            };
-
-            // Act
             var result = _compileUseCase.Execute(_tempFilePath, options);
 
             // Assert
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Success, Is.True);
-                Assert.That(result.Code, Is.Not.Null);
-                Assert.That(result.ErrorMessage, Is.Empty);
-            });
+            Assert.That(result.Success, Is.True);
+            Assert.That(result.Code, Is.Not.Null);
+            Assert.That(result.Code.Length, Is.GreaterThan(0));
+            Assert.That(result.ErrorMessage, Is.Empty);
         }
     }
 }

@@ -3,11 +3,9 @@ using Antlr4.Runtime.Atn;
 using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
-using GameVM.Compiler.Core.IR.Transformers;
+using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
 
@@ -15,8 +13,8 @@ namespace GameVM.Compiler.Pascal
 {
     public class PascalFrontend : ILanguageFrontend
     {
-        private StringPool _stringPool = new StringPool();
-        private List<string> _lastParseErrors = new List<string>();
+        private readonly StringPool _stringPool = new StringPool();
+        private readonly List<string> _lastParseErrors = new List<string>();
 
         /// <summary>
         /// Gets the syntax error messages from the last parse attempt.
@@ -50,9 +48,9 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Parse source code into AST slab (DOD pipeline) - returns SoA InstList
+        /// Parse source code into AST tree (DOD pipeline) - returns AoS AstTree
         /// </summary>
-        public InstList ParseToSlab(string sourceCode)
+        public AstTree ParseToSlab(string sourceCode)
         {
             try
             {
@@ -69,39 +67,34 @@ namespace GameVM.Compiler.Pascal
 
                 var context = parser.program();
 
+                // Check for both lexer and parser errors - they are collected in errorListener.Errors
                 if (errorListener.Errors.Any())
                 {
-                    _lastParseErrors = errorListener.Errors;
-                    return default;
+                    _lastParseErrors.AddRange(errorListener.Errors);
+                    return AstTree.Empty;
                 }
 
-                _stringPool = new StringPool();
-
-                var builder = new InstListBuilder();
-                var visitor = new PascalToSlabVisitor(builder, _stringPool);
+                var visitor = new PascalToAstVisitor(_stringPool);
                 visitor.Visit(context);
-
-                return builder.Build();
+                return visitor.BuildTree();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.Error.WriteLine($"[ParseToSlab] Error: {ex.Message}");
-                Console.Error.WriteLine(ex.StackTrace);
-                return default;
+                _lastParseErrors.Clear();
+                return AstTree.Empty;
             }
         }
 
         /// <summary>
-        /// Convert AST slab to HLIR slab (DOD pipeline) - takes/returns InstList
+        /// Convert AST tree to HLIR slab (DOD pipeline) - takes AstTree, returns InstList
         /// </summary>
-        public InstList ConvertToHlirSlab(InstList astSlab)
+        public InstList ConvertToHlirSlab(AstTree astTree)
         {
-            if (astSlab.Count == 0)
+            if (astTree.Count == 0)
                 return default;
 
-            var transformer = new AstSlabToHlirSlabTransformer(_stringPool);
-            return transformer.Transform(astSlab);
+            var transformer = new PascalAstToHlirTransformer(_stringPool);
+            return transformer.Transform(astTree);
         }
-
     }
 }

@@ -6,13 +6,11 @@ using Antlr4.Runtime.Atn;
 using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.IR.Slab;
-using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.CSharp.ANTLR;
 using GameVM.Compiler.CSharp.Transformers;
-using GameVM.Compiler.Core.IR.Transformers;
 
 namespace GameVM.Compiler.CSharp
 {
@@ -26,6 +24,7 @@ namespace GameVM.Compiler.CSharp
         public StringPool? StringPool => _stringPool;
         public IReadOnlyList<string>? LastParseErrors => _lastParseErrors;
         private readonly List<string> _lastParseErrors = new();
+
         // Custom ANTLR error listener to capture syntax error messages
         private sealed class CollectingErrorListener : IParserErrorListener, IAntlrErrorListener<int>
         {
@@ -46,7 +45,10 @@ namespace GameVM.Compiler.CSharp
             public void ReportContextSensitivity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, int prediction, ATNConfigSet configs) { }
         }
 
-        public InstList ParseToSlab(string sourceCode)
+        /// <summary>
+        /// Parse source code into AST tree (DOD pipeline) - returns AoS AstTree
+        /// </summary>
+        public AstTree ParseToSlab(string sourceCode)
         {
             try
             {
@@ -64,10 +66,10 @@ namespace GameVM.Compiler.CSharp
                 var context = parser.program();
 
                 if (_lastParseErrors.Any())
-                    return default;
+                    return AstTree.Empty;
 
-                var builder = new InstListBuilder();
-                var visitor = new CSharpToSlabVisitor(builder, _stringPool);
+                var builder = new AstBuilder();
+                var visitor = new CSharpToAstVisitor(builder, _stringPool);
                 visitor.Visit(context);
 
                 return builder.Build();
@@ -75,17 +77,20 @@ namespace GameVM.Compiler.CSharp
             catch (Exception)
             {
                 _lastParseErrors.Clear();
-                return default;
+                return AstTree.Empty;
             }
         }
 
-        public InstList ConvertToHlirSlab(InstList astSlab)
+        /// <summary>
+        /// Convert AST tree to HLIR slab (DOD pipeline) - takes AstTree, returns InstList
+        /// </summary>
+        public InstList ConvertToHlirSlab(AstTree astTree)
         {
-            if (astSlab.Count == 0)
+            if (astTree.Count == 0)
                 return default;
 
-            var transformer = new AstSlabToHlirSlabTransformer(_stringPool);
-            return transformer.Transform(astSlab);
+            var transformer = new CSharpAstToHlirTransformer(_stringPool);
+            return transformer.Transform(astTree);
         }
     }
 }

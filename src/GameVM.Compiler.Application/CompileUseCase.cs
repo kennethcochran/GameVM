@@ -1,23 +1,10 @@
-/*
- * CompileUseCase.cs
- * 
- * Primary use case for compiling source code to GameVM final IR.
- * Orchestrates the compilation process:
- * - Source file validation
- * - IR generation pipeline
- * - Optimization passes
- * - Code generation
- * - Output file creation
- * 
- * Central coordinator for the compilation workflow.
- */
-
-using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Application.Services;
+using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Interfaces;
+using GameVM.Compiler.Application.Services;
+using GameVM.Compiler.Core.Enums;
 
 namespace GameVM.Compiler.Application
 {
@@ -31,7 +18,7 @@ namespace GameVM.Compiler.Application
         private readonly ILowLevelOptimizer _lowLevelOptimizer;
         private readonly IIRSlabTransformer _mlirToLlir;
         private readonly ICodeGenerator _codeGenerator;
-         private readonly ICapabilityProvider _capabilityProvider;
+        private readonly ICapabilityProvider _capabilityProvider;
         private readonly ICapabilityValidatorService _capabilityValidator;
         private readonly ISemanticAnalyzer _semanticAnalyzer;
 
@@ -57,13 +44,16 @@ namespace GameVM.Compiler.Application
 
         private CompilationResult CompileInternal(string sourceCode, string extension, CompilationOptions options)
         {
+            if (sourceCode == null)
+                throw new ArgumentNullException(nameof(sourceCode));
+
             try
             {
-                // Parse source code to AST slab (DOD pipeline)
-                InstList astSlab = _frontend.ParseToSlab(sourceCode);
-                if (astSlab.Count == 0)
+                // Parse source code to AST tree (DOD pipeline)
+                AstTree astTree = _frontend.ParseToSlab(sourceCode);
+                if (astTree.Count == 0)
                 {
-                    string errorMsg = "Failed to parse source code to AST slab";
+                    string errorMsg = "Failed to parse source code to AST tree";
                     if (_frontend.LastParseErrors != null && _frontend.LastParseErrors.Any())
                     {
                         errorMsg = string.Join("; ", _frontend.LastParseErrors);
@@ -78,8 +68,8 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-                // Convert AST slab to HLIR slab (DOD pipeline)
-                InstList hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+                // Convert AST tree to HLIR slab (DOD pipeline)
+                InstList hlirSlab = _frontend.ConvertToHlirSlab(astTree);
                 if (hlirSlab.Count == 0)
                 {
                     return new CompilationResult
@@ -88,7 +78,7 @@ namespace GameVM.Compiler.Application
                         Code = Array.Empty<byte>(),
                         SourceFile = extension,
                         Target = options.Target,
-                        ErrorMessage = "Failed to convert AST slab to HLIR slab"
+                        ErrorMessage = "Failed to convert AST tree to HLIR slab"
                     };
                 }
 
@@ -126,7 +116,7 @@ namespace GameVM.Compiler.Application
                     // First, validate that the backend supports the requested profile and extensions
                     var backendProfile = _capabilityProvider.GetCapabilityProfile();
                     var backendExtensions = _capabilityProvider.GetSupportedExtensions();
-                    
+
                     var backendViolations = ValidateBackendCapabilities(options, backendProfile, backendExtensions);
                     if (backendViolations.Any())
                     {
@@ -231,20 +221,14 @@ namespace GameVM.Compiler.Application
         {
             var violations = new List<string>();
 
-            // Check if requested profile exceeds backend's base capability level
             if (options.Profile > backendProfile.BaseLevel)
             {
-                violations.Add($"Requested profile {options.Profile} exceeds backend base capability {backendProfile.BaseLevel}");
+                violations.Add($"Requested capability profile {options.Profile} exceeds backend base level {backendProfile.BaseLevel}");
             }
 
-            // Check if requested extensions are supported by backend
-            var backendExtensionSet = new HashSet<string>(backendExtensions);
-            var unsupportedExtensions = options.SystemExtensions.Where(ext => !backendExtensionSet.Contains(ext));
-
-            foreach (var unsupportedExtension in unsupportedExtensions)
-            {
-                violations.Add($"Backend does not support extension '{unsupportedExtension}'");
-            }
+            violations.AddRange(options.SystemExtensions
+                .Where(ext => !backendExtensions.Contains(ext))
+                .Select(ext => $"Requested extension '{ext}' is not supported by backend"));
 
             return violations;
         }
@@ -254,10 +238,6 @@ namespace GameVM.Compiler.Application
         /// </summary>
         public CompilationResult Execute(string sourceCode, string extension, CompilationOptions options)
         {
-            if (sourceCode == null)
-            {
-                throw new ArgumentNullException(nameof(sourceCode));
-            }
             return CompileInternal(sourceCode, extension, options);
         }
 
@@ -269,13 +249,12 @@ namespace GameVM.Compiler.Application
         /// <returns>Compilation result with generated code</returns>
         public CompilationResult Execute(string sourceFile, CompilationOptions options)
         {
+            string sourceCode;
             try
             {
-                var extension = Path.GetExtension(sourceFile);
-                var sourceCode = File.ReadAllText(sourceFile);
-                return CompileInternal(sourceCode, extension, options);
+                sourceCode = System.IO.File.ReadAllText(sourceFile);
             }
-            catch (IOException ex)
+            catch (FileNotFoundException ex)
             {
                 return new CompilationResult
                 {
@@ -283,7 +262,7 @@ namespace GameVM.Compiler.Application
                     Code = Array.Empty<byte>(),
                     SourceFile = sourceFile,
                     Target = options.Target,
-                    ErrorMessage = $"Failed to read source file: {ex.Message}"
+                    ErrorMessage = $"File not found: {ex.FileName}"
                 };
             }
             catch (Exception ex)
@@ -294,9 +273,11 @@ namespace GameVM.Compiler.Application
                     Code = Array.Empty<byte>(),
                     SourceFile = sourceFile,
                     Target = options.Target,
-                    ErrorMessage = $"Unexpected error: {ex.Message}"
+                    ErrorMessage = $"Failed to read source file: {ex.Message}"
                 };
             }
+
+            return CompileInternal(sourceCode, sourceFile, options);
         }
     }
 
@@ -306,14 +287,14 @@ namespace GameVM.Compiler.Application
     public class CompilationOptions
     {
         /// <summary>
-        /// Target architecture to generate code for
+        /// Target architecture to compile for
         /// </summary>
-        public Architecture Target { get; set; }
+        public Architecture Target { get; set; } = Architecture.Atari2600;
 
         /// <summary>
         /// Code dispatch strategy to use
         /// </summary>
-        public DispatchStrategy DispatchStrategy { get; set; }
+        public DispatchStrategy DispatchStrategy { get; set; } = DispatchStrategy.DirectThreadedCode;
 
         /// <summary>
         /// Whether to generate debug information
@@ -322,28 +303,28 @@ namespace GameVM.Compiler.Application
 
         /// <summary>
         /// Whether to optimize the generated code
-        /// </>
-        public bool Optimize { get; set; }
-
-        /// <summary>
-        /// Optimization level to use
         /// </summary>
-        public OptimizationLevel OptimizationLevel { get; set; }
+        public bool Optimize { get; set; } = true;
 
         /// <summary>
-        /// The hardware capability profile to target
+        /// Optimization level
+        /// </summary>
+        public OptimizationLevel OptimizationLevel { get; set; } = OptimizationLevel.Aggressive;
+
+        /// <summary>
+        /// Capability profile to enforce
         /// </summary>
         public CapabilityLevel Profile { get; set; } = CapabilityLevel.L1;
 
         /// <summary>
-        /// How strictly to enforce the capability profile
+        /// Hardware system extensions to enable
         /// </summary>
-        public EnforcementLevel Enforcement { get; set; } = EnforcementLevel.Strict;
+        public List<string> SystemExtensions { get; set; } = new();
 
         /// <summary>
-        /// Hardware extensions (injections) enabled for this project
+        /// Enforcement level for capability validation
         /// </summary>
-        public List<string> SystemExtensions { get; set; } = new List<string>();
+        public EnforcementLevel Enforcement { get; set; } = EnforcementLevel.Strict;
     }
 
     /// <summary>
@@ -352,17 +333,17 @@ namespace GameVM.Compiler.Application
     public class CompilationResult
     {
         /// <summary>
-        /// Whether compilation succeeded
+        /// Whether compilation was successful
         /// </summary>
         public bool Success { get; set; }
 
         /// <summary>
-        /// Generated code
+        /// Generated bytecode
         /// </summary>
         public byte[] Code { get; set; } = Array.Empty<byte>();
 
         /// <summary>
-        /// Source file name
+        /// Source file that was compiled
         /// </summary>
         public string SourceFile { get; set; } = string.Empty;
 
@@ -372,7 +353,7 @@ namespace GameVM.Compiler.Application
         public Architecture Target { get; set; }
 
         /// <summary>
-        /// Capability profile
+        /// Capability profile used
         /// </summary>
         public CapabilityLevel Profile { get; set; }
 
