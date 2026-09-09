@@ -54,5 +54,6 @@ namespace GameVM.Compiler.Pascal
         Label = 47,
         CaseBranch = 48,
         VariantCase = 49,
+        ConstantDefinition = 58,
     }
 }

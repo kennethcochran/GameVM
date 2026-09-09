@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Pascal.ANTLR;
@@ -5,10 +8,6 @@ using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Pascal.Transformers
 {
-    /// <summary>
-    /// ANTLR visitor that builds a Pascal AoS AST from the parse tree.
-    /// Produces an <see cref="AstTree"/> via <see cref="AstBuilder"/> in post-order.
-    /// </summary>
     public class PascalToAstVisitor : PascalBaseVisitor<object>
     {
         private readonly AstBuilder _builder;
@@ -20,10 +19,6 @@ namespace GameVM.Compiler.Pascal.Transformers
             _strings = new StringPool();
         }
 
-        /// <summary>
-        /// Constructor used by tests that supply an external builder.
-        /// The supplied builder is used directly; its StringPool is used for interning.
-        /// </summary>
         public PascalToAstVisitor(AstBuilder builder, StringPool strings)
         {
             _builder = builder ?? new AstBuilder();
@@ -33,18 +28,19 @@ namespace GameVM.Compiler.Pascal.Transformers
         public PascalToAstVisitor(StringPool strings)
         {
             _builder = new AstBuilder();
-            _strings = strings;
+            _strings = strings ?? new StringPool();
         }
 
-        /// <summary>
-        /// Alias for <see cref="BuildTree"/> for backwards compatibility with tests.
-        /// </summary>
-        public AstTree GetTree() => BuildTree();
+        public StringPool StringPool => _strings;
 
-        /// <summary>
-        /// Gets the string pool containing all identifiers and string literals discovered during visiting.
-        /// </summary>
-        public StringPool Strings => _strings;
+        public StringPool? ExternalPool { get; set; }
+        public AstTree GetTree() => _builder.Build();
+
+
+
+        public AstTree BuildTree() => _builder.Build();
+
+        public AstTree BuildTree(uint minCapacity) => _builder.Build(minCapacity);
 
         public override object VisitProgram(PascalParser.ProgramContext context)
         {
@@ -53,21 +49,27 @@ namespace GameVM.Compiler.Pascal.Transformers
             {
                 var blockResult = VisitBlock(block);
                 if (blockResult is int bi)
-                    return _builder.Add((byte)PascalAstNodeKind.Program, 0, 0, bi);
+                {
+                    uint mainOffset = _strings.Intern("main");
+                    return _builder.Add((byte)PascalAstNodeKind.Program, 0, mainOffset, 0, bi);
+                }
             }
-            return _builder.Add((byte)PascalAstNodeKind.Program, 0, 0);
+            return _builder.Add((byte)PascalAstNodeKind.Program, 0, 0, 0, 0);
         }
 
         public override object VisitBlock(PascalParser.BlockContext context)
         {
             var childIndices = new List<int>();
 
-            // Visit constant definitions (NOP in HLIR)
             foreach (var cdp in context.constantDefinitionPart().Where(c => c != null))
             {
                 foreach (var cd in cdp.constantDefinition())
                 {
-                    Visit(cd);
+                    var cstResult = Visit(cd);
+                    if (cstResult is int ci)
+                        childIndices.Add(ci);
+                    else if (cstResult is List<int> cis)
+                        childIndices.AddRange(cis);
                 }
             }
 
@@ -106,12 +108,11 @@ namespace GameVM.Compiler.Pascal.Transformers
 
                     int nameIdx = _builder.Add((byte)PascalAstNodeKind.Identifier, 0, nameOffset);
                     int typeIdx = _builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, _strings.Intern(typeText));
-
                     indices.Add(_builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, nameIdx, typeIdx));
                 }
             }
 
-            return indices;
+            return indices.Count == 1 ? indices[0] : indices;
         }
 
         public override object VisitStatement(PascalParser.StatementContext context)
@@ -119,14 +120,12 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (context.unlabelledStatement() != null)
             {
                 var unlabelled = context.unlabelledStatement();
-
                 if (unlabelled.simpleStatement()?.assignmentStatement() != null)
                     return VisitAssignmentStatement(unlabelled.simpleStatement().assignmentStatement());
 
                 if (unlabelled.structuredStatement() != null)
                 {
                     var structured = unlabelled.structuredStatement();
-
                     if (structured.compoundStatement() != null)
                         return VisitCompoundStatement(structured.compoundStatement());
 
@@ -201,7 +200,6 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         public override object VisitRepeatStatement(PascalParser.RepeatStatementContext context)
         {
-            // REPEAT_STATEMENT: stays as NOP placeholder (semantic enrichment is a later feature)
             return _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
         }
 
@@ -262,14 +260,12 @@ namespace GameVM.Compiler.Pascal.Transformers
                     "+" => '+',
                     "-" => '-',
                     "OR" => '|',
-                    _ => '?'
+                    _ => '+'
                 };
                 int leftIdx = left is int l ? l : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
                 int rightIdx = right is int r ? r : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
-                int opIdx = _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)op);
-                return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, 0, leftIdx, rightIdx, opIdx);
+                return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)op, leftIdx, rightIdx);
             }
-
             return left;
         }
 
@@ -284,17 +280,15 @@ namespace GameVM.Compiler.Pascal.Transformers
                 {
                     "*" => '*',
                     "/" => '/',
-                    "DIV" => 'D',
-                    "MOD" => 'M',
+                    "DIV" => '/',
+                    "MOD" => '%',
                     "AND" => '&',
-                    _ => '?'
+                    _ => '*'
                 };
                 int leftIdx = left is int l ? l : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
                 int rightIdx = right is int r ? r : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
-                int opIdx = _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)op);
-                return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, 0, leftIdx, rightIdx, opIdx);
+                return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)op, leftIdx, rightIdx);
             }
-
             return left;
         }
 
@@ -303,7 +297,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             var factor = VisitFactor(context.factor());
             if (context.MINUS() != null)
             {
-                int factorIdx = factor is int f ? f : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
+                int factorIdx = VisitFactor(context.factor()) is int o ? o : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
                 return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'-', factorIdx);
             }
             return factor;
@@ -339,41 +333,27 @@ namespace GameVM.Compiler.Pascal.Transformers
                 int operandIdx = VisitFactor(context.factor()) is int o ? o : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
                 return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'!', operandIdx);
             }
-
             return _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
         }
 
-        public override object VisitUnsignedConstant(PascalParser.UnsignedConstantContext context)
+        public override object VisitConstantDefinition(PascalParser.ConstantDefinitionContext context)
         {
-            if (context.unsignedNumber() != null)
-                return VisitUnsignedNumber(context.unsignedNumber());
-            if (context.@string() != null)
-                return VisitString(context.@string());
-            if (context.constantChr() != null)
-            {
-                int val = VisitConstantChr(context.constantChr()) is int c ? c : 32;
-                return _builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, _strings.Intern(val.ToString()));
-            }
-            if (context.NIL() != null)
-                return _builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, _strings.Intern("0"));
-            return _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
+            // constantDefinition: identifier EQUAL constant
+            // Emit ConstantDefinition(name=Identifier, value=literal) so the HLIR
+            // transformer can register the name and inline the value.
+            string name = context.identifier().GetText();
+            int nameIdx = _builder.Add((byte)PascalAstNodeKind.Identifier, 0, _strings.Intern(name));
+            int valueIdx = Visit(context.constant()) is int v ? v : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
+            return _builder.Add((byte)PascalAstNodeKind.ConstantDefinition, 0, 0, nameIdx, valueIdx);
         }
 
-        public override object VisitUnsignedNumber(PascalParser.UnsignedNumberContext context)
-        {
-            if (context.unsignedInteger() != null)
-                return VisitUnsignedInteger(context.unsignedInteger());
-            if (context.unsignedReal() != null)
-                return VisitUnsignedReal(context.unsignedReal());
-
-            return _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
-        }
 
         public override object VisitUnsignedInteger(PascalParser.UnsignedIntegerContext context)
         {
             uint offset = _strings.Intern(context.GetText());
             return _builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, offset);
         }
+
         public override object VisitUnsignedReal(PascalParser.UnsignedRealContext context)
         {
             uint offset = _strings.Intern(context.GetText());
@@ -402,7 +382,10 @@ namespace GameVM.Compiler.Pascal.Transformers
             int val = 32;
             if (context.unsignedInteger() != null && int.TryParse(context.unsignedInteger().GetText(), out int parsed))
                 val = parsed;
-            return _builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, _strings.Intern(val.ToString()));
+
+            char ch = (char)val;
+            uint offset = _strings.Intern(ch.ToString());
+            return _builder.Add((byte)PascalAstNodeKind.LiteralString, 0, offset);
         }
 
         public override object VisitVariable(PascalParser.VariableContext context)
@@ -411,40 +394,19 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (string.IsNullOrEmpty(varName))
                 return _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
 
-            // Use first identifier as the variable name
-            var firstIdent = context.identifier(0);
-            string identName = firstIdent?.GetText() ?? varName;
-            uint offset = _strings.Intern(identName);
-            int nameIdx = _builder.Add((byte)PascalAstNodeKind.Identifier, 0, offset);
+            uint nameOffset = _strings.Intern(varName);
+            int nameIdx = _builder.Add((byte)PascalAstNodeKind.Identifier, 0, nameOffset);
 
-            // Check for array subscript or record field (. or [)
-            if (context.DOT().Length > 0)
+            if (context.expression() != null && context.expression().Length > 0)
             {
-                // Field access: var.field — emit as binary Nop chain
-                var fieldIdent = context.identifier(1);
-                if (fieldIdent != null)
-                {
-                    uint fieldOffset = _strings.Intern(fieldIdent.GetText());
-                    int fieldIdx = _builder.Add((byte)PascalAstNodeKind.Identifier, 0, fieldOffset);
-                    return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'.', nameIdx, fieldIdx);
-                }
-            }
-
-            if (context.LBRACK().Length > 0 || context.LBRACK2().Length > 0)
-            {
-                // Array access: var[expr]
-                var exprs = context.expression();
-                if (exprs.Length > 0)
-                {
-                    int exprIdx = Visit(exprs[0]) is int ei ? ei : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
-                    return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'[', nameIdx, exprIdx);
-                }
+                var exprResult = Visit(context.expression()[0]);
+                int exprIdx = exprResult is int ei ? ei : _builder.Add((byte)PascalAstNodeKind.Nop, 0, 0);
+                return _builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'[', nameIdx, exprIdx);
             }
 
             return nameIdx;
         }
 
-        /// <summary>Gets the built AstTree. Must be called after visiting the parse tree root.</summary>
-        public AstTree BuildTree() => _builder.Build();
+
     }
 }

@@ -6,6 +6,7 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
 
@@ -86,12 +87,12 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Convert AST tree to HLIR slab (DOD pipeline) - takes AstTree, returns InstList
+        /// Convert AST tree to HLIR semantic tree (DOD pipeline) - takes AstTree, returns HlirTree
         /// </summary>
-        public InstList ConvertToHlirSlab(AstTree astTree)
+        public HlirTree ConvertToHlirSlab(AstTree astTree)
         {
             if (astTree.Count == 0)
-                return default;
+                return HlirTree.Empty;
 
             var transformer = new PascalAstToHlirTransformer(_stringPool);
             return transformer.Transform(astTree);

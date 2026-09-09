@@ -1,34 +1,34 @@
 using System;
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Core.IR.Soa;
 
 /// <summary>
-/// Builder for incrementally constructing an <see cref="AstTree"/>.
+/// Builder for incrementally constructing an <see cref="HlirTree"/>.
 /// Appends nodes in post-order (children before parent); each node records a span of
 /// child indices in a side buffer, so children need not be a contiguous run of nodes.
 /// Automatically resizes internal arrays as needed.
 /// </summary>
-public sealed class AstBuilder
+public sealed class HlirBuilder
 {
-    private AstNode[] _nodes;
+    private HlirNode[] _nodes;
     private int[] _childIndices;
     private int _childCount;
 
     private int _count;
 
-    /// <summary>Creates a new <see cref="AstBuilder"/> with the default initial capacity.</summary>
-    public AstBuilder() : this(256)
+    /// <summary>Creates a new <see cref="HlirBuilder"/> with the default initial capacity.</summary>
+    public HlirBuilder() : this(256)
     {
     }
 
-    /// <summary>Creates a new <see cref="AstBuilder"/> with the specified initial capacity.</summary>
-    public AstBuilder(int initialCapacity)
+    /// <summary>Creates a new <see cref="HlirBuilder"/> with the specified initial capacity.</summary>
+    public HlirBuilder(int initialCapacity)
     {
         if (initialCapacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(initialCapacity));
 
-        _nodes = new AstNode[initialCapacity];
+        _nodes = new HlirNode[initialCapacity];
         _childIndices = new int[initialCapacity * 2];
         _childCount = 0;
         _count = 0;
@@ -38,16 +38,17 @@ public sealed class AstBuilder
     public int Count => _count;
 
     /// <summary>
-    /// Adds a new AST node to the tree.
+    /// Adds a new HLIR node to the tree.
     /// Children must already exist in the builder; their indices are copied into the
     /// side child-index buffer. No contiguity or ordering constraint is imposed.
     /// </summary>
-    /// <param name="kind">The node kind (AstNodeKind byte value).</param>
+    /// <param name="kind">The node kind (HlirNodeKind byte value).</param>
     /// <param name="flags">Instruction flags (Terminator, Diagnostic, etc.).</param>
-    /// <param name="payload">By-kind payload: StringPool offset, literal value, operator char, direction, etc.</param>
+    /// <param name="payload">By-kind payload; its meaning is given by <paramref name="payloadKind"/>.</param>
+    /// <param name="payloadKind">Discriminator for the payload.</param>
     /// <param name="childIndices">Indices of child nodes in this builder. Must be in the range [0, <see cref="Count"/>).</param>
     /// <returns>The index of the newly added node.</returns>
-    public int Add(byte kind, ushort flags, uint payload, params int[] childIndices)
+    public int Add(byte kind, ushort flags, uint payload, HlirPayloadKind payloadKind, params int[] childIndices)
     {
         EnsureCapacity(_count + 1);
 
@@ -63,14 +64,14 @@ public sealed class AstBuilder
             _childCount += childIndices.Length;
         }
 
-        _nodes[_count] = new AstNode(kind, flags, payload, firstChild, childCount);
+        _nodes[_count] = new HlirNode(kind, flags, payload, firstChild, childCount, payloadKind);
         return _count++;
     }
 
     /// <summary>
-    /// Overload for single-child nodes (common case).
+    /// Overload for a single-child node with a payload.
     /// </summary>
-    public int Add(byte kind, ushort flags, uint payload, int childIndex)
+    public int Add(byte kind, ushort flags, uint payload, HlirPayloadKind payloadKind, int childIndex)
     {
         EnsureCapacity(_count + 1);
         EnsureChildCapacity(_childCount + 1);
@@ -79,19 +80,25 @@ public sealed class AstBuilder
         _childIndices[_childCount] = childIndex;
         _childCount++;
 
-        _nodes[_count] = new AstNode(kind, flags, payload, firstChild, 1);
+        _nodes[_count] = new HlirNode(kind, flags, payload, firstChild, 1, payloadKind);
         return _count++;
     }
 
     /// <summary>
-    /// Overload for zero-child (leaf) nodes.
+    /// Overload for a zero-child (leaf) node with a payload.
     /// </summary>
-    public int Add(byte kind, ushort flags, uint payload)
+    public int Add(byte kind, ushort flags, uint payload, HlirPayloadKind payloadKind)
     {
         EnsureCapacity(_count + 1);
 
-        _nodes[_count] = new AstNode(kind, flags, payload, -1, 0);
+        _nodes[_count] = new HlirNode(kind, flags, payload, -1, 0, payloadKind);
         return _count++;
+    }
+
+    /// <summary>Adds a leaf node with no payload.</summary>
+    public int Add(byte kind)
+    {
+        return Add(kind, 0, 0, HlirPayloadKind.None);
     }
 
     /// <summary>
@@ -104,31 +111,15 @@ public sealed class AstBuilder
     }
 
     /// <summary>
-    /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes.
+    /// Builds an immutable <see cref="HlirTree"/> from the accumulated nodes.
     /// The underlying arrays are NOT copied — the tree wraps the builder's arrays.
     /// The builder can be reused for another tree after calling <see cref="Clear"/>.
     /// </summary>
-    /// <returns>An immutable <see cref="AstTree"/> view of the built nodes.</returns>
-        /// <summary>
-        /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes.
-        /// The underlying arrays are NOT copied — the tree wraps the builder's arrays.
-        /// The builder can be reused for another tree after calling <see cref="Clear"/>.
-        /// </summary>
-        /// <returns>An immutable <see cref="AstTree"/> view of the built nodes.</returns>
-        public AstTree Build()
-        {
-            return new AstTree(_nodes, _childIndices, _count);
-        }
-
-        /// <summary>
-        /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes,
-        /// ensuring a minimum capacity.
-        /// </summary>
-        public AstTree Build(uint minCapacity)
-        {
-            EnsureCapacity((int)minCapacity);
-            return new AstTree(_nodes, _childIndices, _count);
-        }
+    /// <returns>An immutable <see cref="HlirTree"/> view of the built nodes.</returns>
+    public HlirTree Build()
+    {
+        return new HlirTree(_nodes, _childIndices, _count);
+    }
 
     private void EnsureCapacity(int required)
     {

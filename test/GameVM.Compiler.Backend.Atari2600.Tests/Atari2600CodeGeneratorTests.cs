@@ -164,17 +164,17 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
-    public void GenerateFromSlab_WithBranchInstruction_GeneratesBCC()
+    public void GenerateFromSlab_WithBranchInstruction_EmitsBneWithOffset()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 5); // BCC offset 5
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 5); // BNE offset 5
         var slab = builder.Build();
         var stringPool = new StringPool();
         
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x90)); // BCC
+        Assert.That(rom[0], Is.EqualTo(0xD0)); // BNE (branch when not equal)
         Assert.That(rom[1], Is.EqualTo(5)); // offset
     }
 
@@ -444,7 +444,7 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         Assert.That(rom[4], Is.EqualTo(0x20)); // JSR $1234
         Assert.That(rom[5], Is.EqualTo(0x34));
         Assert.That(rom[6], Is.EqualTo(0x12));
-        Assert.That(rom[7], Is.EqualTo(0x90)); // BCC +127
+        Assert.That(rom[7], Is.EqualTo(0xD0)); // BNE +127
         Assert.That(rom[8], Is.EqualTo(0x7F));
         Assert.That(rom[9], Is.EqualTo(0x60)); // RTS
         Assert.That(rom[10], Is.EqualTo(0xEA)); // NOP

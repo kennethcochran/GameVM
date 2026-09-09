@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Core.Interfaces
 {
@@ -44,12 +45,11 @@ namespace GameVM.Compiler.Core.Interfaces
         /// Populated after successful ParseToSlab.
         /// </summary>
         StringPool? StringPool { get; }
-
         /// <summary>
-        /// Convert AST tree to HLIR slab (DOD pipeline) - takes AstTree, returns InstList
+        /// Convert AST tree to HLIR semantic tree (DOD pipeline) - takes AstTree, returns HlirTree
         /// </summary>
         /// <param name="astTree">AST tree to convert</param>
-        /// <returns>HLIR slab as InstList</returns>
-        InstList ConvertToHlirSlab(AstTree astTree);
+        /// <returns>HLIR semantic tree as HlirTree</returns>
+        HlirTree ConvertToHlirSlab(AstTree astTree);
     }
 }

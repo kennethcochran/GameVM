@@ -1,6 +1,7 @@
 using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Transformers;
 namespace GameVM.Compiler.Pascal.Tests;
 
 /// <summary>
@@ -60,15 +61,17 @@ public class EdgeCaseTests
 
         // Act
         var astSlab = _frontend.ParseToSlab(source);
-        var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+        var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+        var mlirSlab = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree);
         var optimizer = new DefaultMidLevelOptimizer();
-        var mlirSlab = hlirSlab.Count > 0
-            ? optimizer.OptimizeSlab(hlirSlab, _frontend.StringPool!, OptimizationLevel.None)
+        var optimizedMlirSlab = mlirSlab.Count > 0
+            ? optimizer.OptimizeSlab(mlirSlab, _frontend.StringPool!, OptimizationLevel.None)
             : default;
 
         // Assert
         Assert.That(astSlab, Is.Not.Empty);
         Assert.That(mlirSlab.Count, Is.GreaterThanOrEqualTo(0));
+        Assert.That(optimizedMlirSlab.Count, Is.GreaterThanOrEqualTo(0));
     }
 
     #endregion

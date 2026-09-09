@@ -1,97 +1,97 @@
 using System;
-using GameVM.Compiler.Core.IR.Soa;
 
-namespace GameVM.Compiler.Core.IR.Ast
+namespace GameVM.Compiler.Core.IR.Ast;
+
+/// <summary>
+/// A single node in the Array-of-Structures (AoS) AST.
+/// Fixed-size (16 bytes), laid out flat in an <see cref="AstTree"/> so that walking
+/// the tree touches one contiguous buffer with a uniform stride.
+///
+/// Children of a node are addressed via a contiguous span of child indices stored
+/// in a separate side buffer (the Zig <c>Ast.zig</c> <c>extra_data</c>/<c>SubRange</c>
+/// pattern): <see cref="FirstChild"/> is an offset into that buffer,
+/// <see cref="ChildCount"/> is the span length. The node array holds every node once;
+/// children are referenced by index, decoupling child order from node allocation
+/// order — any legal post-order tree is expressible.
+///
+/// <see cref="Payload"/> carries the by-kind value: a StringPool offset for
+/// identifiers/literals, an operator char for binary ops, a direction for for-loops.
+/// </summary>
+public readonly struct AstNode
 {
-    /// <summary>
-    /// A single node in the Array-of-Structures (AoS) AST.
-    /// Fixed-size (16 bytes), laid out flat in an <see cref="AstTree"/> so that walking
-    /// the tree touches one contiguous buffer with a uniform stride.
-    ///
-    /// Children of a node are a contiguous run in the same array
-    /// (<see cref="FirstChild"/> .. <see cref="FirstChild"/> + <see cref="ChildCount"/>).
-    /// <see cref="Payload"/> carries the by-kind value: a StringPool offset for
-    /// identifiers/literals, an operator char for binary ops, a direction for for-loops.
-    /// </summary>
-    public readonly struct AstNode
+    /// <summary>AstNodeKind tag byte.</summary>
+    public readonly byte Kind;
+
+    /// <summary>Bitwise flags (InstructionFlag).</summary>
+    public readonly ushort Flags;
+
+    /// <summary>By-kind payload (StringPool offset, literal value, operator char, direction).</summary>
+    public readonly uint Payload;
+
+    /// <summary>Offset of the child-index span in the parent <see cref="AstTree"/>'s side buffer, or -1 if none.</summary>
+    public readonly int FirstChild;
+
+    /// <summary>Number of child indices in the side-buffer span.</summary>
+    public readonly int ChildCount;
+
+    public AstNode(byte kind, ushort flags, uint payload, int firstChild, int childCount)
     {
-        /// <summary>AstNodeKind tag byte.</summary>
-        public readonly byte Kind;
-
-        /// <summary>Bitwise flags (InstructionFlag).</summary>
-        public readonly ushort Flags;
-
-        /// <summary>By-kind payload (StringPool offset, literal value, operator char, direction).</summary>
-        public readonly uint Payload;
-
-        /// <summary>Index of the first child node in the parent <see cref="AstTree"/>, or -1 if none.</summary>
-        public readonly int FirstChild;
-
-        /// <summary>Number of contiguous child nodes.</summary>
-        public readonly int ChildCount;
-
-        public AstNode(byte kind, ushort flags, uint payload, int firstChild, int childCount)
-        {
-            Kind = kind;
-            Flags = flags;
-            Payload = payload;
-            FirstChild = firstChild;
-            ChildCount = childCount;
-        }
-
-        /// <summary>True when this node has no children.</summary>
-        public bool IsLeaf => ChildCount == 0;
+        Kind = kind;
+        Flags = flags;
+        Payload = payload;
+        FirstChild = firstChild;
+        ChildCount = childCount;
     }
 
-    /// <summary>
-    /// Immutable Array-of-Structures (AoS) parse tree.
-    /// A single flat <see cref="AstNode"/>[] where each node's fields are adjacent and
-    /// children are contiguous spans. Built via <see cref="AstBuilder"/> and treated as
-    /// immutable thereafter.
-    ///
-    /// An <see cref="AstTree"/> is empty when <see cref="Count"/> == 0 (the frontends return
-    /// the default/empty tree on parse failure). There is a single implicit root — the
-    /// program / method-declaration node — so no explicit root index is stored.
-    /// </summary>
-    public readonly struct AstTree
+    /// <summary>True when this node has no children.</summary>
+    public bool IsLeaf => ChildCount == 0;
+}
+
+// <summary>
+// Immutable Array-of-Structures (AoS) parse tree.
+// A flat <see cref="AstNode"/>[] holding every node exactly once (fields adjacent per
+// node), plus a side buffer of child indices so children need not be a contiguous
+// node run. Built via <see cref="AstBuilder"/> and treated as immutable thereafter.
+//
+// An <see cref="AstTree"/> is empty when <see cref="Count"/> == 0 (the frontends return
+// the default/empty tree on parse failure). There is a single implicit root — the
+// program / method-declaration node — so no explicit root index is stored.
+// </summary>
+public readonly struct AstTree
+{
+    private readonly AstNode[] _nodes;
+    private readonly int[] _childIndices;
+    private readonly int _count;
+
+    /// <summary>Current number of nodes in the tree.</summary>
+    public int Count => _count;
+
+    /// <summary>Gets the node at the given index.</summary>
+    public AstNode this[int index] => _nodes[index];
+
+    /// <summary>Gets the child indices side buffer.</summary>
+    public int[] ChildIndices => _childIndices;
+
+    /// <summary>Gets the node kind at the given index.</summary>
+    public byte GetKind(int index) => _nodes[index].Kind;
+
+    /// <summary>Gets the child index span for a given node.</summary>
+    public ReadOnlySpan<int> Children(int index)
     {
-        private readonly AstNode[] _nodes;
-        private readonly int _count;
+        var node = _nodes[index];
+        if (node.FirstChild < 0)
+            return ReadOnlySpan<int>.Empty;
+        return _childIndices.AsSpan(node.FirstChild, node.ChildCount);
+    }
 
-        /// <summary>An empty tree. Equivalent to the default value.</summary>
-        public static readonly AstTree Empty = new AstTree(Array.Empty<AstNode>(), 0);
+    /// <summary>Gets an empty AstTree.</summary>
+    public static AstTree Empty => new AstTree(Array.Empty<AstNode>(), Array.Empty<int>(), 0);
 
-        /// <summary>Creates an <see cref="AstTree"/> from a node array. Used primarily by <see cref="AstBuilder"/>.</summary>
-        public AstTree(AstNode[] nodes, int count)
-        {
-            _nodes = nodes;
-            _count = count;
-        }
-
-        /// <summary>Gets the number of nodes in the tree. 0 means empty (parse failure).</summary>
-        public int Count => _count;
-
-        /// <summary>Gets the node at the specified index.</summary>
-        public AstNode this[int index] => _nodes[index];
-
-        /// <summary>
-        /// Gets the contiguous span of children for the node at <paramref name="index"/>.
-        /// Returns an empty span for a leaf or an out-of-range first-child index.
-        /// </summary>
-        public ReadOnlySpan<AstNode> Children(int index)
-        {
-            AstNode node = _nodes[index];
-            if (node.ChildCount <= 0 || node.FirstChild < 0)
-                return ReadOnlySpan<AstNode>.Empty;
-
-            int first = node.FirstChild;
-            if (first + node.ChildCount > _count)
-                return ReadOnlySpan<AstNode>.Empty;
-
-            return new ReadOnlySpan<AstNode>(_nodes, first, node.ChildCount);
-        }
-
-        /// <summary>Gets the kind byte of the node at <paramref name="index"/>.</summary>
-        public byte GetKind(int index) => _nodes[index].Kind;
+    /// <summary>Initializes a new <see cref="AstTree"/> from node and child-index arrays.</summary>
+    public AstTree(AstNode[] nodes, int[] childIndices, int count)
+    {
+        _nodes = nodes;
+        _childIndices = childIndices;
+        _count = count;
     }
 }

@@ -30,9 +30,11 @@ namespace GameVM.Compiler.Core.Tests.Optimizers
         {
             var astSlab = _frontend.ParseToSlab(source);
             Assert.That(astSlab.Count, Is.GreaterThan(0), "AST slab should not be empty");
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
-            Assert.That(hlirSlab.Count, Is.GreaterThan(0), "HLIR slab should not be empty");
-            return hlirSlab;
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0), "HLIR tree should not be empty");
+            var mlir = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree);
+            Assert.That(mlir.Count, Is.GreaterThan(0), "MLIR stream should not be empty");
+            return mlir;
         }
 
         #region Dead Code Elimination Tests

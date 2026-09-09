@@ -9,6 +9,7 @@ using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Application.Tests
 {
@@ -32,23 +33,23 @@ namespace GameVM.Compiler.Application.Tests
 
         private static AstTree CreateAstTree()
         {
-            return new AstTree(new GameVM.Compiler.Core.IR.Ast.AstNode[]
+            return new AstTree(new AstNode[]
             {
-                new GameVM.Compiler.Core.IR.Ast.AstNode(
+                new AstNode(
                     kind: 10, // MethodDeclaration
                     flags: 0,
                     payload: 0,
                     firstChild: -1,
                     childCount: 0
                 )
-            }, 1);
+            }, new int[] { 0 }, 1);
         }
 
-        private static InstList CreateHlirSlab()
+        private static HlirTree CreateHlirTree()
         {
-            // Create a valid HLIR slab with a real ASSIGN instruction
-            // Use MLIR_ASSIGN (130) to avoid being flagged as invalid AST-level instruction
-            return CreateInstList(new byte[] { 130 }); // MLIR_ASSIGN
+            var builder = new HlirBuilder();
+            builder.Add((byte)HlirNodeKind.Nop);
+            return builder.Build();
         }
 
         private static InstList CreateMlirSlab()
@@ -79,19 +80,19 @@ namespace GameVM.Compiler.Application.Tests
                 Target = Architecture.Atari2600,
                 Profile = CapabilityLevel.L1, // Should match backend
                 Enforcement = EnforcementLevel.Strict,
-                SystemExtensions = new List<string> { "Ext.Math.Fast" } // Should be supported
+                SystemExtensions = new List<string> { } // No extensions advertised by the backend; leave empty
             };
 
             // Create valid slabs for DOD pipeline
             var astTree = CreateAstTree();
-            var hlirSlab = CreateHlirSlab();
+            var hlirTree = CreateHlirTree();
             var mlirSlab = CreateMlirSlab();
             var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
 
             var stringPool = new StringPool();
 
             mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<string>())).Returns(astTree);
-            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirSlab);
+            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirTree);
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
@@ -146,14 +147,14 @@ namespace GameVM.Compiler.Application.Tests
             };
 
             var astTree = CreateAstTree();
-            var hlirSlab = CreateHlirSlab();
+            var hlirTree = CreateHlirTree();
             var mlirSlab = CreateMlirSlab();
             var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
 
             var stringPool = new StringPool();
 
             mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<string>())).Returns(astTree);
-            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirSlab);
+            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirTree);
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);

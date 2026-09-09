@@ -7,7 +7,7 @@ using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
-using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.CSharp.ANTLR;
 using GameVM.Compiler.CSharp.Transformers;
@@ -82,12 +82,12 @@ namespace GameVM.Compiler.CSharp
         }
 
         /// <summary>
-        /// Convert AST tree to HLIR slab (DOD pipeline) - takes AstTree, returns InstList
+        /// Convert AST tree to HLIR semantic tree (DOD pipeline) - takes AstTree, returns HlirTree
         /// </summary>
-        public InstList ConvertToHlirSlab(AstTree astTree)
+        public HlirTree ConvertToHlirSlab(AstTree astTree)
         {
             if (astTree.Count == 0)
-                return default;
+                return HlirTree.Empty;
 
             var transformer = new CSharpAstToHlirTransformer(_stringPool);
             return transformer.Transform(astTree);

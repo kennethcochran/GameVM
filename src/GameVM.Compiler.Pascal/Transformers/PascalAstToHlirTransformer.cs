@@ -1,427 +1,413 @@
 using System;
 using System.Collections.Generic;
-using GameVM.Compiler.Core.IR;
-using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Hlir;
+using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
 
 namespace GameVM.Compiler.Pascal.Transformers
 {
     /// <summary>
-    /// Transforms a Pascal AstTree to an HLIR InstList.
-    /// Language-specific lowering from Pascal's AstTree (with PascalAstNodeKind) to shared HLIR.
+    /// Transforms a Pascal AstTree to an AoS HLIR semantic tree (HlirTree) via a
+    /// structural tree-to-tree morph.
+    ///
+    /// Content contract (visitor is authority, transformer aligns):
+    ///  - VisitProgram emits Program -> MethodDeclaration(name="main", child=body Block).
+    ///  - VariableDeclaration has an Identifier + TypeDefinition child (payload = pool
+    ///    offset of the type-name text).
+    ///  - The transformer finds the Program root, lowers its MethodDeclaration body
+    ///    recursively (blocks nested in blocks included), and processes function
+    ///    MethodDeclaration nodes (payload = name pool offset, child = body Block).
+    ///  - Errors surface directly (no rewrap): "Undefined variable 'name'".
     /// </summary>
     public sealed class PascalAstToHlirTransformer
     {
-        private readonly StringPool _stringPool;
-        private readonly Dictionary<uint, string> _variableNames = new();
-        private readonly Dictionary<uint, byte> _variableTypes = new();
+        private readonly StringPool _pool = null!;
+        private readonly HlirBuilder _builder = new();
+        private readonly HashSet<uint> _declaredVariables = new();
+        private readonly Dictionary<uint, string> _declaredTypes = new();
+        private readonly Dictionary<uint, uint> _constantValues = new();
         private readonly List<string> _errors = new();
-        private int _labelCounter;
-
         public PascalAstToHlirTransformer(StringPool stringPool)
         {
-            _stringPool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
+            _pool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
         }
 
-        /// <summary>
-        /// Transforms a Pascal AstTree to an HLIR InstList.
-        /// </summary>
-        public InstList Transform(AstTree astTree)
+        /// <summary>Transforms a Pascal AstTree to an AoS HLIR semantic tree.</summary>
+        public HlirTree Transform(AstTree astTree)
         {
-            _variableNames.Clear();
-            _variableTypes.Clear();
-            _errors.Clear();
-            _labelCounter = 0;
+            if (astTree.Count == 0)
+                return HlirTree.Empty;
 
-            var builder = new InstListBuilder();
-
-            // Process the AST as a sequence of top-level declarations
-            // In Pascal AST: PROGRAM -> METHOD_DECLARATION -> BLOCK -> statements
-            for (int i = 0; i < astTree.Count; i++)
+            _declaredVariables.Clear();
+            _declaredTypes.Clear();
+            _constantValues.Clear();
+            int programIdx = FindProgramRoot(astTree);
+            if (programIdx < 0)
             {
-                PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(i);
-                if (kind == PascalAstNodeKind.MethodDeclaration)
-                {
-                    var node = astTree[i];
-                    // METHOD_DECLARATION: payload = functionNameHash, children = [bodyBlock]
-                    if (node.ChildCount > 0 && node.FirstChild >= 0)
-                    {
-                        int bodyIdx = ChildIndex(astTree, i, 0);
-                        if (bodyIdx >= 0)
-                        {
-                            ProcessFunction(astTree, bodyIdx, builder);
-                        }
-                    }
-                }
+                throw new InvalidOperationException("Failed to convert AST tree to HLIR tree: no program root");
             }
+
+            ProcessFunction(astTree, programIdx);
 
             if (_errors.Count > 0)
             {
-                throw new InvalidOperationException(_errors[0]);
+                throw new InvalidOperationException(string.Join(Environment.NewLine, _errors));
             }
 
-            return builder.Build();
+            return _builder.Build();
         }
 
-        private static int ChildIndex(AstTree astTree, int parentIdx, int childOffset)
+        private static int FindProgramRoot(AstTree astTree)
         {
-            var children = astTree.Children(parentIdx);
-            if (childOffset < children.Length)
+            for (int i = 0; i < astTree.Count; i++)
             {
-                // Find the index in the flat array
-                var parent = astTree[parentIdx];
-                return parent.FirstChild + childOffset;
+                if ((PascalAstNodeKind)astTree.GetKind(i) == PascalAstNodeKind.Program)
+                    return i;
             }
             return -1;
         }
 
-        private void ProcessFunction(AstTree astTree, int bodyIdx, InstListBuilder builder)
+        private void ProcessFunction(AstTree astTree, int fnIdx)
         {
-            // In HLIR, we represent a function as:
-            // HLIR_LABEL: [functionNameHash]  (acts as function entry point)
-            uint functionNameHash = _stringPool.Intern($"_func_{_labelCounter:00000000}");
-            _labelCounter++;
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, functionNameHash);
+            var fnChildren = astTree.Children(fnIdx);
+            if (fnChildren.Length == 0) return;
 
-            // Process the function body (the BLOCK instruction)
-            var bodyNode = astTree[bodyIdx];
-            if (bodyNode.Kind == (byte)PascalAstNodeKind.Block)
+            int bodyIdx = fnChildren[fnChildren.Length - 1]; // last child = body block
+
+            // Pre-register constants and variable declarations declared in the
+            // method header so body expressions can reference them.
+            for (int i = 0; i < fnChildren.Length - 1; i++)
             {
-                var children = astTree.Children(bodyIdx);
-                for (int childOffset = 0; childOffset < children.Length; childOffset++)
+                int childIdx = fnChildren[i];
+                PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(childIdx);
+                if (kind == PascalAstNodeKind.ConstantDefinition)
+                    RegisterConstant(astTree, childIdx);
+                else if (kind == PascalAstNodeKind.VariableDeclaration)
                 {
-                    int stmtIdx = ChildIndex(astTree, bodyIdx, childOffset);
-                    if (stmtIdx >= 0)
-                    {
-                        PascalAstNodeKind stmtKind = (PascalAstNodeKind)astTree.GetKind(stmtIdx);
-                        ProcessStatement(astTree, stmtIdx, stmtKind, builder);
-                    }
+                    var varChildren = astTree.Children(childIdx);
+                    if (varChildren.Length > 0)
+                        _declaredVariables.Add(astTree[varChildren[0]].Payload);
                 }
             }
+            int bodyHlir = BuildBlock(astTree, bodyIdx);
+
+            uint nameOffset = astTree[fnIdx].Payload;
+            _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
         }
 
-        private void ProcessBlock(AstTree astTree, int blockIdx, InstListBuilder builder)
+        /// <summary>
+        /// Builds a Block HLIR node from an AST Block by lowering each child statement
+        /// recursively. Returns a Nop leaf for an empty block.
+        /// </summary>
+        private int BuildBlock(AstTree astTree, int blockIdx)
         {
             var children = astTree.Children(blockIdx);
-            for (int childOffset = 0; childOffset < children.Length; childOffset++)
-            {
-                int stmtIdx = ChildIndex(astTree, blockIdx, childOffset);
-                if (stmtIdx < 0 || stmtIdx >= astTree.Count) continue;
+            var lowered = new List<int>(children.Length);
 
-                PascalAstNodeKind stmtKind = (PascalAstNodeKind)astTree.GetKind(stmtIdx);
-                ProcessStatement(astTree, stmtIdx, stmtKind, builder);
+            foreach (int childIdx in children)
+            {
+                int hlirChild = ProcessStatement(astTree, childIdx);
+                if (hlirChild >= 0)
+                    lowered.Add(hlirChild);
             }
+
+            if (lowered.Count == 0)
+                return _builder.Add((byte)HlirNodeKind.Nop, 0, 0, HlirPayloadKind.None);
+
+            return _builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, lowered.ToArray());
         }
 
-        private void ProcessStatement(AstTree astTree, int stmtIdx, PascalAstNodeKind stmtKind, InstListBuilder builder)
+        private int ProcessStatement(AstTree astTree, int stmtIdx)
         {
-            switch (stmtKind)
+            if (stmtIdx < 0 || stmtIdx >= astTree.Count) return -1;
+
+            PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(stmtIdx);
+
+            switch (kind)
             {
-                case PascalAstNodeKind.Assignment:
-                    ProcessAssignment(astTree, stmtIdx, builder);
-                    break;
-                case PascalAstNodeKind.ExpressionStatement:
-                    ProcessExpressionStatement(astTree, stmtIdx, builder);
-                    break;
-                case PascalAstNodeKind.IfStatement:
-                    ProcessIfStatement(astTree, stmtIdx, builder);
-                    break;
-                case PascalAstNodeKind.WhileStatement:
-                    ProcessWhileStatement(astTree, stmtIdx, builder);
-                    break;
-                case PascalAstNodeKind.ReturnStatement:
-                    ProcessReturnStatement(astTree, stmtIdx, builder);
-                    break;
-                case PascalAstNodeKind.Block:
-                    ProcessBlock(astTree, stmtIdx, builder);
-                    break;
                 case PascalAstNodeKind.VariableDeclaration:
-                    ProcessVariableDeclaration(astTree, stmtIdx, builder);
-                    break;
+                    return ProcessVariableDeclaration(astTree, stmtIdx);
+                case PascalAstNodeKind.ConstantDefinition:
+                    // Constant definitions are hoisted into the body block by the
+                    // visitor, so register the name and value before use.
+                    RegisterConstant(astTree, stmtIdx);
+                    return _builder.Add((byte)HlirNodeKind.Nop, 0, 0, HlirPayloadKind.None);
+                case PascalAstNodeKind.Assignment:
+                    return ProcessAssignment(astTree, stmtIdx);
+                case PascalAstNodeKind.IfStatement:
+                    return ProcessIfStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.WhileStatement:
+                    return ProcessWhileStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.ForStatement:
-                    ProcessForStatement(astTree, stmtIdx, builder);
-                    break;
+                    return ProcessForStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.Block:
+                    return BuildBlock(astTree, stmtIdx);
+                case PascalAstNodeKind.ReturnStatement:
+                    return ProcessReturnStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.MethodCall:
+                    return ProcessMethodCall(astTree, stmtIdx);
+                case PascalAstNodeKind.Nop:
+                    return _builder.Add((byte)HlirNodeKind.Nop, 0, 0, HlirPayloadKind.None);
                 default:
-                    if (IsExpressionKind(stmtKind))
-                    {
-                        ProcessExpressionStatement(astTree, stmtIdx, builder);
-                    }
-                    break;
+                    return ProcessExpressionStatement(astTree, stmtIdx);
             }
         }
 
-        private void ProcessAssignment(AstTree astTree, int stmtIdx, InstListBuilder builder)
+        private int ProcessVariableDeclaration(AstTree astTree, int stmtIdx)
         {
             var children = astTree.Children(stmtIdx);
-            if (children.Length < 2) return;
+            if (children.Length < 1) return -1;
 
-            int targetIdx = ChildIndex(astTree, stmtIdx, 0);
-            int valueIdx = ChildIndex(astTree, stmtIdx, 1);
-
-            if (targetIdx < 0 || valueIdx < 0 || targetIdx >= astTree.Count || valueIdx >= astTree.Count)
-                return;
-
-            PascalAstNodeKind targetKind = (PascalAstNodeKind)astTree.GetKind(targetIdx);
-            if (targetKind == PascalAstNodeKind.Identifier)
-            {
-                var targetNode = astTree[targetIdx];
-                uint nameOffset = targetNode.Payload;
-                if (!_variableNames.ContainsKey(nameOffset))
-                {
-                    string varName = _stringPool.Resolve(nameOffset);
-                    _errors.Add($"Undefined variable '{varName}'");
-                    return;
-                }
-            }
-
-            string targetStr = ResolveExpression(astTree, targetIdx);
-            string valueStr = ResolveExpression(astTree, valueIdx);
-
-            var targetPoolOffset = _stringPool.Intern(targetStr);
-            var valuePoolOffset = _stringPool.Intern(valueStr);
-
-            builder.Add((byte)MlirInstructionKind.Assign, 0, 0, targetPoolOffset, valuePoolOffset);
-        }
-
-        private void ProcessExpressionStatement(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            var children = astTree.Children(stmtIdx);
-            if (children.Length < 1) return;
-
-            int exprIdx = ChildIndex(astTree, stmtIdx, 0);
-            if (exprIdx < 0 || exprIdx >= astTree.Count) return;
-
-            string exprStr = ResolveExpression(astTree, exprIdx);
-
-            var targetPoolOffset = _stringPool.Intern("_temp");
-            var valuePoolOffset = _stringPool.Intern(exprStr);
-
-            builder.Add((byte)MlirInstructionKind.Assign, 0, 0, targetPoolOffset, valuePoolOffset);
-        }
-
-        private void ProcessIfStatement(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            var children = astTree.Children(stmtIdx);
-            if (children.Length < 2) return;
-
-            int conditionIdx = ChildIndex(astTree, stmtIdx, 0);
-            int thenIdx = ChildIndex(astTree, stmtIdx, 1);
-            int? elseIdx = children.Length >= 3 ? ChildIndex(astTree, stmtIdx, 2) : null;
-
-            if (conditionIdx < 0 || thenIdx < 0 ||
-                (elseIdx.HasValue && (elseIdx.Value < 0 || elseIdx.Value >= astTree.Count)))
-                return;
-
-            string conditionStr = ResolveExpression(astTree, conditionIdx);
-
-            int labelBase = _labelCounter++;
-            var thenLabel = $"L_if_then_{labelBase}";
-            var endLabel = $"L_if_end_{labelBase}";
-            var elseLabel = elseIdx.HasValue ? $"L_if_else_{labelBase}" : endLabel;
-
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(thenLabel));
-            builder.Add((byte)MlirInstructionKind.Branch, 0, 0, _stringPool.Intern(conditionStr), _stringPool.Intern(elseLabel));
-
-            PascalAstNodeKind thenKind = (PascalAstNodeKind)astTree.GetKind(thenIdx);
-            ProcessStatement(astTree, thenIdx, thenKind, builder);
-
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(endLabel));
-
-            if (elseIdx.HasValue)
-            {
-                PascalAstNodeKind elseKind = (PascalAstNodeKind)astTree.GetKind(elseIdx.Value);
-                ProcessStatement(astTree, elseIdx.Value, elseKind, builder);
-            }
-        }
-
-        private void ProcessWhileStatement(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            var children = astTree.Children(stmtIdx);
-            if (children.Length < 2) return;
-
-            int conditionIdx = ChildIndex(astTree, stmtIdx, 0);
-            int bodyIdx = ChildIndex(astTree, stmtIdx, 1);
-
-            if (conditionIdx < 0 || conditionIdx >= astTree.Count ||
-                bodyIdx < 0 || bodyIdx >= astTree.Count)
-                return;
-
-            string loopLabel = $"L_loop_{_variableNames.Count}";
-            string endLabel = $"L_end_{_variableNames.Count}";
-
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(loopLabel));
-
-            string conditionStr = ResolveExpression(astTree, conditionIdx);
-            builder.Add((byte)MlirInstructionKind.Branch, 0, 0, _stringPool.Intern(endLabel), _stringPool.Intern(conditionStr));
-
-            PascalAstNodeKind bodyKind = (PascalAstNodeKind)astTree.GetKind(bodyIdx);
-            ProcessStatement(astTree, bodyIdx, bodyKind, builder);
-
-            builder.Add((byte)MlirInstructionKind.Branch, 0, 0, _stringPool.Intern(loopLabel));
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(endLabel));
-        }
-
-        private void ProcessReturnStatement(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            var children = astTree.Children(stmtIdx);
-            if (children.Length == 0)
-            {
-                builder.Add((byte)MlirInstructionKind.Return, 0, 0);
-                return;
-            }
-
-            if (children.Length >= 1)
-            {
-                int exprIdx = ChildIndex(astTree, stmtIdx, 0);
-                if (exprIdx >= 0 && exprIdx < astTree.Count)
-                {
-                    string exprStr = ResolveExpression(astTree, exprIdx);
-                    var valuePoolOffset = _stringPool.Intern(exprStr);
-                    var targetPoolOffset = _stringPool.Intern("_return");
-
-                    builder.Add((byte)MlirInstructionKind.Assign, 0, 0, targetPoolOffset, valuePoolOffset);
-                }
-            }
-        }
-
-        private void ProcessVariableDeclaration(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            var node = astTree[stmtIdx];
-            // VARIABLE_DECLARATION: payload = typeKind, child = Identifier
-            byte typeKind = (byte)node.Payload;
-            var children = astTree.Children(stmtIdx);
-            if (children.Length < 1) return;
-
-            int nameIdx = ChildIndex(astTree, stmtIdx, 0);
-            if (nameIdx < 0 || nameIdx >= astTree.Count) return;
+            int nameIdx = children[0];
+            int typeIdx = children.Length > 1 ? children[1] : -1;
 
             var nameNode = astTree[nameIdx];
             uint nameOffset = nameNode.Payload;
+            _declaredVariables.Add(nameOffset);
 
-            string varName = _stringPool.Resolve(nameOffset);
-            if (string.IsNullOrEmpty(varName)) return;
-
-            _variableNames[nameOffset] = varName;
-            _variableTypes[nameOffset] = typeKind;
-
-            string initStr = typeKind switch
+            uint typeOffset = 0;
+            if (typeIdx >= 0)
             {
-                1 => "0",
-                2 => "",
-                3 => "false",
-                _ => "0"
-            };
-
-            var targetPoolOffset = _stringPool.Intern(varName);
-            var valuePoolOffset = _stringPool.Intern(initStr);
-
-            builder.Add((byte)MlirInstructionKind.Assign, 0, 0, targetPoolOffset, valuePoolOffset);
-        }
-
-        private void ProcessForStatement(AstTree astTree, int stmtIdx, InstListBuilder builder)
-        {
-            // FOR_STATEMENT: payload = direction, children = [varName, initial, final, body]
-            var children = astTree.Children(stmtIdx);
-            if (children.Length < 4) return;
-
-            int varNameIdx = ChildIndex(astTree, stmtIdx, 0);
-            int initialIdx = ChildIndex(astTree, stmtIdx, 1);
-            int finalIdx = ChildIndex(astTree, stmtIdx, 2);
-            int bodyIdx = ChildIndex(astTree, stmtIdx, 3);
-
-            if (varNameIdx < 0 || initialIdx < 0 || finalIdx < 0 || bodyIdx < 0) return;
-
-            var varNameNode = astTree[varNameIdx];
-            uint varNameOffset = varNameNode.Payload;
-
-            string initialStr = ResolveExpression(astTree, initialIdx);
-            string finalStr = ResolveExpression(astTree, finalIdx);
-
-            string loopLabel = $"L_for_{_labelCounter++}";
-            string endLabel = $"L_end_for_{_labelCounter}";
-
-            // Initialize loop variable
-            var initValuePoolOffset = _stringPool.Intern(initialStr);
-            var varPoolOffset = _stringPool.Intern(_stringPool.Resolve(varNameOffset));
-            builder.Add((byte)MlirInstructionKind.Assign, 0, 0, varPoolOffset, initValuePoolOffset);
-
-            // Loop condition
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(loopLabel));
-
-            // Compare loop variable to final value (direction: 0=TO uses <=, 1=DOWNTO uses >=)
-            var stmtNode = astTree[stmtIdx];
-            bool isDownto = stmtNode.Payload == 1;
-            string conditionStr = isDownto
-                ? $"({_stringPool.Resolve(varNameOffset)} >= {finalStr})"
-                : $"({_stringPool.Resolve(varNameOffset)} <= {finalStr})";
-            builder.Add((byte)MlirInstructionKind.Branch, 0, 0, _stringPool.Intern(endLabel), _stringPool.Intern(conditionStr));
-
-            PascalAstNodeKind bodyKind = (PascalAstNodeKind)astTree.GetKind(bodyIdx);
-            ProcessStatement(astTree, bodyIdx, bodyKind, builder);
-
-            // Increment loop variable
-            builder.Add((byte)MlirInstructionKind.Branch, 0, 0, _stringPool.Intern(loopLabel));
-            builder.Add((byte)MlirInstructionKind.Label, 0, 0, _stringPool.Intern(endLabel));
-        }
-
-        private string ResolveExpression(AstTree astTree, int exprIdx)
-        {
-            if (exprIdx < 0 || exprIdx >= astTree.Count) return "0";
-
-            PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(exprIdx);
-            var node = astTree[exprIdx];
-
-            return kind switch
-            {
-                PascalAstNodeKind.LiteralInt => node.Payload.ToString(),
-                PascalAstNodeKind.LiteralString => node.Payload != 0 ? _stringPool.Resolve(node.Payload) : "",
-                PascalAstNodeKind.LiteralBool => node.Payload != 0 ? "true" : "false",
-                PascalAstNodeKind.Identifier =>
-                    node.Payload != 0 ? _stringPool.Resolve(node.Payload) : "<unknown>",
-                PascalAstNodeKind.BinaryOp => ResolveBinaryOp(astTree, exprIdx),
-                _ => "0"
-            };
-        }
-
-        private string ResolveBinaryOp(AstTree astTree, int exprIdx)
-        {
-            var children = astTree.Children(exprIdx);
-            if (children.Length < 2) return "0";
-
-            int leftIdx = ChildIndex(astTree, exprIdx, 0);
-            int rightIdx = ChildIndex(astTree, exprIdx, 1);
-            var opNode = astTree[exprIdx];
-            char opChar = (char)opNode.Payload;
-
-            if (leftIdx < 0 || rightIdx < 0 || leftIdx >= astTree.Count || rightIdx >= astTree.Count)
-                return "0";
-
-            string left = ResolveExpression(astTree, leftIdx);
-            string right = ResolveExpression(astTree, rightIdx);
-
-            if (int.TryParse(left, out int lVal) && int.TryParse(right, out int rVal))
-            {
-                return opChar switch
-                {
-                    '+' => (lVal + rVal).ToString(),
-                    '-' => (lVal - rVal).ToString(),
-                    '*' => (lVal * rVal).ToString(),
-                    '/' => rVal != 0 ? (lVal / rVal).ToString() : "0",
-                    _ => $"({left} {opChar} {right})"
-                };
+                typeOffset = astTree[typeIdx].Payload;
+                string typeName = _pool.Resolve(typeOffset);
+                if (!string.IsNullOrEmpty(typeName))
+                    _declaredTypes[nameOffset] = typeName;
             }
 
-            return $"({left} {opChar} {right})";
+            int idHlir = _builder.Add((byte)HlirNodeKind.Identifier, 0, nameOffset, HlirPayloadKind.PoolOffset);
+            int typeHlir = _builder.Add((byte)HlirNodeKind.TypeReference, 0, typeOffset, HlirPayloadKind.PoolOffset);
+
+            return _builder.Add((byte)HlirNodeKind.VariableDeclaration, 0, 0, HlirPayloadKind.None, idHlir, typeHlir);
         }
 
-        private static bool IsExpressionKind(PascalAstNodeKind kind)
+
+        /// <summary>
+        /// Registers a named constant: constantDefinition: identifier EQUAL constant.
+        /// The value child is a literal whose payload is the interned literal text.
+        /// </summary>
+        private void RegisterConstant(AstTree astTree, int constIdx)
         {
-            return kind == PascalAstNodeKind.LiteralInt ||
-                   kind == PascalAstNodeKind.LiteralString ||
-                   kind == PascalAstNodeKind.LiteralBool ||
-                   kind == PascalAstNodeKind.Identifier ||
-                   kind == PascalAstNodeKind.BinaryOp;
+            var children = astTree.Children(constIdx);
+            if (children.Length < 2) return;
+
+            int nameIdx = children[0];
+            int valueIdx = children[1];
+            var nameNode = astTree[nameIdx];
+            if (nameNode.Kind != (byte)PascalAstNodeKind.Identifier) return;
+
+            uint nameOffset = nameNode.Payload;
+            var valueNode = astTree[valueIdx];
+            if ((PascalAstNodeKind)valueNode.Kind == PascalAstNodeKind.LiteralInt)
+            {
+                if (uint.TryParse(_pool.Resolve(valueNode.Payload), out uint intVal))
+                    _constantValues[nameOffset] = intVal;
+            }
+            else if ((PascalAstNodeKind)valueNode.Kind == PascalAstNodeKind.LiteralBool)
+            {
+                _constantValues[nameOffset] = valueNode.Payload;
+            }
+        }
+
+        private int ProcessAssignment(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2) return -1;
+
+            int targetIdx = children[0];
+            int valueIdx = children[1];
+
+            var targetNode = astTree[targetIdx];
+            uint targetOffset = targetNode.Payload;
+
+            if (targetNode.Kind == (byte)PascalAstNodeKind.Identifier &&
+                !_declaredVariables.Contains(targetOffset))
+            {
+                _errors.Add($"Undefined variable '{_pool.Resolve(targetOffset)}'");
+                return -1;
+            }
+
+            // Type checking: string/boolean literals cannot be assigned to an
+            // Integer variable; report the mismatch (compile-time error).
+            if (targetNode.Kind == (byte)PascalAstNodeKind.Identifier &&
+                _declaredTypes.TryGetValue(targetOffset, out string? targetType) &&
+                string.Equals(targetType, "integer", StringComparison.OrdinalIgnoreCase))
+            {
+                var valueNode = astTree[valueIdx];
+                PascalAstNodeKind valueKind = (PascalAstNodeKind)valueNode.Kind;
+                if (valueKind == PascalAstNodeKind.LiteralString ||
+                    valueKind == PascalAstNodeKind.LiteralBool)
+                {
+                    _errors.Add($"Type mismatch: cannot assign '{_pool.Resolve(valueNode.Payload)}' to Integer variable '{_pool.Resolve(targetOffset)}'");
+                    return -1;
+                }
+            }
+
+            int targetHlir = BuildExpression(astTree, targetIdx);
+            int valueHlir = BuildExpression(astTree, valueIdx);
+            if (targetHlir < 0 || valueHlir < 0) return -1;
+            return _builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetHlir, valueHlir);
+        }
+        private int ProcessExpressionStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 1) return -1;
+
+            int exprHlir = BuildExpression(astTree, children[0]);
+            if (exprHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.ExpressionStatement, 0, 0, HlirPayloadKind.None, exprHlir);
+        }
+
+        private int ProcessIfStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2) return -1;
+
+            int condHlir = BuildExpression(astTree, children[0]);
+            int thenHlir = ProcessStatement(astTree, children[1]);
+            if (condHlir < 0 || thenHlir < 0) return -1;
+
+            if (children.Length > 2)
+            {
+                int elseHlir = ProcessStatement(astTree, children[2]);
+                return _builder.Add((byte)HlirNodeKind.If, 0, 0, HlirPayloadKind.None, condHlir, thenHlir, elseHlir);
+            }
+
+            return _builder.Add((byte)HlirNodeKind.If, 0, 0, HlirPayloadKind.None, condHlir, thenHlir);
+        }
+
+        private int ProcessWhileStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2) return -1;
+
+            int condHlir = BuildExpression(astTree, children[0]);
+            int bodyHlir = ProcessStatement(astTree, children[1]);
+            if (condHlir < 0 || bodyHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, condHlir, bodyHlir);
+        }
+
+        private int ProcessForStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 4) return -1;
+
+            uint direction = astTree[stmtIdx].Payload; // 0 = to, 1 = downto
+
+            int varHlir = BuildExpression(astTree, children[0]);
+            int initHlir = BuildExpression(astTree, children[1]);
+            int finalHlir = BuildExpression(astTree, children[2]);
+            int bodyHlir = ProcessStatement(astTree, children[3]);
+            if (varHlir < 0 || initHlir < 0 || finalHlir < 0 || bodyHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.For, 0, direction, HlirPayloadKind.Immediate, varHlir, initHlir, finalHlir, bodyHlir);
+        }
+
+        private int ProcessReturnStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length == 0)
+                return _builder.Add((byte)HlirNodeKind.Return, 0, 0, HlirPayloadKind.None);
+
+            int valueHlir = BuildExpression(astTree, children[0]);
+            if (valueHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.Return, 0, 0, HlirPayloadKind.None, valueHlir);
+        }
+
+        private int ProcessMethodCall(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 1) return -1;
+
+            uint nameOffset = astTree[stmtIdx].Payload;
+
+            var argIndices = new List<int>();
+            for (int i = 0; i < children.Length; i++)
+            {
+                int argHlir = BuildExpression(astTree, children[i]);
+                if (argHlir >= 0)
+                    argIndices.Add(argHlir);
+            }
+
+            if (argIndices.Count == 0)
+                return _builder.Add((byte)HlirNodeKind.Call, 0, nameOffset, HlirPayloadKind.PoolOffset);
+
+            return _builder.Add((byte)HlirNodeKind.Call, 0, nameOffset, HlirPayloadKind.PoolOffset, argIndices.ToArray());
+        }
+
+        private int BuildExpression(AstTree astTree, int exprIdx)
+        {
+            if (exprIdx < 0 || exprIdx >= astTree.Count) return -1;
+
+            var node = astTree[exprIdx];
+            PascalAstNodeKind kind = (PascalAstNodeKind)node.Kind;
+
+            switch (kind)
+            {
+                case PascalAstNodeKind.LiteralInt:
+                    return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, node.Payload, HlirPayloadKind.Immediate);
+                case PascalAstNodeKind.LiteralString:
+                    return _builder.Add((byte)HlirNodeKind.LiteralString, 0, node.Payload, HlirPayloadKind.PoolOffset);
+                case PascalAstNodeKind.LiteralBool:
+                    return _builder.Add((byte)HlirNodeKind.LiteralBool, 0, node.Payload, HlirPayloadKind.Immediate);
+                case PascalAstNodeKind.Identifier:
+                    if (_constantValues.TryGetValue(node.Payload, out uint constVal))
+                    {
+                        // Named constant: fold to its literal value.
+                        return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, constVal, HlirPayloadKind.Immediate);
+                    }
+                    if (!_declaredVariables.Contains(node.Payload))
+                    {
+                        _errors.Add($"Undefined variable '{_pool.Resolve(node.Payload)}'");
+                        return -1;
+                    }
+                    return _builder.Add((byte)HlirNodeKind.Identifier, 0, node.Payload, HlirPayloadKind.PoolOffset);
+                case PascalAstNodeKind.BinaryOp:
+                    return BuildBinaryOp(astTree, exprIdx);
+                case PascalAstNodeKind.MethodCall:
+                    return ProcessMethodCall(astTree, exprIdx);
+                default:
+                    return -1;
+            }
+        }
+        private int BuildBinaryOp(AstTree astTree, int exprIdx)
+        {
+            var children = astTree.Children(exprIdx);
+            if (children.Length < 2) return -1;
+
+            char op = (char)astTree[exprIdx].Payload;
+
+            // Fold constant integer expressions (e.g. 1 + 2 -> 3) so the target
+            // emits a single immediate load.
+            var leftNode = astTree[children[0]];
+            var rightNode = astTree[children[1]];
+            if ((PascalAstNodeKind)leftNode.Kind == PascalAstNodeKind.LiteralInt &&
+                (PascalAstNodeKind)rightNode.Kind == PascalAstNodeKind.LiteralInt &&
+                uint.TryParse(_pool.Resolve(leftNode.Payload), out uint leftVal) &&
+                uint.TryParse(_pool.Resolve(rightNode.Payload), out uint rightVal))
+            {
+                uint folded = op switch
+                {
+                    '+' => leftVal + rightVal,
+                    '-' => leftVal - rightVal,
+                    '*' => leftVal * rightVal,
+                    '/' => rightVal != 0 ? leftVal / rightVal : 0,
+                    _ => 0
+                };
+                // Intern the folded value so the MLIR/backend layers treat it as a
+                // literal string (numeric) rather than a raw value or pool offset.
+                uint foldedOffset = _pool.Intern(folded.ToString());
+                return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, foldedOffset, HlirPayloadKind.Immediate);
+            }
+
+            int leftHlir = BuildExpression(astTree, children[0]);
+            int rightHlir = BuildExpression(astTree, children[1]);
+            if (leftHlir < 0 || rightHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)op, HlirPayloadKind.Immediate, leftHlir, rightHlir);
         }
     }
 }

@@ -1,4 +1,5 @@
 using GameVM.Compiler.Core.SemanticAnalysis;
+using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Core.Tests
@@ -21,11 +22,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 5 + 3 * 2;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -35,11 +37,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar i: Integer;\nbegin\n  i := 1;\n  while i < 10 do\n    i := i + 1;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -49,11 +52,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar i: Integer;\nbegin\n  for i := 1 to 10 do\n    writeln(i);\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -63,11 +67,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  readln(x);\n  if x > 0 then\n    writeln('positive')\n  else\n    writeln('non-positive');\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -77,11 +82,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 1;\n  begin\n    x := x + 1;\n    begin\n      x := x + 1;\n    end;\n  end;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -101,11 +107,12 @@ namespace GameVM.Compiler.Core.Tests
                 begin
                 end.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -115,11 +122,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar x: Real;\nbegin\n  x := 3.14;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -129,11 +137,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar msg: String;\nbegin\n  msg := 'Hello, World!';\n  WriteLn(msg);\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True, $"Semantic analysis failed with errors: {string.Join("; ", result.Errors)}");
         }
@@ -143,11 +152,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar a, b, c, d: Integer;\nbegin\n  a := 1;\n  b := 2;\n  c := 3;\n  d := 4;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -157,11 +167,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := (5 + 3) * 2 - 4 / 2;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }
@@ -171,11 +182,12 @@ namespace GameVM.Compiler.Core.Tests
         {
             var sourceCode = "program Test;\nbegin\n  WriteLn('Hello, World!');\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
-            Assert.That(hlirSlab, Is.Not.Empty);
+            Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             Assert.That(result.Success, Is.True);
         }

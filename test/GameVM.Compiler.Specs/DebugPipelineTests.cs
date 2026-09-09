@@ -62,18 +62,14 @@ public class DebugPipelineTests
             }
         }
 
-        InstList hlirSlab = frontend.ConvertToHlirSlab(astTree);
-        TestContext.WriteLine($"HLIR slab Count: {hlirSlab.Count}");
-        if (hlirSlab.Count > 0)
-        {
-            for (int i = 0; i < Math.Min(20, hlirSlab.Count); i++)
-                TestContext.WriteLine($"  [{i}]=Kind:{hlirSlab.GetKind(i)}, Args:{hlirSlab.GetArgCount(i)}");
-        }
+        var hlirTree = frontend.ConvertToHlirSlab(astTree);
+        TestContext.WriteLine($"HLIR tree Count: {hlirTree.Count}");
 
         InstList mlirSlab = default;
-        if (hlirSlab.Count > 0)
+        if (hlirTree.Count > 0)
         {
-            mlirSlab = midOptimizer.OptimizeSlab(hlirSlab, frontend.StringPool!, OptimizationLevel.None);
+            var hlirToMlir = new Core.IR.Transformers.HlirTreeToMlirTransformer(frontend.StringPool!);
+            mlirSlab = hlirToMlir.Transform(hlirTree);
             TestContext.WriteLine($"MLIR slab count: {mlirSlab.Count}");
             for (int i = 0; i < Math.Min(20, mlirSlab.Count); i++)
                 TestContext.WriteLine($"  [{i}]=Kind:{mlirSlab.GetKind(i)}, Args:{mlirSlab.GetArgCount(i)}");

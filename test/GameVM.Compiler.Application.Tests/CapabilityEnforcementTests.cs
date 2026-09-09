@@ -9,6 +9,7 @@ using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 using System.Collections.Generic;
 
 namespace UnitTests.Application
@@ -50,21 +51,14 @@ namespace UnitTests.Application
                     firstChild: -1,
                     childCount: 0
                 )
-            }, 1);
+            }, new int[] { 0 }, 1);
 
             _frontendMock.Setup(x => x.ParseToSlab(It.IsAny<string>())).Returns(testAstTree);
+
+            var hlirBuilder = new HlirBuilder();
+            hlirBuilder.Add((byte)HlirNodeKind.Nop);
             _frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<AstTree>()))
-                .Returns(new InstList(
-                    new byte[] { 0x01 }, // tags (dummy HLIR_ASSIGN)
-                    new ushort[] { 0x0000 }, // flags
-                    new ushort[] { 0x0002 }, // argCount=2
-                    new uint[] { 0x00000000, 0x00000000 }, // fixedOps (2 slots)
-                    new uint[] { 0x00000001, 0x00000002 }, // extra pool (2 operands)
-                    new uint[] { 0x00000004 }, // extraOffsets[0] = 4 (start of operands)
-                    new int[] { 0 }, // blockIds[0] = 0
-                    1, // count
-                    2  // extraUsed
-                ));
+                .Returns(hlirBuilder.Build());
             _frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 
             _midLevelOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
@@ -146,8 +140,7 @@ namespace UnitTests.Application
                 Enforcement = EnforcementLevel.Strict
             };
 
-            // Act
-            var result = _useCase.Execute("test.pas", options);
+            var result = _useCase.Execute("program Test; begin end.", ".pas", options);
 
             // Assert
             Assert.That(result.Success, Is.False);
@@ -168,8 +161,7 @@ namespace UnitTests.Application
                 Enforcement = EnforcementLevel.Strict
             };
 
-            // Act
-            var result = _useCase.Execute("test.pas", options);
+            var result = _useCase.Execute("program Test; begin end.", ".pas", options);
 
             // Assert
             Assert.That(result.Success, Is.True);

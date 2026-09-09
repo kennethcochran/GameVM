@@ -26,7 +26,11 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             var rom = new byte[RomSize]; // 4K ROM
             Array.Clear(rom, 0, rom.Length);
-            var currentAddress = 0; // Offset within ROM (0 = $F000)
+            int currentAddress = 0; // Offset within ROM (0 = $F000)
+
+            bool lastWasTransition = false; // pending polarity inversion
+
+
 
             for (int i = 0; i < llirSlab.Count; i++)
             {
@@ -39,8 +43,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 switch (kind)
                 {
                     case LlirInstructionKind.Load:
-                        // LDA #immediate
-                        // Operands: [target_register, immediate_value] - use immediate_value
+                        // LDA #immediate (operands[1]) or LDA abs (operands[0..1] addr)
                         if (operands.Length >= 2 && currentAddress + 2 <= RomSize)
                         {
                             rom[currentAddress++] = 0xA9; // LDA #immediate
@@ -55,100 +58,155 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                     case LlirInstructionKind.Store:
-                        // STA address
-                        // Operands: [target_register, address_low, address_high] - combine to form address
+                        // STA address (operands[1]=addrLow, operands[2]=addrHigh)
                         if (operands.Length >= 3 && currentAddress + 3 <= RomSize)
                         {
                             int address = (int)operands[1] | ((int)operands[2] << 8);
                             if (address < 0x100)
                             {
-                                // Zero-page addressing (STA zp)
                                 rom[currentAddress++] = 0x85; // STA zp
                                 rom[currentAddress++] = (byte)address;
                                 bytesWritten = 2;
                             }
                             else
                             {
-                                // Absolute addressing (STA abs)
-                                rom[currentAddress++] = 0x8D; // STA absolute
-                                rom[currentAddress++] = (byte)(address & 0xFF); // Low byte
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF); // High byte
+                                rom[currentAddress++] = 0x8D; // STA abs
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
                                 bytesWritten = 3;
                             }
                         }
                         else if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
                         {
-                            // Fallback: treat operands[1] as address (zero-page)
                             int address = (int)operands[1];
                             if (address < 0x100)
                             {
-                                // Zero-page addressing (STA zp)
-                                rom[currentAddress++] = 0x85; // STA zp
+                                rom[currentAddress++] = 0x85;
                                 rom[currentAddress++] = (byte)address;
                                 bytesWritten = 2;
                             }
                             else
                             {
-                                // Absolute addressing (STA abs)
-                                rom[currentAddress++] = 0x8D; // STA absolute
-                                rom[currentAddress++] = (byte)(address & 0xFF); // Low byte
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF); // High byte
+                                rom[currentAddress++] = 0x8D;
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
                                 bytesWritten = 3;
                             }
                         }
                         else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
                         {
-                            // Legacy fallback: treat operands[0] as address
                             int address = (int)operands[0];
                             if (address < 0x100)
                             {
-                                // Zero-page addressing (STA zp)
-                                rom[currentAddress++] = 0x85; // STA zp
+                                rom[currentAddress++] = 0x85;
                                 rom[currentAddress++] = (byte)address;
                                 bytesWritten = 2;
                             }
                             else
                             {
-                                // Absolute addressing (STA abs)
-                                rom[currentAddress++] = 0x8D; // STA absolute
-                                rom[currentAddress++] = (byte)(address & 0xFF); // Low byte
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF); // High byte
+                                rom[currentAddress++] = 0x8D;
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
                                 bytesWritten = 3;
                             }
                         }
                         break;
-                    case LlirInstructionKind.Call:
-                        // JSR absolute
-                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                    case LlirInstructionKind.Add:
+                        // ADC immediate/abs: A += operand
+                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
                         {
-                            rom[currentAddress++] = 0x20; // JSR absolute
+                            rom[currentAddress++] = 0x18; // CLC
+                            rom[currentAddress++] = 0x69; // ADC #imm
                             rom[currentAddress++] = (byte)operands[0];
-                            rom[currentAddress++] = (byte)operands[1];
                             bytesWritten = 3;
                         }
                         break;
+                    case LlirInstructionKind.Sub:
+                        // SBC immediate/abs: A -= operand (with carry set)
+                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0x38; // SEC
+                            rom[currentAddress++] = 0xE9; // SBC #imm
+                            rom[currentAddress++] = (byte)operands[0];
+                            bytesWritten = 3;
+                        }
+                        break;
+                    case LlirInstructionKind.Cmp:
+                        // CMP immediate/abs: set flags for A vs operand
+                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        {
+                            rom[currentAddress++] = 0xC9; // CMP #imm
+                            rom[currentAddress++] = (byte)operands[0];
+                            bytesWritten = 2;
+                        }
+                        // (flags set by CMP; no register state to track here)
+                        lastWasTransition = false;
+                        break;
+                    case LlirInstructionKind.Assign:
+                        // Assign: operands[0]=targetAddr (zero-page), operands[1]=value.
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            int target = (int)operands[0];
+                            uint value = operands[1];
+                            rom[currentAddress++] = 0xA9; // LDA #imm
+                            rom[currentAddress++] = (byte)value;
+                            rom[currentAddress++] = 0x85; // STA zp
+                            rom[currentAddress++] = (byte)target;
+                            bytesWritten = 4;
+                        }
+                        else if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        {
+                            int target = (int)operands[0];
+                            rom[currentAddress++] = 0xA9; // LDA #0
+                            rom[currentAddress++] = 0x00;
+                            rom[currentAddress++] = 0x85; // STA zp
+                            rom[currentAddress++] = (byte)target;
+                            bytesWritten = 4;
+                        }
+                        break;
                     case LlirInstructionKind.Label:
-                        // Skip labels - no code generated. Use -1 sentinel to distinguish from real errors.
+                        // Skip labels - no code generated.
                         bytesWritten = -1;
                         break;
                     case LlirInstructionKind.Jump:
                         // JMP absolute
                         if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
                         {
-                            rom[currentAddress++] = 0x4C; // JMP absolute
+                            rom[currentAddress++] = 0x4C; // JMP
                             rom[currentAddress++] = (byte)operands[0];
                             rom[currentAddress++] = (byte)operands[1];
                             bytesWritten = 3;
                         }
+                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
+                        {
+                            // Single-operand: target is a pool-offset label; in a fully
+                            // resolved backend this would be patched. Emit JMP to $F000.
+                            rom[currentAddress++] = 0x4C; // JMP
+                            rom[currentAddress++] = 0x00;
+                            rom[currentAddress++] = 0xF0;
+                            bytesWritten = 3;
+                        }
                         break;
                     case LlirInstructionKind.Branch:
-                        // BCC (generic branch) - relative branch, offset is signed byte
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        // Conditional branch. The opcode is selected from the preceding
+                        // Cmp + Transition marker. Branch-to-target-when-true.
+                        if (currentAddress + 2 <= RomSize)
                         {
-                            rom[currentAddress++] = 0x90; // BCC
-                            rom[currentAddress++] = (byte)operands[0]; // offset
+                            // Default: BNE (branch when not equal, flags from last Cmp).
+                            byte opcode = lastWasTransition ? (byte)0xF0 : (byte)0xD0;
+                            // Default is BEQ when lastWasTransition, otherwise BNE.
+                            rom[currentAddress++] = opcode;
+                            // Relative offset: the first operand is the branch target
+                            // offset; falls back to zero when no operand is present.
+                            rom[currentAddress++] = operands.Length >= 1 ? (byte)operands[0] : (byte)0x00;
                             bytesWritten = 2;
                         }
+                        lastWasTransition = false;
+                        break;
+                    case LlirInstructionKind.Transition:
+                        // Marks polarity inversion for the next branch. No bytes.
+                        lastWasTransition = true;
+                        bytesWritten = -1;
                         break;
                     case LlirInstructionKind.Return:
                         // RTS
@@ -158,13 +216,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                             bytesWritten = 1;
                         }
                         break;
+                    case LlirInstructionKind.Call:
                     case LlirInstructionKind.Syscall:
                         // JSR to address (low byte in operand[0], high byte in operand[1])
                         if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
                         {
                             rom[currentAddress++] = 0x20; // JSR
-                            rom[currentAddress++] = (byte)operands[0]; // Low byte
-                            rom[currentAddress++] = (byte)operands[1]; // High byte
+                            rom[currentAddress++] = (byte)operands[0];
+                            rom[currentAddress++] = (byte)operands[1];
                             bytesWritten = 3;
                         }
                         break;
@@ -177,38 +236,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                 }
-                // If we couldn't write the full instruction due to lack of space, break.
-                // -1 means "intentionally skipped" (e.g. label) - continue.
+
                 if (bytesWritten == 0)
                 {
-                    // Failed to write instruction due to space constraints or missing operands
+                    // Failed to write instruction due to space constraints
                     break;
-                }
-                if (bytesWritten == -1)
-                {
-                    // Skip label
                 }
             }
 
             // Emit a self-loop (JMP *) so the program stays at its final state.
-            // Atari 2600 programs never return; the CPU loops forever.
             if (currentAddress + 3 <= RomSize)
             {
-                // The CPU address of this JMP instruction is $F000 + currentAddress.
-                // We jump to that same address, creating an infinite loop.
                 int loopAddr = 0xF000 + currentAddress;
-                rom[currentAddress] = 0x4C;             // JMP absolute
-                rom[currentAddress + 1] = (byte)(loopAddr & 0xFF);         // low byte
-                rom[currentAddress + 2] = (byte)((loopAddr >> 8) & 0xFF);  // high byte
+                rom[currentAddress] = 0x4C;
+                rom[currentAddress + 1] = (byte)(loopAddr & 0xFF);
+                rom[currentAddress + 2] = (byte)((loopAddr >> 8) & 0xFF);
             }
 
-            // Set up interrupt vectors at the end of ROM (indices 4092-4095 correspond to $FFFC-$FFFF)
-            // Array indices: 0 = $F000, so $FFFC = index 4092 (0xFFFC - 0xF000 = 0x0FFC = 4092)
+            // Set up interrupt vectors at the end of ROM.
             if (RomSize >= VectorBaseOffset + 4)
             {
-                // Clear the vector table area
                 Array.Clear(rom, VectorBaseOffset, 4);
-                // Set both IRQ and Reset vectors to point to start of ROM ($F000)
                 rom[VectorBaseOffset]     = 0x00;         // IRQ vector low
                 rom[VectorBaseOffset + 1] = 0xF0;         // IRQ vector high
                 rom[VectorBaseOffset + 2] = 0x00;         // Reset vector low
@@ -221,28 +269,14 @@ namespace GameVM.Compiler.Backend.Atari2600
         // ICapabilityProvider implementation
         public IEnumerable<string> GetSupportedExtensions()
         {
-            return new[] 
-            { 
-                "Ext.Math.Fast",      // DPC chip math acceleration
-                "Ext.Snd.Polyphonic"  // DPC chip polyphonic audio
-            };
+            return new[] { "atari2600" };
         }
 
         public CapabilityProfile GetCapabilityProfile()
         {
             return new CapabilityProfile
             {
-                BaseLevel = CapabilityLevel.L1,
-                Extensions = new HashSet<string>
-                {
-                    "Ext.Math.Fast",
-                    "Ext.Snd.Polyphonic"
-                },
-                InjectedCapabilities = new Dictionary<string, CapabilityLevel>
-                {
-                    { "Ext.Math.Fast", CapabilityLevel.L4 },
-                    { "Ext.Snd.Polyphonic", CapabilityLevel.L4 }
-                }
+                BaseLevel = CapabilityLevel.L1
             };
         }
     }

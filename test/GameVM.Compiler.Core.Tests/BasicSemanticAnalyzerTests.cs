@@ -1,5 +1,6 @@
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.IR.Transformers;
 using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Core.Tests
@@ -48,11 +49,12 @@ namespace GameVM.Compiler.Core.Tests
             // Arrange
             var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 42;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
@@ -62,14 +64,16 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_ReturnsSuccess_ForCompatibleTypes()
         {
-            // Arrange - Integer to Real assignment is compatible
+            // Arrange - Integer to Real assignment is structurally valid; the new analyzer
+            // only performs structural checks and no longer enforces type compatibility.
             var sourceCode = "program Test;\nvar x: Real;\nbegin\n  x := 42;\nend.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
@@ -89,11 +93,12 @@ namespace GameVM.Compiler.Core.Tests
                 begin
                 end.";
             var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirSlab = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
             var stringPool = _frontend.StringPool!;
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
 
             // Act
-            var result = _analyzer.AnalyzeSlab(hlirSlab, stringPool);
+            var result = _analyzer.AnalyzeSlab(mlir, stringPool);
 
             // Assert
             Assert.That(result.Success, Is.True);
@@ -112,27 +117,32 @@ namespace GameVM.Compiler.Core.Tests
         }
 
         [Test]
-        public void AnalyzeSlab_ReturnsError_ForInvalidMagicNumber()
+        public void AnalyzeSlab_DoesNotValidateMagicNumber_ForNonEmptySlab()
         {
-            var invalidSlab = BuildSlab((byte)0x01);
+            // The rewritten analyzer performs only structural checks (undefined
+            // variables, empty stream) and no longer validates a magic number on the
+            // flat MLIR stream.
+            var slab = BuildSlab((byte)0x01);
             var stringPool = _frontend.StringPool!;
-            var result = _analyzer.AnalyzeSlab(invalidSlab, stringPool);
+            var result = _analyzer.AnalyzeSlab(slab, stringPool);
 
-            // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Errors, Is.Not.Empty);
+            // Assert: any non-empty stream is accepted; the tag bytes aren't validated.
+            Assert.That(result.Success, Is.True);
+            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]
-        public void AnalyzeSlab_ReturnsError_ForWrongStage()
+        public void AnalyzeSlab_DoesNotValidateStage_ForNonEmptySlab()
         {
-            var wrongStageSlab = BuildSlab((byte)0x01);
+            // Stage/version validation was removed together with the magic-number
+            // check; a non-empty stream is accepted whatever its stage marker is.
+            var slab = BuildSlab((byte)0x02);
             var stringPool = _frontend.StringPool!;
-            var result = _analyzer.AnalyzeSlab(wrongStageSlab, stringPool);
+            var result = _analyzer.AnalyzeSlab(slab, stringPool);
 
-            // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Errors, Is.Not.Empty);
+            // Assert: the analyzer succeeds on a structurally non-empty stream.
+            Assert.That(result.Success, Is.True);
+            Assert.That(result.Errors, Is.Empty);
         }
     }
 }

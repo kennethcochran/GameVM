@@ -68,9 +68,9 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-                // Convert AST tree to HLIR slab (DOD pipeline)
-                InstList hlirSlab = _frontend.ConvertToHlirSlab(astTree);
-                if (hlirSlab.Count == 0)
+                // Convert AST tree to HLIR semantic tree (DOD pipeline)
+                Core.IR.Hlir.HlirTree hlirTree = _frontend.ConvertToHlirSlab(astTree);
+                if (hlirTree.Count == 0)
                 {
                     return new CompilationResult
                     {
@@ -78,7 +78,7 @@ namespace GameVM.Compiler.Application
                         Code = Array.Empty<byte>(),
                         SourceFile = extension,
                         Target = options.Target,
-                        ErrorMessage = "Failed to convert AST tree to HLIR slab"
+                        ErrorMessage = "Failed to convert AST tree to HLIR tree"
                     };
                 }
 
@@ -96,8 +96,23 @@ namespace GameVM.Compiler.Application
                     };
                 }
 
-                // Perform semantic analysis on HLIR slab - use InstList directly
-                var semanticResult = _semanticAnalyzer.AnalyzeSlab(hlirSlab, stringPool);
+                // Lower the HLIR semantic tree to a flat MLIR instruction stream.
+                var hlirToMlir = new Core.IR.Transformers.HlirTreeToMlirTransformer(stringPool);
+                InstList mlirFromHlir = hlirToMlir.Transform(hlirTree);
+                if (mlirFromHlir.Count == 0)
+                {
+                    return new CompilationResult
+                    {
+                        Success = false,
+                        Code = Array.Empty<byte>(),
+                        SourceFile = extension,
+                        Target = options.Target,
+                        ErrorMessage = "Failed to lower HLIR tree to MLIR"
+                    };
+                }
+
+                // Perform semantic analysis on the MLIR stream.
+                var semanticResult = _semanticAnalyzer.AnalyzeSlab(mlirFromHlir, stringPool);
                 if (!semanticResult.Success)
                 {
                     return new CompilationResult
@@ -136,8 +151,8 @@ namespace GameVM.Compiler.Application
                     _ = _capabilityValidator; // suppress unused field warning until slab validation is implemented
                 }
 
-                // Optimize HLIR slab to MLIR slab (DOD pipeline) - use InstList directly
-                InstList mlirSlab = _midLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, options.OptimizationLevel);
+                // Optimize the MLIR stream (DOD pipeline).
+                InstList mlirSlab = _midLevelOptimizer.OptimizeSlab(mlirFromHlir, stringPool, options.OptimizationLevel);
                 if (mlirSlab.Count == 0)
                 {
                     return new CompilationResult

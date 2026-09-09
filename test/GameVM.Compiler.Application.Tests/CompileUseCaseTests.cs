@@ -14,6 +14,7 @@ using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Core.IR.Hlir;
 using System.Collections.Generic;
 
 namespace UnitTests.Application
@@ -39,7 +40,6 @@ namespace UnitTests.Application
             var capabilityValidatorMock = _mocker.GetMock<ICapabilityValidatorService>();
             var semanticAnalyzerMock = _mocker.GetMock<ISemanticAnalyzer>();
 
-            // Create a simple AstTree with one node (METHOD_DECLARATION)
             var testAstTree = new AstTree(new GameVM.Compiler.Core.IR.Ast.AstNode[]
             {
                 new GameVM.Compiler.Core.IR.Ast.AstNode(
@@ -49,24 +49,17 @@ namespace UnitTests.Application
                     firstChild: -1,
                     childCount: 0
                 )
-            }, 1);
+            }, new int[] { 0 }, 1);
+
 
             // Set up common mocks that both tests need
             frontendMock.Setup(x => x.ParseToSlab(It.IsAny<string>()))
                 .Returns(testAstTree);
 
+            var hlirBuilder = new HlirBuilder();
+            hlirBuilder.Add((byte)HlirNodeKind.Nop);
             frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<AstTree>()))
-                .Returns(new InstList(
-                    new byte[] { 0x01 }, // tags (dummy HLIR_ASSIGN)
-                    new ushort[] { 0x0000 }, // flags
-                    new ushort[] { 0x0002 }, // argCount=2
-                    new uint[] { 0x00000000, 0x00000000 }, // fixedOps (2 slots)
-                    new uint[] { 0x00000001, 0x00000002 }, // extra pool (2 operands)
-                    new uint[] { 0x00000004 }, // extraOffsets[0] = 4 (start of operands)
-                    new int[] { 0 }, // blockIds[0] = 0
-                    1, // count
-                    2  // extraUsed
-                ));
+                .Returns(hlirBuilder.Build());
 
             frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 

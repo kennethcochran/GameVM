@@ -15,19 +15,11 @@ namespace GameVM.Compiler.Optimizers.MidLevel
     /// </summary>
     public sealed class DefaultMidLevelOptimizer : IMidLevelOptimizer
     {
-        private readonly HlirSlabToMlirSlabTransformer _hlirSlabToMlirSlabTransformer;
-
-        public DefaultMidLevelOptimizer()
-        {
-            _hlirSlabToMlirSlabTransformer = new HlirSlabToMlirSlabTransformer();
-        }
-
         /// <summary>
-        /// Optimizes the given HLIR slab using linear iteration and switch-based processing.
-        /// First transforms HLIR to MLIR, then applies optimization passes on the MLIR slab.
+        /// Optimizes the given MLIR slab using linear iteration and switch-based processing.
         /// Performs constant folding and dead assignment elimination.
         /// </summary>
-        /// <param name="hlirSlab">The HLIR instruction list to optimize.</param>
+        /// <param name="hlirSlab">The MLIR instruction list to optimize.</param>
         /// <param name="stringPool">String pool for identifier resolution.</param>
         /// <param name="optimizationLevel">Optimization level (none/brief/aggressive).</param>
         /// <returns>An optimized MLIR <see cref="InstList"/>.</returns>
@@ -35,35 +27,26 @@ namespace GameVM.Compiler.Optimizers.MidLevel
         {
             if (hlirSlab.Count == 0)
             {
-                throw new ArgumentException("Invalid HLIR slab: empty", nameof(hlirSlab));
+                throw new ArgumentException("Invalid MLIR slab: empty", nameof(hlirSlab));
             }
 
-            // Transform HLIR slab to MLIR slab using the dedicated transformer
-            InstList mlirSlab = _hlirSlabToMlirSlabTransformer.Transform(hlirSlab);
+            // The input is already MLIR (lowered from the HLIR semantic tree by
+            // HlirTreeToMlirTransformer). No re-transform is needed.
 
-            if (mlirSlab.Count == 0)
-            {
-                throw new InvalidOperationException("HlirSlabToMlirSlabTransformer returned empty slab");
-            }
-
-            // No optimization - return transformed slab as-is
+            // No optimization - return as-is
             if (optimizationLevel == OptimizationLevel.None)
             {
-                return mlirSlab;
+                return hlirSlab;
             }
 
             var builder = new InstListBuilder();
-
-            // Track constants discovered during linear scan for constant folding
             var constants = new Dictionary<uint, int>();
 
-            // Process each instruction in the MLIR slab - stride-only iteration
-            ReadOnlySpan<byte> tags = mlirSlab.Tags;
+            ReadOnlySpan<byte> tags = hlirSlab.Tags;
             for (int i = 0; i < tags.Length; i++)
             {
                 byte kind = tags[i];
-
-                ProcessInstruction(mlirSlab, i, kind, optimizationLevel, builder, constants);
+                ProcessInstruction(hlirSlab, i, kind, optimizationLevel, builder, constants);
             }
 
             return builder.Build();

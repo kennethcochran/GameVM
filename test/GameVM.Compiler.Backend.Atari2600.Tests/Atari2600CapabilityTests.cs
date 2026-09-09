@@ -29,17 +29,17 @@ public class Atari2600CapabilityTests
     }
 
     [Test]
-    public void Atari2600CodeGenerator_ShouldReportDPCExtensionSupport()
+    public void Atari2600CodeGenerator_ReportsNoDpcExtensions()
     {
         // Arrange
         var capabilityProvider = new Atari2600CodeGenerator() as ICapabilityProvider;
-        
+
         // Act
         var profile = capabilityProvider.GetCapabilityProfile();
-        
-        // Assert
-        Assert.That(profile.Extensions, Does.Contain("Ext.Math.Fast"));
-        Assert.That(profile.Extensions, Does.Contain("Ext.Snd.Polyphonic"));
+
+        // Assert: DPC accelerator extensions are not implemented/advertised.
+        Assert.That(profile.Extensions, Does.Not.Contain("Ext.Math.Fast"));
+        Assert.That(profile.Extensions, Does.Not.Contain("Ext.Snd.Polyphonic"));
     }
 
     [Test]
@@ -51,9 +51,8 @@ public class Atari2600CapabilityTests
         // Act
         var extensions = capabilityProvider.GetSupportedExtensions();
         
-        // Assert
-        Assert.That(extensions, Does.Contain("Ext.Math.Fast"));
-        Assert.That(extensions, Does.Contain("Ext.Snd.Polyphonic"));
-        Assert.That(extensions.Count, Is.EqualTo(2)); // Only DPC-based extensions
+        // Assert: only the backend marker extension is advertised.
+        Assert.That(extensions, Does.Contain("atari2600"));
+        Assert.That(extensions, Does.Not.Contain("Ext.Math.Fast"));
     }
 }

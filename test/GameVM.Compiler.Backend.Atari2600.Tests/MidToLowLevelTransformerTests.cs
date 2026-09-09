@@ -73,7 +73,7 @@ public class MidToLowLevelTransformerTests
     #region Assignment Transformation Tests
 
     [Test]
-    public void Transform_SimpleAssignment_GeneratesLoadAndStore()
+    public void Transform_SimpleAssignment_EmitsFoldedAssign()
     {
         // Arrange: x := 42
         uint targetOffset = _stringPool.Intern("MyVar");
@@ -83,20 +83,14 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: Should emit LDA #42, STA $80
-        Assert.That(result.Count, Is.EqualTo(2));
-        
-        // First instruction: Load (LDA #42)
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-        var loadOps = result.GetOperands(0);
-        Assert.That(loadOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(loadOps[1], Is.EqualTo(42u), "Second operand should be immediate value 42");
-        
-        // Second instruction: Store (STA $80)
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Store));
-        var storeOps = result.GetOperands(1);
-        Assert.That(storeOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(storeOps[1], Is.EqualTo(0x80u), "Second operand should be zero-page address $80");
+        // Assert: single Assign = LDA #42 + STA $80 folded into one instruction
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+
+        var ops = result.GetOperands(0);
+        Assert.That(ops.Length, Is.EqualTo(2));
+        Assert.That(ops[0], Is.EqualTo(0x80u), "Target maps to zero-page address $80 (first allocation)");
+        Assert.That(ops[1], Is.EqualTo(42u), "Value is the immediate 42");
     }
 
     [TestCase("COLUBK", 10, 0x09)]
@@ -114,11 +108,10 @@ public class MidToLowLevelTransformerTests
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
         // Assert
-        Assert.That(result.Count, Is.EqualTo(2));
-        
-        var storeOps = result.GetOperands(1);
-        Assert.That(storeOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(storeOps[1], Is.EqualTo((uint)expectedAddress), $"{register} should map to TIA register address ${expectedAddress:X2}");
+        Assert.That(result.Count, Is.EqualTo(1));
+        var ops = result.GetOperands(0);
+        Assert.That(ops.Length, Is.EqualTo(2));
+        Assert.That(ops[0], Is.EqualTo((uint)expectedAddress), $"{register} should map to TIA register address ${expectedAddress:X2}");
     }
 
     [Test]
@@ -133,11 +126,10 @@ public class MidToLowLevelTransformerTests
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
         // Assert: Unknown variables should map to $80 (first zero-page allocation)
-        Assert.That(result.Count, Is.EqualTo(2));
-        
-        var storeOps = result.GetOperands(1);
-        Assert.That(storeOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(storeOps[1], Is.EqualTo(0x80u), "Unknown variables should map to default zero-page address $80");
+        Assert.That(result.Count, Is.EqualTo(1));
+        var ops = result.GetOperands(0);
+        Assert.That(ops.Length, Is.EqualTo(2));
+        Assert.That(ops[0], Is.EqualTo(0x80u), "Unknown variables should map to default zero-page address $80");
     }
 
     [Test]
@@ -152,11 +144,10 @@ public class MidToLowLevelTransformerTests
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
         // Assert: 0xFF should be parsed as 255
-        Assert.That(result.Count, Is.EqualTo(2));
-        
-        var loadOps = result.GetOperands(0);
-        Assert.That(loadOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(loadOps[1], Is.EqualTo(0xFFu), "Hex value 0xFF should be parsed as 255");
+        Assert.That(result.Count, Is.EqualTo(1));
+        var ops = result.GetOperands(0);
+        Assert.That(ops.Length, Is.EqualTo(2));
+        Assert.That(ops[1], Is.EqualTo(0xFFu), "Hex value 0xFF should be parsed as 255");
     }
 
     [Test]
@@ -170,16 +161,12 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: Should generate LDA from x's address, STA to y's address
-        Assert.That(result.Count, Is.EqualTo(2));
-        
-        var loadOps = result.GetOperands(0);
-        Assert.That(loadOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(loadOps[1], Is.EqualTo(0x81u), "Load should use x's address ($81, allocated after y)");
-        
-        var storeOps = result.GetOperands(1);
-        Assert.That(storeOps.Length, Is.GreaterThanOrEqualTo(2));
-        Assert.That(storeOps[1], Is.EqualTo(0x80u), "Store should use y's address ($80, first allocation)");
+        // Assert: single Assign folding LDA from x's address + STA to y's address
+        Assert.That(result.Count, Is.EqualTo(1));
+        var ops = result.GetOperands(0);
+        Assert.That(ops.Length, Is.EqualTo(2));
+        Assert.That(ops[0], Is.EqualTo(0x80u), "Target y maps to $80 (first allocation)");
+        Assert.That(ops[1], Is.EqualTo(0x81u), "Value x maps to $81 (second allocation)");
     }
 
     [Test]
@@ -198,16 +185,15 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: 3 assignments * 2 instructions each = 6 instructions
-        Assert.That(result.Count, Is.EqualTo(6));
-        
-        // Check store addresses are allocated sequentially: $80, $81, $82
+        // Assert: 3 assignments = 3 folded Assign instructions
+        Assert.That(result.Count, Is.EqualTo(3));
+
+        // Check target addresses are allocated sequentially: $80, $81, $82
         for (int i = 0; i < 3; i++)
         {
-            int storeIdx = i * 2 + 1;
-            var storeOps = result.GetOperands(storeIdx);
-            Assert.That(storeOps.Length, Is.GreaterThanOrEqualTo(2));
-            Assert.That(storeOps[1], Is.EqualTo((uint)(0x80 + i)), 
+            var ops = result.GetOperands(i);
+            Assert.That(ops.Length, Is.EqualTo(2));
+            Assert.That(ops[0], Is.EqualTo((uint)(0x80 + i)),
                 $"Variable var{i + 1} should map to address ${0x80 + i:X2}");
         }
     }
@@ -249,11 +235,10 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: Label + 2 instructions for assignment
-        Assert.That(result.Count, Is.EqualTo(3));
+        // Assert: Label + 1 folded Assign
+        Assert.That(result.Count, Is.EqualTo(2));
         Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Label));
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
     }
 
     #endregion
@@ -371,15 +356,14 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: label + (load+store) + call + (load+store) = 6 instructions
-        Assert.That(result.Count, Is.EqualTo(6));
-        
+
+        // Assert: label + assign + call + assign = 4 instructions
+        Assert.That(result.Count, Is.EqualTo(4));
+
         Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Label));
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Call));
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Call));
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
     }
 
     [Test]
@@ -403,10 +387,9 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: 2 labels + 2*2 instructions = 6
-        Assert.That(result.Count, Is.EqualTo(6));
-        
-        // Count labels
+
+        // Assert: 2 labels + 2 assignments = 4 instructions
+        Assert.That(result.Count, Is.EqualTo(4));
         int labelCount = 0;
         for (int i = 0; i < result.Count; i++)
         {
@@ -447,9 +430,9 @@ public class MidToLowLevelTransformerTests
             var mlir = BuildMlirAssign(targetOffset, valueOffset);
             var result = _transformer.TransformSlab(mlir, _stringPool);
             
-            Assert.That(result.Count, Is.EqualTo(2), $"Failed for {name}");
-            var storeOps = result.GetOperands(1);
-            Assert.That(storeOps[1], Is.EqualTo((uint)addr), $"{name} should map to ${addr:X2}");
+            Assert.That(result.Count, Is.EqualTo(1), $"Failed for {name}");
+            var ops = result.GetOperands(0);
+            Assert.That(ops[0], Is.EqualTo((uint)addr), $"{name} should map to ${addr:X2}");
         }
     }
 

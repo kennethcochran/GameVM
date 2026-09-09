@@ -10,7 +10,9 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     /// <summary>
     /// Transforms MLIR (Mid-Level IR) to LLIR (Low-Level IR) for the Atari 2600 target.
-    /// Handles 6502-specific code generation and memory mapping.
+    /// Resolves StringPool offsets to zero-page addresses (deterministic $80+ allocation,
+    /// TIA register mapping), and lowers semantic arithmetic/compare/branch/call into
+    /// LLIR Load/Store/Add/Sub/Cmp/Branch/Jump instructions.
     /// </summary>
     public class MidToLowLevelTransformer : IIRSlabTransformer
     {
@@ -28,165 +30,228 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// <summary>
         /// Transforms an MLIR slab to LLIR slab for Atari 2600 target.
         /// </summary>
-        /// <param name="inputSlab">The MLIR instruction list to transform.</param>
-        /// <param name="stringPool">String pool for symbol resolution.</param>
-        /// <returns>The transformed LLIR instruction list.</returns>
         public InstList TransformSlab(InstList inputSlab, StringPool stringPool)
         {
             if (inputSlab.Count == 0)
             {
-                return new InstList(
-                    Array.Empty<byte>(),
-                    Array.Empty<ushort>(),
-                    Array.Empty<ushort>(),
-                    Array.Empty<uint>(),
-                    Array.Empty<uint>(),
-                    Array.Empty<uint>(),
-                    Array.Empty<int>(),
-                    0,
-                    0);
+                return Empty();
             }
 
             var builder = new InstListBuilder();
-            int functionCount = 0;
 
-            // Iterate through input MLIR slab
-            int i = 0;
-            while (i < inputSlab.Count)
+            for (int i = 0; i < inputSlab.Count; i++)
             {
-                int instIdx = i;
-                byte kind = inputSlab.GetKind(instIdx);
+                byte kind = inputSlab.GetKind(i);
+                ReadOnlySpan<uint> operands = inputSlab.GetOperands(i);
 
-                if (kind == (byte)MlirInstructionKind.Label)
+                switch ((MlirInstructionKind)kind)
                 {
-                    // Emit label instruction with function name hash
-                    ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
-                    uint funcNameHash = operands.Length > 0 ? operands[0] : 0;
-                    builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, funcNameHash);
-                    functionCount++;
+                    case MlirInstructionKind.Label:
+                        uint labelName = operands.Length > 0 ? operands[0] : 0;
+                        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, labelName);
+                        break;
 
-                    // Process function body until next label or end
-                    int j = instIdx + 1;
-                    while (j < inputSlab.Count && inputSlab.GetKind(j) != (byte)MlirInstructionKind.Label)
-                    {
-                        var instKind = (MlirInstructionKind)inputSlab.GetKind(j);
-                        ProcessInstruction(inputSlab, j, instKind, builder, stringPool);
-                        j++;
-                    }
-                    // Advance past the function body (j is now the next label, or end)
-                    // This modifies the loop counter to skip processed instructions - required for correct control flow
-                    i = j;
-                }
-                else
-                {
-                    // Non-label instruction - process and advance
-                    var instKind = (MlirInstructionKind)kind;
-                    ProcessInstruction(inputSlab, instIdx, instKind, builder, stringPool);
-                    i++;
+                    case MlirInstructionKind.Assign:
+                        ProcessAssign(inputSlab, i, builder, stringPool);
+                        break;
+
+                    case MlirInstructionKind.Branch:
+                        ProcessBranch(inputSlab, i, builder);
+                        break;
+
+                    case MlirInstructionKind.Call:
+                        ProcessCall(inputSlab, i, builder);
+                        break;
+
+                    case MlirInstructionKind.Return:
+                        uint retVal = operands.Length > 0 ? operands[0] : 0;
+                        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0, retVal);
+                        break;
+
+                    case MlirInstructionKind.Nop:
+                        // write/writeln stub placeholder — no LLIR emitted.
+                        break;
+
+                    default:
+                        MapArithmetic(inputSlab, i, kind, builder, stringPool);
+                        break;
                 }
             }
 
             return builder.Build();
         }
 
-        private void ProcessInstruction(InstList inputSlab, int instIndex, MlirInstructionKind kind, InstListBuilder builder, StringPool stringPool)
+        private static InstList Empty()
         {
-            switch (kind)
+            return new InstList(
+                Array.Empty<byte>(),
+                Array.Empty<ushort>(),
+                Array.Empty<ushort>(),
+                Array.Empty<uint>(),
+                Array.Empty<uint>(),
+                Array.Empty<uint>(),
+                Array.Empty<int>(),
+                0,
+                0);
+        }
+
+        /// <summary>Maps an arithmetic/compare MLIR op to its LLIR op with resolved operands.</summary>
+        private void MapArithmetic(InstList inputSlab, int instIdx, byte kind, InstListBuilder builder, StringPool stringPool)
+        {
+            ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+
+            byte llirKind = kind switch
             {
-                case MlirInstructionKind.Assign:
-                    ProcessAssignment(inputSlab, instIndex, builder, stringPool);
-                    break;
-                default:
-                    // Map MLIR kind to LLIR kind and copy operands
-                    byte llirKind = MapMlirKindToLlirKind(kind);
-                    ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIndex);
-                    builder.Add(llirKind, InstructionFlag.None, 0, operands);
-                    break;
+                (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
+                (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
+                (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
+                (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
+                _ => (byte)LlirInstructionKind.Nop
+            };
+
+            if (llirKind == (byte)LlirInstructionKind.Nop)
+                return;
+
+            var resolved = new uint[operands.Length];
+            for (int i = 0; i < operands.Length; i++)
+            {
+                resolved[i] = ResolveSlot(operands[i], stringPool);
+            }
+
+            builder.Add(llirKind, InstructionFlag.None, 0, resolved);
+        }
+
+        /// <summary>
+        /// Resolves a slot to a machine operand: if it is a valid pool string that
+        /// names a variable/register, returns the zero-page address; a numeric string
+        /// (or any other non-name) is a literal immediate.
+        /// </summary>
+        private ushort ResolveSlot(uint slot, StringPool stringPool)
+        {
+            string name = stringPool.Resolve(slot);
+            if (name.Length > 0 &&
+                !name.StartsWith("<invalid_pool_offset", StringComparison.Ordinal) &&
+                !IsNumeric(name))
+            {
+                return GetAddressForVariable(name);
+            }
+
+            // Literal: the slot is either the numeric-ish text (parse it) or the value itself.
+            if (name.Length > 0 && TryParseNumeric(name, out uint numeric))
+                return (ushort)(numeric & 0xFF);
+
+            return (ushort)(slot & 0xFF);
+        }
+
+        private static bool TryParseNumeric(string text, out uint value)
+        {
+            value = 0;
+            if (text.Length > 1 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+            {
+                if (ushort.TryParse(text.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out ushort hex))
+                {
+                    value = hex;
+                    return true;
+                }
+                return false;
+            }
+            return uint.TryParse(text, out value);
+        }
+        private static bool IsNumeric(string text)
+        {
+            if (text.Length > 1 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+                return ushort.TryParse(text.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out _);
+            return uint.TryParse(text, out _) ||
+                   int.TryParse(text, out _) ||
+                   (text.Length > 0 && text[0] == '-' && int.TryParse(text, out _));
+        }
+
+        private void ProcessAssign(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool)
+        {
+            ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+            if (operands.Length < 2) return;
+
+            uint targetSlot = operands[0];
+            uint valueSlot = operands[1];
+
+            string targetName = stringPool.Resolve(targetSlot);
+            if (string.IsNullOrEmpty(targetName)) return;
+
+            ushort targetAddr = GetAddressForVariable(targetName);
+
+            string valueStr = stringPool.Resolve(valueSlot);
+            bool valueIsName = valueStr.Length > 0 &&
+                               !valueStr.StartsWith("<invalid_pool_offset", StringComparison.Ordinal) &&
+                               !IsNumeric(valueStr);
+
+            uint valueOperand;
+            if (valueIsName)
+            {
+                valueOperand = GetAddressForVariable(valueStr);
+            }
+            else if (TryParseNumeric(valueStr, out uint numeric))
+            {
+                valueOperand = numeric & 0xFF;
+            }
+            else
+            {
+                valueOperand = valueSlot & 0xFF;
+            }
+
+            // Emit a single Assign: LDA #imm; STA zp
+            builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueOperand);
+        }
+
+        private static void ProcessBranch(InstList inputSlab, int instIdx, InstListBuilder builder)
+        {
+            ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+            if (operands.Length < 1) return;
+
+            uint targetLabel = operands[0];
+
+            bool isConditional = false;
+            bool invert = false;
+
+            if (instIdx > 0)
+            {
+                byte prevKind = inputSlab.GetKind(instIdx - 1);
+                if (prevKind == (byte)LlirInstructionKind.Transition)
+                {
+                    invert = true;
+                    if (instIdx > 1 && inputSlab.GetKind(instIdx - 2) == (byte)LlirInstructionKind.Cmp)
+                        isConditional = true;
+                }
+                else if (prevKind == (byte)LlirInstructionKind.Cmp)
+                {
+                    isConditional = true;
+                }
+                else if (prevKind == (byte)LlirInstructionKind.Load)
+                {
+                    isConditional = true;
+                }
+            }
+
+            if (isConditional)
+            {
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, targetLabel);
+                if (invert)
+                    builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+            }
+            else
+            {
+                builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, targetLabel);
             }
         }
 
-        private void ProcessAssignment(InstList inputSlab, int instIndex, InstListBuilder builder, StringPool stringPool)
+        private static void ProcessCall(InstList inputSlab, int instIdx, InstListBuilder builder)
         {
-            // MLIR_ASSIGN: [metadata, targetSlotId, valueSlotId]
-            // SlotIds are string pool offsets
-            ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIndex);
-            if (operands.Length < 2) return;
+            ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+            if (operands.Length < 1) return;
 
-            uint targetPoolOffset = operands[0];
-            uint valuePoolOffset = operands[1];
+            uint funcOffset = operands[0];
 
-            // Resolve target variable name from string pool
-            string targetName = stringPool.Resolve(targetPoolOffset);
-            if (string.IsNullOrEmpty(targetName)) return;
-
-            // Resolve value expression from string pool
-            string valueExpr = stringPool.Resolve(valuePoolOffset);
-            if (valueExpr == null) return;
-
-            // Determine if value is a numeric literal
-            bool isNumericLiteral = false;
-            ushort numericValue = 0;
-
-            // Try to parse as hex (0xFF format) or decimal
-            if (valueExpr.Length >= 2 && (valueExpr[0] == '0' && (valueExpr[1] == 'x' || valueExpr[1] == 'X')))
-            {
-                if (ushort.TryParse(valueExpr.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out ushort hexValue))
-                {
-                    isNumericLiteral = true;
-                    numericValue = hexValue;
-                }
-            }
-            else if (ushort.TryParse(valueExpr, out ushort decValue))
-            {
-                isNumericLiteral = true;
-                numericValue = decValue;
-            }
-
-            // Get target address
-            ushort targetAddr = 0;
-            bool isTiaRegister = _addressMap.TryGetValue(targetName, out string? addrStr);
-            if (isTiaRegister && addrStr != null)
-            {
-                // TIA register address
-                if (addrStr.Length > 0 && addrStr[0] == '$')
-                {
-                    addrStr = addrStr.Substring(1);
-                }
-                if (ushort.TryParse(addrStr, System.Globalization.NumberStyles.HexNumber, null, out ushort parsedAddr))
-                {
-                    targetAddr = parsedAddr;
-                }
-            }
-            else
-            {
-                // User variable - assign to zero-page starting at $80
-                // Deterministic allocation: first var -> $80, second -> $81, etc.
-                if (!_userAddresses.TryGetValue(targetName, out ushort addr))
-                {
-                    addr = _nextUserAddress;
-                    _userAddresses[targetName] = addr;
-                    _nextUserAddress = (ushort)((_nextUserAddress + 1) & 0xFF); // Wrap at $100
-                }
-                targetAddr = addr;
-            }
-
-            if (isNumericLiteral)
-            {
-                // Emit: LDA #value (immediate), STA addr (zero-page)
-                // Load: [dummyReg, immediateValue] -> codegen reads operand[1] as value
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, numericValue);
-                // Store: [targetReg=0, addressLow, addressHigh] -> codegen reads operand[1] as addrLow
-                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, targetAddr, 0);
-            }
-            else
-            {
-                // Value is a variable name - load from that variable's address
-                ushort valueAddr = GetAddressForVariable(valueExpr);
-
-                // Emit: LDA addr (absolute), STA addr (zero-page)
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, (ushort)(valueAddr & 0xFF), (ushort)((valueAddr >> 8) & 0xFF));
-                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, targetAddr, 0);
-            }
+            // Function calls are emitted as JSRs; the target address is resolved later.
+            builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, funcOffset);
         }
 
         private ushort GetAddressForVariable(string name)
@@ -195,16 +260,11 @@ namespace GameVM.Compiler.Backend.Atari2600
             if (isTia && addrStr != null)
             {
                 if (addrStr.Length > 0 && addrStr[0] == '$')
-                {
                     addrStr = addrStr.Substring(1);
-                }
                 if (ushort.TryParse(addrStr, System.Globalization.NumberStyles.HexNumber, null, out ushort parsedAddr))
-                {
                     return parsedAddr;
-                }
             }
 
-            // User variable - deterministic allocation
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
                 addr = _nextUserAddress;
@@ -214,24 +274,8 @@ namespace GameVM.Compiler.Backend.Atari2600
             return addr;
         }
 
-        private static byte MapMlirKindToLlirKind(MlirInstructionKind kind)
-        {
-            return kind switch
-            {
-                MlirInstructionKind.Assign => (byte)LlirInstructionKind.Store,
-                MlirInstructionKind.Branch => (byte)LlirInstructionKind.Branch,
-                MlirInstructionKind.Call => (byte)LlirInstructionKind.Call,
-                MlirInstructionKind.Return => (byte)LlirInstructionKind.Return,
-                MlirInstructionKind.Variable => (byte)LlirInstructionKind.Load,
-                MlirInstructionKind.Block => (byte)LlirInstructionKind.Nop,
-                MlirInstructionKind.ExpressionStatement => (byte)LlirInstructionKind.Nop,
-                _ => (byte)LlirInstructionKind.Nop
-            };
-        }
-
         private void InitializeAddressMap()
         {
-            // Atari 2600 TIA registers
             _addressMap.Clear();
             _addressMap["COLUBK"] = "$09";
             _addressMap["COLUPF"] = "$08";
