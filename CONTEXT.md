@@ -11,15 +11,15 @@
 | **InstList** | Struct-of-Arrays (SoA) instruction container. Holds `byte[] Tags`, `ushort[] Flags`, `ushort[] ArgCounts`, `uint[] FixedOps`, `uint[] Extra`, `uint[] ExtraOffsets`, `int[] BlockIds`. |
 | **InstListBuilder** | Auto-resizing incremental builder for `InstList`. |
 | **StringPool** | Interned byte-buffer for identifiers; returns `uint` offsets. Shared across all IR stages. |
-| **AST** | Parse-time `AstTree` (array-of-structures node array with contiguous child spans).
-| **HLIR** | Language-agnostic `InstList` (tags = `MlirInstructionKind`, operands = `StringPool` offsets). |
+| **AST** | Parse-time `AstTree` (array-of-structures node array with contiguous child spans). |
+| **HLIR** | Language-agnostic AoS semantic tree (`HlirTree`, `HlirNode`/`HlirBuilder` in Core, same container pattern as AST). |
 | **MLIR** | Target-independent optimization stage `InstList`. |
 | **LLIR** | Virtual Machine ISA `InstList` (`LlirInstructionKind`). |
 | **IR Transformation** | `IIRSlabTransformer.TransformSlab(inputSlab, stringPool) -> InstList`. |
 | **Mid Level Optimizer** | `IMidLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, level) -> InstList`. |
 | **Low Level Optimizer** | `ILowLevelOptimizer.OptimizeSlab(llirSlab, stringPool, level) -> InstList`. |
 | **Backend** | `ICodeGenerator.GenerateFromSlab(llirSlab, stringPool, options) -> byte[]`. |
-| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) emitting an AST `AstTree`.
+| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) emitting an AST `AstTree`. |
 | **String Handle** | A `uint` offset into the `StringPool`. |
 | **InstIndex** | A readonly struct wrapping an instruction position in an `InstList`. |
 | **BlockId** | A readonly struct wrapping a basic-block ID. |
@@ -36,9 +36,9 @@ GameVM is a **cross-compiler**: complex analysis, optimization, and transformati
 Pascal / C# source
    ↓ ParseToSlab         (PascalFrontend / CSharpFrontend)
 AST AstTree              (array-of-structures node array with contiguous child spans)
-   ↓ AstSlabToHlirSlabTransformer
-HLIR InstList             (tags = MlirInstructionKind, operands = StringPool offsets)
-   ↓ HlirSlabToMlirSlabTransformer
+   ↓ ConvertToHlirSlab  (per-frontend AST→HLIR transformer)
+HLIR HlirTree            (AoS semantic tree, same container pattern as AST)
+   ↓ HlirTreeToMlirTransformer
 MLIR InstList             (optimizable)
    ↓ IMidLevelOptimizer.OptimizeSlab
 Optimized MLIR
@@ -95,9 +95,10 @@ int InstList.GetOperandOffset(int instIdx, int operandIdx); // absolute index in
 
 ### IR Stage Instruction Kinds
 
-The AST/HLIR/MLIR stages reuse the `MlirInstructionKind` tag bytes; only the low-level stage switches to `LlirInstructionKind`:
+The AST and HLIR stages are AoS trees (`AstTree`/`HlirTree`) with their own per-language/per-stage kind enums (`PascalAstNodeKind`, `CSharpAstNodeKind`, `HlirNodeKind`). The MLIR and LLIR stages reuse the `InstList` SoA slab with `MlirInstructionKind` and `LlirInstructionKind` tag bytes respectively:
 
 | Kind (`MlirInstructionKind`) | Byte | Operands | Meaning |
+|---|---|---|---|
 | `Label` | 0x80 | `[functionNameHash]` | function entry / control-flow label |
 | `Branch` | 0x81 | `[condition?, targetLabel]` | conditional / unconditional branch |
 | `Assign` | 0x82 | `[targetSlot, valueSlot]` | data movement (slot / pool-offset operands) |
@@ -135,10 +136,10 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 
 - **Backend:** Atari 2600 (`Atari2600CodeGenerator`) — emits 4KB ROM images (`$F000`-`$FFFF`). Uses zero-page pointer promotion and strict cycle budgeting.
 - **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`); `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`→`$07`); others allocate sequentially from zero-page `$80`.
-- **Frontend:** Pascal (`PascalFrontend`, `PascalToSlabVisitor`) — parses directly into an AST `AstTree`.
+- **Frontend:** Pascal (`PascalFrontend`, `PascalToAstVisitor`) — parses directly into an AST `AstTree`.
 - **Optimization:** `DefaultMidLevelOptimizer` (host-side) and `DefaultLowLevelOptimizer` (target-aware, Atari-specific).
 - **Dispatch:** Direct Threaded Code (DTC) and Token Threaded Code (TTC) are implemented. Subroutine Threaded Code (STC) and Indirect Threaded Code (ITC) are planned but currently *outdated/aspirational*.
-- **Testing:** 484 tests, `dotnet test` must pass. SonarQube quality gate is enforced on CI.
+- **Testing:** 478 tests, `dotnet test` must pass. SonarQube quality gate is enforced on CI.
 
 ### Aspirational / Not Yet Implemented
 
