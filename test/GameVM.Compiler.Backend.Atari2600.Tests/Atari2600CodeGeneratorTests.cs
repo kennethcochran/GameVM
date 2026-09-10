@@ -195,6 +195,25 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
+    public void GenerateFromSlab_WithAssignInstruction_EmitsLdaImmediateThenStaZeroPage()
+    {
+        // LLIR -> ROM seam: Assign(targetAddr=$80, value=5) is the folded form the
+        // constant store lowers to. It must emit LDA #5; STA $80.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, 0x80, 5);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xA9), "First byte should be LDA #immediate");
+        Assert.That(rom[1], Is.EqualTo(0x05), "Immediate should be the value 5");
+        Assert.That(rom[2], Is.EqualTo(0x85), "Third byte should be STA zero-page");
+        Assert.That(rom[3], Is.EqualTo(0x80), "Target address should be $80");
+    }
+
+    [Test]
     public void GenerateFromSlab_WithUnknownInstruction_GeneratesNOP()
     {
         var builder = new InstListBuilder();

@@ -18,6 +18,20 @@ Feature: MAME Execution Validation
     And MAME execution output should contain "CPU state:"
     And MAME execution output should contain "TIA/RAM Dump:"
 
+  Scenario: Constant Store Lands in RAM
+    Given the following Pascal program:
+      """
+      program ConstantStore;
+      var x: integer;
+      begin
+          x := 5;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to zero-page $80; the constant 5 must be in RAM at the sample frame
+    Then MAME execution output should contain "$80: 05"
+
   Scenario: TIA Register Side Effects
     Given the following Pascal program:
       """

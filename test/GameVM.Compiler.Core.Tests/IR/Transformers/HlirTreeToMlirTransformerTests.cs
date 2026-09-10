@@ -217,4 +217,28 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(result.Count, Is.EqualTo(1));
         Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Nop));
     }
+
+    [Test]
+    public void Transform_ConstantAssignment_LowersToAssignWithImmediate()
+    {
+        // HLIR -> MLIR seam: a semantic Assign(Identifier x, LiteralInt 5) lowers
+        // to a single MLIR Assign whose second operand is the StringPool offset
+        // of the literal "5" (the backend resolver turns it into the immediate 5).
+        uint xOffset = _pool.Intern("x");
+        uint fiveOffset = _pool.Intern("5");
+        var builder = new HlirBuilder();
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value = builder.Add((byte)HlirNodeKind.LiteralInt, 0, fiveOffset, HlirPayloadKind.Immediate);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, value);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        Assert.That(result.Count, Is.EqualTo(1), "A constant assignment should lower to exactly one MLIR instruction");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var operands = result.GetOperands(0);
+        Assert.That(operands.Length, Is.EqualTo(2));
+        Assert.That(operands[0], Is.EqualTo(xOffset), "Target must be the StringPool offset of x");
+        Assert.That(operands[1], Is.EqualTo(fiveOffset), "Value must be the StringPool offset of the literal \"5\"");
+    }
 }
