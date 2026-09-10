@@ -1,0 +1,15 @@
+{
+    "stryker-config": {
+        "solution": "../../GameVM.sln",
+        "project": "GameVM.Compiler.Backend.Atari2600.csproj",
+        "reporters": [
+            "progress",
+            "html"
+        ],
+        "mutate": [
+            "**/Atari2600CodeGenerator.cs",
+            "**/MidToLowLevelTransformer.cs"
+        ],
+        "coverage-analysis": "perTest"
+    }
+}
