@@ -135,11 +135,11 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 ## 3. Current Platform Reality
 
 - **Backend:** Atari 2600 (`Atari2600CodeGenerator`) — emits 4KB ROM images (`$F000`-`$FFFF`). Uses zero-page pointer promotion and strict cycle budgeting.
-- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`); `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`→`$07`); others allocate sequentially from zero-page `$80`.
+- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`) for a single-operand immediate; `LDA` zero-page (`0xA5`) when two operands form an address `< $100`, else absolute (`0xAD`). `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). `LLIR_SUB` → `SEC; SBC #imm` (`0x38 0xE9`). A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`→`$07`); others allocate sequentially from zero-page `$80`. `MidToLowLevelTransformer` lowers arithmetic to accumulator-backed sequences: Add/Sub emit `Load(left)` then the op; `__tmp_*` temporaries are virtual registers held in the accumulator, so `Assign(tmp, 0)` is a no-op and `Assign(x, tmp)` becomes `Store($addr)`.
 - **Frontend:** Pascal (`PascalFrontend`, `PascalToAstVisitor`) — parses directly into an AST `AstTree`.
 - **Optimization:** `DefaultMidLevelOptimizer` (host-side) and `DefaultLowLevelOptimizer` (target-aware, Atari-specific).
 - **Dispatch:** Direct Threaded Code (DTC) and Token Threaded Code (TTC) are implemented. Subroutine Threaded Code (STC) and Indirect Threaded Code (ITC) are planned but currently *outdated/aspirational*.
-- **Testing:** 478 tests, `dotnet test` must pass. SonarQube quality gate is enforced on CI.
+- **Testing:** 487 tests, `dotnet test` must pass. SonarQube quality gate is enforced on CI.
 
 ### Aspirational / Not Yet Implemented
 

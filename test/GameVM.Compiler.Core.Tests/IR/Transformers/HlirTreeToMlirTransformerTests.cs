@@ -241,4 +241,44 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(operands[0], Is.EqualTo(xOffset), "Target must be the StringPool offset of x");
         Assert.That(operands[1], Is.EqualTo(fiveOffset), "Value must be the StringPool offset of the literal \"5\"");
     }
+
+    [Test]
+    public void Transform_SubtractExpression_EmitsSubWithTempSequence()
+    {
+        // HLIR -> MLIR seam: x := x - 1 lowers to the temp sequence
+        //   Sub(x, 1); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        // The '-' operator must map to LlirInstructionKind.Sub (ticket 02 criterion 4).
+        uint xOffset = _pool.Intern("x");
+        uint oneOffset = _pool.Intern("1");
+        var builder = new HlirBuilder();
+        int leftX = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int rightOne = builder.Add((byte)HlirNodeKind.LiteralInt, 0, oneOffset, HlirPayloadKind.Immediate);
+        int binOp = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, leftX, rightOne);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, binOp);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        Assert.That(result.Count, Is.EqualTo(3),
+            "x := x - 1 should lower to Sub; Assign(tmp,0); Assign(x,tmp)");
+
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Sub),
+            "'-' must map to Sub (byte 201), not a folded immediate");
+        var subOps = result.GetOperands(0);
+        Assert.That(subOps.Length, Is.EqualTo(2));
+        Assert.That(subOps[0], Is.EqualTo(xOffset), "Sub left operand = x");
+        Assert.That(subOps[1], Is.EqualTo(oneOffset), "Sub right operand = literal 1");
+
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var tmpOps = result.GetOperands(1);
+        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+    }
 }

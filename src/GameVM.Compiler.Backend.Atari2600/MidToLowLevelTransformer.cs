@@ -112,12 +112,31 @@ namespace GameVM.Compiler.Backend.Atari2600
             if (llirKind == (byte)LlirInstructionKind.Nop)
                 return;
 
-            var resolved = new uint[operands.Length];
-            for (int i = 0; i < operands.Length; i++)
+            // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
+            if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
             {
-                resolved[i] = ResolveSlot(operands[i], stringPool);
+                string leftText = stringPool.Resolve(operands[0]);
+                uint rightVal = ResolveSlot(operands[1], stringPool);
+                bool leftIsName = IsName(leftText);
+                if (leftIsName)
+                {
+                    ushort leftAddr = GetAddressForVariable(leftText);
+                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
+                }
+                else
+                {
+                    // left is numeric: LDA #imm
+                    uint leftVal = ResolveSlot(operands[0], stringPool);
+                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
+                }
+                builder.Add(llirKind, InstructionFlag.None, 0, rightVal);
+                return;
             }
 
+            // Existing behavior for Cmp and single-operand forms below
+            var resolved = new uint[operands.Length];
+            for (int i = 0; i < operands.Length; i++)
+                resolved[i] = ResolveSlot(operands[i], stringPool);
             builder.Add(llirKind, InstructionFlag.None, 0, resolved);
         }
 
@@ -166,6 +185,13 @@ namespace GameVM.Compiler.Backend.Atari2600
                    (text.Length > 0 && text[0] == '-' && int.TryParse(text, out _));
         }
 
+        private static bool IsName(string text)
+        {
+            return text.Length > 0 &&
+                   !text.StartsWith("<invalid_pool_offset", StringComparison.Ordinal) &&
+                   !IsNumeric(text);
+        }
+
         private void ProcessAssign(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool)
         {
             ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
@@ -177,29 +203,40 @@ namespace GameVM.Compiler.Backend.Atari2600
             string targetName = stringPool.Resolve(targetSlot);
             if (string.IsNullOrEmpty(targetName)) return;
 
+            // "__tmp_*" names are virtual registers backed by the accumulator:
+            // Assign(tmp, ...) is a declaration/no-op (value was computed in A).
+            if (targetName.StartsWith("__tmp_", StringComparison.Ordinal)) return;
+
             ushort targetAddr = GetAddressForVariable(targetName);
 
             string valueStr = stringPool.Resolve(valueSlot);
+            bool isTemp = valueStr.StartsWith("__tmp_", StringComparison.Ordinal);
             bool valueIsName = valueStr.Length > 0 &&
                                !valueStr.StartsWith("<invalid_pool_offset", StringComparison.Ordinal) &&
                                !IsNumeric(valueStr);
 
-            uint valueOperand;
-            if (valueIsName)
+            if (isTemp)
             {
-                valueOperand = GetAddressForVariable(valueStr);
+                // The computed value already lives in the accumulator (A) from the
+                // preceding Add/Sub. Store it: STA zp.
+                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+            }
+            else if (valueIsName)
+            {
+                // Variable copy: LDA zp; STA zp.
+                ushort valueAddr = GetAddressForVariable(valueStr);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, valueAddr, 0);
+                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
             }
             else if (TryParseNumeric(valueStr, out uint numeric))
             {
-                valueOperand = numeric & 0xFF;
+                // Compile-time constant: LDA #imm; STA zp (folded).
+                builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, numeric & 0xFF);
             }
             else
             {
-                valueOperand = valueSlot & 0xFF;
+                builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueSlot & 0xFF);
             }
-
-            // Emit a single Assign: LDA #imm; STA zp
-            builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueOperand);
         }
 
         private static void ProcessBranch(InstList inputSlab, int instIdx, InstListBuilder builder)

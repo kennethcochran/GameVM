@@ -154,6 +154,8 @@ public class MidToLowLevelTransformerTests
     public void Transform_VariableAssignment_LoadsFromSourceVariable()
     {
         // Arrange: y := x (copy from variable x)
+        // The LLIR must read x from memory (Load zp) then Store to y; a folded
+        // Assign would copy x's *address* ($81), not its value.
         uint targetOffset = _stringPool.Intern("y");
         uint valueOffset = _stringPool.Intern("x");
         var mlir = BuildMlirAssign(targetOffset, valueOffset);
@@ -161,12 +163,17 @@ public class MidToLowLevelTransformerTests
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert: single Assign folding LDA from x's address + STA to y's address
-        Assert.That(result.Count, Is.EqualTo(1));
-        var ops = result.GetOperands(0);
-        Assert.That(ops.Length, Is.EqualTo(2));
-        Assert.That(ops[0], Is.EqualTo(0x80u), "Target y maps to $80 (first allocation)");
-        Assert.That(ops[1], Is.EqualTo(0x81u), "Value x maps to $81 (second allocation)");
+        // Assert: Load(xAddr); Store(yAddr)
+        Assert.That(result.Count, Is.EqualTo(2));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        var loadOps = result.GetOperands(0);
+        Assert.That(loadOps.Length, Is.EqualTo(2), "Load should carry [addrLow, addrHigh]");
+        Assert.That(loadOps[0], Is.EqualTo(0x81u), "Source x maps to $81 (allocated second)");
+        Assert.That(loadOps[1], Is.EqualTo(0x00u), "zp high byte = 0");
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Store));
+        var storeOps = result.GetOperands(1);
+        Assert.That(storeOps.Length, Is.EqualTo(1), "Store should carry the zp target");
+        Assert.That(storeOps[0], Is.EqualTo(0x80u), "Target y maps to $80 (first allocation)");
     }
 
     [Test]
@@ -434,6 +441,56 @@ public class MidToLowLevelTransformerTests
             var ops = result.GetOperands(0);
             Assert.That(ops[0], Is.EqualTo((uint)addr), $"{name} should map to ${addr:X2}");
         }
+    }
+
+    #endregion
+    #region Arithmetic Sequencing Tests
+
+    [Test]
+    public void Transform_SubtractExpression_EmitsLoadSubStoreSequence()
+    {
+        // MLIR for: Sub(x, 1); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        // should lower to: Load(xAddr); Sub(1); Store(xAddr)
+        var pool = new StringPool();
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+        uint tmpOffset = pool.Intern("__tmp_0");
+
+
+        var builder = new InstListBuilder();
+        // Sub(x, 1) - kind 201 (Sub)
+        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, xOffset, oneOffset);
+        // Assign(__tmp_0, 0) - temp declaration (should be skipped)
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+        // Assign(x, __tmp_0) - store accumulator result into x
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, tmpOffset);
+        var mlir = builder.Build();
+
+        var transformer = new MidToLowLevelTransformer();
+        var result = transformer.TransformSlab(mlir, pool);
+
+        // Should emit: Load(xAddr, 0); Sub(1); Store(xAddr)
+        Assert.That(result.Count, Is.EqualTo(3),
+            "Sub(x,1); Assign(tmp,0); Assign(x,tmp) should lower to Load; Sub; Store");
+
+        // Check Load(xAddr, 0) - two operands for zp address
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        var loadOps = result.GetOperands(0);
+        Assert.That(loadOps.Length, Is.EqualTo(2), "Load should have [addrLow, addrHigh] operands");
+        Assert.That(loadOps[0], Is.EqualTo(0x80u), "Load address low byte = xAddr");
+        Assert.That(loadOps[1], Is.EqualTo(0x00u), "Load address high byte = 0 (zp)");
+
+        // Check Sub(1) - single operand for immediate
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+        var subOps = result.GetOperands(1);
+        Assert.That(subOps.Length, Is.EqualTo(1), "Sub should have single immediate operand");
+        Assert.That(subOps[0], Is.EqualTo(1u), "Sub immediate = 1");
+
+        // Check Store(xAddr) - single operand for zp target
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
+        Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
     }
 
     #endregion

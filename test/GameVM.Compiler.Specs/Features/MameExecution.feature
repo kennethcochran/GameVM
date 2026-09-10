@@ -32,6 +32,21 @@ Feature: MAME Execution Validation
     # x allocates to zero-page $80; the constant 5 must be in RAM at the sample frame
     Then MAME execution output should contain "$80: 05"
 
+  Scenario: Read Variable and Subtract
+    Given the following Pascal program:
+      """
+      program ReadSubtract;
+      var x: integer;
+      begin
+          x := 5;
+          x := x - 1;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to zero-page $80; after x := 5; x := x - 1, RAM must hold 4
+    Then MAME execution output should contain "$80: 04"
+
   Scenario: TIA Register Side Effects
     Given the following Pascal program:
       """

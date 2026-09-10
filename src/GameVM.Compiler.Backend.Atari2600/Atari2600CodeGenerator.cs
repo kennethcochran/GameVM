@@ -43,12 +43,24 @@ namespace GameVM.Compiler.Backend.Atari2600
                 switch (kind)
                 {
                     case LlirInstructionKind.Load:
-                        // LDA #immediate (operands[1]) or LDA abs (operands[0..1] addr)
-                        if (operands.Length >= 2 && currentAddress + 2 <= RomSize)
+                        // Two operands: [addrLow, addrHigh] -> LDA zp (0xA5) / LDA abs (0xAD).
+                        // Single operand: LDA #immediate (0xA9).
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
                         {
-                            rom[currentAddress++] = 0xA9; // LDA #immediate
-                            rom[currentAddress++] = (byte)operands[1]; // immediate value
-                            bytesWritten = 2;
+                            int address = (int)operands[0] | ((int)operands[1] << 8);
+                            if (address < 0x100)
+                            {
+                                rom[currentAddress++] = 0xA5; // LDA zp
+                                rom[currentAddress++] = (byte)address;
+                                bytesWritten = 2;
+                            }
+                            else
+                            {
+                                rom[currentAddress++] = 0xAD; // LDA abs
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+                                bytesWritten = 3;
+                            }
                         }
                         else if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
                         {

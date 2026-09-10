@@ -60,7 +60,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_WithValidSlab_ReturnsRomSize()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x42); // LDA #$42
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
         var slab = builder.Build();
         var stringPool = new StringPool();
         
@@ -73,7 +73,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_WithLoadStoreInstructions_GeneratesCorrectOpcodes()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x05); // LDA #$05
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x05); // LDA #$05
         builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, 0x10); // STA $10
         var slab = builder.Build();
         var stringPool = new StringPool();
@@ -106,7 +106,7 @@ public class Atari2600CodeGeneratorTests
         // Fill almost entire ROM with NOPs
         for (int i = 0; i < 4090; i++)
         {
-            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0xEA); // LDA #$EA (will become NOP in codegen)
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0xEA); // LDA #$EA
         }
         var slab = builder.Build();
         var stringPool = new StringPool();
@@ -231,7 +231,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_EmitsSelfLoopJMPAtEnd()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x42); // LDA #$42
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
         var slab = builder.Build();
         var stringPool = new StringPool();
         
@@ -247,7 +247,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_SetsInterruptVectors()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x42);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
         var slab = builder.Build();
         var stringPool = new StringPool();
         
@@ -266,8 +266,8 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_WithMultipleInstructions_GeneratesSequentialCode()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x42); // LDA #$42
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x24); // LDA #$24
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x24); // LDA #$24
         builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, 0x09); // STA $09 (zero page)
         var slab = builder.Build();
         var stringPool = new StringPool();
@@ -389,7 +389,7 @@ public class Atari2600CodeGeneratorTests
         var builder = new InstListBuilder();
         for (int i = 0; i < 5000; i++) // More instructions than fit in 4K ROM
         {
-            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0xEA);
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0xEA);
         }
         var slab = builder.Build();
         var stringPool = new StringPool();
@@ -406,7 +406,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_SelfLoopJump_PointsToItself()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x42); // LDA #$42
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
         var slab = builder.Build();
         var stringPool = new StringPool();
         
@@ -426,7 +426,7 @@ public class Atari2600CodeGeneratorTests
         var builder = new InstListBuilder();
         for (int i = 0; i < 100; i++)
         {
-            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, (byte)i);
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (byte)i);
         }
         var slab = builder.Build();
         var stringPool = new StringPool();
@@ -444,7 +444,7 @@ public class Atari2600CodeGeneratorTests
     public void GenerateFromSlab_SequentialMixedInstructions_LayoutIsCorrect()
     {
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0, 0x01);     // LDA #$01  (2 bytes)
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x01);     // LDA #$01  (2 bytes)
         builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, 0xFF, 0x00); // STA $00FF zp (2 bytes)
         builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12); // JSR $1234 (3 bytes)
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 0x7F);  // BCC +127 (2 bytes)
@@ -468,5 +468,52 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         Assert.That(rom[9], Is.EqualTo(0x60)); // RTS
         Assert.That(rom[10], Is.EqualTo(0xEA)); // NOP
         Assert.That(rom[11], Is.EqualTo(0x4C)); // self-loop JMP
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithLoadSubStore_EmitsLdaZpSecSbcStaZp()
+    {
+        // LLIR -> ROM seam: Load(xAddr); Sub(1); Store(xAddr)
+        // Load(xAddr) = LDA $80 (0xA5 0x80)
+        // Sub(1) = SEC; SBC #1 (0x38 0xE9 0x01)
+        // Store($80) = STA $80 (0x85 0x80)
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // Load(xAddr, 0) -> LDA zp
+        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, 1);       // Sub(1) -> SEC; SBC #1
+        builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x80); // Store($80) -> STA zp
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        // Load(xAddr,0) -> LDA zp $80 = A5 80
+        Assert.That(rom[0], Is.EqualTo(0xA5), "Load zp should emit LDA zp (0xA5)");
+        Assert.That(rom[1], Is.EqualTo(0x80), "Load zp address should be $80");
+        // Sub(1) -> SEC; SBC #1 = 38 E9 01
+        Assert.That(rom[2], Is.EqualTo(0x38), "Sub should emit SEC (0x38)");
+        Assert.That(rom[3], Is.EqualTo(0xE9), "Sub should emit SBC #imm (0xE9)");
+        Assert.That(rom[4], Is.EqualTo(0x01), "Sub immediate should be 1");
+        // Store($80) -> STA zp $80 = 85 80
+        Assert.That(rom[5], Is.EqualTo(0x85), "Store should emit STA zp (0x85)");
+        Assert.That(rom[6], Is.EqualTo(0x80), "Store target should be $80");
+        // self-loop JMP * follows
+        Assert.That(rom[7], Is.EqualTo(0x4C), "Self-loop JMP should follow");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithLoadZpSingleOperand_EmitsLdaImmediate()
+    {
+        // Single-operand Load = immediate (0xA9)
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xA9), "Single-operand Load = LDA #imm");
+        Assert.That(rom[1], Is.EqualTo(0x42), "Immediate value $42");
     }
 }
