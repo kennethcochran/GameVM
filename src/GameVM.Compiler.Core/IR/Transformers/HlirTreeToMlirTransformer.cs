@@ -359,14 +359,15 @@ public sealed class HlirTreeToMlirTransformer
                         int rightIdx = ChildIndex(tree, condIdx, 1);
                         uint leftSlot = EvaluateExpression(tree, leftIdx, builder, out _);
                         uint rightSlot = EvaluateExpression(tree, rightIdx, builder, out _);
-                        char relOp = (char)condNode.Payload;
 
-                        byte mlirKind = RelOpToBranchKind(relOp, invert);
-                        if (mlirKind != (byte)MlirInstructionKind.Nop)
-                        {
-                            builder.Add(mlirKind, InstructionFlag.None, 0, leftSlot, rightSlot);
-                            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
-                        }
+                        // Emit Cmp(left, right) — sets Z flag for zero-test
+                        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, leftSlot, rightSlot);
+
+                        // Polarity: invert=true (then-skip) → Transition before Branch → BEQ.
+                        // invert=false (then-arm) → no Transition → BNE.
+                        if (invert)
+                            builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+                        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
                     }
                 }
                 break;
@@ -395,12 +396,4 @@ public sealed class HlirTreeToMlirTransformer
         }
     }
 
-    private static byte RelOpToBranchKind(char relOp, bool invert)
-    {
-        _ = relOp;
-        _ = invert;
-        // All conditional branches use the same Branch opcode; the backend
-        // resolves the exact 6502 conditional from the comparison op and polarity.
-        return (byte)MlirInstructionKind.Branch;
-    }
 }

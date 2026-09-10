@@ -516,4 +516,45 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         Assert.That(rom[0], Is.EqualTo(0xA9), "Single-operand Load = LDA #imm");
         Assert.That(rom[1], Is.EqualTo(0x42), "Immediate value $42");
     }
+
+    [Test]
+    public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBne()
+    {
+        // Cmp + Branch (no Transition) → BNE (0xD0)
+        // Simulates: if x <> 0 then y := 1;  arm execution
+        var pool = new StringPool();
+        uint xOff = pool.Intern("x");
+        uint endOff = pool.Intern("L_end");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+        var slab = builder.Build();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
+        Assert.That(rom[2], Is.EqualTo(0xD0), "BNE opcode");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBeq()
+    {
+        var pool = new StringPool();
+        uint xOff = pool.Intern("x");
+        uint endOff = pool.Intern("L_end");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
+        builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+        var slab = builder.Build();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
+        Assert.That(rom[2], Is.EqualTo(0xF0), "BEQ opcode");
+    }
 }

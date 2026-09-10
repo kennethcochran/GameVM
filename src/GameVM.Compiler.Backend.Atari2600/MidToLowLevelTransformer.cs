@@ -255,6 +255,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 if (prevKind == (byte)LlirInstructionKind.Transition)
                 {
                     invert = true;
+
                     if (instIdx > 1 && inputSlab.GetKind(instIdx - 2) == (byte)LlirInstructionKind.Cmp)
                         isConditional = true;
                 }
@@ -270,9 +271,11 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (isConditional)
             {
-                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, targetLabel);
+                // Emit Transition BEFORE the Branch so the codegen sees
+                // lastWasTransition=true and selects BEQ (not BNE).
                 if (invert)
                     builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, targetLabel);
             }
             else
             {

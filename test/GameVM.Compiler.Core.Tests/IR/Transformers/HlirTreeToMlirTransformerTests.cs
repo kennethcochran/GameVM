@@ -281,4 +281,29 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
         Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
     }
+
+    [Test]
+    public void Transform_IfCondition_BranchPolarity_SelectsCorrectOp()
+    {
+        // '<>' (relOp='!') in an if-skip must emit Cmp + Branch (BNE)
+        uint xOffset = _pool.Intern("x");
+        uint zeroOffset = _pool.Intern("0");
+        var builder = new HlirBuilder();
+        int leftX = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int rightZero = builder.Add((byte)HlirNodeKind.LiteralInt, 0, zeroOffset, HlirPayloadKind.Immediate);
+        int binOpNe = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, leftX, rightZero);
+        int binOpEq = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'=', HlirPayloadKind.Immediate, leftX, rightZero);
+        builder.Add((byte)HlirNodeKind.If, 0, 0, HlirPayloadKind.None, binOpNe, binOpEq);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        // '<>' with invert=true → Cmp + Transition + Branch (BEQ: skip then-arm when x==0)
+        Assert.That(result.Count, Is.GreaterThan(0), "Transformer produced output");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Transition));
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        var cmpOps = result.GetOperands(0);
+        Assert.That(cmpOps.Length, Is.EqualTo(2));
+    }
 }

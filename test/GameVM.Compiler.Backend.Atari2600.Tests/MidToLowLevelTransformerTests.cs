@@ -492,6 +492,50 @@ public class MidToLowLevelTransformerTests
         Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
         Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
     }
+        #endregion
+        #region Branch Polarity Tests
 
-    #endregion
+        [Test]
+        public void Transform_CmpFollowedByTransitionAndBranch_ThenArm()
+        {
+            // MLIR for: if x <> 0 then y := 1;  (invert=true for skip arm)
+            //   Cmp(x, 0); Transition; Branch(L_end)
+            // The transformer should emit Transition BEFORE the Branch so
+            // the backend sees it as pending polarity inversion.
+            var pool = new StringPool();
+            uint xOff = pool.Intern("x");
+            uint zeroOff = pool.Intern("0");
+            uint endOff = pool.Intern("L_end");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, zeroOff);
+            builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, pool);
+
+            // Cmp + Transition + Branch → LLIR: Cmp(x,0); Transition; Branch(target)
+            Assert.That(result.Count, Is.EqualTo(3));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Transition));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Branch));
+        }
+        [Test]
+        public void Transform_UnconditionalBranch_StaysJump()
+        {
+            // Bare Branch with no Cmp/Transition predecessor → unconditional Jump
+            var pool = new StringPool();
+            uint endOff = pool.Intern("L_end");
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, pool);
+            for (int i = 0; i < result.Count; i++)
+                System.Console.WriteLine($"  [{i}] kind={result.GetKind(i)}");
+            Assert.That(result.Count, Is.EqualTo(1));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Jump));
+        }
+        #endregion
 }

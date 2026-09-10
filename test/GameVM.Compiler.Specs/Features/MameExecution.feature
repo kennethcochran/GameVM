@@ -47,6 +47,39 @@ Feature: MAME Execution Validation
     # x allocates to zero-page $80; after x := 5; x := x - 1, RAM must hold 4
     Then MAME execution output should contain "$80: 04"
 
+  Scenario: Branch on Non-Zero (<> arm executes)
+    Given the following Pascal program:
+      """
+      program BranchOnNonZero;
+      var x: integer; y: integer;
+      begin
+          x := 5;
+          if x <> 0 then y := 1;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80, y to $81; after x := 5; x <> 0 is true → y := 1
+    Then MAME execution output should contain "$80: 05"
+    And MAME execution output should contain "$81: 01"
+
+  Scenario: Branch on Zero (= arm executes)
+    Given the following Pascal program:
+      """
+      program BranchOnZero;
+      var x: integer; y: integer;
+      begin
+          x := 0;
+          if x = 0 then y := 1;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80, y to $81; after x := 0; x = 0 is true → y := 1
+    Then MAME execution output should contain "$80: 00"
+    And MAME execution output should contain "$81: 01"
+
+
   Scenario: TIA Register Side Effects
     Given the following Pascal program:
       """
