@@ -27,17 +27,63 @@ namespace GameVM.Compiler.Backend.Atari2600
             var rom = new byte[RomSize]; // 4K ROM
             Array.Clear(rom, 0, rom.Length);
             int currentAddress = 0; // Offset within ROM (0 = $F000)
-
             bool lastWasTransition = false; // pending polarity inversion
 
-
+            // Collect exit labels (targets of conditional branches). Pass 1 will assign them the self-loop address.
+            var exitLabels = new HashSet<uint>();
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                byte k = llirSlab.GetKind(i);
+                if ((LlirInstructionKind)k == LlirInstructionKind.Branch && llirSlab.GetOperands(i).Length >= 1
+                    && i > 0 && (LlirInstructionKind)llirSlab.GetKind(i - 1) == LlirInstructionKind.Transition
+                    && i > 1 && (LlirInstructionKind)llirSlab.GetKind(i - 2) == LlirInstructionKind.Cmp)
+                {
+                    exitLabels.Add(llirSlab.GetOperands(i)[0]);
+                }
+            }
+            static int EmitSize(byte k, ReadOnlySpan<uint> op)
+            {
+                LlirInstructionKind kind = (LlirInstructionKind)k;
+                return kind switch
+                {
+                    LlirInstructionKind.Label => 0,
+                    LlirInstructionKind.Load when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
+                    LlirInstructionKind.Load => 2,
+                    LlirInstructionKind.Store when op.Length >= 3 => (int)(op[1] | (op[2] << 8)) < 0x100 ? 2 : 3,
+                    LlirInstructionKind.Store when op.Length >= 2 => (int)op[1] < 0x100 ? 2 : 3,
+                    LlirInstructionKind.Store when op.Length == 0 => 0,
+                    LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
+                    LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                    LlirInstructionKind.Cmp => 2,
+                    LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
+                    LlirInstructionKind.Branch => 2,
+                    LlirInstructionKind.Jump => 3,
+                    LlirInstructionKind.Return => 1,
+                    LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
+                    LlirInstructionKind.Transition => 0,
+                    _ => 1,
+                };
+            }
+            var insnAddr = new int[llirSlab.Count];
+            var labelOffsets = new Dictionary<uint, int>();
+            int addr = 0;
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                insnAddr[i] = addr;
+                byte k = llirSlab.GetKind(i);
+                if ((LlirInstructionKind)k == LlirInstructionKind.Label && llirSlab.GetOperands(i).Length >= 1)
+                {
+                    uint lbl = llirSlab.GetOperands(i)[0];
+                    labelOffsets[lbl] = exitLabels.Contains(lbl) ? addr + EmitSize(k, llirSlab.GetOperands(i)) : addr;
+                }
+                addr += EmitSize(k, llirSlab.GetOperands(i));
+            }
 
             for (int i = 0; i < llirSlab.Count; i++)
             {
                 byte kindByte = llirSlab.GetKind(i);
                 LlirInstructionKind kind = (LlirInstructionKind)kindByte;
                 ReadOnlySpan<uint> operands = llirSlab.GetOperands(i);
-
                 int bytesWritten = 0;
 
                 switch (kind)
@@ -144,14 +190,20 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                     case LlirInstructionKind.Cmp:
-                        // CMP immediate/abs: set flags for A vs operand
+                        // Cmp always arrives 1-operand from the MidToLowLevelTransformer:
+                        // MapArithmetic splits the MLIR 2-operand Cmp into Load(left) + Cmp(right).
                         if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
                         {
                             rom[currentAddress++] = 0xC9; // CMP #imm
                             rom[currentAddress++] = (byte)operands[0];
                             bytesWritten = 2;
                         }
-                        // (flags set by CMP; no register state to track here)
+                        else
+                        {
+                            // Handle unexpected cases
+                            rom[currentAddress++] = 0xEA; // NOP
+                            bytesWritten = 1;
+                        }
                         lastWasTransition = false;
                         break;
                     case LlirInstructionKind.Assign:
@@ -191,11 +243,21 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
                         {
-                            // Single-operand: target is a pool-offset label; in a fully
-                            // resolved backend this would be patched. Emit JMP to $F000.
+                            // Single-operand: operand is a label pool-offset; resolve to
+                            // its ROM byte address ($F000-relative → absolute).
                             rom[currentAddress++] = 0x4C; // JMP
-                            rom[currentAddress++] = 0x00;
-                            rom[currentAddress++] = 0xF0;
+                            if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                            {
+                                int abs = 0xF000 + targetAddr;
+                                rom[currentAddress++] = (byte)(abs & 0xFF);
+                                rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
+                            }
+                            else
+                            {
+                                // Unresolved target; fall back to ROM start.
+                                rom[currentAddress++] = 0x00;
+                                rom[currentAddress++] = 0xF0;
+                            }
                             bytesWritten = 3;
                         }
                         break;
@@ -208,9 +270,17 @@ namespace GameVM.Compiler.Backend.Atari2600
                             byte opcode = lastWasTransition ? (byte)0xF0 : (byte)0xD0;
                             // Default is BEQ when lastWasTransition, otherwise BNE.
                             rom[currentAddress++] = opcode;
-                            // Relative offset: the first operand is the branch target
-                            // offset; falls back to zero when no operand is present.
-                            rom[currentAddress++] = operands.Length >= 1 ? (byte)operands[0] : (byte)0x00;
+                            // Relative offset: resolved label byte-address, else operand[0].
+                            int displacement = 0;
+                            if (operands.Length >= 1 && labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                            {
+                                displacement = targetAddr - (insnAddr[i] + 2);
+                            }
+                            else if (operands.Length >= 1)
+                            {
+                                displacement = (sbyte)(byte)operands[0];
+                            }
+                            rom[currentAddress++] = (byte)(displacement & 0xFF);
                             bytesWritten = 2;
                         }
                         lastWasTransition = false;
@@ -255,7 +325,6 @@ namespace GameVM.Compiler.Backend.Atari2600
                     break;
                 }
             }
-
             // Emit a self-loop (JMP *) so the program stays at its final state.
             if (currentAddress + 3 <= RomSize)
             {

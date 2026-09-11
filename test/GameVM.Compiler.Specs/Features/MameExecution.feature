@@ -93,3 +93,22 @@ Feature: MAME Execution Validation
     And I run the program in MAME
     # COLUBK ($09) is write-only, so we check the A register which held the value
     Then MAME execution output should contain "A: 15"
+
+  Scenario: Wedge Loop Terminates
+    Given the following Pascal program:
+      """
+      program WedgeLoop;
+      var x: integer;
+      begin
+          x := 5;
+          while x <> 0 do
+            begin
+              x := x - 1;
+            end;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80; after the loop x should be 0 and PC should be on the self-loop
+    Then MAME execution output should contain "$80: 00"
+    And MAME execution output should contain "PC: F016"

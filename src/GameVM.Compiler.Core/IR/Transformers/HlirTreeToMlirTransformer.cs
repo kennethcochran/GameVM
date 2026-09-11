@@ -363,9 +363,13 @@ public sealed class HlirTreeToMlirTransformer
                         // Emit Cmp(left, right) — sets Z flag for zero-test
                         builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, leftSlot, rightSlot);
 
-                        // Polarity: invert=true (then-skip) → Transition before Branch → BEQ.
-                        // invert=false (then-arm) → no Transition → BNE.
-                        if (invert)
+                        // Polarity: emit Transition (→ BEQ) when the exit branch should
+                        // fire on Z=1 (x==0). `<>` → emit Transition (BEQ); `=` → no
+                        // Transition (BNE). invert merely selects skip/exit semantics.
+                        bool opIsNotEqual = condNode.Payload == (uint)'!';
+                        bool emitTransition = opIsNotEqual == invert;
+
+                        if (emitTransition)
                             builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
                         builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
                     }

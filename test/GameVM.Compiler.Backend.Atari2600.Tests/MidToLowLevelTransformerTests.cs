@@ -498,10 +498,10 @@ public class MidToLowLevelTransformerTests
         [Test]
         public void Transform_CmpFollowedByTransitionAndBranch_ThenArm()
         {
-            // MLIR for: if x <> 0 then y := 1;  (invert=true for skip arm)
-            //   Cmp(x, 0); Transition; Branch(L_end)
-            // The transformer should emit Transition BEFORE the Branch so
-            // the backend sees it as pending polarity inversion.
+            // MLIR for an if-arm: compare left with zero, marker for branch
+            // polarity, then a conditional branch. The transformer splits the
+            // compare into a load followed by a one-operand compare, and keeps
+            // the polarity marker so the backend emits BEQ.
             var pool = new StringPool();
             uint xOff = pool.Intern("x");
             uint zeroOff = pool.Intern("0");
@@ -515,16 +515,17 @@ public class MidToLowLevelTransformerTests
 
             var result = _transformer.TransformSlab(mlir, pool);
 
-            // Cmp + Transition + Branch → LLIR: Cmp(x,0); Transition; Branch(target)
-            Assert.That(result.Count, Is.EqualTo(3));
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Transition));
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Branch));
+            // Output order: load, compare, polarity marker, branch.
+            Assert.That(result.Count, Is.EqualTo(4));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Transition));
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Branch));
         }
         [Test]
         public void Transform_UnconditionalBranch_StaysJump()
         {
-            // Bare Branch with no Cmp/Transition predecessor → unconditional Jump
+            // A branch with no compare or polarity predecessor is unconditional.
             var pool = new StringPool();
             uint endOff = pool.Intern("L_end");
             var builder = new InstListBuilder();
@@ -532,8 +533,6 @@ public class MidToLowLevelTransformerTests
             var mlir = builder.Build();
 
             var result = _transformer.TransformSlab(mlir, pool);
-            for (int i = 0; i < result.Count; i++)
-                System.Console.WriteLine($"  [{i}] kind={result.GetKind(i)}");
             Assert.That(result.Count, Is.EqualTo(1));
             Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Jump));
         }

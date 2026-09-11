@@ -38,7 +38,6 @@ namespace GameVM.Compiler.Backend.Atari2600
             }
 
             var builder = new InstListBuilder();
-
             for (int i = 0; i < inputSlab.Count; i++)
             {
                 byte kind = inputSlab.GetKind(i);
@@ -130,6 +129,24 @@ namespace GameVM.Compiler.Backend.Atari2600
                     builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
                 }
                 builder.Add(llirKind, InstructionFlag.None, 0, rightVal);
+                return;
+            }
+
+            // Cmp: emit Load(left) first so A holds the value, then CMP #immediate.
+            if (llirKind == (byte)LlirInstructionKind.Cmp && operands.Length >= 2)
+            {
+                string leftText = stringPool.Resolve(operands[0]);
+                if (IsName(leftText))
+                {
+                    ushort leftAddr = GetAddressForVariable(leftText);
+                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
+                }
+                else
+                {
+                    uint leftVal = ResolveSlot(operands[0], stringPool);
+                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
+                }
+                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
                 return;
             }
 

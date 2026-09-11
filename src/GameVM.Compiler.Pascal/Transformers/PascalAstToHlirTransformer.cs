@@ -378,7 +378,11 @@ namespace GameVM.Compiler.Pascal.Transformers
             var children = astTree.Children(exprIdx);
             if (children.Length < 2) return -1;
 
-            char op = (char)astTree[exprIdx].Payload;
+            // Relational expressions (x <> 0, x = 0, ...) store the operator as a
+            // third child node (opIdx); all other binary ops carry it in the payload.
+            char op = children.Length >= 3
+                ? (char)astTree[children[2]].Payload
+                : (char)astTree[exprIdx].Payload;
 
             // Fold constant integer expressions (e.g. 1 + 2 -> 3) so the target
             // emits a single immediate load.

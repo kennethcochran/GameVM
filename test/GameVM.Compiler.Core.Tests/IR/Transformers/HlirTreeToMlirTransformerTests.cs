@@ -306,4 +306,39 @@ public class HlirTreeToMlirTransformerTests
         var cmpOps = result.GetOperands(0);
         Assert.That(cmpOps.Length, Is.EqualTo(2));
     }
+    [Test]
+    public void While_Loop_Lowering_Produces_Correct_MLIR()
+    {
+        // Verify that While lowers to: Label, Cmp, Transition, Branch, [body], Branch, Label
+        // ProcessWhile emits: loop label, inverted conditional branch, body, back-edge, exit label
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        // Body of while: x := 0
+        int identBody = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litBody = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, identBody, litBody);
+
+        // Condition: x <> 0
+        int identCond = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litCond = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int binOpNe = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, identCond, litCond);
+
+        // While node: 2 children — condition + body
+        builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, binOpNe, assign);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        Assert.That(result.Count, Is.GreaterThan(0), "Transformer produced output");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 0: loop header label");
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 1: compare condition");
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Transition), "Index 2: transition");
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 3: conditional exit branch");
+        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 4: body assignment");
+        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 5: unconditional back-edge");
+        Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 6: exit label");
+    }
 }
