@@ -8,7 +8,6 @@ using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Application.Tests
@@ -31,19 +30,6 @@ namespace GameVM.Compiler.Application.Tests
             );
         }
 
-        private static AstTree CreateAstTree()
-        {
-            return new AstTree(new AstNode[]
-            {
-                new AstNode(
-                    kind: 10, // MethodDeclaration
-                    flags: 0,
-                    payload: 0,
-                    firstChild: -1,
-                    childCount: 0
-                )
-            }, new int[] { 0 }, 1);
-        }
 
         private static HlirTree CreateHlirTree()
         {
@@ -84,15 +70,13 @@ namespace GameVM.Compiler.Application.Tests
             };
 
             // Create valid slabs for DOD pipeline
-            var astTree = CreateAstTree();
             var hlirTree = CreateHlirTree();
             var mlirSlab = CreateMlirSlab();
             var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
 
             var stringPool = new StringPool();
 
-            mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<string>())).Returns(astTree);
-            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirTree);
+            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(hlirTree);
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
@@ -146,15 +130,13 @@ namespace GameVM.Compiler.Application.Tests
                 SystemExtensions = new List<string> { "Ext.Math.Fast" }
             };
 
-            var astTree = CreateAstTree();
             var hlirTree = CreateHlirTree();
             var mlirSlab = CreateMlirSlab();
             var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
 
             var stringPool = new StringPool();
 
-            mockFrontend.Setup(f => f.ParseToSlab(It.IsAny<string>())).Returns(astTree);
-            mockFrontend.Setup(f => f.ConvertToHlirSlab(It.IsAny<AstTree>())).Returns(hlirTree);
+            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(hlirTree);
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);

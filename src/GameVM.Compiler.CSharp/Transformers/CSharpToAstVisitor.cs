@@ -1,4 +1,4 @@
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.CSharp.Ast;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using Antlr4.Runtime;

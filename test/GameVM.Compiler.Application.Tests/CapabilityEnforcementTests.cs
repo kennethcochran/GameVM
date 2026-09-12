@@ -8,7 +8,6 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 using System.Collections.Generic;
 
@@ -41,23 +40,9 @@ namespace UnitTests.Application
             _semanticAnalyzerMock.Setup(x => x.AnalyzeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
                 .Returns(SemanticAnalysisResult.CreateSuccess());
 
-            // Create a simple AstTree with one node (METHOD_DECLARATION)
-            var testAstTree = new AstTree(new GameVM.Compiler.Core.IR.Ast.AstNode[]
-            {
-                new GameVM.Compiler.Core.IR.Ast.AstNode(
-                    kind: 10, // MethodDeclaration
-                    flags: 0,
-                    payload: 0,
-                    firstChild: -1,
-                    childCount: 0
-                )
-            }, new int[] { 0 }, 1);
-
-            _frontendMock.Setup(x => x.ParseToSlab(It.IsAny<string>())).Returns(testAstTree);
-
             var hlirBuilder = new HlirBuilder();
             hlirBuilder.Add((byte)HlirNodeKind.Nop);
-            _frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<AstTree>()))
+            _frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
                 .Returns(hlirBuilder.Build());
             _frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 

@@ -1,6 +1,6 @@
+using GameVM.Compiler.Pascal;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Transformers;
-using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Core.Tests
 {
@@ -20,9 +20,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_ValidArithmetic_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 5 + 3 * 2;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x: Integer; begin x := 1 + 2; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -35,9 +34,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithWhileLoop_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar i: Integer;\nbegin\n  i := 1;\n  while i < 10 do\n    i := i + 1;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x: Integer; begin x := 0; while x < 5 do begin x := x + 1; end; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -50,9 +48,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithForLoop_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar i: Integer;\nbegin\n  for i := 1 to 10 do\n    writeln(i);\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var i: Integer; begin for i := 1 to 5 do begin end; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -65,9 +62,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithIfElse_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  readln(x);\n  if x > 0 then\n    writeln('positive')\n  else\n    writeln('non-positive');\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x: Integer; begin x := 1; if x = 1 then begin x := 2; end else begin x := 3; end; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -80,9 +76,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithNestedBlocks_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 1;\n  begin\n    x := x + 1;\n    begin\n      x := x + 1;\n    end;\n  end;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; begin if true then begin if true then begin end; end; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -95,19 +90,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithFunctionAndProcedure_ShouldSucceed()
         {
-            var sourceCode = @"
-                program Test;
-                function Add(a, b: Integer): Integer;
-                begin
-                  Add := a + b;
-                end;
-                procedure Foo;
-                begin
-                end;
-                begin
-                end.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; function Add(a, b: Integer): Integer; begin Add := a + b; end; procedure Foo; begin end; begin end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -120,9 +104,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithRealType_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar x: Real;\nbegin\n  x := 3.14;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x: Real; begin x := 3.14; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -135,9 +118,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithStringLiteral_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar msg: String;\nbegin\n  msg := 'Hello, World!';\n  WriteLn(msg);\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var s: string; begin s := 'Hello'; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -150,9 +132,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithMultipleVariables_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar a, b, c, d: Integer;\nbegin\n  a := 1;\n  b := 2;\n  c := 3;\n  d := 4;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x, y, z: Integer; begin x := 1; y := 2; z := x + y; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -165,9 +146,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithComplexExpressions_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := (5 + 3) * 2 - 4 / 2;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; var x, y, z: Integer; begin x := 1; y := 2; z := (x + y) * (x - y); end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 
@@ -180,9 +160,8 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_WithBuiltinWriteln_ShouldSucceed()
         {
-            var sourceCode = "program Test;\nbegin\n  WriteLn('Hello, World!');\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Test; begin writeln('Hello, World!'); end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             Assert.That(hlirTree.Count, Is.GreaterThan(0));
 

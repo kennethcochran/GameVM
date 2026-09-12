@@ -19,7 +19,7 @@
 | **Mid Level Optimizer** | `IMidLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, level) -> InstList`. |
 | **Low Level Optimizer** | `ILowLevelOptimizer.OptimizeSlab(llirSlab, stringPool, level) -> InstList`. |
 | **Backend** | `ICodeGenerator.GenerateFromSlab(llirSlab, stringPool, options) -> byte[]`. |
-| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) emitting an AST `AstTree`. |
+| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) — single method `ParseToHlir: string → HlirTree`. Parse tree is frontend-internal. |
 | **String Handle** | A `uint` offset into the `StringPool`. |
 | **InstIndex** | A readonly struct wrapping an instruction position in an `InstList`. |
 | **BlockId** | A readonly struct wrapping a basic-block ID. |
@@ -34,9 +34,7 @@ GameVM is a **cross-compiler**: complex analysis, optimization, and transformati
 
 ```
 Pascal / C# source
-   ↓ ParseToSlab         (PascalFrontend / CSharpFrontend)
-AST AstTree              (array-of-structures node array with contiguous child spans)
-   ↓ ConvertToHlirSlab  (per-frontend AST→HLIR transformer)
+   ↓ ParseToHlir           (PascalFrontend / CSharpFrontend — single method, string → HlirTree)
 HLIR HlirTree            (AoS semantic tree, same container pattern as AST)
    ↓ HlirTreeToMlirTransformer
 MLIR InstList             (optimizable)
@@ -52,8 +50,8 @@ Atari 2600 ROM (4KB, $F000-$FFFF)
 
 ### Key Invariants
 
-- **No OOP AST node hierarchy:** The parse tree is represented as an array-of-structures `AstTree` (AoS) with contiguous child spans. There is no `PascalAstNode` class tree.
-- **Shared StringPool:** A single `StringPool` is created during `ParseToSlab` and threaded through every stage. Symbols never leave the pool as strings.
+- **No OOP AST node hierarchy:** The parse tree is represented as an array-of-structures `AstTree` (AoS) with contiguous child spans. There is no `PascalAstNode` class tree. The `AstTree` is frontend-internal — not exposed across the `ILanguageFrontend` boundary.
+- **Shared StringPool:** A single `StringPool` is created during `ParseToHlir` and threaded through every stage. Symbols never leave the pool as strings.
 - **Handle-based addressing:** Cross-stage references between instructions, blocks, symbols, and slots use strongly-typed readonly structs (`InstIndex`, `BlockId`, `SymbolId`, `SlotIndex`).
 - **Immutable InstList:** All `InstList` instances are constructed via `InstListBuilder` and are treated as immutable thereafter. Optimizations produce a new `InstList`.
 
@@ -95,7 +93,7 @@ int InstList.GetOperandOffset(int instIdx, int operandIdx); // absolute index in
 
 ### IR Stage Instruction Kinds
 
-The AST and HLIR stages are AoS trees (`AstTree`/`HlirTree`) with their own per-language/per-stage kind enums (`PascalAstNodeKind`, `CSharpAstNodeKind`, `HlirNodeKind`). The MLIR and LLIR stages reuse the `InstList` SoA slab with `MlirInstructionKind` and `LlirInstructionKind` tag bytes respectively:
+The HLIR stage is an AoS tree (`HlirTree`, `HlirNodeKind`). The AST stage (`AstTree`) is frontend-internal — not exposed across the `ILanguageFrontend` boundary. The MLIR and LLIR stages reuse the `InstList` SoA slab with `MlirInstructionKind` and `LlirInstructionKind` tag bytes respectively:
 
 | Kind (`MlirInstructionKind`) | Byte | Operands | Meaning |
 |---|---|---|---|

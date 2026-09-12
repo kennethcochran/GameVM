@@ -2,7 +2,7 @@ using System;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.CSharp.Ast;
 
 namespace GameVM.Compiler.CSharp.Transformers
 {

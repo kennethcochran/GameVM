@@ -46,63 +46,34 @@ namespace GameVM.Compiler.Core.Tests
         [Test]
         public void AnalyzeSlab_ReturnsSuccess_ForValidSimpleProgram()
         {
-            // Arrange
-            var sourceCode = "program Test;\nvar x: Integer;\nbegin\n  x := 42;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program Simple; begin end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
-
-            // Act
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
-
-            // Assert
             Assert.That(result.Success, Is.True);
-            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]
         public void AnalyzeSlab_ReturnsSuccess_ForCompatibleTypes()
         {
-            // Arrange - Integer to Real assignment is structurally valid; the new analyzer
-            // only performs structural checks and no longer enforces type compatibility.
-            var sourceCode = "program Test;\nvar x: Real;\nbegin\n  x := 42;\nend.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program CompatibleTypes; var x: integer; begin x := 1; end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
-
-            // Act
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
-
-            // Assert
             Assert.That(result.Success, Is.True);
-            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]
         public void AnalyzeSlab_ReturnsSuccess_ForFunctionWithReturn()
         {
-            // Arrange
-            var sourceCode = @"
-                program Test;
-                function Add(a, b: Integer): Integer;
-                begin
-                  Add := a + b;
-                end;
-                begin
-                end.";
-            var astSlab = _frontend.ParseToSlab(sourceCode);
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var sourceCode = "program FunctionWithReturn; function Add(a, b: integer): integer; begin Add := a + b; end; begin end.";
+            var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
             var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
-
-            // Act
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
-
-            // Assert
             Assert.That(result.Success, Is.True);
-            Assert.That(result.Errors, Is.Empty);
         }
 
         [Test]

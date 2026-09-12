@@ -16,40 +16,33 @@
 using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Buffers;
-using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Core.Interfaces
 {
     /// <summary>
-    /// Interface for language frontends that can compile source code to IR.
+    /// Interface for language frontends that can compile source code to HLIR.
+    /// Single method: string → HlirTree. Parse tree is frontend-internal.
     /// </summary>
     public interface ILanguageFrontend
     {
         /// <summary>
-        /// Parse source code into AST tree (DOD pipeline) - returns AoS AstTree
+        /// Parse source code and transform to HLIR semantic tree (DOD pipeline).
         /// </summary>
         /// <param name="sourceCode">Source code to parse</param>
-        /// <returns>AST tree as AstTree</returns>
-        AstTree ParseToSlab(string sourceCode);
+        /// <returns>HLIR semantic tree</returns>
+        HlirTree ParseToHlir(string sourceCode);
 
         /// <summary>
         /// Gets the syntax error messages from the last parse attempt (DOD pipeline).
-        /// Populated when ParseToSlab encounters syntax errors.
+        /// Populated when ParseToHlir encounters syntax errors.
         /// </summary>
         IReadOnlyList<string>? LastParseErrors { get; }
 
         /// <summary>
         /// Gets the string pool from the last parse attempt (DOD pipeline).
-        /// Populated after successful ParseToSlab.
+        /// Populated after successful ParseToHlir.
         /// </summary>
         StringPool? StringPool { get; }
-        /// <summary>
-        /// Convert AST tree to HLIR semantic tree (DOD pipeline) - takes AstTree, returns HlirTree
-        /// </summary>
-        /// <param name="astTree">AST tree to convert</param>
-        /// <returns>HLIR semantic tree as HlirTree</returns>
-        HlirTree ConvertToHlirSlab(AstTree astTree);
     }
 }

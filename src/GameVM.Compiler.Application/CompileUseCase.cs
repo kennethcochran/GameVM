@@ -1,4 +1,3 @@
-using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Interfaces;
@@ -49,11 +48,11 @@ namespace GameVM.Compiler.Application
 
             try
             {
-                // Parse source code to AST tree (DOD pipeline)
-                AstTree astTree = _frontend.ParseToSlab(sourceCode);
-                if (astTree.Count == 0)
+                // Parse source code and transform to HLIR (DOD pipeline)
+                Core.IR.Hlir.HlirTree hlirTree = _frontend.ParseToHlir(sourceCode);
+                if (hlirTree.Count == 0)
                 {
-                    string errorMsg = "Failed to parse source code to AST tree";
+                    string errorMsg = "Failed to compile source to HLIR tree";
                     if (_frontend.LastParseErrors != null && _frontend.LastParseErrors.Any())
                     {
                         errorMsg = string.Join("; ", _frontend.LastParseErrors);
@@ -65,20 +64,6 @@ namespace GameVM.Compiler.Application
                         SourceFile = extension,
                         Target = options.Target,
                         ErrorMessage = errorMsg
-                    };
-                }
-
-                // Convert AST tree to HLIR semantic tree (DOD pipeline)
-                Core.IR.Hlir.HlirTree hlirTree = _frontend.ConvertToHlirSlab(astTree);
-                if (hlirTree.Count == 0)
-                {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = "Failed to convert AST tree to HLIR tree"
                     };
                 }
 

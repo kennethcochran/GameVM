@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Pascal.Ast;
 
 namespace GameVM.Compiler.Pascal.Transformers
 {

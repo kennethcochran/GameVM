@@ -28,7 +28,7 @@ public class EdgeCaseTests
         var source = "program Empty;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -47,7 +47,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -60,8 +60,7 @@ public class EdgeCaseTests
         var source = "program Empty;\nbegin\nend.";
 
         // Act
-        var astSlab = _frontend.ParseToSlab(source);
-        var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+        var hlirTree = _frontend.ParseToHlir(source);
         var mlirSlab = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree);
         var optimizer = new DefaultMidLevelOptimizer();
         var optimizedMlirSlab = mlirSlab.Count > 0
@@ -69,7 +68,7 @@ public class EdgeCaseTests
             : default;
 
         // Assert
-        Assert.That(astSlab, Is.Not.Empty);
+        Assert.That(hlirTree, Is.Not.Empty);
         Assert.That(mlirSlab.Count, Is.GreaterThanOrEqualTo(0));
         Assert.That(optimizedMlirSlab.Count, Is.GreaterThanOrEqualTo(0));
     }
@@ -85,7 +84,7 @@ public class EdgeCaseTests
         var source = $"program MaxInt;\nvar x: Integer;\nbegin\n  x := {int.MaxValue};\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -99,7 +98,7 @@ public class EdgeCaseTests
         var source = $"program MinInt;\nvar x: Integer;\nbegin\n  x := {int.MinValue};\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -113,7 +112,7 @@ public class EdgeCaseTests
         var source = "program Zero;\nvar x: Integer;\nbegin\n  x := 0;\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -126,7 +125,7 @@ public class EdgeCaseTests
         var source = "program Negative;\nvar x: Integer;\nbegin\n  x := -42;\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -142,7 +141,7 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.ParseToSlab(source);
+            var result = _frontend.ParseToHlir(source);
             // If parsing succeeds, overflow detection would be in type checking phase
             Assert.That(result, Is.Not.Empty);
         }
@@ -176,7 +175,7 @@ public class EdgeCaseTests
         nestedCode += ";\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(nestedCode);
+        var result = _frontend.ParseToHlir(nestedCode);
 
         // Assert - Compiler should handle deep nesting without stack overflow
         Assert.That(result, Is.Not.Empty);
@@ -194,7 +193,7 @@ public class EdgeCaseTests
         var source = $"program DeepExpr;\nvar x: Integer;\nbegin\n  x := {expr};\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -223,7 +222,7 @@ public class EdgeCaseTests
         code.AppendLine("end.");
 
         // Act
-        var result = _frontend.ParseToSlab(code.ToString());
+        var result = _frontend.ParseToHlir(code.ToString());
 
         // Assert
         // Compiler should handle large programs without performance issues
@@ -248,7 +247,7 @@ public class EdgeCaseTests
         code.AppendLine("end.");
 
         // Act
-        var result = _frontend.ParseToSlab(code.ToString());
+        var result = _frontend.ParseToHlir(code.ToString());
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -265,7 +264,7 @@ public class EdgeCaseTests
         var source = "program Test;\nvar myVariable: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -278,7 +277,7 @@ public class EdgeCaseTests
         var source = "program Test;\nvar var1, var2, var3: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -291,7 +290,7 @@ public class EdgeCaseTests
         var source = "program Test;\nvar my_var: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -304,7 +303,7 @@ public class EdgeCaseTests
         var source = "program Test;\nbegin\n  writeln('Hello! @#$%^');\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -319,7 +318,7 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.ParseToSlab(source);
+            var result = _frontend.ParseToHlir(source);
             Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
@@ -338,7 +337,7 @@ public class EdgeCaseTests
         // Act
         try
         {
-            var result = _frontend.ParseToSlab(source);
+            var result = _frontend.ParseToHlir(source);
             Assert.That(result, Is.Not.Empty);
         }
         catch (Exception ex)
@@ -359,7 +358,7 @@ public class EdgeCaseTests
         var source = "program    Test  ;  var    x   :   Integer  ;  begin    writeln  (  'test'  )  ;  end  .";
 
         // Act - Use DOD pipeline ParseToSlab directly
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -374,7 +373,7 @@ public class EdgeCaseTests
         // Act - Use ParseToSlab (DOD pipeline). ANTLR parser should attempt to parse.
         // Even if whitespace is missing, the parser should handle it gracefully.
         // "Gracefully" means no exception is thrown.
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert - The result is a valid InstList (a struct, never null).
         // Whether it contains actual instructions depends on the parser's error recovery.
@@ -388,7 +387,7 @@ public class EdgeCaseTests
         var source = "program\tTest;\nvar\n\tx:\tInteger;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -401,7 +400,7 @@ public class EdgeCaseTests
         var source = "program Test;\n\n\nvar x: Integer;\n\n\nbegin\n\n\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -418,7 +417,7 @@ public class EdgeCaseTests
         var source = "program Test;\nvar x, y, z: Integer;\nbegin x := 1; y := 2; z := 3; end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -439,7 +438,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -464,7 +463,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -482,7 +481,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -506,7 +505,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -523,7 +522,7 @@ public class EdgeCaseTests
             end.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);
@@ -541,7 +540,7 @@ public class EdgeCaseTests
         var source = $"program Test;\nvar {longIdentifier}: Integer;\nbegin\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         // Long identifiers should be supported
@@ -556,7 +555,7 @@ public class EdgeCaseTests
         var source = $"program Test;\nbegin\n  writeln('{longString}');\nend.";
 
         // Act
-        var result = _frontend.ParseToSlab(source);
+        var result = _frontend.ParseToHlir(source);
 
         // Assert
         Assert.That(result, Is.Not.Empty);

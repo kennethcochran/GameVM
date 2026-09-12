@@ -1,7 +1,6 @@
 using System;
-using GameVM.Compiler.Core.IR.Ast;
 
-namespace GameVM.Compiler.Core.IR.Soa;
+namespace GameVM.Compiler.Pascal.Ast;
 
 /// <summary>
 /// Builder for incrementally constructing an <see cref="AstTree"/>.
@@ -109,26 +108,20 @@ public sealed class AstBuilder
     /// The builder can be reused for another tree after calling <see cref="Clear"/>.
     /// </summary>
     /// <returns>An immutable <see cref="AstTree"/> view of the built nodes.</returns>
-        /// <summary>
-        /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes.
-        /// The underlying arrays are NOT copied — the tree wraps the builder's arrays.
-        /// The builder can be reused for another tree after calling <see cref="Clear"/>.
-        /// </summary>
-        /// <returns>An immutable <see cref="AstTree"/> view of the built nodes.</returns>
-        public AstTree Build()
-        {
-            return new AstTree(_nodes, _childIndices, _count);
-        }
+    public AstTree Build()
+    {
+        return new AstTree(_nodes, _childIndices, _count);
+    }
 
-        /// <summary>
-        /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes,
-        /// ensuring a minimum capacity.
-        /// </summary>
-        public AstTree Build(uint minCapacity)
-        {
-            EnsureCapacity((int)minCapacity);
-            return new AstTree(_nodes, _childIndices, _count);
-        }
+    /// <summary>
+    /// Builds an immutable <see cref="AstTree"/> from the accumulated nodes,
+    /// ensuring a minimum capacity.
+    /// </summary>
+    public AstTree Build(uint minCapacity)
+    {
+        EnsureCapacity((int)minCapacity);
+        return new AstTree(_nodes, _childIndices, _count);
+    }
 
     private void EnsureCapacity(int required)
     {

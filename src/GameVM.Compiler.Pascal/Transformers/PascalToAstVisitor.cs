@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Core.IR.Buffers;

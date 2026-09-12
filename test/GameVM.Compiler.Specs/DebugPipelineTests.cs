@@ -8,7 +8,6 @@ using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Capabilities;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
 
 namespace GameVM.Compiler.Specs;
 
@@ -51,18 +50,7 @@ public class DebugPipelineTests
             TestContext.WriteLine($"First bytes: {firstBytes}");
         }
 
-        var astTree = frontend.ParseToSlab(sourceCode);
-        TestContext.WriteLine($"AST tree Count: {astTree.Count}");
-        if (astTree.Count > 0)
-        {
-            for (int i = 0; i < Math.Min(20, astTree.Count); i++)
-            {
-                var node = astTree[i];
-                TestContext.WriteLine($"  [{i}]=Kind:{(PascalAstNodeKind)astTree.GetKind(i)}, Flags:{node.Flags}, Payload:{node.Payload}, FirstChild:{node.FirstChild}, ChildCount:{node.ChildCount}");
-            }
-        }
-
-        var hlirTree = frontend.ConvertToHlirSlab(astTree);
+        var hlirTree = frontend.ParseToHlir(sourceCode);
         TestContext.WriteLine($"HLIR tree Count: {hlirTree.Count}");
 
         InstList mlirSlab = default;

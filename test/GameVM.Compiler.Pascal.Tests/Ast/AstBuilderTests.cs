@@ -1,8 +1,7 @@
-using GameVM.Compiler.Core.IR.Ast;
-using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Pascal.Ast;
 using NUnit.Framework;
 
-namespace GameVM.Compiler.Core.Tests.IR.Slab;
+namespace GameVM.Compiler.Pascal.Tests.Ast;
 
 [TestFixture]
 public class AstBuilderTests

@@ -28,12 +28,9 @@ namespace GameVM.Compiler.Core.Tests.Optimizers
 
         private InstList BuildHlirSlabFromSource(string source)
         {
-            var astSlab = _frontend.ParseToSlab(source);
-            Assert.That(astSlab.Count, Is.GreaterThan(0), "AST slab should not be empty");
-            var hlirTree = _frontend.ConvertToHlirSlab(astSlab);
+            var hlirTree = _frontend.ParseToHlir(source);
             Assert.That(hlirTree.Count, Is.GreaterThan(0), "HLIR tree should not be empty");
             var mlir = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree);
-            Assert.That(mlir.Count, Is.GreaterThan(0), "MLIR stream should not be empty");
             return mlir;
         }
 

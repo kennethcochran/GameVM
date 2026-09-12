@@ -27,7 +27,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('hello')\nend.";
 
             // Act
-            var _ = _frontend.ParseToSlab(source);
+            var _ = _frontend.ParseToHlir(source);
 
             // Assert - This is actually valid Pascal, verify pipeline succeeds
             Assert.That(_frontend.LastParseErrors, Is.Null, "Missing semicolon before 'end' is valid Pascal syntax");
@@ -40,7 +40,7 @@ public class ParserErrorTests
             var source = "program Test;\nvar x;\nbegin\nend.";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -51,7 +51,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  invalid_keyword x;\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -68,7 +68,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('hello';\nend.";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -79,7 +79,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('hello'));\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -92,7 +92,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('hello);\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -108,13 +108,13 @@ public class ParserErrorTests
             // Arrange - Assignment to undeclared variable is a SEMANTIC error (parser accepts, transformer catches)
             var source = "program Test;\nvar x: Integer;\nbegin\n  y := 5;\nend.";
 
-            // Act - Full DOD pipeline: Parse + ConvertToHlirSlab (semantic analysis)
-            var astSlab = _frontend.ParseToSlab(source);
-            Assert.That(astSlab, Is.Not.Empty, "Parser accepts undeclared variable in assignment (semantic error)");
+            // Act
+            var hlirTree = _frontend.ParseToHlir(source);
 
-            // Assert - Semantic analysis (ConvertToHlirSlab) should detect undeclared variable 'y'
-            Assert.Throws<InvalidOperationException>(() => _frontend.ConvertToHlirSlab(astSlab),
-                "ConvertToHlirSlab should detect undeclared variable in assignment target");
+            // Assert - ParseToHlir detects undeclared variable 'y' via LastParseErrors
+            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(_frontend.LastParseErrors, Is.Not.Null);
+            Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
 
         [Test]
@@ -124,7 +124,7 @@ public class ParserErrorTests
             var source = "program Test;\nvar\n  x;\nbegin\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -141,7 +141,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  x := 5 $$ 3;\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -154,7 +154,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  x := 12.34.56;\nend.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -171,7 +171,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('incomplete'";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -182,7 +182,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -199,7 +199,7 @@ public class ParserErrorTests
             var source = "program Test;\nvar\n  x: Integer;\n  y\n  z: Real;\nbegin\nend.";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -210,7 +210,7 @@ public class ParserErrorTests
             var source = "program Test\nvar x;\nbegin\n  writeln('test')\nend";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -224,13 +224,13 @@ public class ParserErrorTests
             // Arrange - Undeclared variable 'y' is a SEMANTIC error (parser accepts, transformer catches)
             var source = "program Test;\nvar x: Integer;\nbegin\n  y := 5\nend.";
 
-            // Act - ParseToSlab accepts it (no syntax error)
-            var astSlab = _frontend.ParseToSlab(source);
-            Assert.That(astSlab, Is.Not.Empty);
+            // Act
+            var hlirTree = _frontend.ParseToHlir(source);
 
             // Assert - Semantic analysis detects undeclared variable 'y'
-            var ex = Assert.Throws<InvalidOperationException>(() => _frontend.ConvertToHlirSlab(astSlab));
-            Assert.That(ex.Message, Does.Contain("Undefined variable"));
+            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(_frontend.LastParseErrors, Is.Not.Null);
+            Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
 
         [Test]
@@ -240,7 +240,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  x := 5 $$\nend.";
 
             // Act & Assert
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
         }
 
@@ -264,13 +264,13 @@ public class ParserErrorTests
                   y := 2;
                 end.";
 
-            // Act - ParseToSlab accepts it
-            var astSlab = _frontend.ParseToSlab(source);
-            Assert.That(astSlab, Is.Not.Empty);
+            // Act
+            var hlirTree = _frontend.ParseToHlir(source);
 
-            // Assert - Semantic analysis detects undeclared variable 'y' in assignment
-            var ex = Assert.Throws<InvalidOperationException>(() => _frontend.ConvertToHlirSlab(astSlab));
-            Assert.That(ex.Message, Does.Contain("Undefined variable"));
+            // Assert - Semantic analysis detects undeclared variable 'y'
+            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(_frontend.LastParseErrors, Is.Not.Null);
+            Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
 
         [Test]
@@ -287,7 +287,7 @@ public class ParserErrorTests
                 end.";
 
             // Act
-            _ = _frontend.ParseToSlab(source);
+            _ = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
@@ -304,7 +304,7 @@ public class ParserErrorTests
             var source = "program Test;\nbegin\n  writeln('hello');\nend.";
 
             // Act
-            var result = _frontend.ParseToSlab(source);
+            var result = _frontend.ParseToHlir(source);
 
             // Assert
             Assert.That(result, Is.Not.Empty);

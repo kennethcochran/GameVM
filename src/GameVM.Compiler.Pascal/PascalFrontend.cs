@@ -5,7 +5,7 @@ using Antlr4.Runtime.Sharpen;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
@@ -49,9 +49,9 @@ namespace GameVM.Compiler.Pascal
         }
 
         /// <summary>
-        /// Parse source code into AST tree (DOD pipeline) - returns AoS AstTree
+        /// Parse source code and transform to HLIR semantic tree (DOD pipeline).
         /// </summary>
-        public AstTree ParseToSlab(string sourceCode)
+        public HlirTree ParseToHlir(string sourceCode)
         {
             try
             {
@@ -68,34 +68,33 @@ namespace GameVM.Compiler.Pascal
 
                 var context = parser.program();
 
-                // Check for both lexer and parser errors - they are collected in errorListener.Errors
                 if (errorListener.Errors.Any())
                 {
                     _lastParseErrors.AddRange(errorListener.Errors);
-                    return AstTree.Empty;
+                    return HlirTree.Empty;
                 }
 
                 var visitor = new PascalToAstVisitor(_stringPool);
                 visitor.Visit(context);
-                return visitor.BuildTree();
+                var astTree = visitor.BuildTree();
+
+                if (astTree.Count == 0)
+                    return HlirTree.Empty;
+
+                var transformer = new PascalAstToHlirTransformer(_stringPool);
+                return transformer.Transform(astTree);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _lastParseErrors.Clear();
+                _lastParseErrors.Add(ex.Message);
+                return HlirTree.Empty;
             }
             catch (Exception)
             {
                 _lastParseErrors.Clear();
-                return AstTree.Empty;
-            }
-        }
-
-        /// <summary>
-        /// Convert AST tree to HLIR semantic tree (DOD pipeline) - takes AstTree, returns HlirTree
-        /// </summary>
-        public HlirTree ConvertToHlirSlab(AstTree astTree)
-        {
-            if (astTree.Count == 0)
                 return HlirTree.Empty;
-
-            var transformer = new PascalAstToHlirTransformer(_stringPool);
-            return transformer.Transform(astTree);
+            }
         }
     }
 }

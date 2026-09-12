@@ -1,6 +1,6 @@
 using System;
 
-namespace GameVM.Compiler.Core.IR.Ast;
+namespace GameVM.Compiler.Pascal.Ast;
 
 /// <summary>
 /// A single node in the Array-of-Structures (AoS) AST.
@@ -47,16 +47,16 @@ public readonly struct AstNode
     public bool IsLeaf => ChildCount == 0;
 }
 
-// <summary>
-// Immutable Array-of-Structures (AoS) parse tree.
-// A flat <see cref="AstNode"/>[] holding every node exactly once (fields adjacent per
-// node), plus a side buffer of child indices so children need not be a contiguous
-// node run. Built via <see cref="AstBuilder"/> and treated as immutable thereafter.
-//
-// An <see cref="AstTree"/> is empty when <see cref="Count"/> == 0 (the frontends return
-// the default/empty tree on parse failure). There is a single implicit root — the
-// program / method-declaration node — so no explicit root index is stored.
-// </summary>
+/// <summary>
+/// Immutable Array-of-Structures (AoS) parse tree.
+/// A flat <see cref="AstNode"/>[] holding every node exactly once (fields adjacent per
+/// node), plus a side buffer of child indices so children need not be a contiguous
+/// node run. Built via <see cref="AstBuilder"/> and treated as immutable thereafter.
+///
+/// An <see cref="AstTree"/> is empty when <see cref="Count"/> == 0 (the frontends return
+/// the default/empty tree on parse failure). There is a single implicit root — the
+/// program / method-declaration node — so no explicit root index is stored.
+/// </summary>
 public readonly struct AstTree
 {
     private readonly AstNode[] _nodes;

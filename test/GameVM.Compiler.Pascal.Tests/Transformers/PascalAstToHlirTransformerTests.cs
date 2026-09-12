@@ -1,7 +1,7 @@
-using GameVM.Compiler.Core.IR.Ast;
+using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
-using GameVM.Compiler.Core.IR.Soa;
+
 using GameVM.Compiler.Pascal.Transformers;
 
 namespace GameVM.Compiler.Pascal.Tests.Transformers

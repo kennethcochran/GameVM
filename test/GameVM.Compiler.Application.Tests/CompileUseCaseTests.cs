@@ -13,7 +13,6 @@ using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 using System.Collections.Generic;
 
@@ -40,25 +39,11 @@ namespace UnitTests.Application
             var capabilityValidatorMock = _mocker.GetMock<ICapabilityValidatorService>();
             var semanticAnalyzerMock = _mocker.GetMock<ISemanticAnalyzer>();
 
-            var testAstTree = new AstTree(new GameVM.Compiler.Core.IR.Ast.AstNode[]
-            {
-                new GameVM.Compiler.Core.IR.Ast.AstNode(
-                    kind: 10, // MethodDeclaration
-                    flags: 0,
-                    payload: 0,
-                    firstChild: -1,
-                    childCount: 0
-                )
-            }, new int[] { 0 }, 1);
-
-
-            // Set up common mocks that both tests need
-            frontendMock.Setup(x => x.ParseToSlab(It.IsAny<string>()))
-                .Returns(testAstTree);
-
             var hlirBuilder = new HlirBuilder();
             hlirBuilder.Add((byte)HlirNodeKind.Nop);
-            frontendMock.Setup(x => x.ConvertToHlirSlab(It.IsAny<AstTree>()))
+
+            // Set up common mocks that both tests need
+            frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
                 .Returns(hlirBuilder.Build());
 
             frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
