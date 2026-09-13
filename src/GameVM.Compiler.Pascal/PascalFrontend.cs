@@ -51,7 +51,7 @@ namespace GameVM.Compiler.Pascal
         /// <summary>
         /// Parse source code and transform to HLIR semantic tree (DOD pipeline).
         /// </summary>
-        public HlirTree ParseToHlir(string sourceCode)
+        public ParseResult ParseToHlir(string sourceCode)
         {
             try
             {
@@ -71,7 +71,7 @@ namespace GameVM.Compiler.Pascal
                 if (errorListener.Errors.Any())
                 {
                     _lastParseErrors.AddRange(errorListener.Errors);
-                    return HlirTree.Empty;
+                    return new ParseResult(HlirTree.Empty, default);
                 }
 
                 var visitor = new PascalToAstVisitor(_stringPool);
@@ -79,21 +79,23 @@ namespace GameVM.Compiler.Pascal
                 var astTree = visitor.BuildTree();
 
                 if (astTree.Count == 0)
-                    return HlirTree.Empty;
+                    return new ParseResult(HlirTree.Empty, default);
 
                 var transformer = new PascalAstToHlirTransformer(_stringPool);
-                return transformer.Transform(astTree);
+                var hlir = transformer.Transform(astTree);
+                var symbols = transformer.BuildSymbolTable();
+                return new ParseResult(hlir, symbols);
             }
             catch (InvalidOperationException ex)
             {
                 _lastParseErrors.Clear();
                 _lastParseErrors.Add(ex.Message);
-                return HlirTree.Empty;
+                return new ParseResult(HlirTree.Empty, default);
             }
             catch (Exception)
             {
                 _lastParseErrors.Clear();
-                return HlirTree.Empty;
+                return new ParseResult(HlirTree.Empty, default);
             }
         }
     }

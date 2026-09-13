@@ -48,7 +48,7 @@ namespace GameVM.Compiler.CSharp
         /// <summary>
         /// Parse source code and transform to HLIR semantic tree (DOD pipeline).
         /// </summary>
-        public HlirTree ParseToHlir(string sourceCode)
+        public ParseResult ParseToHlir(string sourceCode)
         {
             try
             {
@@ -66,7 +66,7 @@ namespace GameVM.Compiler.CSharp
                 var context = parser.program();
 
                 if (_lastParseErrors.Any())
-                    return HlirTree.Empty;
+                    return new ParseResult(HlirTree.Empty, default);
 
                 var builder = new AstBuilder();
                 var visitor = new CSharpToAstVisitor(builder, _stringPool);
@@ -74,21 +74,21 @@ namespace GameVM.Compiler.CSharp
 
                 var astTree = builder.Build();
                 if (astTree.Count == 0)
-                    return HlirTree.Empty;
+                    return new ParseResult(HlirTree.Empty, default);
 
                 var transformer = new CSharpAstToHlirTransformer(_stringPool);
-                return transformer.Transform(astTree);
+                return new ParseResult(transformer.Transform(astTree), default);
             }
             catch (InvalidOperationException ex)
             {
                 _lastParseErrors.Clear();
                 _lastParseErrors.Add(ex.Message);
-                return HlirTree.Empty;
+                return new ParseResult(HlirTree.Empty, default);
             }
             catch (Exception)
             {
                 _lastParseErrors.Clear();
-                return HlirTree.Empty;
+                return new ParseResult(HlirTree.Empty, default);
             }
         }
     }

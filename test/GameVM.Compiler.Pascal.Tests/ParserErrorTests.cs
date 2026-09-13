@@ -112,7 +112,7 @@ public class ParserErrorTests
             var hlirTree = _frontend.ParseToHlir(source);
 
             // Assert - ParseToHlir detects undeclared variable 'y' via LastParseErrors
-            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(hlirTree.Hlir.Count, Is.EqualTo(0));
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
             Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
@@ -228,7 +228,7 @@ public class ParserErrorTests
             var hlirTree = _frontend.ParseToHlir(source);
 
             // Assert - Semantic analysis detects undeclared variable 'y'
-            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(hlirTree.Hlir.Count, Is.EqualTo(0));
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
             Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
@@ -268,7 +268,7 @@ public class ParserErrorTests
             var hlirTree = _frontend.ParseToHlir(source);
 
             // Assert - Semantic analysis detects undeclared variable 'y'
-            Assert.That(hlirTree.Count, Is.EqualTo(0));
+            Assert.That(hlirTree.Hlir.Count, Is.EqualTo(0));
             Assert.That(_frontend.LastParseErrors, Is.Not.Null);
             Assert.That(_frontend.LastParseErrors!, Has.Some.Contain("Undefined variable"));
         }
@@ -307,7 +307,7 @@ public class ParserErrorTests
             var result = _frontend.ParseToHlir(source);
 
             // Assert
-            Assert.That(result, Is.Not.Empty);
+            Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         }
 
         #endregion

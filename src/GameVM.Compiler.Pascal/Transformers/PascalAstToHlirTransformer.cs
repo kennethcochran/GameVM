@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GameVM.Compiler.Core.Enums;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
@@ -28,6 +29,10 @@ namespace GameVM.Compiler.Pascal.Transformers
         private readonly Dictionary<uint, string> _declaredTypes = new();
         private readonly Dictionary<uint, uint> _constantValues = new();
         private readonly List<string> _errors = new();
+        private readonly SymbolTableBuilder _symbolBuilder = new();
+        private readonly DeclarationContextBuilder _contextBuilder = new();
+        private int _currentContextId;
+
         public PascalAstToHlirTransformer(StringPool stringPool)
         {
             _pool = stringPool ?? throw new ArgumentNullException(nameof(stringPool));
@@ -42,6 +47,8 @@ namespace GameVM.Compiler.Pascal.Transformers
             _declaredVariables.Clear();
             _declaredTypes.Clear();
             _constantValues.Clear();
+            _currentContextId = _contextBuilder.Add(0, 0, ContextKind.Module);
+
             int programIdx = FindProgramRoot(astTree);
             if (programIdx < 0)
             {
@@ -56,6 +63,24 @@ namespace GameVM.Compiler.Pascal.Transformers
             }
 
             return _builder.Build();
+        }
+
+        /// <summary>
+        /// Builds a <see cref="SymbolTable"/> from declarations accumulated during <see cref="Transform"/>.
+        /// Must be called after Transform.
+        /// </summary>
+        public SymbolTable BuildSymbolTable()
+        {
+            return _symbolBuilder.Build();
+        }
+
+        /// <summary>
+        /// Builds a <see cref="DeclarationContext"/> table from contexts accumulated during <see cref="Transform"/>.
+        /// Must be called after Transform.
+        /// </summary>
+        public DeclarationContext BuildDeclarationContexts()
+        {
+            return _contextBuilder.Build();
         }
 
         private static int FindProgramRoot(AstTree astTree)
@@ -93,6 +118,25 @@ namespace GameVM.Compiler.Pascal.Transformers
             int bodyHlir = BuildBlock(astTree, bodyIdx);
 
             uint nameOffset = astTree[fnIdx].Payload;
+
+            // Register function symbol and its context
+            SymbolId fnSymbolId = _symbolBuilder.Add(
+                nameOffset, SymbolKind.Function, 0, (uint)_currentContextId,
+                0, 0, 0, StorageClass.Global);
+            int fnContextId = _contextBuilder.Add((uint)_currentContextId, (uint)fnSymbolId.Value, ContextKind.Function);
+
+            // Register symbols for declarations in this function's header
+            uint parentCtx = (uint)fnContextId;
+            for (int i = 0; i < fnChildren.Length - 1; i++)
+            {
+                int childIdx = fnChildren[i];
+                PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(childIdx);
+                if (kind == PascalAstNodeKind.VariableDeclaration)
+                    RegisterVariableSymbol(astTree, childIdx, parentCtx);
+                else if (kind == PascalAstNodeKind.ConstantDefinition)
+                    RegisterConstantSymbol(astTree, childIdx, parentCtx);
+            }
+
             _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
         }
 
@@ -132,6 +176,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                     // Constant definitions are hoisted into the body block by the
                     // visitor, so register the name and value before use.
                     RegisterConstant(astTree, stmtIdx);
+                    RegisterConstantSymbol(astTree, stmtIdx, (uint)_currentContextId);
                     return _builder.Add((byte)HlirNodeKind.Nop, 0, 0, HlirPayloadKind.None);
                 case PascalAstNodeKind.Assignment:
                     return ProcessAssignment(astTree, stmtIdx);
@@ -174,6 +219,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                 if (!string.IsNullOrEmpty(typeName))
                     _declaredTypes[nameOffset] = typeName;
             }
+            RegisterVariableSymbol(astTree, stmtIdx, (uint)_currentContextId);
 
             int idHlir = _builder.Add((byte)HlirNodeKind.Identifier, 0, nameOffset, HlirPayloadKind.PoolOffset);
             int typeHlir = _builder.Add((byte)HlirNodeKind.TypeReference, 0, typeOffset, HlirPayloadKind.PoolOffset);
@@ -181,6 +227,29 @@ namespace GameVM.Compiler.Pascal.Transformers
             return _builder.Add((byte)HlirNodeKind.VariableDeclaration, 0, 0, HlirPayloadKind.None, idHlir, typeHlir);
         }
 
+        private void RegisterVariableSymbol(AstTree astTree, int varDeclIdx, uint scopeId)
+        {
+            var children = astTree.Children(varDeclIdx);
+            if (children.Length < 1) return;
+
+            uint nameOffset = astTree[children[0]].Payload;
+            uint typeOffset = children.Length > 1 ? astTree[children[1]].Payload : 0;
+
+            _symbolBuilder.Add(nameOffset, SymbolKind.Variable, typeOffset, scopeId, 0, 0, 0, StorageClass.Local);
+        }
+
+        private void RegisterConstantSymbol(AstTree astTree, int constIdx, uint scopeId)
+        {
+            var children = astTree.Children(constIdx);
+            if (children.Length < 2) return;
+
+            int nameIdx = children[0];
+            var nameNode = astTree[nameIdx];
+            if (nameNode.Kind != (byte)PascalAstNodeKind.Identifier) return;
+
+            uint nameOffset = nameNode.Payload;
+            _symbolBuilder.Add(nameOffset, SymbolKind.Constant, 0, scopeId, 0, 0, 0, StorageClass.Global);
+        }
 
         /// <summary>
         /// Registers a named constant: constantDefinition: identifier EQUAL constant.
@@ -248,6 +317,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (targetHlir < 0 || valueHlir < 0) return -1;
             return _builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetHlir, valueHlir);
         }
+
         private int ProcessExpressionStatement(AstTree astTree, int stmtIdx)
         {
             var children = astTree.Children(stmtIdx);
@@ -373,6 +443,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return -1;
             }
         }
+
         private int BuildBinaryOp(AstTree astTree, int exprIdx)
         {
             var children = astTree.Children(exprIdx);

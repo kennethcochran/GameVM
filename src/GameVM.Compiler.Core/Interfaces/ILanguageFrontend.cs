@@ -22,16 +22,16 @@ namespace GameVM.Compiler.Core.Interfaces
 {
     /// <summary>
     /// Interface for language frontends that can compile source code to HLIR.
-    /// Single method: string → HlirTree. Parse tree is frontend-internal.
+    /// Single method: string → ParseResult (HlirTree + SymbolTable). Parse tree is frontend-internal.
     /// </summary>
     public interface ILanguageFrontend
     {
         /// <summary>
-        /// Parse source code and transform to HLIR semantic tree (DOD pipeline).
+        /// Parse source code and transform to HLIR semantic tree with symbol table (DOD pipeline).
         /// </summary>
         /// <param name="sourceCode">Source code to parse</param>
-        /// <returns>HLIR semantic tree</returns>
-        HlirTree ParseToHlir(string sourceCode);
+        /// <returns>Parse result containing HLIR semantic tree and symbol table</returns>
+        ParseResult ParseToHlir(string sourceCode);
 
         /// <summary>
         /// Gets the syntax error messages from the last parse attempt (DOD pipeline).

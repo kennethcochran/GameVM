@@ -25,6 +25,11 @@
 | **BlockId** | A readonly struct wrapping a basic-block ID. |
 | **SymbolId** | A readonly struct wrapping a symbol-table offset. |
 | **SlotIndex** | A readonly struct wrapping a local/abstract-stack slot. |
+| **SymbolTable** | SoA (Struct-of-Arrays) container for symbol metadata. Parallel arrays indexed by `SymbolId`: `Name[]`, `Kind[]`, `TypeId[]`, `ScopeId[]`, `FileId[]`, `Line[]`, `Col[]`, `StorageClass[]`. Embedded in the HLIR module file alongside code, types, and optional debug attributes. |
+| **DeclarationContext** | SoA table tracking which container owns a symbol (function, block, module). Each entry carries `ParentContextId`, `OwnerSymbolId`, and `Kind`. Represents structural ownership, not language-specific visibility rules. |
+| **ScopeId** | A readonly struct wrapping a declaration-context index in the `DeclarationContext` table. |
+| **TypeId** | A readonly struct wrapping a type-table index. References existing HLIR type infrastructure (`IRType`, `IRField`, `IRParameter`). |
+| **DebugAttributes** | Optional section in the HLIR module carrying debug metadata: `LineNumberTable` (IL offset → source line), `LocalVariableTable` (slot → name/type/scope), `ScopeTree` (context hierarchy). Absent in release builds. |
 
 ---
 

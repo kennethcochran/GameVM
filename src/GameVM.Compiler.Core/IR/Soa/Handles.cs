@@ -216,3 +216,110 @@ public readonly struct SlotIndex : IEquatable<SlotIndex>, IComparable<SlotIndex>
 
     public override string ToString() => IsValid ? $"SlotIndex({_value})" : "SlotIndex.Invalid";
 }
+/// <summary>
+/// Typed handle for a declaration context (scope) in a <c>DeclarationContext</c> table.
+/// Value 0 = root (module-level); -1 = invalid.
+/// </summary>
+public readonly struct ScopeId : IEquatable<ScopeId>, IComparable<ScopeId>
+{
+    private readonly int _value;
+
+    private ScopeId(int value)
+    {
+        _value = value;
+    }
+
+    /// <summary>Root (module-level) scope.</summary>
+    public static ScopeId Root => new ScopeId(0);
+
+    /// <summary>Invalid scope sentinel.</summary>
+    public static ScopeId Invalid => new ScopeId(-1);
+
+    /// <summary>Creates a scope ID from a raw integer value.</summary>
+    public static ScopeId FromInt(int value)
+    {
+        if (value < -1)
+            throw new ArgumentOutOfRangeException(nameof(value), "ScopeId must be >= -1");
+        return new ScopeId(value);
+    }
+
+    /// <summary>The raw integer value (0 = root, -1 = invalid).</summary>
+    public int Value => _value;
+
+    /// <summary>True if this is a valid scope ID (not Invalid).</summary>
+    public bool IsValid => _value >= 0;
+
+    /// <summary>Implicit conversion to int for array indexing.</summary>
+    public static implicit operator int(ScopeId id) => id._value;
+
+    /// <summary>Explicit conversion from int to ScopeId.</summary>
+    public static explicit operator ScopeId(int value) => FromInt(value);
+
+    public bool Equals(ScopeId other) => _value == other._value;
+    public override bool Equals(object? obj) => obj is ScopeId other && Equals(other);
+    public override int GetHashCode() => _value;
+    public int CompareTo(ScopeId other) => _value.CompareTo(other._value);
+
+    public static bool operator ==(ScopeId left, ScopeId right) => left._value == right._value;
+    public static bool operator !=(ScopeId left, ScopeId right) => left._value != right._value;
+    public static bool operator <(ScopeId left, ScopeId right) => left._value < right._value;
+    public static bool operator >(ScopeId left, ScopeId right) => left._value > right._value;
+    public static bool operator <=(ScopeId left, ScopeId right) => left._value <= right._value;
+    public static bool operator >=(ScopeId left, ScopeId right) => left._value >= right._value;
+
+    public override string ToString() => IsValid ? $"ScopeId({_value})" : "ScopeId.Invalid";
+}
+
+/// <summary>
+/// Typed handle for a type entry in the symbol table's type arrays.
+/// Value 0 = untyped; -1 = invalid.
+/// </summary>
+public readonly struct TypeId : IEquatable<TypeId>, IComparable<TypeId>
+{
+    private readonly int _value;
+
+    private TypeId(int value)
+    {
+        _value = value;
+    }
+
+    /// <summary>Untyped sentinel (no type information).</summary>
+    public static TypeId Untyped => new TypeId(0);
+
+    /// <summary>Invalid type sentinel.</summary>
+    public static TypeId Invalid => new TypeId(-1);
+
+    /// <summary>Creates a type ID from a raw integer value.</summary>
+    public static TypeId FromInt(int value)
+    {
+        if (value < -1)
+            throw new ArgumentOutOfRangeException(nameof(value), "TypeId must be >= -1");
+        return new TypeId(value);
+    }
+
+    /// <summary>The raw integer value (0 = untyped, -1 = invalid).</summary>
+    public int Value => _value;
+
+    /// <summary>True if this is a valid type ID (not Invalid).</summary>
+    public bool IsValid => _value >= 0;
+
+    /// <summary>Implicit conversion to int for array indexing.</summary>
+    public static implicit operator int(TypeId id) => id._value;
+
+    /// <summary>Explicit conversion from int to TypeId.</summary>
+    public static explicit operator TypeId(int value) => FromInt(value);
+
+    public bool Equals(TypeId other) => _value == other._value;
+    public override bool Equals(object? obj) => obj is TypeId other && Equals(other);
+    public override int GetHashCode() => _value;
+    public int CompareTo(TypeId other) => _value.CompareTo(other._value);
+
+    public static bool operator ==(TypeId left, TypeId right) => left._value == right._value;
+    public static bool operator !=(TypeId left, TypeId right) => left._value != right._value;
+    public static bool operator <(TypeId left, TypeId right) => left._value < right._value;
+    public static bool operator >(TypeId left, TypeId right) => left._value > right._value;
+    public static bool operator <=(TypeId left, TypeId right) => left._value <= right._value;
+    public static bool operator >=(TypeId left, TypeId right) => left._value >= right._value;
+
+    public override string ToString() => IsValid ? $"TypeId({_value})" : "TypeId.Invalid";
+}

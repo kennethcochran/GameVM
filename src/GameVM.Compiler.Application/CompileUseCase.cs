@@ -49,7 +49,9 @@ namespace GameVM.Compiler.Application
             try
             {
                 // Parse source code and transform to HLIR (DOD pipeline)
-                Core.IR.Hlir.HlirTree hlirTree = _frontend.ParseToHlir(sourceCode);
+                var parseResult = _frontend.ParseToHlir(sourceCode);
+                var hlirTree = parseResult.Hlir;
+                var symbols = parseResult.Symbols;
                 if (hlirTree.Count == 0)
                 {
                     string errorMsg = "Failed to compile source to HLIR tree";
@@ -186,7 +188,8 @@ namespace GameVM.Compiler.Application
                     SourceFile = extension,
                     Target = options.Target,
                     Profile = options.Profile,
-                    ErrorMessage = string.Empty
+                    ErrorMessage = string.Empty,
+                    Symbols = symbols
                 };
             }
             catch (CompilerException ex)
@@ -361,5 +364,10 @@ namespace GameVM.Compiler.Application
         /// Error message if compilation failed
         /// </summary>
         public string ErrorMessage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Symbol table populated during frontend parsing.
+        /// </summary>
+        public SymbolTable Symbols { get; set; }
     }
 }

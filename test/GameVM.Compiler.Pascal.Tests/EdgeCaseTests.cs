@@ -31,7 +31,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -61,14 +61,14 @@ public class EdgeCaseTests
 
         // Act
         var hlirTree = _frontend.ParseToHlir(source);
-        var mlirSlab = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree);
+        var mlirSlab = new HlirTreeToMlirTransformer(_frontend.StringPool!).Transform(hlirTree.Hlir);
         var optimizer = new DefaultMidLevelOptimizer();
         var optimizedMlirSlab = mlirSlab.Count > 0
             ? optimizer.OptimizeSlab(mlirSlab, _frontend.StringPool!, OptimizationLevel.None)
             : default;
 
         // Assert
-        Assert.That(hlirTree, Is.Not.Empty);
+        Assert.That(hlirTree.Hlir.Count, Is.GreaterThan(0));
         Assert.That(mlirSlab.Count, Is.GreaterThanOrEqualTo(0));
         Assert.That(optimizedMlirSlab.Count, Is.GreaterThanOrEqualTo(0));
     }
@@ -87,7 +87,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         // Large integer values should be parsed successfully
     }
 
@@ -101,7 +101,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         // Negative large integer values should be parsed successfully
     }
 
@@ -115,7 +115,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -128,7 +128,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -143,7 +143,7 @@ public class EdgeCaseTests
         {
             var result = _frontend.ParseToHlir(source);
             // If parsing succeeds, overflow detection would be in type checking phase
-            Assert.That(result, Is.Not.Empty);
+            Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         }
         catch (Exception ex)
         {
@@ -178,7 +178,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(nestedCode);
 
         // Assert - Compiler should handle deep nesting without stack overflow
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -196,7 +196,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -226,7 +226,7 @@ public class EdgeCaseTests
 
         // Assert
         // Compiler should handle large programs without performance issues
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -250,7 +250,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(code.ToString());
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -267,7 +267,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -280,7 +280,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -293,7 +293,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -306,7 +306,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -319,7 +319,7 @@ public class EdgeCaseTests
         try
         {
             var result = _frontend.ParseToHlir(source);
-            Assert.That(result, Is.Not.Empty);
+            Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         }
         catch (Exception ex)
         {
@@ -338,7 +338,7 @@ public class EdgeCaseTests
         try
         {
             var result = _frontend.ParseToHlir(source);
-            Assert.That(result, Is.Not.Empty);
+            Assert.That(result.Hlir.Count, Is.GreaterThan(0));
         }
         catch (Exception ex)
         {
@@ -361,7 +361,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -377,7 +377,7 @@ public class EdgeCaseTests
 
         // Assert - The result is a valid InstList (a struct, never null).
         // Whether it contains actual instructions depends on the parser's error recovery.
-        Assert.That(result.Count, Is.GreaterThanOrEqualTo(0));
+        Assert.That(result.Hlir.Count, Is.GreaterThanOrEqualTo(0));
     }
 
     [Test]
@@ -390,7 +390,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -403,7 +403,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -420,7 +420,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -441,7 +441,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -466,7 +466,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -484,7 +484,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -508,7 +508,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -525,7 +525,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion
@@ -544,7 +544,7 @@ public class EdgeCaseTests
 
         // Assert
         // Long identifiers should be supported
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     [Test]
@@ -558,7 +558,7 @@ public class EdgeCaseTests
         var result = _frontend.ParseToHlir(source);
 
         // Assert
-        Assert.That(result, Is.Not.Empty);
+        Assert.That(result.Hlir.Count, Is.GreaterThan(0));
     }
 
     #endregion

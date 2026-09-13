@@ -51,13 +51,13 @@ public class DebugPipelineTests
         }
 
         var hlirTree = frontend.ParseToHlir(sourceCode);
-        TestContext.WriteLine($"HLIR tree Count: {hlirTree.Count}");
+        TestContext.WriteLine($"HLIR tree Count: {hlirTree.Hlir.Count}");
 
         InstList mlirSlab = default;
-        if (hlirTree.Count > 0)
+        if (hlirTree.Hlir.Count > 0)
         {
             var hlirToMlir = new Core.IR.Transformers.HlirTreeToMlirTransformer(frontend.StringPool!);
-            mlirSlab = hlirToMlir.Transform(hlirTree);
+            mlirSlab = hlirToMlir.Transform(hlirTree.Hlir);
             TestContext.WriteLine($"MLIR slab count: {mlirSlab.Count}");
             for (int i = 0; i < Math.Min(20, mlirSlab.Count); i++)
                 TestContext.WriteLine($"  [{i}]=Kind:{mlirSlab.GetKind(i)}, Args:{mlirSlab.GetArgCount(i)}");

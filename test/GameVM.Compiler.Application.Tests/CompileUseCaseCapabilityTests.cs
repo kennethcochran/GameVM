@@ -76,7 +76,7 @@ namespace GameVM.Compiler.Application.Tests
 
             var stringPool = new StringPool();
 
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(hlirTree);
+            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
@@ -136,7 +136,7 @@ namespace GameVM.Compiler.Application.Tests
 
             var stringPool = new StringPool();
 
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(hlirTree);
+            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
             mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
             
             mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);

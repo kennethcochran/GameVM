@@ -49,7 +49,7 @@ namespace GameVM.Compiler.Core.Tests
             var sourceCode = "program Simple; begin end.";
             var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
-            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree.Hlir);
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
             Assert.That(result.Success, Is.True);
         }
@@ -60,7 +60,7 @@ namespace GameVM.Compiler.Core.Tests
             var sourceCode = "program CompatibleTypes; var x: integer; begin x := 1; end.";
             var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
-            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree.Hlir);
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
             Assert.That(result.Success, Is.True);
         }
@@ -71,7 +71,7 @@ namespace GameVM.Compiler.Core.Tests
             var sourceCode = "program FunctionWithReturn; function Add(a, b: integer): integer; begin Add := a + b; end; begin end.";
             var hlirTree = _frontend.ParseToHlir(sourceCode);
             var stringPool = _frontend.StringPool!;
-            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree);
+            var mlir = new HlirTreeToMlirTransformer(stringPool).Transform(hlirTree.Hlir);
             var result = _analyzer.AnalyzeSlab(mlir, stringPool);
             Assert.That(result.Success, Is.True);
         }

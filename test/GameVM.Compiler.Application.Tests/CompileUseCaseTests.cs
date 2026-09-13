@@ -44,7 +44,7 @@ namespace UnitTests.Application
 
             // Set up common mocks that both tests need
             frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
-                .Returns(hlirBuilder.Build());
+                .Returns(new ParseResult(hlirBuilder.Build(), default));
 
             frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 

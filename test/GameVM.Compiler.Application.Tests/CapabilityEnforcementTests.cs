@@ -43,7 +43,7 @@ namespace UnitTests.Application
             var hlirBuilder = new HlirBuilder();
             hlirBuilder.Add((byte)HlirNodeKind.Nop);
             _frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
-                .Returns(hlirBuilder.Build());
+                .Returns(new ParseResult(hlirBuilder.Build(), default));
             _frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 
             _midLevelOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
