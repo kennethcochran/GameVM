@@ -11,8 +11,7 @@
 | **InstList** | Struct-of-Arrays (SoA) instruction container. Holds `byte[] Tags`, `ushort[] Flags`, `ushort[] ArgCounts`, `uint[] FixedOps`, `uint[] Extra`, `uint[] ExtraOffsets`, `int[] BlockIds`. |
 | **InstListBuilder** | Auto-resizing incremental builder for `InstList`. |
 | **StringPool** | Interned byte-buffer for identifiers; returns `uint` offsets. Shared across all IR stages. |
-| **AST** | Parse-time `AstTree` (array-of-structures node array with contiguous child spans). |
-| **HLIR** | Language-agnostic AoS semantic tree (`HlirTree`, `HlirNode`/`HlirBuilder` in Core, same container pattern as AST). |
+| **AST** | Parse-time `AstTree` (array-of-structures node array with contiguous child spans). Frontend-internal: each frontend owns its own copy (`GameVM.Compiler.Pascal.Ast`, `GameVM.Compiler.CSharp.Ast`) rather than sharing a Core type. |
 | **MLIR** | Target-independent optimization stage `InstList`. |
 | **LLIR** | Virtual Machine ISA `InstList` (`LlirInstructionKind`). |
 | **IR Transformation** | `IIRSlabTransformer.TransformSlab(inputSlab, stringPool) -> InstList`. |
