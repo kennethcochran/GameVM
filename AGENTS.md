@@ -126,6 +126,10 @@ Five canonical roles mapped 1:1 to label strings: `needs-triage`, `needs-info`, 
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
 
+### Idea generation
+
+Brainstorm features, improvements, and research topics for the compiler. See `.opencode/skills/idea-gen/SKILL.md`.
+
 
 ## Mandatory Pre-Commit Hooks (DO NOT DISABLE)
 
