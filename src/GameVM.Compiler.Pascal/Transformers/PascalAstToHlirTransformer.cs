@@ -25,10 +25,7 @@ namespace GameVM.Compiler.Pascal.Transformers
     {
         private readonly StringPool _pool = null!;
         private readonly HlirBuilder _builder = new();
-        private readonly HashSet<uint> _declaredVariables = new();
-        private readonly Dictionary<uint, string> _declaredTypes = new();
         private readonly Dictionary<uint, uint> _constantValues = new();
-        private readonly List<string> _errors = new();
         private readonly SymbolTableBuilder _symbolBuilder = new();
         private readonly DeclarationContextBuilder _contextBuilder = new();
         private int _currentContextId;
@@ -44,8 +41,6 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (astTree.Count == 0)
                 return HlirTree.Empty;
 
-            _declaredVariables.Clear();
-            _declaredTypes.Clear();
             _constantValues.Clear();
             _currentContextId = _contextBuilder.Add(0, 0, ContextKind.Module);
 
@@ -56,11 +51,6 @@ namespace GameVM.Compiler.Pascal.Transformers
             }
 
             ProcessFunction(astTree, programIdx);
-
-            if (_errors.Count > 0)
-            {
-                throw new InvalidOperationException(string.Join(Environment.NewLine, _errors));
-            }
 
             return _builder.Build();
         }
@@ -108,12 +98,6 @@ namespace GameVM.Compiler.Pascal.Transformers
                 PascalAstNodeKind kind = (PascalAstNodeKind)astTree.GetKind(childIdx);
                 if (kind == PascalAstNodeKind.ConstantDefinition)
                     RegisterConstant(astTree, childIdx);
-                else if (kind == PascalAstNodeKind.VariableDeclaration)
-                {
-                    var varChildren = astTree.Children(childIdx);
-                    if (varChildren.Length > 0)
-                        _declaredVariables.Add(astTree[varChildren[0]].Payload);
-                }
             }
             int bodyHlir = BuildBlock(astTree, bodyIdx);
 
@@ -209,15 +193,11 @@ namespace GameVM.Compiler.Pascal.Transformers
 
             var nameNode = astTree[nameIdx];
             uint nameOffset = nameNode.Payload;
-            _declaredVariables.Add(nameOffset);
 
             uint typeOffset = 0;
             if (typeIdx >= 0)
             {
                 typeOffset = astTree[typeIdx].Payload;
-                string typeName = _pool.Resolve(typeOffset);
-                if (!string.IsNullOrEmpty(typeName))
-                    _declaredTypes[nameOffset] = typeName;
             }
             RegisterVariableSymbol(astTree, stmtIdx, (uint)_currentContextId);
 
@@ -286,32 +266,9 @@ namespace GameVM.Compiler.Pascal.Transformers
             int targetIdx = children[0];
             int valueIdx = children[1];
 
-            var targetNode = astTree[targetIdx];
-            uint targetOffset = targetNode.Payload;
-
-            if (targetNode.Kind == (byte)PascalAstNodeKind.Identifier &&
-                !_declaredVariables.Contains(targetOffset))
-            {
-                _errors.Add($"Undefined variable '{_pool.Resolve(targetOffset)}'");
-                return -1;
-            }
-
-            // Type checking: string/boolean literals cannot be assigned to an
-            // Integer variable; report the mismatch (compile-time error).
-            if (targetNode.Kind == (byte)PascalAstNodeKind.Identifier &&
-                _declaredTypes.TryGetValue(targetOffset, out string? targetType) &&
-                string.Equals(targetType, "integer", StringComparison.OrdinalIgnoreCase))
-            {
-                var valueNode = astTree[valueIdx];
-                PascalAstNodeKind valueKind = (PascalAstNodeKind)valueNode.Kind;
-                if (valueKind == PascalAstNodeKind.LiteralString ||
-                    valueKind == PascalAstNodeKind.LiteralBool)
-                {
-                    _errors.Add($"Type mismatch: cannot assign '{_pool.Resolve(valueNode.Payload)}' to Integer variable '{_pool.Resolve(targetOffset)}'");
-                    return -1;
-                }
-            }
-
+            // Semantic validation (undefined variables, type mismatches) now runs in the
+            // dedicated PascalSemanticAnalyzer pass before lowering; this transformer no
+            // longer performs those checks.
             int targetHlir = BuildExpression(astTree, targetIdx);
             int valueHlir = BuildExpression(astTree, valueIdx);
             if (targetHlir < 0 || valueHlir < 0) return -1;
@@ -428,11 +385,6 @@ namespace GameVM.Compiler.Pascal.Transformers
                     {
                         // Named constant: fold to its literal value.
                         return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, constVal, HlirPayloadKind.Immediate);
-                    }
-                    if (!_declaredVariables.Contains(node.Payload))
-                    {
-                        _errors.Add($"Undefined variable '{_pool.Resolve(node.Payload)}'");
-                        return -1;
                     }
                     return _builder.Add((byte)HlirNodeKind.Identifier, 0, node.Payload, HlirPayloadKind.PoolOffset);
                 case PascalAstNodeKind.BinaryOp:

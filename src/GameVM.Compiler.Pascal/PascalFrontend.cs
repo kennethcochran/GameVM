@@ -8,6 +8,7 @@ using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Pascal.ANTLR;
+using GameVM.Compiler.Pascal.Semantics;
 using GameVM.Compiler.Pascal.Transformers;
 
 namespace GameVM.Compiler.Pascal
@@ -16,11 +17,19 @@ namespace GameVM.Compiler.Pascal
     {
         private readonly StringPool _stringPool = new StringPool();
         private readonly List<string> _lastParseErrors = new List<string>();
+        private IReadOnlyList<SemanticError>? _lastSemanticErrors;
 
         /// <summary>
         /// Gets the syntax error messages from the last parse attempt.
         /// </summary>
         public IReadOnlyList<string>? LastParseErrors => _lastParseErrors.Count > 0 ? _lastParseErrors : null;
+
+        /// <summary>
+        /// Gets the structured semantic errors (with source positions) from the last
+        /// parse. Populated when the semantic-analysis pass rejects the program; their
+        /// messages are also surfaced via <see cref="LastParseErrors"/>.
+        /// </summary>
+        public IReadOnlyList<SemanticError>? SemanticErrors => _lastSemanticErrors;
 
         /// <summary>
         /// Gets the string pool from the last parse attempt (DOD pipeline).
@@ -56,6 +65,7 @@ namespace GameVM.Compiler.Pascal
             try
             {
                 _lastParseErrors.Clear();
+                _lastSemanticErrors = null;
 
                 var inputStream = new AntlrInputStream(sourceCode);
                 var lexer = new PascalLexer(inputStream);
@@ -80,6 +90,15 @@ namespace GameVM.Compiler.Pascal
 
                 if (astTree.Count == 0)
                     return new ParseResult(HlirTree.Empty, default);
+
+                var analyzer = new PascalSemanticAnalyzer(_stringPool);
+                var semanticErrors = analyzer.Analyze(astTree, visitor.Positions!);
+                if (semanticErrors.Count > 0)
+                {
+                    _lastParseErrors.AddRange(semanticErrors.Select(e => e.Message));
+                    _lastSemanticErrors = semanticErrors;
+                    return new ParseResult(HlirTree.Empty, default);
+                }
 
                 var transformer = new PascalAstToHlirTransformer(_stringPool);
                 var hlir = transformer.Transform(astTree);

@@ -18,7 +18,7 @@
 | **Mid Level Optimizer** | `IMidLevelOptimizer.OptimizeSlab(hlirSlab, stringPool, level) -> InstList`. |
 | **Low Level Optimizer** | `ILowLevelOptimizer.OptimizeSlab(llirSlab, stringPool, level) -> InstList`. |
 | **Backend** | `ICodeGenerator.GenerateFromSlab(llirSlab, stringPool, options) -> byte[]`. |
-| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) — single method `ParseToHlir: string → HlirTree`. Parse tree is frontend-internal. |
+| **Frontend** | A language parser (`PascalFrontend`, `CSharpFrontend`) — `ParseToHlir: string → HlirTree`. Pascal frontend runs a dedicated `PascalSemanticAnalyzer` between AST build and HLIR lowering; violations return `HlirTree.Empty` and expose `SemanticErrors` (structured) + `LastParseErrors` (strings). |
 | **String Handle** | A `uint` offset into the `StringPool`. |
 | **InstIndex** | A readonly struct wrapping an instruction position in an `InstList`. |
 | **BlockId** | A readonly struct wrapping a basic-block ID. |
@@ -39,6 +39,7 @@ GameVM is a **cross-compiler**: complex analysis, optimization, and transformati
 ```
 Pascal / C# source
    ↓ ParseToHlir           (PascalFrontend / CSharpFrontend — single method, string → HlirTree)
+   ↓ PascalSemanticAnalyzer (dedicated pass, errors → HlirTree.Empty; positions from visitor side table)
 HLIR HlirTree            (AoS semantic tree, same container pattern as AST)
    ↓ HlirTreeToMlirTransformer
 MLIR InstList             (optimizable)
@@ -124,12 +125,20 @@ Operands are either **slot IDs** (`StringPool` offsets for temporaries/constants
 | `Syscall` | 0xC7 | `[vector]` | OS / TIA vector trap |
 
 Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-byte-first; zero-page form is chosen when the resolved address `< $100` (variable in Atari zero-page `$80`-`$FF`). Function names and identifiers are 32-bit `StringPool` hashes resolved by `MidToLowLevelTransformer`.
-
 ### Error Handling
 
 - Errors are categorised **Fatal / Error / Warning / Info**, reported through `GameVmException` (C#) carrying an `ErrorCode` and a context dictionary.
 - Compiler diagnostics are written to a lightweight **Diagnostic Journal**, never mixed into the executable instruction slab (metadata header has a Diagnostic Present flag on the affected instruction).
 - Error codes are grouped by domain: general (0x0001 OutOfMemory, 0x0002 InvalidArgument), file (0x1000+), network (0x2000+), module (0x3000+).
+### Pascal Semantic Errors (Ticket 01)
+
+- `PascalFrontend` now runs `PascalSemanticAnalyzer` between AST build and HLIR lowering.
+- Violations are accumulated in one pass (never abort early), each as a `SemanticError` with line/column from the visitor's per-node source-position side table.
+- Frontend returns `HlirTree.Empty`, populates `LastParseErrors` (message strings, keeps existing grep tests) and `SemanticErrors` (structured — ticket 02 will propagate through `CompilationResult`).
+- Error messages are byte-identical to the prior transformer checks:
+  - `Undefined variable '{name}'`
+  - `Type mismatch: cannot assign '{valueText}' to Integer variable '{targetName}'`
+- No new rules added (duplicate decl, for-control, call arity are later tickets).
 
 ---
 

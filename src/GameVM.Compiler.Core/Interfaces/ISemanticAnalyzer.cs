@@ -39,7 +39,7 @@ namespace GameVM.Compiler.Core.Interfaces
         public int Line { get; }
         public int Column { get; }
 
-        public SemanticError(string message, string errorCode = "SEMANTIC_ERROR", int line = 0, int column = 0)
+        public SemanticError(string message, string errorCode, int line, int column)
         {
             Message = message;
             ErrorCode = errorCode;

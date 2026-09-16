@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
+using GameVM.Compiler.Core.Interfaces;
 
 namespace GameVM.Compiler.Core.Interfaces
 {
@@ -44,5 +45,11 @@ namespace GameVM.Compiler.Core.Interfaces
         /// Populated after successful ParseToHlir.
         /// </summary>
         StringPool? StringPool { get; }
+
+        /// <summary>
+        /// Gets the structured semantic errors (with source positions) from the last
+        /// parse attempt. Populated when the semantic-analysis pass rejects the program.
+        /// </summary>
+        IReadOnlyList<SemanticError>? SemanticErrors { get; }
     }
 }

@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Interfaces;
@@ -65,7 +68,10 @@ namespace GameVM.Compiler.Application
                         Code = Array.Empty<byte>(),
                         SourceFile = extension,
                         Target = options.Target,
-                        ErrorMessage = errorMsg
+                        ErrorMessage = errorMsg,
+                        Diagnostics = _frontend.SemanticErrors != null
+                            ? new SemanticDiagnostics(_frontend.SemanticErrors.ToArray())
+                            : null
                     };
                 }
 
@@ -137,6 +143,7 @@ namespace GameVM.Compiler.Application
                     // For now, we skip HLIR validation and rely on later stages
                     _ = _capabilityValidator; // suppress unused field warning until slab validation is implemented
                 }
+
 
                 // Optimize the MLIR stream (DOD pipeline).
                 InstList mlirSlab = _midLevelOptimizer.OptimizeSlab(mlirFromHlir, stringPool, options.OptimizationLevel);
@@ -364,6 +371,13 @@ namespace GameVM.Compiler.Application
         /// Error message if compilation failed
         /// </summary>
         public string ErrorMessage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Structured semantic diagnostics (line, column, message per error).
+        /// Populated when semantic analysis rejects the program — usable
+        /// by any UI without parsing ErrorMessage.
+        /// </summary>
+        public SemanticDiagnostics? Diagnostics { get; set; }
 
         /// <summary>
         /// Symbol table populated during frontend parsing.
