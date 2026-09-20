@@ -41,9 +41,6 @@ namespace GameVM.Compile
                 // Register capability validator
                 services.AddSingleton<ICapabilityValidatorService, CapabilityValidatorService>();
 
-                // Register semantic analyzer
-                services.AddSingleton<ISemanticAnalyzer, BasicSemanticAnalyzer>();
-
                 // Register the main use case
                 services.AddSingleton<ICompileUseCase, CompileUseCase>();
             });

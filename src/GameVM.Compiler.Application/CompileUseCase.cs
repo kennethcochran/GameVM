@@ -22,7 +22,6 @@ namespace GameVM.Compiler.Application
         private readonly ICodeGenerator _codeGenerator;
         private readonly ICapabilityProvider _capabilityProvider;
         private readonly ICapabilityValidatorService _capabilityValidator;
-        private readonly ISemanticAnalyzer _semanticAnalyzer;
 
         public CompileUseCase(
             ILanguageFrontend frontend,
@@ -31,8 +30,7 @@ namespace GameVM.Compiler.Application
             IIRSlabTransformer mlirToLlir,
             ICodeGenerator codeGenerator,
             ICapabilityProvider capabilityProvider,
-            ICapabilityValidatorService capabilityValidator,
-            ISemanticAnalyzer semanticAnalyzer)
+            ICapabilityValidatorService capabilityValidator)
         {
             _frontend = frontend ?? throw new ArgumentNullException(nameof(frontend));
             _midLevelOptimizer = midLevelOptimizer ?? throw new ArgumentNullException(nameof(midLevelOptimizer));
@@ -41,7 +39,6 @@ namespace GameVM.Compiler.Application
             _codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
             _capabilityProvider = capabilityProvider ?? throw new ArgumentNullException(nameof(capabilityProvider));
             _capabilityValidator = capabilityValidator ?? throw new ArgumentNullException(nameof(capabilityValidator));
-            _semanticAnalyzer = semanticAnalyzer ?? throw new ArgumentNullException(nameof(semanticAnalyzer));
         }
 
         private CompilationResult CompileInternal(string sourceCode, string extension, CompilationOptions options)
@@ -101,20 +98,6 @@ namespace GameVM.Compiler.Application
                         SourceFile = extension,
                         Target = options.Target,
                         ErrorMessage = "Failed to lower HLIR tree to MLIR"
-                    };
-                }
-
-                // Perform semantic analysis on the MLIR stream.
-                var semanticResult = _semanticAnalyzer.AnalyzeSlab(mlirFromHlir, stringPool);
-                if (!semanticResult.Success)
-                {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = string.Join("; ", semanticResult.Errors)
                     };
                 }
 
