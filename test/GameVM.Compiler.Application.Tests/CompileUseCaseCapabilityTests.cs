@@ -1,8 +1,11 @@
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Core.Interfaces;
-using NSubstitute;
+using Moq;
 using NUnit.Framework;
 using System;
+using GameVM.Compiler.Core.IR.Hlir;
+using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Core.IR.Buffers;
 
 namespace GameVM.Compiler.Application.Tests
 {
@@ -13,20 +16,20 @@ namespace GameVM.Compiler.Application.Tests
         public void Compile_ValidProgram_CompilesSuccessfully()
         {
             // Arrange
-            var frontend = Substitute.For<ILanguageFrontend>();
-            var midLevelOptimizer = Substitute.For<IMidLevelOptimizer>();
-            var lowLevelOptimizer = Substitute.For<ILowLevelOptimizer>();
-            var codeGenerator = Substitute.For<ICodeGenerator>();
-            var capabilityProvider = Substitute.For<ICapabilityProvider>();
-            var capabilityValidator = Substitute.For<ICapabilityValidatorService>();
+            var frontendMock = new Mock<ILanguageFrontend>();
+            var midLevelOptimizerMock = new Mock<IMidLevelOptimizer>();
+            var lowLevelOptimizerMock = new Mock<ILowLevelOptimizer>();
+            var codeGeneratorMock = new Mock<ICodeGenerator>();
+            var capabilityProviderMock = new Mock<ICapabilityProvider>();
+            var capabilityValidatorMock = new Mock<ICapabilityValidatorService>();
 
             var compileUseCase = new CompileUseCase(
-                frontend,
-                midLevelOptimizer,
-                lowLevelOptimizer,
-                codeGenerator,
-                capabilityProvider,
-                capabilityValidator);
+                frontendMock.Object,
+                midLevelOptimizerMock.Object,
+                lowLevelOptimizerMock.Object,
+                codeGeneratorMock.Object,
+                capabilityProviderMock.Object,
+                capabilityValidatorMock.Object);
 
             var pascalFrontend = new PascalFrontend();
             var pascalMidLevelOptimizer = new GameVM.Compiler.Pascal.PascalMidLevelOptimizer();
@@ -38,8 +41,8 @@ namespace GameVM.Compiler.Application.Tests
                 pascalMidLevelOptimizer,
                 atari2600LowLevelOptimizer,
                 pascalCodeGenerator,
-                capabilityProvider,
-                capabilityValidator);
+                capabilityProviderMock.Object,
+                capabilityValidatorMock.Object);
 
             // Act
             var result = useCase.Compile("program test; begin end.", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
@@ -52,20 +55,20 @@ namespace GameVM.Compiler.Application.Tests
         public void Compile_InvalidProgram_ReturnsCompilationResultWithErrors()
         {
             // Arrange
-            var frontend = Substitute.For<ILanguageFrontend>();
-            var midLevelOptimizer = Substitute.For<IMidLevelOptimizer>();
-            var lowLevelOptimizer = Substitute.For<ILowLevelOptimizer>();
-            var codeGenerator = Substitute.For<ICodeGenerator>();
-            var capabilityProvider = Substitute.For<ICapabilityProvider>();
-            var capabilityValidator = Substitute.For<ICapabilityValidatorService>();
+            var frontendMock = new Mock<ILanguageFrontend>();
+            var midLevelOptimizerMock = new Mock<IMidLevelOptimizer>();
+            var lowLevelOptimizerMock = new Mock<ILowLevelOptimizer>();
+            var codeGeneratorMock = new Mock<ICodeGenerator>();
+            var capabilityProviderMock = new Mock<ICapabilityProvider>();
+            var capabilityValidatorMock = new Mock<ICapabilityValidatorService>();
 
             var compileUseCase = new CompileUseCase(
-                frontend,
-                midLevelOptimizer,
-                lowLevelOptimizer,
-                codeGenerator,
-                capabilityProvider,
-                capabilityValidator);
+                frontendMock.Object,
+                midLevelOptimizerMock.Object,
+                lowLevelOptimizerMock.Object,
+                codeGeneratorMock.Object,
+                capabilityProviderMock.Object,
+                capabilityValidatorMock.Object);
 
             var pascalFrontend = new PascalFrontend();
             var pascalMidLevelOptimizer = new GameVM.Compiler.Pascal.PascalMidLevelOptimizer();
@@ -77,8 +80,8 @@ namespace GameVM.Compiler.Application.Tests
                 pascalMidLevelOptimizer,
                 atari2600LowLevelOptimizer,
                 pascalCodeGenerator,
-                capabilityProvider,
-                capabilityValidator);
+                capabilityProviderMock.Object,
+                capabilityValidatorMock.Object);
 
             // Act
             var result = useCase.Compile("program invalid; begin", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
