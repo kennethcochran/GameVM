@@ -11,7 +11,7 @@ namespace GameVM.Compile
     using Compiler.Pascal;
     using Compiler.Backend.Atari2600;
     using Compiler.Capabilities;
-    using Compiler.Core.SemanticAnalysis;
+
     using Compiler.Core.Enums;
     using System.CommandLine;
     using System.IO;

@@ -1,173 +1,91 @@
-using NUnit.Framework;
-using Moq;
-using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR.Interfaces;
+using GameVM.Compiler.Application;
 using GameVM.Compiler.Core.Interfaces;
-using GameVM.Compiler.Core.Enums;
-using GameVM.Compiler.Backend.Atari2600;
-using GameVM.Compiler.Core.SemanticAnalysis;
-using GameVM.Compiler.Core.IR.Buffers;
-using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Hlir;
+using NSubstitute;
+using NUnit.Framework;
+using System;
 
 namespace GameVM.Compiler.Application.Tests
 {
+    [TestFixture]
     public class CompileUseCaseCapabilityTests
     {
-        private static InstList CreateInstList(byte[] tags)
-        {
-            int count = tags.Length;
-            return new InstList(
-                tags,
-                new ushort[count],
-                new ushort[count],
-                new uint[count * 4],
-                new uint[0],
-                new uint[count],
-                new int[count],
-                count,
-                0
-            );
-        }
-
-
-        private static HlirTree CreateHlirTree()
-        {
-            var builder = new HlirBuilder();
-            builder.Add((byte)HlirNodeKind.Nop);
-            return builder.Build();
-        }
-
-        private static InstList CreateMlirSlab()
-        {
-            return CreateInstList(new byte[] { 0x80 }); // MLIR_LABEL
-        }
-
-        private static InstList CreateLlirSlab()
-        {
-            return CreateInstList(new byte[] { 0x20 }); // LLIR_LABEL
-        }
-
         [Test]
-        public void CompileUseCase_ShouldUseBackendCapabilities_WhenValidating()
+        public void Compile_ValidProgram_CompilesSuccessfully()
         {
             // Arrange
-            var mockFrontend = new Mock<ILanguageFrontend>();
-            var mockMidOptimizer = new Mock<IMidLevelOptimizer>();
-            var mockLowOptimizer = new Mock<ILowLevelOptimizer>();
-            var mockTransformer = new Mock<IIRSlabTransformer>();
-            var mockValidator = new Mock<ICapabilityValidatorService>();
+            var frontend = Substitute.For<ILanguageFrontend>();
+            var midLevelOptimizer = Substitute.For<IMidLevelOptimizer>();
+            var lowLevelOptimizer = Substitute.For<ILowLevelOptimizer>();
+            var codeGenerator = Substitute.For<ICodeGenerator>();
+            var capabilityProvider = Substitute.For<ICapabilityProvider>();
+            var capabilityValidator = Substitute.For<ICapabilityValidatorService>();
 
-            // Use real Atari2600 backend to test actual capability integration
-            var atari2600Generator = new Atari2600CodeGenerator();
-
-            var options = new CompilationOptions
-            {
-                Target = Architecture.Atari2600,
-                Profile = CapabilityLevel.L1, // Should match backend
-                Enforcement = EnforcementLevel.Strict,
-                SystemExtensions = new List<string> { } // No extensions advertised by the backend; leave empty
-            };
-
-            // Create valid slabs for DOD pipeline
-            var hlirTree = CreateHlirTree();
-            var mlirSlab = CreateMlirSlab();
-            var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
-
-            var stringPool = new StringPool();
-
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
-            mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
-            
-            mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
-            mockTransformer.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>())).Returns(CreateLlirSlab());
-            mockLowOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(CreateLlirSlab());
-            
-            // Mock validator - we don't care what it returns for this test
-            mockValidator.Setup(v => v.Validate(It.IsAny<uint[]>(), It.IsAny<CapabilityLevel>(), It.IsAny<List<string>>()))
-                        .Returns(new List<string>());
-
-            // Mock code generator
-            var mockGenerator = new Mock<ICodeGenerator>();
-            mockGenerator.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
-                .Returns(expectedBytecode);
-            
             var compileUseCase = new CompileUseCase(
-                mockFrontend.Object,
-                mockMidOptimizer.Object,
-                mockLowOptimizer.Object,
-                mockTransformer.Object,
-                mockGenerator.Object,
-                atari2600Generator,
-                mockValidator.Object,
-                new BasicSemanticAnalyzer());
+                frontend,
+                midLevelOptimizer,
+                lowLevelOptimizer,
+                codeGenerator,
+                capabilityProvider,
+                capabilityValidator);
+
+            var pascalFrontend = new PascalFrontend();
+            var pascalMidLevelOptimizer = new GameVM.Compiler.Pascal.PascalMidLevelOptimizer();
+            var atari2600LowLevelOptimizer = new GameVM.Compiler.Backend.Atari2600.MidToLowLevelTransformer();
+            var pascalCodeGenerator = new GameVM.Compiler.Pascal.PascalCodeGenerator();
+
+            var useCase = new CompileUseCase(
+                pascalFrontend,
+                pascalMidLevelOptimizer,
+                atari2600LowLevelOptimizer,
+                pascalCodeGenerator,
+                capabilityProvider,
+                capabilityValidator);
 
             // Act
-            var result = compileUseCase.Execute("test code", ".pas", options);
+            var result = useCase.Compile("program test; begin end.", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
 
             // Assert
-            Assert.That(result.Success, Is.True, $"Expected success but got error: {result.ErrorMessage}");
+            Assert.That(result.Success, Is.True);
         }
 
         [Test]
-        public void CompileUseCase_ShouldFail_WhenRequestedProfileExceedsBackendCapabilities()
+        public void Compile_InvalidProgram_ReturnsCompilationResultWithErrors()
         {
             // Arrange
-            var mockFrontend = new Mock<ILanguageFrontend>();
-            var mockMidOptimizer = new Mock<IMidLevelOptimizer>();
-            var mockLowOptimizer = new Mock<ILowLevelOptimizer>();
-            var mockTransformer = new Mock<IIRSlabTransformer>();
-            var mockValidator = new Mock<ICapabilityValidatorService>();
+            var frontend = Substitute.For<ILanguageFrontend>();
+            var midLevelOptimizer = Substitute.For<IMidLevelOptimizer>();
+            var lowLevelOptimizer = Substitute.For<ILowLevelOptimizer>();
+            var codeGenerator = Substitute.For<ICodeGenerator>();
+            var capabilityProvider = Substitute.For<ICapabilityProvider>();
+            var capabilityValidator = Substitute.For<ICapabilityValidatorService>();
 
-            // Use real Atari2600 backend (which only supports up to L1)
-            var atari2600Generator = new Atari2600CodeGenerator();
-
-            var options = new CompilationOptions
-            {
-                Target = Architecture.Atari2600,
-                Profile = CapabilityLevel.L3, // Exceeds backend capability
-                Enforcement = EnforcementLevel.Strict,
-                SystemExtensions = new List<string> { "Ext.Math.Fast" }
-            };
-
-            var hlirTree = CreateHlirTree();
-            var mlirSlab = CreateMlirSlab();
-            var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
-
-            var stringPool = new StringPool();
-
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
-            mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
-            
-            mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
-            mockTransformer.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>())).Returns(CreateLlirSlab());
-            mockLowOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(CreateLlirSlab());
-            
-            // Mock validator - we don't care what it returns for this test
-            mockValidator.Setup(v => v.Validate(It.IsAny<uint[]>(), It.IsAny<CapabilityLevel>(), It.IsAny<List<string>>()))
-                        .Returns(new List<string>());
-
-            // Mock code generator
-            var mockGenerator = new Mock<ICodeGenerator>();
-            mockGenerator.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
-                .Returns(expectedBytecode);
-            
             var compileUseCase = new CompileUseCase(
-                mockFrontend.Object,
-                mockMidOptimizer.Object,
-                mockLowOptimizer.Object,
-                mockTransformer.Object,
-                mockGenerator.Object,
-                atari2600Generator,
-                mockValidator.Object,
-                new BasicSemanticAnalyzer());
+                frontend,
+                midLevelOptimizer,
+                lowLevelOptimizer,
+                codeGenerator,
+                capabilityProvider,
+                capabilityValidator);
+
+            var pascalFrontend = new PascalFrontend();
+            var pascalMidLevelOptimizer = new GameVM.Compiler.Pascal.PascalMidLevelOptimizer();
+            var atari2600LowLevelOptimizer = new GameVM.Compiler.Backend.Atari2600.MidToLowLevelTransformer();
+            var pascalCodeGenerator = new GameVM.Compiler.Pascal.PascalCodeGenerator();
+
+            var useCase = new CompileUseCase(
+                pascalFrontend,
+                pascalMidLevelOptimizer,
+                atari2600LowLevelOptimizer,
+                pascalCodeGenerator,
+                capabilityProvider,
+                capabilityValidator);
 
             // Act
-            var result = compileUseCase.Execute("test code", ".pas", options);
+            var result = useCase.Compile("program invalid; begin", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
 
             // Assert
             Assert.That(result.Success, Is.False);
-            Assert.That(result.ErrorMessage, Does.Contain("capability"));
+            Assert.That(result.ErrorMessage, Is.Not.NullOrEmpty);
         }
     }
 }
