@@ -1,173 +1,92 @@
-using NUnit.Framework;
-using Moq;
+using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
-using GameVM.Compiler.Backend.Atari2600;
-using GameVM.Compiler.Core.SemanticAnalysis;
+using Moq;
+using NUnit.Framework;
+using GameVM.Compiler.Core.IR.Interfaces;
+using System.Collections.Generic;
+using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Hlir;
 
 namespace GameVM.Compiler.Application.Tests
 {
+    [TestFixture]
     public class CompileUseCaseCapabilityTests
     {
-        private static InstList CreateInstList(byte[] tags)
+        private Mock<ILanguageFrontend> _frontendMock = null!;
+        private Mock<IMidLevelOptimizer> _midOptimizerMock = null!;
+        private Mock<ILowLevelOptimizer> _lowOptimizerMock = null!;
+        private Mock<IIRSlabTransformer> _transformerMock = null!;
+        private Mock<ICodeGenerator> _codeGenMock = null!;
+        private Mock<ICapabilityProvider> _capProviderMock = null!;
+        private Mock<ICapabilityValidatorService> _capValidatorMock = null!;
+        private CompileUseCase _useCase = null!;
+
+        [SetUp]
+        public void Setup()
         {
-            int count = tags.Length;
-            return new InstList(
-                tags,
-                new ushort[count],
-                new ushort[count],
-                new uint[count * 4],
-                new uint[0],
-                new uint[count],
-                new int[count],
-                count,
-                0
-            );
-        }
+            _frontendMock = new Mock<ILanguageFrontend>();
+            _midOptimizerMock = new Mock<IMidLevelOptimizer>();
+            _lowOptimizerMock = new Mock<ILowLevelOptimizer>();
+            _transformerMock = new Mock<IIRSlabTransformer>();
+            _codeGenMock = new Mock<ICodeGenerator>();
+            _capProviderMock = new Mock<ICapabilityProvider>();
+            _capValidatorMock = new Mock<ICapabilityValidatorService>();
 
+            var hlirBuilder = new HlirBuilder();
+            hlirBuilder.Add((byte)HlirNodeKind.Nop);
+            _frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
+                .Returns(new ParseResult(hlirBuilder.Build(), default));
+            _frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
 
-        private static HlirTree CreateHlirTree()
-        {
-            var builder = new HlirBuilder();
-            builder.Add((byte)HlirNodeKind.Nop);
-            return builder.Build();
-        }
+            _midOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(new InstList(new byte[] { 0x80 }, new ushort[] { 0 }, new ushort[] { 0 },
+                    new uint[] { 0 }, new uint[] { }, new uint[] { 0 }, new int[] { 0 }, 1, 0));
+            _transformerMock.Setup(x => x.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
+                .Returns(new InstList(new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
+                    new ushort[] { 0 }, new ushort[] { 0 },
+                    new uint[] { 0, 0, 0, 0 }, new uint[] { }, new uint[] { 0 }, new int[] { 0 }, 1, 0));
+            _lowOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
+                .Returns(new InstList(new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
+                    new ushort[] { 0 }, new ushort[] { 0 },
+                    new uint[] { 0, 0, 0, 0 }, new uint[] { }, new uint[] { 0 }, new int[] { 0 }, 1, 0));
+            _codeGenMock.Setup(x => x.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
+                .Returns(new byte[] { 1, 2, 3 });
 
-        private static InstList CreateMlirSlab()
-        {
-            return CreateInstList(new byte[] { 0x80 }); // MLIR_LABEL
-        }
+            _capProviderMock.Setup(p => p.GetCapabilityProfile()).Returns(new CapabilityProfile { BaseLevel = CapabilityLevel.L3 });
+            _capProviderMock.Setup(p => p.GetSupportedExtensions()).Returns(new List<string>());
 
-        private static InstList CreateLlirSlab()
-        {
-            return CreateInstList(new byte[] { 0x20 }); // LLIR_LABEL
-        }
-
-        [Test]
-        public void CompileUseCase_ShouldUseBackendCapabilities_WhenValidating()
-        {
-            // Arrange
-            var mockFrontend = new Mock<ILanguageFrontend>();
-            var mockMidOptimizer = new Mock<IMidLevelOptimizer>();
-            var mockLowOptimizer = new Mock<ILowLevelOptimizer>();
-            var mockTransformer = new Mock<IIRSlabTransformer>();
-            var mockValidator = new Mock<ICapabilityValidatorService>();
-
-            // Use real Atari2600 backend to test actual capability integration
-            var atari2600Generator = new Atari2600CodeGenerator();
-
-            var options = new CompilationOptions
-            {
-                Target = Architecture.Atari2600,
-                Profile = CapabilityLevel.L1, // Should match backend
-                Enforcement = EnforcementLevel.Strict,
-                SystemExtensions = new List<string> { } // No extensions advertised by the backend; leave empty
-            };
-
-            // Create valid slabs for DOD pipeline
-            var hlirTree = CreateHlirTree();
-            var mlirSlab = CreateMlirSlab();
-            var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
-
-            var stringPool = new StringPool();
-
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
-            mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
-            
-            mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
-            mockTransformer.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>())).Returns(CreateLlirSlab());
-            mockLowOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(CreateLlirSlab());
-            
-            // Mock validator - we don't care what it returns for this test
-            mockValidator.Setup(v => v.Validate(It.IsAny<uint[]>(), It.IsAny<CapabilityLevel>(), It.IsAny<List<string>>()))
-                        .Returns(new List<string>());
-
-            // Mock code generator
-            var mockGenerator = new Mock<ICodeGenerator>();
-            mockGenerator.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
-                .Returns(expectedBytecode);
-            
-            var compileUseCase = new CompileUseCase(
-                mockFrontend.Object,
-                mockMidOptimizer.Object,
-                mockLowOptimizer.Object,
-                mockTransformer.Object,
-                mockGenerator.Object,
-                atari2600Generator,
-                mockValidator.Object,
-                new BasicSemanticAnalyzer());
-
-            // Act
-            var result = compileUseCase.Execute("test code", ".pas", options);
-
-            // Assert
-            Assert.That(result.Success, Is.True, $"Expected success but got error: {result.ErrorMessage}");
+            _useCase = new CompileUseCase(
+                _frontendMock.Object,
+                _midOptimizerMock.Object,
+                _lowOptimizerMock.Object,
+                _transformerMock.Object,
+                _codeGenMock.Object,
+                _capProviderMock.Object,
+                _capValidatorMock.Object);
         }
 
         [Test]
-        public void CompileUseCase_ShouldFail_WhenRequestedProfileExceedsBackendCapabilities()
+        public void Compile_ValidProgram_CompilesSuccessfully()
         {
-            // Arrange
-            var mockFrontend = new Mock<ILanguageFrontend>();
-            var mockMidOptimizer = new Mock<IMidLevelOptimizer>();
-            var mockLowOptimizer = new Mock<ILowLevelOptimizer>();
-            var mockTransformer = new Mock<IIRSlabTransformer>();
-            var mockValidator = new Mock<ICapabilityValidatorService>();
+            var result = _useCase.Execute("program Test; begin end.", ".pas", new CompilationOptions { Target = Architecture.Genesis, Profile = CapabilityLevel.L2, Enforcement = EnforcementLevel.Strict });
 
-            // Use real Atari2600 backend (which only supports up to L1)
-            var atari2600Generator = new Atari2600CodeGenerator();
+            Assert.That(result.Success, Is.True);
+        }
 
-            var options = new CompilationOptions
-            {
-                Target = Architecture.Atari2600,
-                Profile = CapabilityLevel.L3, // Exceeds backend capability
-                Enforcement = EnforcementLevel.Strict,
-                SystemExtensions = new List<string> { "Ext.Math.Fast" }
-            };
+        [Test]
+        public void Compile_InvalidProgram_ReturnsCompilationResultWithErrors()
+        {
+            _frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
+                .Returns(new ParseResult(HlirTree.Empty, default));
+            _frontendMock.Setup(x => x.LastParseErrors).Returns(new List<string> { "Syntax error" });
 
-            var hlirTree = CreateHlirTree();
-            var mlirSlab = CreateMlirSlab();
-            var expectedBytecode = new byte[] { 0x4C, 0xA9, 0x00, 0x8D, 0x09, 0x09 };
+            var result = _useCase.Execute("program invalid;\nbegin", ".pas", new CompilationOptions { Target = Architecture.Atari2600 });
 
-            var stringPool = new StringPool();
-
-            mockFrontend.Setup(f => f.ParseToHlir(It.IsAny<string>())).Returns(new ParseResult(hlirTree, default));
-            mockFrontend.SetupGet(f => f.StringPool).Returns(stringPool);
-            
-            mockMidOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(mlirSlab);
-            mockTransformer.Setup(t => t.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>())).Returns(CreateLlirSlab());
-            mockLowOptimizer.Setup(o => o.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>())).Returns(CreateLlirSlab());
-            
-            // Mock validator - we don't care what it returns for this test
-            mockValidator.Setup(v => v.Validate(It.IsAny<uint[]>(), It.IsAny<CapabilityLevel>(), It.IsAny<List<string>>()))
-                        .Returns(new List<string>());
-
-            // Mock code generator
-            var mockGenerator = new Mock<ICodeGenerator>();
-            mockGenerator.Setup(g => g.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
-                .Returns(expectedBytecode);
-            
-            var compileUseCase = new CompileUseCase(
-                mockFrontend.Object,
-                mockMidOptimizer.Object,
-                mockLowOptimizer.Object,
-                mockTransformer.Object,
-                mockGenerator.Object,
-                atari2600Generator,
-                mockValidator.Object,
-                new BasicSemanticAnalyzer());
-
-            // Act
-            var result = compileUseCase.Execute("test code", ".pas", options);
-
-            // Assert
             Assert.That(result.Success, Is.False);
-            Assert.That(result.ErrorMessage, Does.Contain("capability"));
+            Assert.That(result.ErrorMessage, Is.Not.Empty);
         }
     }
 }

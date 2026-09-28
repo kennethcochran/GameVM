@@ -47,8 +47,7 @@ public class DiagnosticsTests
             Mock.Of<IIRSlabTransformer>(),
             Mock.Of<ICodeGenerator>(),
             Mock.Of<ICapabilityProvider>(),
-            Mock.Of<GameVM.Compiler.Application.Services.ICapabilityValidatorService>(),
-            Mock.Of<ISemanticAnalyzer>());
+            Mock.Of<GameVM.Compiler.Application.Services.ICapabilityValidatorService>());
 
         var result = useCase.Execute(PascalCodeWithSemanticError, ".pas", options);
 

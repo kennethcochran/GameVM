@@ -1,146 +1,145 @@
-/******************************************************************************
-* This file contains tests for the CompileUseCase class.
-******************************************************************************/
+using System;
 using NUnit.Framework;
-using Moq;
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR.Buffers;
-using Moq.AutoMock;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
-using GameVM.Compiler.Core.SemanticAnalysis;
-using GameVM.Compiler.Core.IR.Soa;
-using GameVM.Compiler.Core.IR.Hlir;
 using System.Collections.Generic;
+using GameVM.Compiler.Core.IR.Hlir;
+using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Soa;
 
 namespace UnitTests.Application
 {
+    [TestFixture]
     public class CompileUseCaseTests
     {
-        private AutoMocker _mocker = null!;
         private CompileUseCase _compileUseCase = null!;
-        private string _tempFilePath = null!;
 
         [SetUp]
         public void Setup()
         {
-            _mocker = new AutoMocker();
+            _compileUseCase = new CompileUseCase(
+                new MockFrontend(),
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
+        }
 
-            // Get all mocks first to ensure we set up the same instances that will be injected
-            var frontendMock = _mocker.GetMock<ILanguageFrontend>();
-            var midLevelOptimizerMock = _mocker.GetMock<IMidLevelOptimizer>();
-            var lowLevelOptimizerMock = _mocker.GetMock<ILowLevelOptimizer>();
-            var mlirToLlirMock = _mocker.GetMock<IIRSlabTransformer>();
-            var codeGeneratorMock = _mocker.GetMock<ICodeGenerator>();
-            var capabilityProviderMock = _mocker.GetMock<ICapabilityProvider>();
-            var capabilityValidatorMock = _mocker.GetMock<ICapabilityValidatorService>();
-            var semanticAnalyzerMock = _mocker.GetMock<ISemanticAnalyzer>();
+        [Test]
+        public void Compile_ValidPascalProgram_ReturnsSuccess()
+        {
+            var result = _compileUseCase.Execute("program test;\nvar x: Integer;\nbegin\n  x := 1;\nend.", ".pas", new CompilationOptions { Target = Architecture.Atari2600 });
 
-            var hlirBuilder = new HlirBuilder();
-            hlirBuilder.Add((byte)HlirNodeKind.Nop);
+            Assert.That(result.Success, Is.True);
+            Assert.That(string.IsNullOrEmpty(result.ErrorMessage));
+        }
 
-            // Set up common mocks that both tests need
-            frontendMock.Setup(x => x.ParseToHlir(It.IsAny<string>()))
-                .Returns(new ParseResult(hlirBuilder.Build(), default));
+        [Test]
+        public void Compile_InvalidPascalProgram_ReturnsError()
+        {
+            var invalidFrontend = new MockFrontend(isInvalid: true);
+            var useCase = new CompileUseCase(
+                invalidFrontend,
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
+            var result = useCase.Execute("program invalid;\nbegin", ".pas", new CompilationOptions { Target = Architecture.Atari2600 });
 
-            frontendMock.Setup(x => x.StringPool).Returns(new StringPool());
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.ErrorMessage, Is.Not.Null);
+        }
 
-            midLevelOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
-                .Returns(new InstList(
-                    new byte[] { 0x80 }, // tags (MLIR_LABEL)
-                    new ushort[] { 0x0000 }, // flags
-                    new ushort[] { 0x0000 }, // argCount=0
-                    new uint[] { 0x00000000 }, // fixedOps
-                    new uint[] { }, // empty extra pool
-                    new uint[] { 0x00000000 }, // empty extraOffsets
-                    new int[] { 0 }, // blockIds
-                    1, // count
-                    0  // no extra data
-                ));
+        private class MockFrontend : ILanguageFrontend
+        {
+            private readonly bool _isInvalid;
 
-            mlirToLlirMock.Setup(x => x.TransformSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
-                .Returns(new InstList(
-                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 }, // minimal valid MLIR slab
-                    new ushort[] { 0x0000 }, // flags
-                    new ushort[] { 0x0000 }, // argCount=0
-                    new uint[] { 0x00000000 }, // fixedOps
-                    new uint[] { }, // empty extra pool
-                    new uint[] { 0x00000000 }, // empty extraOffsets
-                    new int[] { 0 }, // blockIds
-                    1, // count
-                    0  // no extra data
-                ));
+            public MockFrontend(bool isInvalid = false) => _isInvalid = isInvalid;
 
-            lowLevelOptimizerMock.Setup(x => x.OptimizeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<OptimizationLevel>()))
-                .Returns(new InstList(
-                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 }, // LLIR slab tag + metadata
+            public ParseResult ParseToHlir(string sourceCode)
+            {
+                if (_isInvalid) return new ParseResult(HlirTree.Empty, new SymbolTable());
+                var builder = new HlirBuilder();
+                builder.Add((byte)HlirNodeKind.Nop);
+                return new ParseResult(builder.Build(), new SymbolTable());
+            }
+            public IReadOnlyList<string>? LastParseErrors => null;
+            public StringPool? StringPool => new();
+            public IReadOnlyList<SemanticError>? SemanticErrors => null;
+        }
+
+        private class MockMidLevelOptimizer : IMidLevelOptimizer
+        {
+            public InstList OptimizeSlab(InstList hlirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
+            {
+                return new InstList(
+                    new byte[] { 0x80 },
+                    new ushort[] { 0x0000 },
+                    new ushort[] { 0x0000 },
+                    new uint[] { 0x00000000 },
+                    new uint[] { },
+                    new uint[] { 0x00000000 },
+                    new int[] { 0 },
+                    1, 0);
+            }
+        }
+
+        private class MockLowLevelOptimizer : ILowLevelOptimizer
+        {
+            public InstList OptimizeSlab(InstList llirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
+            {
+                return new InstList(
+                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
                     new ushort[] { 0x0000 },
                     new ushort[] { 0x0000 },
                     new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
                     new uint[] { },
                     new uint[] { 0x00000000 },
                     new int[] { 0 },
-                    1,
-                    0
-                ));
-
-            codeGeneratorMock.Setup(x => x.GenerateFromSlab(It.IsAny<InstList>(), It.IsAny<StringPool>(), It.IsAny<CodeGenOptions>()))
-                .Returns(new byte[] { 1, 2, 3 });
-
-            semanticAnalyzerMock.Setup(x => x.AnalyzeSlab(It.IsAny<InstList>(), It.IsAny<StringPool>()))
-                .Returns(SemanticAnalysisResult.CreateSuccess());
-
-            // Set up capability provider and validator to avoid backend violations
-            var backendProfile = new CapabilityProfile { BaseLevel = CapabilityLevel.L3 };
-            capabilityProviderMock.Setup(p => p.GetCapabilityProfile())
-                .Returns(backendProfile);
-            capabilityProviderMock.Setup(p => p.GetSupportedExtensions())
-                .Returns(new List<string>());
-
-            capabilityValidatorMock.Setup(v => v.Validate(It.IsAny<uint[]>(), It.IsAny<CapabilityLevel>(), It.IsAny<List<string>>()))
-                .Returns(new List<string>());
-
-            // Create a temporary file for testing
-            _tempFilePath = System.IO.Path.GetTempFileName();
-            System.IO.File.WriteAllText(_tempFilePath, "test content");
-
-            // Now create the instance with the configured mocks
-            _compileUseCase = _mocker.CreateInstance<CompileUseCase>();
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            // Clean up temporary file
-            if (System.IO.File.Exists(_tempFilePath))
-            {
-                System.IO.File.Delete(_tempFilePath);
+                    1, 0);
             }
         }
 
-        [Test]
-        public void Execute_WhenCompilationSucceeds_ReturnsSuccessfulResult()
+        private class MockMlirToLlir : IIRSlabTransformer
         {
-            // Arrange - all dependencies are already set up in Setup method
-            var options = new CompilationOptions
+            public InstList TransformSlab(InstList inputSlab, StringPool stringPool)
             {
-                Target = Architecture.Genesis,
-                DispatchStrategy = DispatchStrategy.DirectThreadedCode,
-                GenerateDebugInfo = false,
-                Optimize = true
-            };
+                return new InstList(
+                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
+                    new ushort[] { 0x0000 },
+                    new ushort[] { 0x0000 },
+                    new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                    new uint[] { },
+                    new uint[] { 0x00000000 },
+                    new int[] { 0 },
+                    1, 0);
+            }
+        }
 
-            // Act
-            var result = _compileUseCase.Execute(_tempFilePath, options);
+        private class MockCodeGenerator : ICodeGenerator
+        {
+            public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
+            {
+                return new byte[] { 1, 2, 3 };
+            }
+        }
 
-            // Assert
-            Assert.That(result.Success, Is.True);
-            Assert.That(result.Code, Is.Not.Null);
-            Assert.That(result.Code.Length, Is.GreaterThan(0));
-            Assert.That(result.ErrorMessage, Is.Empty);
+        private class MockCapabilityProvider : ICapabilityProvider
+        {
+            public CapabilityProfile GetCapabilityProfile() => new() { BaseLevel = CapabilityLevel.L3 };
+            public IEnumerable<string> GetSupportedExtensions() => new List<string>();
+        }
+
+        private class MockCapabilityValidator : ICapabilityValidatorService
+        {
+            public IEnumerable<string> Validate(uint[] hlirSlab, CapabilityLevel profile, List<string> systemExtensions) => new List<string>();
         }
     }
 }

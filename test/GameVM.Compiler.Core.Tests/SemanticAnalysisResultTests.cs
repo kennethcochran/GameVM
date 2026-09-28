@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using GameVM.Compiler.Core.Interfaces;
+using NUnit.Framework;
 
 namespace GameVM.Compiler.Core.Tests
 {
@@ -6,51 +8,54 @@ namespace GameVM.Compiler.Core.Tests
     public class SemanticAnalysisResultTests
     {
         [Test]
-        public void CreateSuccess_ReturnsSuccessfulResult()
-        {
-            // Act
-            var result = SemanticAnalysisResult.CreateSuccess();
-
-            // Assert
-            Assert.That(result.Success, Is.True);
-            Assert.That(result.Errors, Is.Empty);
-            Assert.That(result.Warnings, Is.Empty);
-        }
-
-        [Test]
-        public void Failure_ReturnsFailedResult_WithErrors()
-        {
-            // Act
-            var result = SemanticAnalysisResult.Failure("error1", "error2");
-
-            // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Errors, Has.Count.EqualTo(2));
-            Assert.That(result.Errors[0], Is.EqualTo("error1"));
-            Assert.That(result.Errors[1], Is.EqualTo("error2"));
-        }
-
-        [Test]
-        public void Failure_WithNoErrors_ReturnsFailedResult_WithEmptyErrorList()
-        {
-            // Act
-            var result = SemanticAnalysisResult.Failure();
-
-            // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Errors, Is.Empty);
-        }
-
-        [Test]
-        public void NewResult_HasDefaultSuccessValueFalse()
+        public void EmptyErrors_IsEmpty_ReturnsTrue()
         {
             // Arrange & Act
-            var result = new SemanticAnalysisResult();
+            var diagnostics = new SemanticDiagnostics(Array.Empty<SemanticError>());
 
             // Assert
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Errors, Is.Not.Null);
-            Assert.That(result.Warnings, Is.Not.Null);
+            Assert.That(diagnostics.IsEmpty);
+        }
+
+        [Test]
+        public void ErrorsPresent_IsEmpty_ReturnsFalse()
+        {
+            // Arrange & Act
+            var error = new SemanticError("Test error", "CODE", 1, 2);
+            var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error });
+
+            // Assert
+            Assert.That(!diagnostics.IsEmpty);
+        }
+
+        [Test]
+        public void Summary_FormatsCorrectly()
+        {
+            // Arrange
+            var error1 = new SemanticError("Error at line 1", "CODE", 1, 2);
+            var error2 = new SemanticError("Error at line 10", "CODE", 10, 20);
+
+            // Act
+            var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error1, error2 });
+
+            // Assert
+            Assert.That(diagnostics.Summary, Is.EqualTo("1:2: Error at line 1\n10:20: Error at line 10"));
+        }
+
+        [Test]
+        public void ErrorsList_ContainsErrors()
+        {
+            // Arrange
+            var error = new SemanticError("Test error", "CODE", 1, 2);
+
+            // Act
+            var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error });
+
+            // Assert
+            Assert.That(diagnostics.Errors.Count, Is.EqualTo(1));
+            Assert.That(diagnostics.Errors[0].Line, Is.EqualTo(1));
+            Assert.That(diagnostics.Errors[0].Column, Is.EqualTo(2));
+            Assert.That(diagnostics.Errors[0].Message, Is.EqualTo("Test error"));
         }
     }
 }
