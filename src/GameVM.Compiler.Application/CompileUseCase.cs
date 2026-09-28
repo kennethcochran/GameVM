@@ -12,7 +12,7 @@ namespace GameVM.Compiler.Application
 {
     /// <summary>
     /// Orchestrates the compilation pipeline from source code to GameVM final IR.
-    /// </>
+    /// </summary>
     public class CompileUseCase : ICompileUseCase
     {
         private readonly ILanguageFrontend _frontend;

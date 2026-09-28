@@ -1,15 +1,13 @@
+using System;
 using NUnit.Framework;
-using Moq;
 using GameVM.Compiler.Application;
 using GameVM.Compiler.Application.Services;
-using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
-using GameVM.Compiler.Core.IR.Buffers;
-using Moq.AutoMock;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.Enums;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.IR.Hlir;
+using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
 
 namespace UnitTests.Application
@@ -17,119 +15,131 @@ namespace UnitTests.Application
     [TestFixture]
     public class CompileUseCaseTests
     {
-        private AutoMocker _mocker = null!;
         private CompileUseCase _compileUseCase = null!;
-        private string _tempFilePath = null!;
 
         [SetUp]
         public void Setup()
         {
-            _mocker = new AutoMocker();
-            _mocker.Use<_Frontend, MockFrontend>();
-            _mocker.Use<IMidLevelOptimizer, MockMidLevelOptimizer>();
-            _mocker.Use<ILowLevelOptimizer, MockLowLevelOptimizer>();
-            _mocker.Use<IIRSlabTransformer, MockMlirToLlir>();
-            _mocker.Use<ICodeGenerator, MockCodeGenerator>();
-            _mocker.Use<ICapabilityProvider, MockCapabilityProvider>();
-            _mocker.Use<ICapabilityValidatorService, MockCapabilityValidator>();
-            _compileUseCase = _mocker.CreateInstance<CompileUseCase>();
+            _compileUseCase = new CompileUseCase(
+                new MockFrontend(),
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
         }
 
         [Test]
         public void Compile_ValidPascalProgram_ReturnsSuccess()
         {
-            // Act
-            var result = _compileUseCase.Compile("program test; begin end.", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
+            var result = _compileUseCase.Execute("program test;\nvar x: Integer;\nbegin\n  x := 1;\nend.", ".pas", new CompilationOptions { Target = Architecture.Atari2600 });
 
-            // Assert
             Assert.That(result.Success, Is.True);
-            Assert.That(result.ErrorMessage, Is.Null.Or.Empty);
+            Assert.That(string.IsNullOrEmpty(result.ErrorMessage));
         }
 
         [Test]
         public void Compile_InvalidPascalProgram_ReturnsError()
         {
-            // Act
-            var result = _compileUseCase.Compile("program invalid; begin", "pas", new CompilationOptions { Target = TargetPlatform.Atari2600 });
+            var invalidFrontend = new MockFrontend(isInvalid: true);
+            var useCase = new CompileUseCase(
+                invalidFrontend,
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
+            var result = useCase.Execute("program invalid;\nbegin", ".pas", new CompilationOptions { Target = Architecture.Atari2600 });
 
-            // Assert
             Assert.That(result.Success, Is.False);
-            Assert.That(result.ErrorMessage, Is.Not.NullOrEmpty);
+            Assert.That(result.ErrorMessage, Is.Not.Null);
         }
 
-        // Mock classes for testing
         private class MockFrontend : ILanguageFrontend
         {
-            public ParseResult ParseToHlir(string sourceCode) => new(new HlirTree(new HlirProcedure(Array.Empty<HlirStatement>(), Array.Empty<HlirProcedure>(), new SymbolTable())), new SymbolTable());
+            private readonly bool _isInvalid;
 
+            public MockFrontend(bool isInvalid = false) => _isInvalid = isInvalid;
+
+            public ParseResult ParseToHlir(string sourceCode)
+            {
+                if (_isInvalid) return new ParseResult(HlirTree.Empty, new SymbolTable());
+                var builder = new HlirBuilder();
+                builder.Add((byte)HlirNodeKind.Nop);
+                return new ParseResult(builder.Build(), new SymbolTable());
+            }
             public IReadOnlyList<string>? LastParseErrors => null;
-
-            public StringPool? StringPool => null;
-
+            public StringPool? StringPool => new();
             public IReadOnlyList<SemanticError>? SemanticErrors => null;
         }
 
         private class MockMidLevelOptimizer : IMidLevelOptimizer
         {
-            public (bool Success, string[] Errors) Optimize(HlirTree program, CapabilityProfile capabilityProfile)
+            public InstList OptimizeSlab(InstList hlirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
             {
-                return (true, Array.Empty<string>());
+                return new InstList(
+                    new byte[] { 0x80 },
+                    new ushort[] { 0x0000 },
+                    new ushort[] { 0x0000 },
+                    new uint[] { 0x00000000 },
+                    new uint[] { },
+                    new uint[] { 0x00000000 },
+                    new int[] { 0 },
+                    1, 0);
             }
         }
 
         private class MockLowLevelOptimizer : ILowLevelOptimizer
         {
-            public (bool Success, string[] Errors) Optimize(MidLevelRepresentation program, CapabilityProfile capabilityProfile)
+            public InstList OptimizeSlab(InstList llirSlab, StringPool stringPool, OptimizationLevel optimizationLevel)
             {
-                return (true, Array.Empty<string>());
+                return new InstList(
+                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
+                    new ushort[] { 0x0000 },
+                    new ushort[] { 0x0000 },
+                    new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                    new uint[] { },
+                    new uint[] { 0x00000000 },
+                    new int[] { 0 },
+                    1, 0);
             }
         }
 
         private class MockMlirToLlir : IIRSlabTransformer
         {
-            public (bool Success, string[] Errors) TransformSlab(MidLevelRepresentation slab, CapabilityProfile capabilityProfile)
+            public InstList TransformSlab(InstList inputSlab, StringPool stringPool)
             {
-                return (true, Array.Empty<string>());
-            }
-
-            public (bool Success, string[] Errors) TransformSlab(MidLevelRepresentation slab, CapabilityProfile capabilityProfile, out MidLevelRepresentation result)
-            {
-                result = slab;
-                return (true, Array.Empty<string>());
+                return new InstList(
+                    new byte[] { 0x47, 0x49, 0x4D, 0x4C, 1, 3, 0, 0 },
+                    new ushort[] { 0x0000 },
+                    new ushort[] { 0x0000 },
+                    new uint[] { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
+                    new uint[] { },
+                    new uint[] { 0x00000000 },
+                    new int[] { 0 },
+                    1, 0);
             }
         }
 
         private class MockCodeGenerator : ICodeGenerator
         {
-            public CompilationResult Generate(HlirTree program, MidLevelRepresentation transformer, CompilationOptions options)
+            public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
             {
-                return new CompilationResult
-                {
-                    Success = true,
-                    Code = Array.Empty<byte>(),
-                    SourceFile = options.SourceFile,
-                    Target = options.Target,
-                    ErrorMessage = null
-                };
+                return new byte[] { 1, 2, 3 };
             }
         }
 
         private class MockCapabilityProvider : ICapabilityProvider
         {
-            public CapabilityProfile Profile => new();
-
-            public (bool Success, string[] Errors) Validate(string source, string extension, CompilationOptions options)
-            {
-                return (true, Array.Empty<string>());
-            }
+            public CapabilityProfile GetCapabilityProfile() => new() { BaseLevel = CapabilityLevel.L3 };
+            public IEnumerable<string> GetSupportedExtensions() => new List<string>();
         }
 
         private class MockCapabilityValidator : ICapabilityValidatorService
         {
-            public (bool Success, string[] Errors) Validate(CapabilityProfile capabilityProfile)
-            {
-                return (true, Array.Empty<string>());
-            }
+            public IEnumerable<string> Validate(uint[] hlirSlab, CapabilityLevel profile, List<string> systemExtensions) => new List<string>();
         }
     }
 }

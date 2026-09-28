@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using GameVM.Compiler.Core.Interfaces;
 using NUnit.Framework;
 
@@ -20,7 +21,7 @@ namespace GameVM.Compiler.Core.Tests
         public void ErrorsPresent_IsEmpty_ReturnsFalse()
         {
             // Arrange & Act
-            var error = new SemanticError(1, 2, "Test error");
+            var error = new SemanticError("Test error", "CODE", 1, 2);
             var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error });
 
             // Assert
@@ -31,8 +32,8 @@ namespace GameVM.Compiler.Core.Tests
         public void Summary_FormatsCorrectly()
         {
             // Arrange
-            var error1 = new SemanticError(1, 2, "Error at line 1");
-            var error2 = new SemanticError(10, 20, "Error at line 10");
+            var error1 = new SemanticError("Error at line 1", "CODE", 1, 2);
+            var error2 = new SemanticError("Error at line 10", "CODE", 10, 20);
 
             // Act
             var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error1, error2 });
@@ -45,7 +46,7 @@ namespace GameVM.Compiler.Core.Tests
         public void ErrorsList_ContainsErrors()
         {
             // Arrange
-            var error = new SemanticError(1, 2, "Test error");
+            var error = new SemanticError("Test error", "CODE", 1, 2);
 
             // Act
             var diagnostics = new SemanticDiagnostics(new List<SemanticError> { error });
