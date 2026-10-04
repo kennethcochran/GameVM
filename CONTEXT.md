@@ -140,8 +140,26 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
   - `Type mismatch: cannot assign '{valueText}' to Integer variable '{targetName}'`
 - No new rules added (duplicate decl, for-control, call arity are later tickets).
 
----
+### Semantic Error Structure
 
+- `SemanticError` is a plain data class in `GameVM.Compiler.Core.Interfaces` with properties: `Message`, `ErrorCode`, `Line`, `Column`.
+- Constructed by `PascalSemanticAnalyzer` during its single-pass validation; no early abort on first error.
+- `SemanticErrors` (structured list) and `LastParseErrors` (string messages) are both populated on violation; structured errors propagate through `CompilationResult` (ticket 02).
+
+### Compile Use Case
+
+- `CompileUseCase` lives in `GameVM.Compiler.Application` and coordinates the full pipeline: frontend → mid-level optimizer → low-level optimizer → IR slab transformer → code generator.
+- Constructor signature: `(ILanguageFrontend, IMidLevelOptimizer, ILowLevelOptimizer, IIRSlabTransformer, ICodeGenerator, ICapabilityProvider, ICapabilityValidatorService)` — seven dependencies, no defaults.
+- Returns `CompilationResult` with binary output or diagnostic errors from any stage.
+
+### Compile Host Entry Point
+
+- `GameVM.Compile.Program.Main` uses Microsoft.Extensions.Hosting for DI container setup, wiring `ICompilerService` through the registered concrete types (`PascalFrontend`, `DefaultMidLevelOptimizer`, `DefaultLowLevelOptimizer`, `MidToLowLevelTransformer`, `Atari2600CodeGenerator`).
+- CLI uses `System.CommandLine`: `--input` (source file path) and `--output` (ROM output path) options.
+
+### Backup File Cleanup
+
+- Removed orphan `.orig` and `.bak` files (`ISemanticAnalyzer.cs.orig`, `DefaultMidLevelOptimizer.cs.orig`, `Atari2600CodeGenerator.cs.bak`) — these were staging artifacts, not part of the source tree.
 
 ## 3. Current Platform Reality
 

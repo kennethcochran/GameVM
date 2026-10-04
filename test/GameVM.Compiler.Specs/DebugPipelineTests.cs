@@ -6,7 +6,6 @@ using GameVM.Compiler.Optimizers.MidLevel;
 using GameVM.Compiler.Optimizers.LowLevel;
 using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Capabilities;
-using GameVM.Compiler.Core.SemanticAnalysis;
 using GameVM.Compiler.Core.IR.Soa;
 
 namespace GameVM.Compiler.Specs;
@@ -14,7 +13,6 @@ namespace GameVM.Compiler.Specs;
 [TestFixture]
 public class DebugPipelineTests
 {
-
     [Test]
     public void Debug_PipelineStages()
     {
@@ -26,7 +24,7 @@ public class DebugPipelineTests
         var capValidator = new CapabilityValidatorService();
 
         var useCase = new CompileUseCase(
-            frontend, midOptimizer, lowOptimizer, transformer, codeGen, codeGen, capValidator, new BasicSemanticAnalyzer());
+            frontend, midOptimizer, lowOptimizer, transformer, codeGen, codeGen, capValidator);
 
         var sourceCode = "program Arithmetic;\nvar x, y, z: Integer;\nbegin\n    x := 5;\nend.";
 
@@ -69,9 +67,8 @@ public class DebugPipelineTests
             llirSlab = transformer.TransformSlab(mlirSlab, frontend.StringPool!);
             TestContext.WriteLine($"LLIR slab count: {llirSlab.Count}");
             for (int i = 0; i < Math.Min(20, llirSlab.Count); i++)
-                TestContext.WriteLine($"  [{i}]=Kind:{llirSlab.GetKind(i)}, Args:{llirSlab.GetArgCount(i)}");
+                TestContext.WriteLine($"  [{i}]=Kind:{llirSlab.GetKind(i)}, Args:{mlirSlab.GetArgCount(i)}");
         }
-
 
         Assert.Pass("Debug test completed");
     }

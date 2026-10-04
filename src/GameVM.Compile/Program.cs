@@ -11,7 +11,7 @@ namespace GameVM.Compile
     using Compiler.Pascal;
     using Compiler.Backend.Atari2600;
     using Compiler.Capabilities;
-    using Compiler.Core.SemanticAnalysis;
+
     using Compiler.Core.Enums;
     using System.CommandLine;
     using System.IO;
@@ -40,9 +40,6 @@ namespace GameVM.Compile
 
                 // Register capability validator
                 services.AddSingleton<ICapabilityValidatorService, CapabilityValidatorService>();
-
-                // Register semantic analyzer
-                services.AddSingleton<ISemanticAnalyzer, BasicSemanticAnalyzer>();
 
                 // Register the main use case
                 services.AddSingleton<ICompileUseCase, CompileUseCase>();

@@ -117,41 +117,56 @@ public class ProgramTests
     }
 
     [Test]
-    public async Task InstallMameAsync_ShouldReturnEarly_WhenLinuxAndFlatpakInstalled()
+    public async Task InstallMameAsync_ShouldCallSudoOnLinux_WhenNoFlatpak()
     {
         // Arrange
-        var installer = new MameInstaller();
-        
-        // Act - This should not throw and should complete without downloading
+        var mockProcessService = new Mock<IProcessService>();
+        mockProcessService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
+        mockProcessService.Setup(x => x.GetCommandPath("mame")).Returns((string?)null);
+        mockProcessService.Setup(x => x.RunProcessAsync(
+            It.Is<string>(s => s == "sudo"),
+            It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()))
+            .ReturnsAsync(false);
+
+        var mockPlatformService = new Mock<IPlatformService>();
+        mockPlatformService.Setup(x => x.IsLinux()).Returns(true);
+        mockPlatformService.Setup(x => x.IsWindows()).Returns(false);
+        mockPlatformService.Setup(x => x.IsMacOS()).Returns(false);
+
+        var mockConsole = new Mock<IConsoleService>();
+        var installer = new MameInstaller(mockConsole.Object, mockProcessService.Object, mockPlatformService.Object);
+
+        // Act
         await installer.InstallAsync();
-        
-        // Assert - Test passes if no exception is thrown
-        Assert.Pass();
+
+        // Assert - verify sudo apt-get was called
+        mockProcessService.Verify(x => x.RunProcessAsync("sudo", It.Is<string>(a => a.Contains("apt-get")), true, true), Times.Once);
+        mockConsole.Verify(x => x.WriteLine("Failed to install MAME from Debian repositories"), Times.Once);
     }
-    
+
     [Test]
     public void GetToolsDirectory_ShouldCreateDirectory_WhenNotExists()
     {
-        // Arrange
+        // Arrange - uses real file service; this is safe (no process spawning)
         var installer = new MameInstaller();
-        
+
         // Act
         var toolsDir = installer.GetToolsDirectory();
-        
+
         // Assert
         Assert.That(toolsDir, Is.Not.Null);
         Assert.That(Directory.Exists(toolsDir), Is.True);
     }
-    
+
     [Test]
     public void FindProjectRoot_ShouldReturnValidPath_WhenCalledFromCurrentDirectory()
     {
-        // Arrange
+        // Arrange - uses real file service to find GameVM.sln in the tree
         var installer = new MameInstaller();
-        
+
         // Act
         var projectRoot = installer.FindProjectRoot(AppContext.BaseDirectory);
-        
+
         // Assert
         Assert.That(projectRoot, Is.Not.Null);
         Assert.That(Directory.Exists(projectRoot), Is.True);
@@ -161,11 +176,19 @@ public class ProgramTests
     public void RunMameAsync_ShouldHandleMissingMameExecutable_Gracefully()
     {
         // Arrange
-        var installer = new MameInstaller();
-        
-        // Act & Assert - This should handle missing MAME gracefully
-        // On Linux with Flatpak installed, it should work without throwing
+        var mockProcessService = new Mock<IProcessService>();
+        mockProcessService.Setup(x => x.GetCommandPath("mame")).Returns((string?)null);
+        mockProcessService.Setup(x => x.GetCommandPath("flatpak")).Returns((string?)null);
+
+        var mockPlatformService = new Mock<IPlatformService>();
+        mockPlatformService.Setup(x => x.IsLinux()).Returns(true);
+
+        var mockConsole = new Mock<IConsoleService>();
+        var installer = new MameInstaller(mockConsole.Object, mockProcessService.Object, mockPlatformService.Object);
+
+        // Act & Assert
         Assert.DoesNotThrowAsync(async () => await installer.RunMameAsync("test.rom", "test.lua"));
+        mockConsole.Verify(x => x.WriteLine("MAME is not installed."), Times.Once);
     }
 
     [Test]
@@ -186,7 +209,8 @@ public class ProgramTests
     public async Task Main_WithValidArguments_ShouldCallTestMainWithDefaultInstaller()
     {
         // Arrange - Test the actual Main method (lines 10-13)
-        var args = new[] { "mame", "install" };
+        // Using "mame path" instead of "mame install" avoids spawning apt-get/sudo
+        var args = new[] { "mame", "path" };
 
         // Act - Call the actual Main method to exercise the uncovered path
         // This should cover lines 11-13 and the static field initialization on line 8
