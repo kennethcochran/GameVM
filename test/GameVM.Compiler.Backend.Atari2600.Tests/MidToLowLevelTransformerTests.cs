@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Soa;
@@ -413,21 +414,25 @@ public class MidToLowLevelTransformerTests
     [Test]
     public void Transform_AllTIARegisters_MapCorrectly()
     {
-        // Verify all TIA registers from InitializeAddressMap map correctly
+        // TIA write-register map verified against the Stella Programmer's Guide
+        // "TIA WRITE ADDRESS SUMMARY"
+        // (https://alienbill.com/2600/101/docs/stella.html).
         var tiaRegisters = new (string name, int addr)[]
         {
-            ("COLUBK", 0x09), ("COLUPF", 0x08), ("COLUP0", 0x06), ("COLUP1", 0x07),
+            ("VSYNC", 0x00), ("VBLANK", 0x01), ("WSYNC", 0x02), ("RSYNC", 0x03),
+            ("NUSIZ0", 0x04), ("NUSIZ1", 0x05),
+            ("COLUP0", 0x06), ("COLUP1", 0x07), ("COLUPF", 0x08), ("COLUBK", 0x09),
+            ("CTRLPF", 0x0A), ("REFP0", 0x0B), ("REFP1", 0x0C),
             ("PF0", 0x0D), ("PF1", 0x0E), ("PF2", 0x0F),
-            ("RESP0", 0x01), ("RESP1", 0x02), ("RESM0", 0x03), ("RESM1", 0x04), ("RESBL", 0x05),
-            ("AUDC0", 0x02), ("AUDC1", 0x06), ("AUDF0", 0x04), ("AUDF1", 0x08),
-            ("AUDV0", 0x03), ("AUDV1", 0x07),
-            ("WSYNC", 0x02), ("RSYNC", 0x04),
-            ("NUSIZ0", 0x0B), ("NUSIZ1", 0x0C),
-            ("RESF0", 0x07), ("RESF1", 0x08),
-            ("HMP0", 0x00), ("HMP1", 0x01), ("HMM0", 0x02), ("HMM1", 0x03),
-            ("HMPG", 0x04), ("HMBL", 0x05),
-            ("VDELP0", 0x0B), ("VDELP1", 0x0C), ("VDELBL", 0x0D),
-            ("RESET", 0xFF)
+            ("RESP0", 0x10), ("RESP1", 0x11), ("RESM0", 0x12), ("RESM1", 0x13), ("RESBL", 0x14),
+            ("AUDC0", 0x15), ("AUDC1", 0x16), ("AUDF0", 0x17), ("AUDF1", 0x18),
+            ("AUDV0", 0x19), ("AUDV1", 0x1A),
+            ("GRP0", 0x1B), ("GRP1", 0x1C),
+            ("ENAM0", 0x1D), ("ENAM1", 0x1E), ("ENABL", 0x1F),
+            ("HMP0", 0x20), ("HMP1", 0x21), ("HMM0", 0x22), ("HMM1", 0x23), ("HMBL", 0x24),
+            ("VDELP0", 0x25), ("VDELP1", 0x26), ("VDELBL", 0x27),
+            ("RESMP0", 0x28), ("RESMP1", 0x29),
+            ("HMOVE", 0x2A), ("HMCLR", 0x2B), ("CXCLR", 0x2C)
         };
 
         foreach (var (name, addr) in tiaRegisters)
@@ -436,10 +441,66 @@ public class MidToLowLevelTransformerTests
             uint valueOffset = _stringPool.Intern("42");
             var mlir = BuildMlirAssign(targetOffset, valueOffset);
             var result = _transformer.TransformSlab(mlir, _stringPool);
-            
+
             Assert.That(result.Count, Is.EqualTo(1), $"Failed for {name}");
             var ops = result.GetOperands(0);
             Assert.That(ops[0], Is.EqualTo((uint)addr), $"{name} should map to ${addr:X2}");
+        }
+    }
+
+    [Test]
+    public void Transform_TiaRegisterMap_HasNoAddressCollisions()
+    {
+        // Regression guard for B1: several registers used to alias the same
+        // address ($02 was WSYNC, AUDC0 and HMM0 at once). Every TIA name must
+        // resolve to a distinct hardware address.
+        var tiaNames = new[]
+        {
+            "VSYNC", "VBLANK", "WSYNC", "RSYNC", "NUSIZ0", "NUSIZ1",
+            "COLUP0", "COLUP1", "COLUPF", "COLUBK", "CTRLPF", "REFP0", "REFP1",
+            "PF0", "PF1", "PF2", "RESP0", "RESP1", "RESM0", "RESM1", "RESBL",
+            "AUDC0", "AUDC1", "AUDF0", "AUDF1", "AUDV0", "AUDV1",
+            "GRP0", "GRP1", "ENAM0", "ENAM1", "ENABL",
+            "HMP0", "HMP1", "HMM0", "HMM1", "HMBL",
+            "VDELP0", "VDELP1", "VDELBL", "RESMP0", "RESMP1",
+            "HMOVE", "HMCLR", "CXCLR"
+        };
+
+        var seen = new Dictionary<uint, string>();
+        foreach (string name in tiaNames)
+        {
+            uint targetOffset = _stringPool.Intern(name);
+            uint valueOffset = _stringPool.Intern("42");
+            var mlir = BuildMlirAssign(targetOffset, valueOffset);
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            uint addr = result.GetOperands(0)[0];
+            Assert.That(seen.TryGetValue(addr, out string? other), Is.False,
+                $"{name} collides with {other} at ${addr:X2}");
+            seen[addr] = name;
+        }
+
+        Assert.That(seen.Count, Is.EqualTo(tiaNames.Length));
+    }
+
+    [Test]
+    public void Transform_RemovedInventedTiaNames_AllocateAsUserVariables()
+    {
+        // RESF0/RESF1, HMPG and RESET were invented names in the old map; they
+        // are not TIA registers and must now allocate as ordinary zero-page
+        // user variables ($80+) instead of shadowing hardware addresses.
+        foreach (string name in new[] { "RESF0", "RESF1", "HMPG", "RESET" })
+        {
+            var freshTransformer = new MidToLowLevelTransformer();
+            var freshPool = new StringPool();
+            uint targetOffset = freshPool.Intern(name);
+            uint valueOffset = freshPool.Intern("42");
+            var mlir = BuildMlirAssign(targetOffset, valueOffset);
+            var result = freshTransformer.TransformSlab(mlir, freshPool);
+
+            uint addr = result.GetOperands(0)[0];
+            Assert.That(addr, Is.GreaterThanOrEqualTo(0x80u),
+                $"{name} should allocate as a user variable ($80+), not a TIA register");
         }
     }
 

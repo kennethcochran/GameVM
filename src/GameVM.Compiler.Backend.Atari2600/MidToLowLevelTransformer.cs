@@ -333,41 +333,58 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         private void InitializeAddressMap()
         {
+            // TIA write-register map, verified against the Stella Programmer's
+            // Guide "TIA WRITE ADDRESS SUMMARY"
+            // (https://alienbill.com/2600/101/docs/stella.html).
+            // NOTE: TIA read registers (CXM0P..INPT5 at $00-$0D) share addresses
+            // with this write map; the table below covers STA targets only.
+            // Loads from TIA read registers are not yet supported.
             _addressMap.Clear();
-            _addressMap["COLUBK"] = "$09";
-            _addressMap["COLUPF"] = "$08";
+            _addressMap["VSYNC"] = "$00";
+            _addressMap["VBLANK"] = "$01";
+            _addressMap["WSYNC"] = "$02";
+            _addressMap["RSYNC"] = "$03";
+            _addressMap["NUSIZ0"] = "$04";
+            _addressMap["NUSIZ1"] = "$05";
             _addressMap["COLUP0"] = "$06";
             _addressMap["COLUP1"] = "$07";
+            _addressMap["COLUPF"] = "$08";
+            _addressMap["COLUBK"] = "$09";
+            _addressMap["CTRLPF"] = "$0A";
+            _addressMap["REFP0"] = "$0B";
+            _addressMap["REFP1"] = "$0C";
             _addressMap["PF0"] = "$0D";
             _addressMap["PF1"] = "$0E";
             _addressMap["PF2"] = "$0F";
-            _addressMap["RESP0"] = "$01";
-            _addressMap["RESP1"] = "$02";
-            _addressMap["RESM0"] = "$03";
-            _addressMap["RESM1"] = "$04";
-            _addressMap["RESBL"] = "$05";
-            _addressMap["AUDC0"] = "$02";
-            _addressMap["AUDC1"] = "$06";
-            _addressMap["AUDF0"] = "$04";
-            _addressMap["AUDF1"] = "$08";
-            _addressMap["AUDV0"] = "$03";
-            _addressMap["AUDV1"] = "$07";
-            _addressMap["WSYNC"] = "$02";
-            _addressMap["RSYNC"] = "$04";
-            _addressMap["NUSIZ0"] = "$0B";
-            _addressMap["NUSIZ1"] = "$0C";
-            _addressMap["RESF0"] = "$07";
-            _addressMap["RESF1"] = "$08";
-            _addressMap["HMP0"] = "$00";
-            _addressMap["HMP1"] = "$01";
-            _addressMap["HMM0"] = "$02";
-            _addressMap["HMM1"] = "$03";
-            _addressMap["HMPG"] = "$04";
-            _addressMap["HMBL"] = "$05";
-            _addressMap["VDELP0"] = "$0B";
-            _addressMap["VDELP1"] = "$0C";
-            _addressMap["VDELBL"] = "$0D";
-            _addressMap["RESET"] = "$FF";
+            _addressMap["RESP0"] = "$10";
+            _addressMap["RESP1"] = "$11";
+            _addressMap["RESM0"] = "$12";
+            _addressMap["RESM1"] = "$13";
+            _addressMap["RESBL"] = "$14";
+            _addressMap["AUDC0"] = "$15";
+            _addressMap["AUDC1"] = "$16";
+            _addressMap["AUDF0"] = "$17";
+            _addressMap["AUDF1"] = "$18";
+            _addressMap["AUDV0"] = "$19";
+            _addressMap["AUDV1"] = "$1A";
+            _addressMap["GRP0"] = "$1B";
+            _addressMap["GRP1"] = "$1C";
+            _addressMap["ENAM0"] = "$1D";
+            _addressMap["ENAM1"] = "$1E";
+            _addressMap["ENABL"] = "$1F";
+            _addressMap["HMP0"] = "$20";
+            _addressMap["HMP1"] = "$21";
+            _addressMap["HMM0"] = "$22";
+            _addressMap["HMM1"] = "$23";
+            _addressMap["HMBL"] = "$24";
+            _addressMap["VDELP0"] = "$25";
+            _addressMap["VDELP1"] = "$26";
+            _addressMap["VDELBL"] = "$27";
+            _addressMap["RESMP0"] = "$28";
+            _addressMap["RESMP1"] = "$29";
+            _addressMap["HMOVE"] = "$2A";
+            _addressMap["HMCLR"] = "$2B";
+            _addressMap["CXCLR"] = "$2C";
         }
     }
 }
