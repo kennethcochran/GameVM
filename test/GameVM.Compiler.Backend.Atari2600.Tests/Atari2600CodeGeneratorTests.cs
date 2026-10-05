@@ -521,13 +521,15 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
     public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBne()
     {
         // Cmp + Branch (no Transition) → BNE (0xD0)
-        // Simulates: if x <> 0 then y := 1;  arm execution
+        // Simulates: if x <> 0 then y := 1;  arm execution.
+        // The transformer splits MLIR Cmp(x, 0) into Load(x) + single-operand
+        // Cmp [immediate]; hand-build that LLIR shape here (a two-operand Cmp
+        // is the [addrLow, addrHigh] memory form, not "compare to immediate").
         var pool = new StringPool();
-        uint xOff = pool.Intern("x");
         uint endOff = pool.Intern("L_end");
 
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
 
@@ -535,18 +537,20 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
 
         Assert.That(rom, Is.Not.Null);
         Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
+        Assert.That(rom[1], Is.EqualTo(0x00), "CMP #0 immediate");
         Assert.That(rom[2], Is.EqualTo(0xD0), "BNE opcode");
     }
 
     [Test]
     public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBeq()
     {
+        // Cmp + Transition + Branch → BEQ (0xF0). Same single-operand Cmp shape
+        // as the transformer emits (see above).
         var pool = new StringPool();
-        uint xOff = pool.Intern("x");
         uint endOff = pool.Intern("L_end");
 
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0);
         builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
@@ -555,6 +559,74 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
 
         Assert.That(rom, Is.Not.Null);
         Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
+        Assert.That(rom[1], Is.EqualTo(0x00), "CMP #0 immediate");
         Assert.That(rom[2], Is.EqualTo(0xF0), "BEQ opcode");
     }
+
+    [Test]
+    public void GenerateFromSlab_WithAddMemoryOperand_EmitsAdcZp()
+    {
+        // LLIR -> ROM seam for z := x + y: Load(xAddr); Add(yAddr); Store(zAddr)
+        // Load($80) = LDA $80 (0xA5 0x80)
+        // Add($81)  = CLC; ADC $81 (0x18 0x65 0x81) — the VALUE at $81, not #$81
+        // Store($82) = STA $82 (0x85 0x82)
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
+        builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, 0x81, 0);  // CLC; ADC zp $81
+        builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x82);   // STA zp $82
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xA5), "Load zp should emit LDA zp (0xA5)");
+        Assert.That(rom[1], Is.EqualTo(0x80));
+        Assert.That(rom[2], Is.EqualTo(0x18), "Add should emit CLC (0x18)");
+        Assert.That(rom[3], Is.EqualTo(0x65), "Two-operand Add must emit ADC zp (0x65), not ADC #imm (0x69)");
+        Assert.That(rom[4], Is.EqualTo(0x81), "ADC operand is y's zero-page address");
+        Assert.That(rom[5], Is.EqualTo(0x85), "Store should emit STA zp (0x85)");
+        Assert.That(rom[6], Is.EqualTo(0x82));
+        Assert.That(rom[7], Is.EqualTo(0x4C), "Self-loop JMP should follow");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithSubMemoryOperand_EmitsSbcZp()
+    {
+        // Sub([addr, 0]) = SEC; SBC zp (0x38 0xE5 addr)
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
+        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, 0x81, 0);  // SEC; SBC zp $81
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xA5));
+        Assert.That(rom[1], Is.EqualTo(0x80));
+        Assert.That(rom[2], Is.EqualTo(0x38), "Sub should emit SEC (0x38)");
+        Assert.That(rom[3], Is.EqualTo(0xE5), "Two-operand Sub must emit SBC zp (0xE5), not SBC #imm (0xE9)");
+        Assert.That(rom[4], Is.EqualTo(0x81));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithCmpMemoryOperand_EmitsCmpZp()
+    {
+        // Cmp([addr, 0]) = CMP zp (0xC5 addr)
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x81, 0);  // CMP zp $81
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0xA5));
+        Assert.That(rom[1], Is.EqualTo(0x80));
+        Assert.That(rom[2], Is.EqualTo(0xC5), "Two-operand Cmp must emit CMP zp (0xC5), not CMP #imm (0xC9)");
+        Assert.That(rom[3], Is.EqualTo(0x81));
+    }
+
 }

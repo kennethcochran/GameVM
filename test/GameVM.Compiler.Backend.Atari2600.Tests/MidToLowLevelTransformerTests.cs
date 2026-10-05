@@ -492,6 +492,93 @@ public class MidToLowLevelTransformerTests
         Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
         Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
     }
+
+    [Test]
+    public void Transform_AddVariableToVariable_EmitsLoadAndMemoryOperandAdd()
+    {
+        // MLIR for: z := x + y  ->  Add(x, y); Assign(__tmp_0, 0); Assign(z, __tmp_0)
+        // must lower to: Load(xAddr); Add(yAddr); Store(zAddr) where Add carries
+        // the [addrLow, addrHigh] memory-operand form — never the address as an
+        // immediate (that would add y's address, not its value).
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+        uint zOffset = _stringPool.Intern("z");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, xOffset, yOffset);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmpOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        // Load(x); Add(y-addr); Store(z)
+        Assert.That(result.Count, Is.EqualTo(3));
+
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        var loadOps = result.GetOperands(0);
+        Assert.That(loadOps.Length, Is.EqualTo(2));
+        Assert.That(loadOps[0], Is.EqualTo(0x80u), "x allocated at $80");
+
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
+        var addOps = result.GetOperands(1);
+        Assert.That(addOps.Length, Is.EqualTo(2), "Add of a variable must use the [addrLow, addrHigh] memory-operand form");
+        Assert.That(addOps[0], Is.EqualTo(0x81u), "y allocated at $81 — its VALUE address, not an immediate");
+        Assert.That(addOps[1], Is.EqualTo(0x00u));
+
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps[0], Is.EqualTo(0x82u), "z allocated at $82");
+    }
+
+    [Test]
+    public void Transform_SubVariableMinusVariable_EmitsMemoryOperandSub()
+    {
+        // z := x - y must lower to Load(x); Sub([yAddr, 0]); Store(z)
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+        uint zOffset = _stringPool.Intern("z");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, xOffset, yOffset);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmpOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(3));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+        var subOps = result.GetOperands(1);
+        Assert.That(subOps.Length, Is.EqualTo(2), "Sub of a variable must use the memory-operand form");
+        Assert.That(subOps[0], Is.EqualTo(0x81u), "y's value address, not an immediate");
+        Assert.That(subOps[1], Is.EqualTo(0x00u));
+    }
+
+    [Test]
+    public void Transform_CmpVariableToVariable_EmitsMemoryOperandCmp()
+    {
+        // Cmp(x, y) must lower to Load(x); Cmp([yAddr, 0]) — comparing against
+        // y's VALUE, not its address.
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOffset, yOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(2));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+        var cmpOps = result.GetOperands(1);
+        Assert.That(cmpOps.Length, Is.EqualTo(2), "Cmp of a variable must use the memory-operand form");
+        Assert.That(cmpOps[0], Is.EqualTo(0x81u), "y's value address, not an immediate");
+        Assert.That(cmpOps[1], Is.EqualTo(0x00u));
+    }
         #endregion
         #region Branch Polarity Tests
 

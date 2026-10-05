@@ -115,7 +115,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
             {
                 string leftText = stringPool.Resolve(operands[0]);
-                uint rightVal = ResolveSlot(operands[1], stringPool);
+                string rightText = stringPool.Resolve(operands[1]);
                 bool leftIsName = IsName(leftText);
                 if (leftIsName)
                 {
@@ -128,14 +128,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                     uint leftVal = ResolveSlot(operands[0], stringPool);
                     builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
                 }
-                builder.Add(llirKind, InstructionFlag.None, 0, rightVal);
+                if (IsName(rightText))
+                {
+                    // Right operand is a variable: add/subtract its VALUE from
+                    // memory ([addrLow, addrHigh] -> ADC/SBC zp). Never emit the
+                    // address as an immediate — that adds the address, not the value.
+                    ushort rightAddr = GetAddressForVariable(rightText);
+                    builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+                }
+                else
+                {
+                    uint rightVal = ResolveSlot(operands[1], stringPool);
+                    builder.Add(llirKind, InstructionFlag.None, 0, rightVal);
+                }
                 return;
             }
 
-            // Cmp: emit Load(left) first so A holds the value, then CMP #immediate.
+            // Cmp: emit Load(left) first so A holds the value, then CMP.
             if (llirKind == (byte)LlirInstructionKind.Cmp && operands.Length >= 2)
             {
                 string leftText = stringPool.Resolve(operands[0]);
+                string rightText = stringPool.Resolve(operands[1]);
                 if (IsName(leftText))
                 {
                     ushort leftAddr = GetAddressForVariable(leftText);
@@ -146,7 +159,17 @@ namespace GameVM.Compiler.Backend.Atari2600
                     uint leftVal = ResolveSlot(operands[0], stringPool);
                     builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
                 }
-                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                if (IsName(rightText))
+                {
+                    // Right operand is a variable: compare against its VALUE from
+                    // memory ([addrLow, addrHigh] -> CMP zp), not its address.
+                    ushort rightAddr = GetAddressForVariable(rightText);
+                    builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+                }
+                else
+                {
+                    builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                }
                 return;
             }
 

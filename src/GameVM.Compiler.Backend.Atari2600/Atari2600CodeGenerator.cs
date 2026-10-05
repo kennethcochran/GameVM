@@ -53,7 +53,11 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Store when op.Length >= 2 => (int)op[1] < 0x100 ? 2 : 3,
                     LlirInstructionKind.Store when op.Length == 0 => 0,
                     LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
+                    LlirInstructionKind.Add or LlirInstructionKind.Sub when op.Length >= 2 && ((int)op[0] | ((int)op[1] << 8)) < 0x100 => 3,
+                    LlirInstructionKind.Add or LlirInstructionKind.Sub when op.Length >= 2 => 4,
                     LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                    LlirInstructionKind.Cmp when op.Length >= 2 && ((int)op[0] | ((int)op[1] << 8)) < 0x100 => 2,
+                    LlirInstructionKind.Cmp when op.Length >= 2 => 3,
                     LlirInstructionKind.Cmp => 2,
                     LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
                     LlirInstructionKind.Branch => 2,
@@ -170,8 +174,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                     case LlirInstructionKind.Add:
-                        // ADC immediate/abs: A += operand
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        // Two operands: [addrLow, addrHigh] -> CLC; ADC zp (0x65) / ADC abs (0x6D).
+                        // Single operand: CLC; ADC #immediate (0x69).
+                        if (operands.Length >= 2 && currentAddress + 4 <= RomSize)
+                        {
+                            int address = (int)operands[0] | ((int)operands[1] << 8);
+                            rom[currentAddress++] = 0x18; // CLC
+                            if (address < 0x100)
+                            {
+                                rom[currentAddress++] = 0x65; // ADC zp
+                                rom[currentAddress++] = (byte)address;
+                                bytesWritten = 3;
+                            }
+                            else
+                            {
+                                rom[currentAddress++] = 0x6D; // ADC abs
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+                                bytesWritten = 4;
+                            }
+                        }
+                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
                         {
                             rom[currentAddress++] = 0x18; // CLC
                             rom[currentAddress++] = 0x69; // ADC #imm
@@ -180,8 +203,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                     case LlirInstructionKind.Sub:
-                        // SBC immediate/abs: A -= operand (with carry set)
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        // Two operands: [addrLow, addrHigh] -> SEC; SBC zp (0xE5) / SBC abs (0xED).
+                        // Single operand: SEC; SBC #immediate (0xE9).
+                        if (operands.Length >= 2 && currentAddress + 4 <= RomSize)
+                        {
+                            int address = (int)operands[0] | ((int)operands[1] << 8);
+                            rom[currentAddress++] = 0x38; // SEC
+                            if (address < 0x100)
+                            {
+                                rom[currentAddress++] = 0xE5; // SBC zp
+                                rom[currentAddress++] = (byte)address;
+                                bytesWritten = 3;
+                            }
+                            else
+                            {
+                                rom[currentAddress++] = 0xED; // SBC abs
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+                                bytesWritten = 4;
+                            }
+                        }
+                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
                         {
                             rom[currentAddress++] = 0x38; // SEC
                             rom[currentAddress++] = 0xE9; // SBC #imm
@@ -190,9 +232,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                         }
                         break;
                     case LlirInstructionKind.Cmp:
-                        // Cmp always arrives 1-operand from the MidToLowLevelTransformer:
-                        // MapArithmetic splits the MLIR 2-operand Cmp into Load(left) + Cmp(right).
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+                        // Cmp always arrives from the MidToLowLevelTransformer split as
+                        // Load(left) + Cmp(right). Two operands: [addrLow, addrHigh] ->
+                        // CMP zp (0xC5) / CMP abs (0xCD). Single operand: CMP #imm (0xC9).
+                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                        {
+                            int address = (int)operands[0] | ((int)operands[1] << 8);
+                            if (address < 0x100)
+                            {
+                                rom[currentAddress++] = 0xC5; // CMP zp
+                                rom[currentAddress++] = (byte)address;
+                                bytesWritten = 2;
+                            }
+                            else
+                            {
+                                rom[currentAddress++] = 0xCD; // CMP abs
+                                rom[currentAddress++] = (byte)(address & 0xFF);
+                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+                                bytesWritten = 3;
+                            }
+                        }
+                        else if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
                         {
                             rom[currentAddress++] = 0xC9; // CMP #imm
                             rom[currentAddress++] = (byte)operands[0];
