@@ -1,0 +1,3 @@
+# nudge baseline — findings accepted as of 2026-10-05
+# Format: RULEID|path/relative/to/repo-root
+# Delete lines to unsnooze; findings in files you touch should be reviewed, not blindly re-snoozed.

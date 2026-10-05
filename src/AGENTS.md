@@ -82,6 +82,21 @@ dotnet test
 dotnet build src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj
 ```
 
+**Build via nudge, never bare `dotnet build`.** The shim replaces raw analyzer
+diagnostics with coaching guides (Why / Do this / AVOID) so metric-gaming
+fixes get caught at the moment of violation:
+```bash
+DOTNET_ROOT=$HOME/dotnet PATH=$HOME/.dotnet/tools:$HOME/dotnet:$PATH \
+  nudge --sln GameVM.sln --baseline .nudge/baseline.txt
+```
+(`DOTNET_ROOT` is required for the nudge apphost to find the runtime in this
+environment.)
+
+**Never suppress a diagnostic to appease the compiler.** No `#pragma warning
+disable`, no `[SuppressMessage]`, no `.editorconfig` severity overrides — the
+only exception is ANTLR-generated code under `src/*/ANTLR/`. If the build
+fails, fix the code; the nudge report names the exact dodges to avoid.
+
 ### Code Organization
 - **Core compiler logic**: `GameVM.Compiler.Core` namespace
 - **Language frontends**: `GameVM.Compiler.Pascal`, `GameVM.Compiler.C` (planned)
