@@ -12,11 +12,14 @@
     {
       "name": "run-tests-with-coverage",
       "group": "pre-commit",
-      "command": "dotnet",
+      "command": "dotnet-coverage",
       "args": [
-        "test",
-        "--collect:'XPlat Code Coverage'",
-        "--results-directory:TestResults/crap-check"
+        "collect",
+        "dotnet run --project test/GameVM.TestRunner",
+        "-f",
+        "xml",
+        "-o",
+        "TestResults/coverage.xml"
       ]
     },
     {
@@ -24,11 +27,12 @@
       "group": "pre-commit",
       "command": "dotnet",
       "args": [
-        "husky",
-        "exec",
-        ".husky/csx/crap-gate.csx",
-        "--args",
-        "TestResults/crap-check",
+        "run",
+        "--project",
+        "tools/GameVM.CrapGate",
+        "--",
+        "TestResults/coverage.xml",
+        "src",
         "30"
       ]
     },

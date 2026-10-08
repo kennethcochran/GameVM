@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/GameVM.DevTools/GameVM.DevTools.csproj" />
+    <ProjectReference Include="../../tools/GameVM.CrapGate.Core/GameVM.CrapGate.Core.csproj" />
   </ItemGroup>
 
 </Project>
