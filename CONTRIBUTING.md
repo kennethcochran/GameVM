@@ -64,7 +64,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
 
 3. Run tests to ensure nothing is broken:
    ```bash
-   dotnet test
+   dotnet run --project test/GameVM.TestRunner
    ```
 
 4. Update the affected documentation per [`docs/DOC-IMPACT.md`](docs/DOC-IMPACT.md) (see [AGENTS.md](AGENTS.md) "Documentation Update Rules"). The `doc-sync-gate.csx` pre-commit hook verifies semantic code changes are accompanied by documentation updates; run it locally to confirm before committing.
