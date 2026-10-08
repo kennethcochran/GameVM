@@ -17,6 +17,9 @@
     <PackageReference Include="NUnit" Version="4.4.0" />
     <PackageReference Include="NUnitLite" Version="4.4.0" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameVM.TestRunner.Core\GameVM.TestRunner.Core.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GameVM.Compile.Tests\GameVM.Compile.Tests.csproj" />
@@ -29,6 +32,7 @@
     <ProjectReference Include="..\GameVM.Compiler.Pascal.Tests\GameVM.Compiler.Pascal.Tests.csproj" />
     <ProjectReference Include="..\GameVM.Compiler.Specs\GameVM.Compiler.Specs.csproj" />
     <ProjectReference Include="..\GameVM.DevTools.Tests\GameVM.DevTools.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.TestRunner.Tests\GameVM.TestRunner.Tests.csproj" />
   </ItemGroup>
 
 </Project>
