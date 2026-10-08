@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Not a test project itself; it RUNS the test projects. Keeps `dotnet test` from picking it up. -->
+    <IsTestProject>false</IsTestProject>
+    <!-- Don't generate the Microsoft Testing Platform entry point; NUnitLite provides the Main. -->
+    <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
+    <RootNamespace>GameVM.TestRunner</RootNamespace>
+    <AssemblyName>GameVM.TestRunner</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="4.4.0" />
+    <PackageReference Include="NUnitLite" Version="4.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GameVM.Compile.Tests\GameVM.Compile.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Application.Tests\GameVM.Compiler.Application.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Backend.Atari2600.Tests\GameVM.Compiler.Backend.Atari2600.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Core.Tests\GameVM.Compiler.Core.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Interaction.Tests\GameVM.Compiler.Interaction.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Optimizers.LowLevel.Tests\GameVM.Compiler.Optimizers.LowLevel.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Optimizers.MidLevel.Tests\GameVM.Compiler.Optimizers.MidLevel.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Pascal.Tests\GameVM.Compiler.Pascal.Tests.csproj" />
+    <ProjectReference Include="..\GameVM.Compiler.Specs\GameVM.Compiler.Specs.csproj" />
+    <ProjectReference Include="..\GameVM.DevTools.Tests\GameVM.DevTools.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

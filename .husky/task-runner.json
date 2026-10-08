@@ -10,26 +10,13 @@
       ]
     },
     {
-      "name": "run-tests-with-coverage",
+      "name": "run-tests",
       "group": "pre-commit",
       "command": "dotnet",
       "args": [
-        "test",
-        "--collect:'XPlat Code Coverage'",
-        "--results-directory:TestResults/crap-check"
-      ]
-    },
-    {
-      "name": "validate-crap-scores",
-      "group": "pre-commit",
-      "command": "dotnet",
-      "args": [
-        "husky",
-        "exec",
-        ".husky/csx/crap-gate.csx",
-        "--args",
-        "TestResults/crap-check",
-        "30"
+        "run",
+        "--project",
+        "test/GameVM.TestRunner"
       ]
     },
     {

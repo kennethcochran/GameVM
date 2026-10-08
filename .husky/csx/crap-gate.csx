@@ -81,7 +81,31 @@ try {
         }
         
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("\n💡 To fix: Reduce complexity or increase test coverage");
+        Console.WriteLine("\n📖 Why this gate exists:");
+        Console.WriteLine("  CRAP = f(complexity, lack of coverage). A high score means code that is");
+        Console.WriteLine("  BOTH complicated and untested — the exact code that breaks in production");
+        Console.WriteLine("  and that nobody dares to touch. The gate is not about the number; it is");
+        Console.WriteLine("  about that combination.");
+        Console.WriteLine("\n🔧 Do this:");
+        Console.WriteLine("  1. Read the flagged method and ask what it is really doing. Extract");
+        Console.WriteLine("     *concepts*, not branches: each extracted method should do one thing");
+        Console.WriteLine("     you can name honestly (e.g. ResolveCallTarget, not DoPart2).");
+        Console.WriteLine("  2. Prefer deleting branches over moving them: a 15-arm switch on");
+        Console.WriteLine("     instruction kind wants a dispatch table, not 15 helpers.");
+        Console.WriteLine("  3. Write tests that pin the behavior BEFORE refactoring, so the refactor");
+        Console.WriteLine("     is provably safe. The score then drops as a side effect of the tests.");
+        Console.WriteLine("  4. If the method is inherently complex (a real dispatch core), cover it");
+        Console.WriteLine("     thoroughly instead — full coverage on a complex method still passes.");
+        Console.WriteLine("\n🚫 AVOID:");
+        Console.WriteLine("  - Do not split a method into N helpers just to push each piece under the");
+        Console.WriteLine("    threshold. Same complexity, more indirection: the score drops, the");
+        Console.WriteLine("    problem moved, not away.");
+        Console.WriteLine("  - Do not add tests that execute code without asserting behavior");
+        Console.WriteLine("    (call it and ignore the result). Coverage without assertions is");
+        Console.WriteLine("    camouflage; the gate counts it, reviewers should not.");
+        Console.WriteLine("  - Do not mark the method [ExcludeFromCodeCoverage] (or equivalent) to");
+        Console.WriteLine("    dodge the gate. If it is worth shipping, it is worth covering.");
+        Console.WriteLine("  - Do not raise the threshold or edit this script. Fix the code.");
         return 1;
     } else {
         Console.ForegroundColor = ConsoleColor.Green;
