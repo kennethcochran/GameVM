@@ -76,7 +76,7 @@ dotnet restore
 dotnet build
 
 # Run all tests
-dotnet test
+dotnet run --project test/GameVM.TestRunner
 
 # Build specific project
 dotnet build src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj

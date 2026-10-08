@@ -419,6 +419,8 @@ docs/html/
 **/.antlr/
 **/tools/
 !**/tools/packages.config
+# GameVM's own dev tools (not third-party tool downloads)
+!/tools/GameVM.CrapGate/
 
 # SonarQube
 .sonarqube/
