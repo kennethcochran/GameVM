@@ -10,13 +10,30 @@
       ]
     },
     {
-      "name": "run-tests",
+      "name": "run-tests-with-coverage",
+      "group": "pre-commit",
+      "command": "dotnet-coverage",
+      "args": [
+        "collect",
+        "dotnet run --project test/GameVM.TestRunner",
+        "-f",
+        "xml",
+        "-o",
+        "TestResults/coverage.xml"
+      ]
+    },
+    {
+      "name": "validate-crap-scores",
       "group": "pre-commit",
       "command": "dotnet",
       "args": [
         "run",
         "--project",
-        "test/GameVM.TestRunner"
+        "tools/GameVM.CrapGate",
+        "--",
+        "TestResults/coverage.xml",
+        "src",
+        "30"
       ]
     },
     {

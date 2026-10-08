@@ -41,11 +41,12 @@ sockets, and no datacollector. The full suite runs in ~15 seconds.
 - **Positive**: Commits are unblocked; the suite runs in seconds instead of
   hanging indefinitely. The runner is a plain console app with no
   environment-sensitive IPC.
-- **Negative**: The pre-commit CRAP coverage gate was removed. Coverlet's
-  collector is vstest-bound, so the hook can no longer produce the coverage
-  data the CRAP gate consumed. Coverage still flows to SonarQube in CI via
-  `dotnet-coverage`. If a local coverage gate is wanted later, AltCover (which
-  instruments assemblies independently of the runner) is the candidate.
+- **Positive**: The CRAP gate was restored using `dotnet-coverage` (runner-
+  agnostic, wraps any process) for coverage and a new Roslyn-based
+  `tools/GameVM.CrapGate` tool for cyclomatic complexity. The gate computes
+  CRAP = complexity² × (1 - coverage)³ + complexity per method and enforces
+  the threshold of 30. This proves the user's point: CRAP needs coverage +
+  complexity, and the collector is interchangeable.
 - **Neutral**: Test projects retain their `Microsoft.NET.Test.Sdk` package
   references, so `dotnet test` still functions where vstest works. No test
   code was changed to accommodate the runner.
