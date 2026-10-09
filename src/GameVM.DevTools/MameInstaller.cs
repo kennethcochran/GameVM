@@ -89,143 +89,139 @@ public class MameInstaller : IMameInstaller
 
         try
         {
-            bool installSuccess = false;
-            
-            if (_platformService.IsLinux())
-            {
-                _consoleService.WriteLine("Installing MAME using apt-get (Debian-based Linux)...");
-                
-                // Check if apt-get is available
-                var aptPath = _processService.GetCommandPath("apt-get");
-                if (string.IsNullOrEmpty(aptPath))
-                {
-                    _consoleService.WriteLine("ERROR: apt-get not found. This installer supports Debian-based Linux distributions.");
-                    _consoleService.WriteLine("For other Linux distributions, please install MAME using your package manager:");
-                    _consoleService.WriteLine("  - Fedora/RHEL: sudo dnf install mame");
-                    _consoleService.WriteLine("  - Arch Linux: sudo pacman -S mame");
-                    _consoleService.WriteLine("  - openSUSE: sudo zypper install mame");
-                    return;
-                }
-                
-                // Install MAME from Debian repositories
-                installSuccess = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
-                
-                if (installSuccess)
-                {
-                    _consoleService.WriteLine("MAME installed successfully from Debian repositories");
-                    
-                    // Verify installation
-                    var mamePath = _processService.GetCommandPath("mame");
-                    if (!string.IsNullOrEmpty(mamePath))
-                    {
-                        _consoleService.WriteLine($"MAME available at: {mamePath}");
-                        return;
-                    }
-                }
-                else
-                {
-                    _consoleService.WriteLine("Failed to install MAME from Debian repositories");
-                    _consoleService.WriteLine("This may indicate an issue with your package sources or permissions.");
-                }
-            }
-            else if (_platformService.IsWindows())
-            {
-                _consoleService.WriteLine("Installing MAME using Chocolatey...");
-                
-                // Check if Chocolatey is available
-                var chocoPath = _processService.GetCommandPath("choco");
-                if (string.IsNullOrEmpty(chocoPath))
-                {
-                    _consoleService.WriteLine("ERROR: Chocolatey not found. Please install Chocolatey first:");
-                    _consoleService.WriteLine("  Run PowerShell as Administrator and execute:");
-                    _consoleService.WriteLine("    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))");
-                    return;
-                }
-                
-                // Install MAME using Chocolatey
-                installSuccess = await _processService.RunProcessAsync("choco", "install mame -y --no-progress", redirectOutput: true, createNoWindow: true);
-                
-                if (installSuccess)
-                {
-                    _consoleService.WriteLine("MAME installed successfully via Chocolatey");
-                    
-                    // Verify installation
-                    var mamePath = _processService.GetCommandPath("mame");
-                    if (!string.IsNullOrEmpty(mamePath))
-                    {
-                        _consoleService.WriteLine($"MAME available at: {mamePath}");
-                        return;
-                    }
-                }
-                else
-                {
-                    _consoleService.WriteLine("Failed to install MAME via Chocolatey");
-                }
-            }
-            else if (_platformService.IsMacOS())
-            {
-                _consoleService.WriteLine("Installing MAME using Homebrew...");
-                
-                // Check if Homebrew is available
-                var brewPath = _processService.GetCommandPath("brew");
-                if (string.IsNullOrEmpty(brewPath))
-                {
-                    _consoleService.WriteLine("ERROR: Homebrew not found. Please install Homebrew first:");
-                    _consoleService.WriteLine("  Run: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"");
-                    return;
-                }
-                
-                // Install MAME using Homebrew
-                installSuccess = await _processService.RunProcessAsync("brew", "install mame", redirectOutput: true, createNoWindow: true);
-                
-                if (installSuccess)
-                {
-                    _consoleService.WriteLine("MAME installed successfully via Homebrew");
-                    
-                    // Verify installation
-                    var mamePath = _processService.GetCommandPath("mame");
-                    if (!string.IsNullOrEmpty(mamePath))
-                    {
-                        _consoleService.WriteLine($"MAME available at: {mamePath}");
-                        return;
-                    }
-                }
-                else
-                {
-                    _consoleService.WriteLine("Failed to install MAME via Homebrew");
-                }
-            }
-            else
-            {
-                _consoleService.WriteLine("ERROR: Unsupported operating system");
-                return;
-            }
-
-            // If package manager installation failed, provide guidance
-            if (!installSuccess)
-            {
-                _consoleService.WriteLine("Package manager installation failed. Please install MAME manually:");
-                if (_platformService.IsLinux())
-                {
-                    _consoleService.WriteLine("  sudo apt-get install mame  # For Debian-based systems");
-                }
-                else if (_platformService.IsWindows())
-                {
-                    _consoleService.WriteLine("  choco install mame  # Via Chocolatey");
-                    _consoleService.WriteLine("  Or download from: https://chocolatey.org/packages/mame");
-                }
-                else if (_platformService.IsMacOS())
-                {
-                    _consoleService.WriteLine("  brew install mame  # Via Homebrew");
-                    _consoleService.WriteLine("  Or download from: https://formulae.brew.sh/formula/mame");
-                }
-                return;
-            }
+            var installSuccess = await TryInstallForPlatformAsync();
+            if (installSuccess == false)
+                ShowManualInstallGuidance();
         }
         catch (Exception ex)
         {
             _consoleService.WriteLine($"Error during installation: {ex.Message}");
             _consoleService.WriteLine("Please ensure you have the necessary permissions and network access.");
+        }
+    }
+
+    internal async Task<bool?> TryInstallForPlatformAsync()
+    {
+        if (_platformService.IsLinux())
+            return await InstallOnLinuxAsync();
+        if (_platformService.IsWindows())
+            return await InstallOnWindowsAsync();
+        if (_platformService.IsMacOS())
+            return await InstallOnMacOSAsync();
+
+        _consoleService.WriteLine("ERROR: Unsupported operating system");
+        return null;
+    }
+
+    internal async Task<bool> InstallOnLinuxAsync()
+    {
+        _consoleService.WriteLine("Installing MAME using apt-get (Debian-based Linux)...");
+
+        var aptPath = _processService.GetCommandPath("apt-get");
+        if (string.IsNullOrEmpty(aptPath))
+        {
+            _consoleService.WriteLine("ERROR: apt-get not found. This installer supports Debian-based Linux distributions.");
+            _consoleService.WriteLine("For other Linux distributions, please install MAME using your package manager:");
+            _consoleService.WriteLine("  - Fedora/RHEL: sudo dnf install mame");
+            _consoleService.WriteLine("  - Arch Linux: sudo pacman -S mame");
+            _consoleService.WriteLine("  - openSUSE: sudo zypper install mame");
+            return false;
+        }
+
+        var success = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
+        if (success)
+        {
+            _consoleService.WriteLine("MAME installed successfully from Debian repositories");
+            var mamePath = _processService.GetCommandPath("mame");
+            if (!string.IsNullOrEmpty(mamePath))
+            {
+                _consoleService.WriteLine($"MAME available at: {mamePath}");
+                return true;
+            }
+        }
+        else
+        {
+            _consoleService.WriteLine("Failed to install MAME from Debian repositories");
+            _consoleService.WriteLine("This may indicate an issue with your package sources or permissions.");
+        }
+        return false;
+    }
+
+    internal async Task<bool> InstallOnWindowsAsync()
+    {
+        _consoleService.WriteLine("Installing MAME using Chocolatey...");
+
+        var chocoPath = _processService.GetCommandPath("choco");
+        if (string.IsNullOrEmpty(chocoPath))
+        {
+            _consoleService.WriteLine("ERROR: Chocolatey not found. Please install Chocolatey first:");
+            _consoleService.WriteLine("  Run PowerShell as Administrator and execute:");
+            _consoleService.WriteLine("    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))");
+            return false;
+        }
+
+        var success = await _processService.RunProcessAsync("choco", "install mame -y --no-progress", redirectOutput: true, createNoWindow: true);
+        if (success)
+        {
+            _consoleService.WriteLine("MAME installed successfully via Chocolatey");
+            var mamePath = _processService.GetCommandPath("mame");
+            if (!string.IsNullOrEmpty(mamePath))
+            {
+                _consoleService.WriteLine($"MAME available at: {mamePath}");
+                return true;
+            }
+        }
+        else
+        {
+            _consoleService.WriteLine("Failed to install MAME via Chocolatey");
+        }
+        return false;
+    }
+
+    internal async Task<bool> InstallOnMacOSAsync()
+    {
+        _consoleService.WriteLine("Installing MAME using Homebrew...");
+
+        var brewPath = _processService.GetCommandPath("brew");
+        if (string.IsNullOrEmpty(brewPath))
+        {
+            _consoleService.WriteLine("ERROR: Homebrew not found. Please install Homebrew first:");
+            _consoleService.WriteLine("  Run: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"");
+            return false;
+        }
+
+        var success = await _processService.RunProcessAsync("brew", "install mame", redirectOutput: true, createNoWindow: true);
+        if (success)
+        {
+            _consoleService.WriteLine("MAME installed successfully via Homebrew");
+            var mamePath = _processService.GetCommandPath("mame");
+            if (!string.IsNullOrEmpty(mamePath))
+            {
+                _consoleService.WriteLine($"MAME available at: {mamePath}");
+                return true;
+            }
+        }
+        else
+        {
+            _consoleService.WriteLine("Failed to install MAME via Homebrew");
+        }
+        return false;
+    }
+
+    internal void ShowManualInstallGuidance()
+    {
+        _consoleService.WriteLine("Package manager installation failed. Please install MAME manually:");
+        if (_platformService.IsLinux())
+            _consoleService.WriteLine("  sudo apt-get install mame  # For Debian-based systems");
+        else if (_platformService.IsWindows())
+        {
+            _consoleService.WriteLine("  choco install mame  # Via Chocolatey");
+            _consoleService.WriteLine("  Or download from: https://chocolatey.org/packages/mame");
+        }
+        else if (_platformService.IsMacOS())
+        {
+            _consoleService.WriteLine("  brew install mame  # Via Homebrew");
+            _consoleService.WriteLine("  Or download from: https://formulae.brew.sh/formula/mame");
         }
     }
 
@@ -283,13 +279,7 @@ public class MameInstaller : IMameInstaller
             return;
         }
 
-        var fullRomPath = Path.GetFullPath(romPath);
-        string args = $"-window -bench 10 a2600 -cart \"{fullRomPath}\"";
-        
-        if (!string.IsNullOrEmpty(scriptPath))
-        {
-            args += $" -autoboot_script \"{Path.GetFullPath(scriptPath)}\"";
-        }
+        string args = BuildMameArguments(romPath, scriptPath);
 
         _consoleService.WriteLine($"Executing: {mameExe} {args}");
         var startInfo = new System.Diagnostics.ProcessStartInfo
@@ -320,5 +310,14 @@ public class MameInstaller : IMameInstaller
             _consoleService.WriteLine("ERRORS:");
             _consoleService.WriteLine(error);
         }
+    }
+
+    internal static string BuildMameArguments(string romPath, string scriptPath)
+    {
+        var fullRomPath = Path.GetFullPath(romPath);
+        var args = $"-window -bench 10 a2600 -cart \"{fullRomPath}\"";
+        if (!string.IsNullOrEmpty(scriptPath))
+            args += $" -autoboot_script \"{Path.GetFullPath(scriptPath)}\"";
+        return args;
     }
 }

@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GameVM.DevTools.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Antlr4 Include="ANTLR\CSharp.g4">
       <Package>GameVM.Compiler.CSharp.ANTLR</Package>
       <AntOutDir>.\ANTLR</AntOutDir>

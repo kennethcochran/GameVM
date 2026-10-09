@@ -30,294 +30,32 @@ namespace GameVM.Compiler.Backend.Atari2600
             bool lastWasTransition = false; // pending polarity inversion
 
             // Collect exit labels (targets of conditional branches). Pass 1 will assign them the self-loop address.
-            var exitLabels = new HashSet<uint>();
-            for (int i = 0; i < llirSlab.Count; i++)
-            {
-                byte k = llirSlab.GetKind(i);
-                if ((LlirInstructionKind)k == LlirInstructionKind.Branch && llirSlab.GetOperands(i).Length >= 1
-                    && i > 0 && (LlirInstructionKind)llirSlab.GetKind(i - 1) == LlirInstructionKind.Transition
-                    && i > 1 && (LlirInstructionKind)llirSlab.GetKind(i - 2) == LlirInstructionKind.Cmp)
-                {
-                    exitLabels.Add(llirSlab.GetOperands(i)[0]);
-                }
-            }
-            static int EmitSize(byte k, ReadOnlySpan<uint> op)
-            {
-                LlirInstructionKind kind = (LlirInstructionKind)k;
-                return kind switch
-                {
-                    LlirInstructionKind.Label => 0,
-                    LlirInstructionKind.Load when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
-                    LlirInstructionKind.Load => 2,
-                    LlirInstructionKind.Store when op.Length >= 3 => (int)(op[1] | (op[2] << 8)) < 0x100 ? 2 : 3,
-                    LlirInstructionKind.Store when op.Length >= 2 => (int)op[1] < 0x100 ? 2 : 3,
-                    LlirInstructionKind.Store when op.Length == 0 => 0,
-                    LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
-                    LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
-                    LlirInstructionKind.Cmp => 2,
-                    LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
-                    LlirInstructionKind.Branch => 2,
-                    LlirInstructionKind.Jump => 3,
-                    LlirInstructionKind.Return => 1,
-                    LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
-                    LlirInstructionKind.Transition => 0,
-                    _ => 1,
-                };
-            }
-            var insnAddr = new int[llirSlab.Count];
-            var labelOffsets = new Dictionary<uint, int>();
-            int addr = 0;
-            for (int i = 0; i < llirSlab.Count; i++)
-            {
-                insnAddr[i] = addr;
-                byte k = llirSlab.GetKind(i);
-                if ((LlirInstructionKind)k == LlirInstructionKind.Label && llirSlab.GetOperands(i).Length >= 1)
-                {
-                    uint lbl = llirSlab.GetOperands(i)[0];
-                    labelOffsets[lbl] = exitLabels.Contains(lbl) ? addr + EmitSize(k, llirSlab.GetOperands(i)) : addr;
-                }
-                addr += EmitSize(k, llirSlab.GetOperands(i));
-            }
+            var exitLabels = CollectExitLabels(llirSlab);
+
+            var (insnAddr, labelOffsets) = ComputeInstructionAddresses(llirSlab, exitLabels);
 
             for (int i = 0; i < llirSlab.Count; i++)
             {
                 byte kindByte = llirSlab.GetKind(i);
                 LlirInstructionKind kind = (LlirInstructionKind)kindByte;
                 ReadOnlySpan<uint> operands = llirSlab.GetOperands(i);
-                int bytesWritten = 0;
-
-                switch (kind)
+                int bytesWritten = kind switch
                 {
-                    case LlirInstructionKind.Load:
-                        // Two operands: [addrLow, addrHigh] -> LDA zp (0xA5) / LDA abs (0xAD).
-                        // Single operand: LDA #immediate (0xA9).
-                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                        {
-                            int address = (int)operands[0] | ((int)operands[1] << 8);
-                            if (address < 0x100)
-                            {
-                                rom[currentAddress++] = 0xA5; // LDA zp
-                                rom[currentAddress++] = (byte)address;
-                                bytesWritten = 2;
-                            }
-                            else
-                            {
-                                rom[currentAddress++] = 0xAD; // LDA abs
-                                rom[currentAddress++] = (byte)(address & 0xFF);
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
-                                bytesWritten = 3;
-                            }
-                        }
-                        else if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0xA9; // LDA #immediate
-                            rom[currentAddress++] = (byte)operands[0];
-                            bytesWritten = 2;
-                        }
-                        break;
-                    case LlirInstructionKind.Store:
-                        // STA address (operands[1]=addrLow, operands[2]=addrHigh)
-                        if (operands.Length >= 3 && currentAddress + 3 <= RomSize)
-                        {
-                            int address = (int)operands[1] | ((int)operands[2] << 8);
-                            if (address < 0x100)
-                            {
-                                rom[currentAddress++] = 0x85; // STA zp
-                                rom[currentAddress++] = (byte)address;
-                                bytesWritten = 2;
-                            }
-                            else
-                            {
-                                rom[currentAddress++] = 0x8D; // STA abs
-                                rom[currentAddress++] = (byte)(address & 0xFF);
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
-                                bytesWritten = 3;
-                            }
-                        }
-                        else if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                        {
-                            int address = (int)operands[1];
-                            if (address < 0x100)
-                            {
-                                rom[currentAddress++] = 0x85;
-                                rom[currentAddress++] = (byte)address;
-                                bytesWritten = 2;
-                            }
-                            else
-                            {
-                                rom[currentAddress++] = 0x8D;
-                                rom[currentAddress++] = (byte)(address & 0xFF);
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
-                                bytesWritten = 3;
-                            }
-                        }
-                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
-                        {
-                            int address = (int)operands[0];
-                            if (address < 0x100)
-                            {
-                                rom[currentAddress++] = 0x85;
-                                rom[currentAddress++] = (byte)address;
-                                bytesWritten = 2;
-                            }
-                            else
-                            {
-                                rom[currentAddress++] = 0x8D;
-                                rom[currentAddress++] = (byte)(address & 0xFF);
-                                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
-                                bytesWritten = 3;
-                            }
-                        }
-                        break;
-                    case LlirInstructionKind.Add:
-                        // ADC immediate/abs: A += operand
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0x18; // CLC
-                            rom[currentAddress++] = 0x69; // ADC #imm
-                            rom[currentAddress++] = (byte)operands[0];
-                            bytesWritten = 3;
-                        }
-                        break;
-                    case LlirInstructionKind.Sub:
-                        // SBC immediate/abs: A -= operand (with carry set)
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0x38; // SEC
-                            rom[currentAddress++] = 0xE9; // SBC #imm
-                            rom[currentAddress++] = (byte)operands[0];
-                            bytesWritten = 3;
-                        }
-                        break;
-                    case LlirInstructionKind.Cmp:
-                        // Cmp always arrives 1-operand from the MidToLowLevelTransformer:
-                        // MapArithmetic splits the MLIR 2-operand Cmp into Load(left) + Cmp(right).
-                        if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0xC9; // CMP #imm
-                            rom[currentAddress++] = (byte)operands[0];
-                            bytesWritten = 2;
-                        }
-                        else
-                        {
-                            // Handle unexpected cases
-                            rom[currentAddress++] = 0xEA; // NOP
-                            bytesWritten = 1;
-                        }
-                        lastWasTransition = false;
-                        break;
-                    case LlirInstructionKind.Assign:
-                        // Assign: operands[0]=targetAddr (zero-page), operands[1]=value.
-                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                        {
-                            int target = (int)operands[0];
-                            uint value = operands[1];
-                            rom[currentAddress++] = 0xA9; // LDA #imm
-                            rom[currentAddress++] = (byte)value;
-                            rom[currentAddress++] = 0x85; // STA zp
-                            rom[currentAddress++] = (byte)target;
-                            bytesWritten = 4;
-                        }
-                        else if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
-                        {
-                            int target = (int)operands[0];
-                            rom[currentAddress++] = 0xA9; // LDA #0
-                            rom[currentAddress++] = 0x00;
-                            rom[currentAddress++] = 0x85; // STA zp
-                            rom[currentAddress++] = (byte)target;
-                            bytesWritten = 4;
-                        }
-                        break;
-                    case LlirInstructionKind.Label:
-                        // Skip labels - no code generated.
-                        bytesWritten = -1;
-                        break;
-                    case LlirInstructionKind.Jump:
-                        // JMP absolute
-                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0x4C; // JMP
-                            rom[currentAddress++] = (byte)operands[0];
-                            rom[currentAddress++] = (byte)operands[1];
-                            bytesWritten = 3;
-                        }
-                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
-                        {
-                            // Single-operand: operand is a label pool-offset; resolve to
-                            // its ROM byte address ($F000-relative → absolute).
-                            rom[currentAddress++] = 0x4C; // JMP
-                            if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
-                            {
-                                int abs = 0xF000 + targetAddr;
-                                rom[currentAddress++] = (byte)(abs & 0xFF);
-                                rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
-                            }
-                            else
-                            {
-                                // Unresolved target; fall back to ROM start.
-                                rom[currentAddress++] = 0x00;
-                                rom[currentAddress++] = 0xF0;
-                            }
-                            bytesWritten = 3;
-                        }
-                        break;
-                    case LlirInstructionKind.Branch:
-                        // Conditional branch. The opcode is selected from the preceding
-                        // Cmp + Transition marker. Branch-to-target-when-true.
-                        if (currentAddress + 2 <= RomSize)
-                        {
-                            // Default: BNE (branch when not equal, flags from last Cmp).
-                            byte opcode = lastWasTransition ? (byte)0xF0 : (byte)0xD0;
-                            // Default is BEQ when lastWasTransition, otherwise BNE.
-                            rom[currentAddress++] = opcode;
-                            // Relative offset: resolved label byte-address, else operand[0].
-                            int displacement = 0;
-                            if (operands.Length >= 1 && labelOffsets.TryGetValue(operands[0], out int targetAddr))
-                            {
-                                displacement = targetAddr - (insnAddr[i] + 2);
-                            }
-                            else if (operands.Length >= 1)
-                            {
-                                displacement = (sbyte)(byte)operands[0];
-                            }
-                            rom[currentAddress++] = (byte)(displacement & 0xFF);
-                            bytesWritten = 2;
-                        }
-                        lastWasTransition = false;
-                        break;
-                    case LlirInstructionKind.Transition:
-                        // Marks polarity inversion for the next branch. No bytes.
-                        lastWasTransition = true;
-                        bytesWritten = -1;
-                        break;
-                    case LlirInstructionKind.Return:
-                        // RTS
-                        if (currentAddress < RomSize)
-                        {
-                            rom[currentAddress++] = 0x60; // RTS
-                            bytesWritten = 1;
-                        }
-                        break;
-                    case LlirInstructionKind.Call:
-                    case LlirInstructionKind.Syscall:
-                        // JSR to address (low byte in operand[0], high byte in operand[1])
-                        if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                        {
-                            rom[currentAddress++] = 0x20; // JSR
-                            rom[currentAddress++] = (byte)operands[0];
-                            rom[currentAddress++] = (byte)operands[1];
-                            bytesWritten = 3;
-                        }
-                        break;
-                    default:
-                        // Unknown instruction - generate NOP (or skip)
-                        if (currentAddress < RomSize)
-                        {
-                            rom[currentAddress++] = 0xEA; // NOP
-                            bytesWritten = 1;
-                        }
-                        break;
-                }
+                    LlirInstructionKind.Load => EmitLoad(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Store => EmitStore(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition),
+                    LlirInstructionKind.Assign => EmitAssign(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Label => EmitLabel(),
+                    LlirInstructionKind.Jump => EmitJump(rom, ref currentAddress, operands, labelOffsets),
+                    LlirInstructionKind.Branch => EmitBranch(rom, ref currentAddress, operands, labelOffsets, insnAddr[i], ref lastWasTransition),
+                    LlirInstructionKind.Transition => EmitTransition(ref lastWasTransition),
+                    LlirInstructionKind.Return => EmitReturn(rom, ref currentAddress),
+                    LlirInstructionKind.Call => EmitCall(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Syscall => EmitCall(rom, ref currentAddress, operands),
+                    _ => EmitNop(rom, ref currentAddress),
+                };
 
                 if (bytesWritten == 0)
                 {
@@ -345,6 +83,296 @@ namespace GameVM.Compiler.Backend.Atari2600
             }
 
             return rom;
+        }
+
+        private static (int[] insnAddr, Dictionary<uint, int> labelOffsets) ComputeInstructionAddresses(
+            InstList llirSlab, HashSet<uint> exitLabels)
+        {
+            var insnAddr = new int[llirSlab.Count];
+            var labelOffsets = new Dictionary<uint, int>();
+            int addr = 0;
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                insnAddr[i] = addr;
+                byte k = llirSlab.GetKind(i);
+                ReadOnlySpan<uint> op = llirSlab.GetOperands(i);
+                if ((LlirInstructionKind)k == LlirInstructionKind.Label && op.Length >= 1)
+                {
+                    uint lbl = op[0];
+                    labelOffsets[lbl] = exitLabels.Contains(lbl) ? addr + EmitSize(k, op) : addr;
+                }
+                addr += EmitSize(k, op);
+            }
+            return (insnAddr, labelOffsets);
+        }
+
+        private static int EmitLoad(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Two operands: [addrLow, addrHigh] -> LDA zp (0xA5) / LDA abs (0xAD).
+            // Single operand: LDA #immediate (0xA9).
+            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            {
+                int address = (int)operands[0] | ((int)operands[1] << 8);
+                if (address < 0x100)
+                {
+                    rom[currentAddress++] = 0xA5; // LDA zp
+                    rom[currentAddress++] = (byte)address;
+                    return 2;
+                }
+                rom[currentAddress++] = 0xAD; // LDA abs
+                rom[currentAddress++] = (byte)(address & 0xFF);
+                rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+                return 3;
+            }
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = 0xA9; // LDA #immediate
+                rom[currentAddress++] = (byte)operands[0];
+                return 2;
+            }
+            return 0;
+        }
+
+        private static int EmitSta(byte[] rom, ref int currentAddress, int address)
+        {
+            if (address < 0x100)
+            {
+                rom[currentAddress++] = 0x85; // STA zp
+                rom[currentAddress++] = (byte)address;
+                return 2;
+            }
+            rom[currentAddress++] = 0x8D; // STA abs
+            rom[currentAddress++] = (byte)(address & 0xFF);
+            rom[currentAddress++] = (byte)((address >> 8) & 0xFF);
+            return 3;
+        }
+
+        private static int EmitStore(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // STA address (operands[1]=addrLow, operands[2]=addrHigh)
+            if (operands.Length >= 3 && currentAddress + 3 <= RomSize)
+                return EmitSta(rom, ref currentAddress, (int)operands[1] | ((int)operands[2] << 8));
+            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+                return EmitSta(rom, ref currentAddress, (int)operands[1]);
+            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
+                return EmitSta(rom, ref currentAddress, (int)operands[0]);
+            return 0;
+        }
+
+        private static int EmitAdd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // ADC immediate/abs: A += operand
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = 0x18; // CLC
+                rom[currentAddress++] = 0x69; // ADC #imm
+                rom[currentAddress++] = (byte)operands[0];
+                return 3;
+            }
+            return 0;
+        }
+
+        private static int EmitSub(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // SBC immediate/abs: A -= operand (with carry set)
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = 0x38; // SEC
+                rom[currentAddress++] = 0xE9; // SBC #imm
+                rom[currentAddress++] = (byte)operands[0];
+                return 3;
+            }
+            return 0;
+        }
+
+        private static int EmitCmp(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, ref bool lastWasTransition)
+        {
+            // Cmp always arrives 1-operand from the MidToLowLevelTransformer:
+            // MapArithmetic splits the MLIR 2-operand Cmp into Load(left) + Cmp(right).
+            int written;
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = 0xC9; // CMP #imm
+                rom[currentAddress++] = (byte)operands[0];
+                written = 2;
+            }
+            else
+            {
+                // Handle unexpected cases
+                rom[currentAddress++] = 0xEA; // NOP
+                written = 1;
+            }
+            lastWasTransition = false;
+            return written;
+        }
+
+        private static int EmitAssign(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Assign: operands[0]=targetAddr (zero-page), operands[1]=value.
+            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            {
+                int target = (int)operands[0];
+                uint value = operands[1];
+                rom[currentAddress++] = 0xA9; // LDA #imm
+                rom[currentAddress++] = (byte)value;
+                rom[currentAddress++] = 0x85; // STA zp
+                rom[currentAddress++] = (byte)target;
+                return 4;
+            }
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                int target = (int)operands[0];
+                rom[currentAddress++] = 0xA9; // LDA #0
+                rom[currentAddress++] = 0x00;
+                rom[currentAddress++] = 0x85; // STA zp
+                rom[currentAddress++] = (byte)target;
+                return 4;
+            }
+            return 0;
+        }
+
+        private static int EmitLabel()
+        {
+            // Skip labels - no code generated.
+            return -1;
+        }
+
+        private static int EmitJump(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets)
+        {
+            // JMP absolute
+            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            {
+                rom[currentAddress++] = 0x4C; // JMP
+                rom[currentAddress++] = (byte)operands[0];
+                rom[currentAddress++] = (byte)operands[1];
+                return 3;
+            }
+            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
+            {
+                // Single-operand: operand is a label pool-offset; resolve to
+                // its ROM byte address ($F000-relative → absolute).
+                rom[currentAddress++] = 0x4C; // JMP
+                if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                {
+                    int abs = 0xF000 + targetAddr;
+                    rom[currentAddress++] = (byte)(abs & 0xFF);
+                    rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
+                }
+                else
+                {
+                    // Unresolved target; fall back to ROM start.
+                    rom[currentAddress++] = 0x00;
+                    rom[currentAddress++] = 0xF0;
+                }
+                return 3;
+            }
+            return 0;
+        }
+
+        private static int EmitBranch(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
+            Dictionary<uint, int> labelOffsets, int insnAddress, ref bool lastWasTransition)
+        {
+            // Conditional branch. The opcode is selected from the preceding
+            // Cmp + Transition marker. Branch-to-target-when-true.
+            int written = 0;
+            if (currentAddress + 2 <= RomSize)
+            {
+                // Default: BNE (branch when not equal, flags from last Cmp).
+                // BEQ when lastWasTransition, otherwise BNE.
+                rom[currentAddress++] = lastWasTransition ? (byte)0xF0 : (byte)0xD0;
+                // Relative offset: resolved label byte-address, else operand[0].
+                int displacement = 0;
+                if (operands.Length >= 1 && labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                    displacement = targetAddr - (insnAddress + 2);
+                else if (operands.Length >= 1)
+                    displacement = (sbyte)(byte)operands[0];
+                rom[currentAddress++] = (byte)(displacement & 0xFF);
+                written = 2;
+            }
+            lastWasTransition = false;
+            return written;
+        }
+
+        private static int EmitTransition(ref bool lastWasTransition)
+        {
+            // Marks polarity inversion for the next branch. No bytes.
+            lastWasTransition = true;
+            return -1;
+        }
+
+        private static int EmitReturn(byte[] rom, ref int currentAddress)
+        {
+            // RTS
+            if (currentAddress < RomSize)
+            {
+                rom[currentAddress++] = 0x60; // RTS
+                return 1;
+            }
+            return 0;
+        }
+
+        private static int EmitCall(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // JSR to address (low byte in operand[0], high byte in operand[1])
+            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            {
+                rom[currentAddress++] = 0x20; // JSR
+                rom[currentAddress++] = (byte)operands[0];
+                rom[currentAddress++] = (byte)operands[1];
+                return 3;
+            }
+            return 0;
+        }
+
+        private static int EmitNop(byte[] rom, ref int currentAddress)
+        {
+            // Unknown instruction - generate NOP (or skip)
+            if (currentAddress < RomSize)
+            {
+                rom[currentAddress++] = 0xEA; // NOP
+                return 1;
+            }
+            return 0;
+        }
+
+        private static HashSet<uint> CollectExitLabels(InstList llirSlab)
+        {
+            var exitLabels = new HashSet<uint>();
+            for (int i = 0; i < llirSlab.Count; i++)
+            {
+                byte k = llirSlab.GetKind(i);
+                if ((LlirInstructionKind)k == LlirInstructionKind.Branch && llirSlab.GetOperands(i).Length >= 1
+                    && i > 0 && (LlirInstructionKind)llirSlab.GetKind(i - 1) == LlirInstructionKind.Transition
+                    && i > 1 && (LlirInstructionKind)llirSlab.GetKind(i - 2) == LlirInstructionKind.Cmp)
+                {
+                    exitLabels.Add(llirSlab.GetOperands(i)[0]);
+                }
+            }
+            return exitLabels;
+        }
+
+        private static int EmitSize(byte k, ReadOnlySpan<uint> op)
+        {
+            LlirInstructionKind kind = (LlirInstructionKind)k;
+            return kind switch
+            {
+                LlirInstructionKind.Label => 0,
+                LlirInstructionKind.Load when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
+                LlirInstructionKind.Load => 2,
+                LlirInstructionKind.Store when op.Length >= 3 => (int)(op[1] | (op[2] << 8)) < 0x100 ? 2 : 3,
+                LlirInstructionKind.Store when op.Length >= 2 => (int)op[1] < 0x100 ? 2 : 3,
+                LlirInstructionKind.Store when op.Length == 0 => 0,
+                LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
+                LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                LlirInstructionKind.Cmp => 2,
+                LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
+                LlirInstructionKind.Branch => 2,
+                LlirInstructionKind.Jump => 3,
+                LlirInstructionKind.Return => 1,
+                LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
+                LlirInstructionKind.Transition => 0,
+                _ => 1,
+            };
         }
 
         // ICapabilityProvider implementation
