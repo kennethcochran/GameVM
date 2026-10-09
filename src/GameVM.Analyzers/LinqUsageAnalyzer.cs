@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -34,51 +35,67 @@ namespace GameVM.Analyzers
             context.RegisterSyntaxNodeAction(HandleInvocation, SyntaxKind.InvocationExpression);
         }
 
-        private void HandleInvocation(SyntaxNodeAnalysisContext context)
+        private static void HandleInvocation(SyntaxNodeAnalysisContext context)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
             var expression = invocation.Expression;
             var symbolInfo = context.SemanticModel.GetSymbolInfo(expression, context.CancellationToken);
-            
-            if (symbolInfo.Symbol is IMethodSymbol methodSymbol)
+
+            if (symbolInfo.Symbol is IMethodSymbol methodSymbol && IsLinqMethod(methodSymbol))
             {
-                if (IsLinqMethod(methodSymbol))
-                {
-                    var location = invocation.GetLocation();
-                    var diagnostic = Diagnostic.Create(Rule, location, methodSymbol.Name);
-                    context.ReportDiagnostic(diagnostic);
-                }
+                var location = invocation.GetLocation();
+                var diagnostic = Diagnostic.Create(Rule, location, methodSymbol.Name);
+                context.ReportDiagnostic(diagnostic);
             }
         }
 
-        private bool IsLinqMethod(IMethodSymbol method)
+        internal static bool IsLinqMethod(IMethodSymbol method)
         {
-            var containingType = method.ContainingType;
-            var containingNamespace = containingType?.ContainingNamespace;
-            
+            var containingNamespace = method.ContainingType?.ContainingNamespace?.ToDisplayString();
+
             // Check if it's from System.Linq namespace
-            if (containingNamespace != null)
-            {
-                var fullNamespace = containingNamespace.ToDisplayString();
-                if (fullNamespace == "System.Linq" || fullNamespace.StartsWith("System.Linq."))
-                {
-                    return true;
-                }
-            }
-            
-            // Also check for Enumerable extension methods by name
-            var methodName = method.Name;
-            var linqMethods = new[] { "Where", "Select", "OrderBy", "GroupBy", "ToList", "ToArray", "Any", "All", "Count", "Min", "Max", "Average", "First", "Last", "Single", "ElementAt", "Skip", "Take", "Distinct", "Union", "Intersect", "Except", "Join", "GroupJoin", "SelectMany", "Reverse", "Concat", "Zip", "Aggregate", "Sum", "MinBy", "MaxBy" };
-            
-            if (linqMethods.Contains(methodName) && method.IsExtensionMethod)
-            {
-                // Verify it's from System.Linq.Enumerable
-                var extendedType = method.Parameters[0].Type;
-                return extendedType?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>" ||
-                       extendedType?.OriginalDefinition?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>";
-            }
-            
-            return false;
+            if (IsSystemLinqNamespace(containingNamespace))
+                return true;
+
+            var extendedType = method.Parameters.Length > 0 ? method.Parameters[0].Type : null;
+            return IsLinqExtensionMethod(
+                method.Name,
+                method.IsExtensionMethod,
+                extendedType?.ToDisplayString(),
+                extendedType?.OriginalDefinition?.ToDisplayString());
         }
+
+        internal static bool IsSystemLinqNamespace(string? fullNamespace)
+        {
+            return fullNamespace == "System.Linq" ||
+                (fullNamespace != null && fullNamespace.StartsWith("System.Linq.", StringComparison.Ordinal));
+        }
+
+        internal static bool IsLinqExtensionMethod(
+            string methodName,
+            bool isExtensionMethod,
+            string? extendedTypeDisplay,
+            string? extendedTypeOriginalDefinition)
+        {
+            if (!isExtensionMethod)
+                return false;
+
+            if (!LinqMethodNames.Contains(methodName))
+                return false;
+
+            // Verify it's from System.Linq.Enumerable
+            return extendedTypeDisplay == "System.Collections.Generic.IEnumerable<T>" ||
+                extendedTypeOriginalDefinition == "System.Collections.Generic.IEnumerable<T>";
+        }
+
+        internal static readonly string[] LinqMethodNames = new[]
+        {
+            "Where", "Select", "OrderBy", "GroupBy", "ToList", "ToArray",
+            "Any", "All", "Count", "Min", "Max", "Average",
+            "First", "Last", "Single", "ElementAt", "Skip", "Take",
+            "Distinct", "Union", "Intersect", "Except", "Join", "GroupJoin",
+            "SelectMany", "Reverse", "Concat", "Zip", "Aggregate", "Sum",
+            "MinBy", "MaxBy"
+        };
     }
 }

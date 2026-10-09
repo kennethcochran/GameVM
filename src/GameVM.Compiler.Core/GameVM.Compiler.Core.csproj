@@ -6,8 +6,12 @@
     <LangVersion>latest</LangVersion>
     <NoWarn>CS0618</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <InternalsVisibleTo>GameVM.Compiler.Core.Tests</InternalsVisibleTo>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GameVM.Compiler.Core.Tests" />
+    <InternalsVisibleTo Include="GameVM.DevTools.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="SonarAnalyzer.CSharp" Version="10.18.0.131500">

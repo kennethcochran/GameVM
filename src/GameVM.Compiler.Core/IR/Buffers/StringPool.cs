@@ -74,30 +74,53 @@ namespace GameVM.Compiler.Core.IR.Buffers
             
             // Rebuild the dictionary by scanning the buffer
             pool._interned.Clear();
-            pool._interned[""] = 0;
             
-            uint pos = 4; // skip the first empty string (4 bytes for length 0)
+            uint pos = 0;
             while (pos < pool._offset)
             {
-                if (pos + 4 > pool._offset) break;
+                uint entryOffset = pos;
+                if (!TryReadEntry(data, pos, pool._offset, out string str, out uint nextPos))
+                    break;
+                pos = nextPos;
                 
-                int len = BitConverter.ToInt32(data, (int)pos);
-                if (len < 0) break;
-                pos += 4;
-                
-                if (pos + len > pool._offset) break;
-                
-                string str = Encoding.UTF8.GetString(data, (int)pos, len);
-                pos += (uint)len;
-                
-                // Skip null terminator
-                if (pos < pool._offset && data[pos] == 0) pos++;
-                
+                // Skip the reserved empty string at offset 0; Intern("") returns 0
+                // without adding to the dictionary, so the restored pool must match.
+                if (entryOffset == 0)
+                    continue;
+                    
                 if (!pool._interned.ContainsKey(str))
-                    pool._interned[str] = pos - 4u - (uint)len; // offset = start of length prefix
+                    pool._interned[str] = entryOffset;
             }
             
             return pool;
+        }
+
+        /// <summary>
+        /// Reads one length-prefixed string entry from the buffer.
+        /// Returns false when the data is truncated or corrupt.
+        /// Pure function for testability.
+        /// </summary>
+        internal static bool TryReadEntry(byte[] data, uint pos, uint totalLength, out string value, out uint nextPos)
+        {
+            value = "";
+            nextPos = pos;
+            
+            if (pos + 4 > totalLength) return false;
+            
+            int len = BitConverter.ToInt32(data, (int)pos);
+            if (len < 0) return false;
+            pos += 4;
+            
+            if (pos + len > totalLength) return false;
+            
+            value = Encoding.UTF8.GetString(data, (int)pos, len);
+            pos += (uint)len;
+            
+            // Skip null terminator
+            if (pos < totalLength && data[pos] == 0) pos++;
+            
+            nextPos = pos;
+            return true;
         }
 
         private uint AddString(string str)

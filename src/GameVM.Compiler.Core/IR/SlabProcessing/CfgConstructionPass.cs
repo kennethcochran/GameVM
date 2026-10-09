@@ -38,32 +38,7 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
         public CfgTable Build(System.Func<int, int[]> successorResolver)
         {
             // Step 1: Identify basic-block leaders.
-            // Leaders are: the entry instruction, and every instruction reported by the
-            // successor resolver as a control-flow target of a terminator.
-            var isLeader = new bool[_slab.Count];
-
-            // Entry instruction (first instruction) is always a leader.
-            if (_slab.Count > 0)
-                isLeader[0] = true;
-
-            // First pass: walk instructions, mark targets reported by the resolver as leaders.
-            for (int i = 0; i < _slab.Count; i++)
-            {
-                ushort flags = _slab.GetFlags(i);
-                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
-                if (isTerminator)
-                {
-                    int[] successors = successorResolver(i);
-                    if (successors != null)
-                    {
-                        foreach (int target in successors)
-                        {
-                            if (target >= 0 && target < _slab.Count)
-                                isLeader[target] = true;
-                        }
-                    }
-                }
-            }
+            var isLeader = IdentifyLeaders(successorResolver);
 
             // Step 2: Assign block IDs to each instruction in order.
             // Instructions between leaders (inclusive) belong to the same block.
@@ -167,6 +142,33 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
             }
 
             return table;
+        }
+
+        private bool[] IdentifyLeaders(System.Func<int, int[]> successorResolver)
+        {
+            var isLeader = new bool[_slab.Count];
+            if (_slab.Count > 0)
+                isLeader[0] = true;
+
+            for (int i = 0; i < _slab.Count; i++)
+            {
+                ushort flags = _slab.GetFlags(i);
+                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
+                if (isTerminator)
+                {
+                    int[] successors = successorResolver(i);
+                    if (successors != null)
+                    {
+                        foreach (int target in successors)
+                        {
+                            if (target >= 0 && target < _slab.Count)
+                                isLeader[target] = true;
+                        }
+                    }
+                }
+            }
+
+            return isLeader;
         }
     }
 }

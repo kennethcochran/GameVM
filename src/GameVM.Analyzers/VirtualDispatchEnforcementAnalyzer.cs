@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -36,34 +38,71 @@ namespace GameVM.Analyzers
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
-            var syntaxTree = invocation.SyntaxTree;
-            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxTree);
-            if (!options.TryGetValue(EditorConfigKey, out var rawList) || string.IsNullOrWhiteSpace(rawList))
+            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(invocation.SyntaxTree);
+            if (!options.TryGetValue(EditorConfigKey, out var rawList))
                 return;
 
-            var targetNamespaces = ((string)rawList).Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
-            if (targetNamespaces.Length == 0)
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
                 return;
 
-            var semanticModel = context.SemanticModel;
-            var symbolInfo = semanticModel.GetSymbolInfo(invocation);
-
-            if (symbolInfo.Symbol is IMethodSymbol methodSymbol)
+            if (ShouldReportInvocation(
+                rawList,
+                methodSymbol.IsVirtual,
+                methodSymbol.IsAbstract,
+                methodSymbol.IsOverride,
+                methodSymbol.ContainingNamespace?.ToDisplayString()))
             {
-                if (methodSymbol.IsVirtual || methodSymbol.IsAbstract || methodSymbol.IsOverride)
-                {
-                    var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
-                    foreach (var target in targetNamespaces)
-                    {
-                        if (containingNs == target || (containingNs.StartsWith(target + ".")))
-                        {
-                            var diagnostic = Diagnostic.Create(Rule, invocation.GetLocation());
-                            context.ReportDiagnostic(diagnostic);
-                            return;
-                        }
-                    }
-                }
+                var diagnostic = Diagnostic.Create(Rule, invocation.GetLocation());
+                context.ReportDiagnostic(diagnostic);
             }
+        }
+
+        internal static bool ShouldReportInvocation(
+            string? rawConfig,
+            bool isVirtual,
+            bool isAbstract,
+            bool isOverride,
+            string? containingNamespace)
+        {
+            if (string.IsNullOrWhiteSpace(rawConfig))
+                return false;
+
+            var targetNamespaces = ParseNamespaces(rawConfig!);
+            if (targetNamespaces.Count == 0)
+                return false;
+
+            if (!IsVirtualDispatch(isVirtual, isAbstract, isOverride))
+                return false;
+
+            return IsInTargetNamespace(containingNamespace ?? "", targetNamespaces);
+        }
+
+        internal static IReadOnlyList<string> ParseNamespaces(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return Array.Empty<string>();
+
+            return raw!
+                .Split(',')
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+        }
+
+        internal static bool IsVirtualDispatch(bool isVirtual, bool isAbstract, bool isOverride)
+        {
+            return isVirtual || isAbstract || isOverride;
+        }
+
+        internal static bool IsInTargetNamespace(string containingNamespace, IReadOnlyList<string> targetNamespaces)
+        {
+            foreach (var target in targetNamespaces)
+            {
+                if (containingNamespace == target ||
+                    containingNamespace.StartsWith(target + ".", StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
 }
 }
