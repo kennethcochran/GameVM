@@ -185,6 +185,12 @@ jobs:
         run: |
           projectKey="kennethcochran_GameVM"
           url="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$projectKey"
+          # Scope the gate to this PR when running on pull_request; without the
+          # pullRequest parameter the API returns the main branch status, which
+          # fails PR builds for unrelated main-branch conditions.
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            url="$url&pullRequest=${{ github.event.pull_request.number }}"
+          fi
 
           # Poll until SonarQube has finished evaluating the quality gate
           status="NONE"
