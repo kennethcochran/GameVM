@@ -17,14 +17,22 @@ folder. It supplements the [root AGENTS.md](../AGENTS.md).
 - Verify behavior correctness
 
 ### Running Tests
+
+The default test runner is `test/GameVM.TestRunner`, a NUnitLite-based console
+app that runs all test assemblies in-process. Use it instead of `dotnet test`:
+vstest's testhost deadlocks on startup in some environments (notably the
+project's dev VM), while the NUnitLite runner executes the same NUnit tests
+directly with no testhost, no sockets, and no datacollector.
+
 ```bash
-# Run all tests
+# Run all tests (default runner)
+dotnet run --project test/GameVM.TestRunner
+
+# Run with an NUnitLite filter (e.g. single fixture)
+dotnet run --project test/GameVM.TestRunner -- --test=GameVM.Compiler.Core.Tests.MyFixture
+
+# Legacy: dotnet test (vstest). Only use where vstest is known to work;
+# it hangs on testhost startup in the dev VM.
 dotnet test
-
-# Run specific test project
-dotnet test test/GameVM.Compiler.Core.Tests/
-
-# Run with coverage
-dotnet test /p:CollectCoverage=true
 ```
 
