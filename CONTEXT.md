@@ -140,6 +140,20 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
   - `Type mismatch: cannot assign '{valueText}' to Integer variable '{targetName}'`
 - No new rules added (duplicate decl, for-control, call arity are later tickets).
 
+### Slice 1 Frontend Correctness (F1)
+
+- **F1 — Unary minus.** `VisitSignedFactor` used to visit the factor twice and
+  wrap it in a 1-child `BinaryOp`, which `BuildBinaryOp` rejected (needs ≥2
+  children) — `x := -y;` vanished silently. It now emits the new
+  `PascalAstNodeKind.UnaryOp` (payload `'-'`, single operand child).
+  `PascalAstToHlirTransformer` lowers it to the previously-never-produced
+  `HlirNodeKind.UnaryOp`, constant-folding integer literals and named constants
+  to their 8-bit two's complement value (`-5` → `251`);
+  `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)`, reusing the
+  existing `Sub` path through LLIR to `SEC; SBC` on the 6502.
+  `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
+  `x := -undeclared` still reports PAS0001.
+
 ### Semantic Error Structure
 
 - `SemanticError` is a plain data class in `GameVM.Compiler.Core.Interfaces` with properties: `Message`, `ErrorCode`, `Line`, `Column`.

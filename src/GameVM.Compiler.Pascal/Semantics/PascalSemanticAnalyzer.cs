@@ -278,6 +278,7 @@ namespace GameVM.Compiler.Pascal.Semantics
                         Report(exprIdx, $"Undefined variable '{_pool.Resolve(offset)}'", ErrorCodeUndefinedVariable);
                     return;
                 case PascalAstNodeKind.BinaryOp:
+                case PascalAstNodeKind.UnaryOp:
                     foreach (int childIdx in astTree.Children(exprIdx))
                         ProcessExpression(astTree, childIdx);
                     return;

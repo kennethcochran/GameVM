@@ -536,5 +536,41 @@ public class MidToLowLevelTransformerTests
             Assert.That(result.Count, Is.EqualTo(1));
             Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Jump));
         }
+        [Test]
+        public void Transform_UnaryMinusSequence_EmitsLoadZeroSubStore()
+        {
+            // MLIR for x := -y as produced by the HLIR UnaryOp lowering:
+            //   Sub("0", y); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+            // Lowers to: Load #0 (LDA #0), Sub(yAddr), Store(xAddr).
+            // y is allocated first ($80), x second ($81).
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint xOffset = _stringPool.Intern("x");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var mlir = BuildMlirSlab(
+                ((byte)LlirInstructionKind.Sub, new uint[] { zeroOffset, yOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { tmpOffset, 0 }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, tmpOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            Assert.That(result.Count, Is.EqualTo(3));
+
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            var loadOps = result.GetOperands(0);
+            Assert.That(loadOps.Length, Is.EqualTo(1));
+            Assert.That(loadOps[0], Is.EqualTo(0u), "Load immediate 0");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            var subOps = result.GetOperands(1);
+            Assert.That(subOps.Length, Is.EqualTo(1));
+            Assert.That(subOps[0], Is.EqualTo(0x80u), "Sub operand is y's zero-page address");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps.Length, Is.EqualTo(1));
+            Assert.That(storeOps[0], Is.EqualTo(0x81u), "Store targets x's zero-page address");
+        }
         #endregion
 }

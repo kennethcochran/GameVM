@@ -208,6 +208,29 @@ public sealed class HlirTreeToMlirTransformer
                     return tempOffset;
                 }
 
+            case HlirNodeKind.UnaryOp:
+                {
+                    // Unary minus: -x == 0 - x. Reuses the existing Sub lowering so
+                    // the operand flows through the normal Load/Sub path.
+                    var children = tree.Children(idx);
+                    if (children.Length < 1 || (char)node.Payload != '-')
+                    {
+                        isImmediate = true;
+                        return 0;
+                    }
+
+                    uint operandSlot = EvaluateExpression(tree, children[0], builder, out _);
+                    uint zeroSlot = _pool.Intern("0");
+
+                    string temp = NewTemp();
+                    uint tempOffset = _pool.Intern(temp);
+                    builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, zeroSlot, operandSlot);
+                    builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tempOffset, 0);
+
+                    isImmediate = false;
+                    return tempOffset;
+                }
+
             default:
                 isImmediate = true;
                 return 0;
