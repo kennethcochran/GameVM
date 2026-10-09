@@ -318,8 +318,11 @@ namespace GameVM.Compiler.Pascal.Transformers
             var factor = VisitFactor(context.factor());
             if (context.MINUS() != null)
             {
-                int factorIdx = VisitFactor(context.factor()) is int o ? o : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.factor()?.Start ?? context.Start);
-                return Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'-', context.factor()?.Start ?? context.Start, factorIdx);
+                // Unary minus: single visit of the factor, wrapped in a UnaryOp node
+                // (payload = '-' op char). The HLIR transformer folds literal
+                // operands and lowers the rest through MLIR -> LLIR -> 6502.
+                int factorIdx = factor is int o ? o : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.factor()?.Start ?? context.Start);
+                return Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', context.factor()?.Start ?? context.Start, factorIdx);
             }
             return factor;
         }

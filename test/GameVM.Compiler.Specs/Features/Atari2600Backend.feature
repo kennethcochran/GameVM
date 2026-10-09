@@ -112,3 +112,17 @@ Feature: Atari 2600 Backend
     # Atari 2600 ROMs have vectors at the end
     # Reset vector at $FFFC (offset $0FFC in 4KB ROM)
     # The actual value depends on the entry point, but it should be present
+  Scenario: Unary minus on a constant folds to two's complement
+    Given the following Pascal program:
+      """
+      program UnaryMinus;
+      var
+          x: integer;
+      begin
+          x := -5;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a9 fb 85 80"
+
