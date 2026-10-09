@@ -13,6 +13,27 @@ namespace GameVM.Compiler.Backend.Atari2600
         private const int RomSize = 4096; // 4K ROM
         private const int VectorBaseOffset = 0x0FFC; // Offset from RomStartAddress for vectors ($FFFC - $F000)
 
+        // Reset prologue emitted at the start of every ROM (13 bytes):
+        //   SEI                  ; disable interrupts (the 6507 has none wired, but be explicit)
+        //   CLD                  ; clear decimal mode
+        //   LDX #$FF / TXS       ; init stack pointer to $01FF
+        //   LDX #$00 / TXA       ; A = 0
+        // clear: STA $80,X / INX / BNE clear   ; zero all 256 zero-page bytes
+        //                        ($80-$FF RIOT RAM, then $00-$2C TIA: VSYNC=0, VBLANK=0,
+        //                        silence, black, motion cleared — all safe at reset)
+        private static readonly byte[] ResetPrologue = new byte[]
+        {
+            0x78,        // SEI
+            0xD8,        // CLD
+            0xA2, 0xFF,  // LDX #$FF
+            0x9A,        // TXS
+            0xA2, 0x00,  // LDX #$00
+            0x8A,        // TXA
+            0x95, 0x80,  // STA $80,X
+            0xE8,        // INX
+            0xD0, 0xFB   // BNE -5 (back to STA $80,X)
+        };
+
         // DOD pipeline method - Generate from LLIR slab
         public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
         {
@@ -26,8 +47,13 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             var rom = new byte[RomSize]; // 4K ROM
             Array.Clear(rom, 0, rom.Length);
-            int currentAddress = 0; // Offset within ROM (0 = $F000)
+            // Reset entry: the vectors point at $F000, so execution starts here.
+            Array.Copy(ResetPrologue, rom, ResetPrologue.Length);
+            int currentAddress = ResetPrologue.Length; // Offset within ROM (0 = $F000)
             bool lastWasTransition = false; // pending polarity inversion
+            // Positions of Return placeholders to patch to JMP <halt-loop> once
+            // the self-loop address is known.
+            var returnPatchPositions = new List<int>();
 
             // Collect exit labels (targets of conditional branches). Pass 1 will assign them the self-loop address.
             var exitLabels = new HashSet<uint>();
@@ -58,7 +84,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
                     LlirInstructionKind.Branch => 2,
                     LlirInstructionKind.Jump => 3,
-                    LlirInstructionKind.Return => 1,
+                    LlirInstructionKind.Return => 3, // JMP <halt-loop>, patched after emission
                     LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
                     LlirInstructionKind.Transition => 0,
                     _ => 1,
@@ -291,11 +317,19 @@ namespace GameVM.Compiler.Backend.Atari2600
                         bytesWritten = -1;
                         break;
                     case LlirInstructionKind.Return:
-                        // RTS
-                        if (currentAddress < RomSize)
+                        // The program entry never returns. There is no caller, and the stack
+                        // was just initialized by the prologue, so an RTS would pop garbage
+                        // and jump to a random address. The entry path therefore ends in a JMP
+                        // to the halt loop, patched below once the self-loop address is known.
+                        // (Function returns via RTS arrive with the B3 calling convention, so
+                        // until then every Return is the main-path exit.)
+                        if (currentAddress + 3 <= RomSize)
                         {
-                            rom[currentAddress++] = 0x60; // RTS
-                            bytesWritten = 1;
+                            returnPatchPositions.Add(currentAddress);
+                            rom[currentAddress++] = 0x4C; // JMP
+                            rom[currentAddress++] = 0x00; // patched below
+                            rom[currentAddress++] = 0x00; // patched below
+                            bytesWritten = 3;
                         }
                         break;
                     case LlirInstructionKind.Call:
@@ -325,7 +359,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                     break;
                 }
             }
-            // Emit a self-loop (JMP *) so the program stays at its final state.
+            // Patch every Return to jump to the halt loop, then emit the
+            // self-loop (JMP *) so the program stays at its final state.
+            int haltAddr = 0xF000 + currentAddress;
+            foreach (int pos in returnPatchPositions)
+            {
+                rom[pos + 1] = (byte)(haltAddr & 0xFF);
+                rom[pos + 2] = (byte)((haltAddr >> 8) & 0xFF);
+            }
             if (currentAddress + 3 <= RomSize)
             {
                 int loopAddr = 0xF000 + currentAddress;
