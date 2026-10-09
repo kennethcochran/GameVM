@@ -2,6 +2,15 @@
   "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
   "tasks": [
     {
+      "name": "nudge-coaching",
+      "group": "pre-commit",
+      "command": "bash",
+      "args": [
+        "-c",
+        "export DOTNET_ROOT=$HOME/dotnet PATH=$HOME/.dotnet/tools:$HOME/dotnet:$PATH && nudge --sln GameVM.sln --baseline .nudge/baseline.txt"
+      ]
+    },
+    {
       "name": "clean-test-results",
       "group": "pre-commit",
       "command": "dotnet",
