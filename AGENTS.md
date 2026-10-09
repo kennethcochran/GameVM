@@ -58,6 +58,13 @@ Use a **combined MCP + CLI approach** based on what's available:
    - Re-run `sonar analyze --staged` or `sonar list issues` to confirm fixes
    - Check quality gate: `sonar show quality-gate -p kennethcochran_GameVM`
 
+### Nudge Coaching — Dogfooding (MUST FOLLOW)
+We are dogfooding `nudge`, our .NET global tool that turns build diagnostics into coaching guides (`Why / Do this / AVOID`) for AI agents. It is installed via the repo tool manifest (`dotnet tool restore`):
+1. After building, run: `dotnet tool run nudge -- --sln GameVM.sln` — or pipe a build log: `dotnet build 2>&1 | dotnet tool run nudge -- --stdin`.
+2. For each rule in the report, read the **Why** (the rationale), follow **Do this**, and heed **AVOID** — it names the metric-gaming dodges (suppression, rule-dodging restructures) explicitly. Do not use them.
+3. Fix the underlying issue the guide describes, then rebuild to confirm the diagnostic is gone because the code changed.
+4. If a guide's advice is wrong, unhelpful, or missing for a rule you hit, file it at `kennethcochran/nudge` — that feedback is the point of dogfooding. (Current version: 0.0.0-alpha.0.6; expect rough edges.)
+
 ### WORKFLOW EXAMPLES
 **Before implementing a feature**:
 - Review similar implementations in codebase
