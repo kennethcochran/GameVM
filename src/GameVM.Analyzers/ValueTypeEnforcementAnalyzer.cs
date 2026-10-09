@@ -47,47 +47,53 @@ namespace GameVM.Analyzers
         {
             var namedType = (INamedTypeSymbol)context.Symbol;
 
-            if (namedType.TypeKind != TypeKind.Class)
+            var syntaxRef = namedType.DeclaringSyntaxReferences.FirstOrDefault();
+            if (syntaxRef == null)
                 return;
+
+            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxRef.SyntaxTree);
+            if (!options.TryGetValue(EditorConfigKey, out var rawList))
+                return;
+
+            if (ShouldReportClass(namedType, rawList, out var namespaceName))
+            {
+                var location = syntaxRef.GetSyntax().GetLocation();
+                var diagnostic = Diagnostic.Create(Rule, location, namedType.Name, namespaceName);
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+
+        internal static bool ShouldReportClass(INamedTypeSymbol namedType, string? rawConfig, out string namespaceName)
+        {
+            namespaceName = "";
+            if (namedType.TypeKind != TypeKind.Class)
+                return false;
 
             // Resolve the declared namespace (full dotted name). Skip types with no namespace
             // (global namespace) since they can never match a configured prefix.
             var ns = namedType.ContainingNamespace;
             if (ns == null || ns.IsGlobalNamespace)
-                return;
+                return false;
 
-            var namespaceName = ns.ToDisplayString();
-
-            // Need the syntax tree to read per-tree .editorconfig options. Metadata symbols
-            // (no syntax) have no applicable options and are skipped.
-            var syntaxRef = namedType.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef == null)
-                return;
-
-            var syntaxTree = syntaxRef.SyntaxTree;
-            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxTree);
-            if (!options.TryGetValue(EditorConfigKey, out var rawList) || string.IsNullOrWhiteSpace(rawList))
-                return;
-
-            var targetNamespaces = ParseNamespaces(rawList);
-            if (targetNamespaces.Count == 0)
-                return;
-
-            foreach (var target in targetNamespaces)
-            {
-                if (!IsOrUnderNamespace(namespaceName, target))
-                    continue;
-
-                var location = syntaxRef.GetSyntax().GetLocation();
-                var diagnostic = Diagnostic.Create(Rule, location, namedType.Name, namespaceName);
-                context.ReportDiagnostic(diagnostic);
-                return; // one diagnostic per violating type is sufficient
-            }
+            namespaceName = ns.ToDisplayString();
+            return IsNamespaceTargeted(namespaceName, rawConfig);
         }
 
-        private static IReadOnlyList<string> ParseNamespaces(string raw)
+        internal static bool IsNamespaceTargeted(string namespaceName, string? rawConfig)
         {
-            return raw
+            if (string.IsNullOrWhiteSpace(rawConfig))
+                return false;
+
+            var targetNamespaces = ParseNamespaces(rawConfig!);
+            return targetNamespaces.Any(t => IsOrUnderNamespace(namespaceName, t));
+        }
+
+        internal static IReadOnlyList<string> ParseNamespaces(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return Array.Empty<string>();
+
+            return raw!
                 .Split(',')
                 .Select(s => s.Trim())
                 .Where(s => s.Length > 0)
@@ -99,7 +105,7 @@ namespace GameVM.Analyzers
         /// nested directly under it (segment-aware, so <c>Foo.Bar.Baz</c> matches <c>Foo.Bar</c>
         /// but <c>Foo.Barbaz</c> does not).
         /// </summary>
-        private static bool IsOrUnderNamespace(string namespaceName, string target)
+        internal static bool IsOrUnderNamespace(string namespaceName, string target)
         {
             if (namespaceName.Length < target.Length)
                 return false;

@@ -34,6 +34,9 @@
   <ItemGroup>
     <ProjectReference Include="../../src/GameVM.DevTools/GameVM.DevTools.csproj" />
     <ProjectReference Include="../../tools/GameVM.CrapGate.Core/GameVM.CrapGate.Core.csproj" />
+    <ProjectReference Include="../../src/GameVM.Analyzers/GameVM.Analyzers.csproj" />
+    <ProjectReference Include="../../src/GameVM.Compiler.CSharp/GameVM.Compiler.CSharp.csproj" />
+    <ProjectReference Include="../../src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj" />
   </ItemGroup>
 
 </Project>

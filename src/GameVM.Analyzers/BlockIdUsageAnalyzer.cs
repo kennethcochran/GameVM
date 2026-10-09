@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -33,32 +34,45 @@ namespace GameVM.Analyzers
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
-            var semanticModel = context.SemanticModel;
-            var symbolInfo = semanticModel.GetSymbolInfo(invocation);
-            if (symbolInfo.Symbol is IMethodSymbol methodSymbol)
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
+                return;
+
+            if (!IsCfgTableNamespace(methodSymbol.ContainingNamespace?.ToDisplayString()))
+                return;
+
+            var args = invocation.ArgumentList?.Arguments;
+            if (args == null)
+                return;
+
+            ReportRawIntLiterals(context, methodSymbol, args.Value);
+        }
+
+        internal static void ReportRawIntLiterals(
+            SyntaxNodeAnalysisContext context,
+            IMethodSymbol methodSymbol,
+            SeparatedSyntaxList<ArgumentSyntax> args)
+        {
+            var count = Math.Min(args.Count, methodSymbol.Parameters.Length);
+            for (int i = 0; i < count; i++)
             {
-                var methodNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
-                if (!methodNs.Contains("CfgTable"))
-                    return;
-
-                var args = invocation.ArgumentList?.Arguments;
-                if (args == null)
-                    return;
-
-                for (int i = 0; i < args.Value.Count && i < methodSymbol.Parameters.Length; i++)
+                var paramType = methodSymbol.Parameters[i].Type;
+                if (args[i].Expression is LiteralExpressionSyntax literal &&
+                    IsSystemInt32(paramType.Name, paramType.ContainingNamespace?.ToString()))
                 {
-                    var arg = args.Value[i];
-                    var paramType = methodSymbol.Parameters[i].Type;
-                    if (paramType.Name == "Int32" && arg.Expression is LiteralExpressionSyntax literal)
-                    {
-                        if (paramType.ContainingNamespace?.ToString() == "System")
-                        {
-                            var diagnostic = Diagnostic.Create(Rule, literal.GetLocation(), literal.Token.ValueText);
-                            context.ReportDiagnostic(diagnostic);
-                        }
-                    }
+                    var diagnostic = Diagnostic.Create(Rule, literal.GetLocation(), literal.Token.ValueText);
+                    context.ReportDiagnostic(diagnostic);
                 }
             }
+        }
+
+        internal static bool IsCfgTableNamespace(string? methodNamespace)
+        {
+            return methodNamespace != null && methodNamespace.Contains("CfgTable");
+        }
+
+        internal static bool IsSystemInt32(string typeName, string? typeNamespace)
+        {
+            return typeName == "Int32" && typeNamespace == "System";
         }
     }
 }

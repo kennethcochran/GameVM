@@ -124,8 +124,12 @@ public class ProgramTests
         mockProcessService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
         mockProcessService.Setup(x => x.GetCommandPath("mame")).Returns((string?)null);
         mockProcessService.Setup(x => x.RunProcessAsync(
-            It.Is<string>(s => s == "sudo"),
-            It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()))
+            "sudo",
+            "apt-get update", true, true))
+            .ReturnsAsync(true);
+        mockProcessService.Setup(x => x.RunProcessAsync(
+            "sudo",
+            "apt-get install -y mame", true, true))
             .ReturnsAsync(false);
 
         var mockPlatformService = new Mock<IPlatformService>();
@@ -139,8 +143,9 @@ public class ProgramTests
         // Act
         await installer.InstallAsync();
 
-        // Assert - verify sudo apt-get was called
-        mockProcessService.Verify(x => x.RunProcessAsync("sudo", It.Is<string>(a => a.Contains("apt-get")), true, true), Times.Once);
+        // Assert - verify sudo apt-get was called for both update and install
+        mockProcessService.Verify(x => x.RunProcessAsync("sudo", "apt-get update", true, true), Times.Once);
+        mockProcessService.Verify(x => x.RunProcessAsync("sudo", "apt-get install -y mame", true, true), Times.Once);
         mockConsole.Verify(x => x.WriteLine("Failed to install MAME from Debian repositories"), Times.Once);
     }
 
