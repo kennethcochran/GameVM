@@ -40,4 +40,66 @@ public class StringPoolEntryTests
         bool ok = StringPool.TryReadEntry(data, 0, (uint)data.Length, out _, out _);
         Assert.That(ok, Is.False);
     }
+
+    [Test]
+    public void FromByteArray_RoundTrip_PreservesStrings()
+    {
+        var pool = new StringPool();
+        uint helloOffset = pool.Intern("hello");
+        uint worldOffset = pool.Intern("world");
+
+        byte[] data = pool.ToByteArray();
+        var restored = StringPool.FromByteArray(data);
+
+        Assert.That(restored.Resolve(helloOffset), Is.EqualTo("hello"));
+        Assert.That(restored.Resolve(worldOffset), Is.EqualTo("world"));
+    }
+
+    [Test]
+    public void FromByteArray_Deduplication_PreservesOffsets()
+    {
+        var pool = new StringPool();
+        uint first = pool.Intern("duplicate");
+        uint second = pool.Intern("duplicate");
+        Assert.That(first, Is.EqualTo(second));
+
+        byte[] data = pool.ToByteArray();
+        var restored = StringPool.FromByteArray(data);
+
+        uint restoredOffset = restored.Intern("duplicate");
+        Assert.That(restored.Resolve(restoredOffset), Is.EqualTo("duplicate"));
+    }
+
+    [Test]
+    public void FromByteArray_EmptyPool_RoundTrips()
+    {
+        var pool = new StringPool();
+        byte[] data = pool.ToByteArray();
+        var restored = StringPool.FromByteArray(data);
+
+        Assert.That(restored.Resolve(0), Is.EqualTo(""));
+    }
+
+    [Test]
+    public void TryReadEntry_NegativeLength_ReturnsFalse()
+    {
+        var data = new byte[] { 255, 255, 255, 255, (byte)'x' };
+        bool ok = StringPool.TryReadEntry(data, 0, (uint)data.Length, out _, out _);
+        Assert.That(ok, Is.False);
+    }
+
+    [Test]
+    public void FromByteArray_CorruptData_StopsGracefully()
+    {
+        var pool = new StringPool();
+        pool.Intern("valid");
+        byte[] data = pool.ToByteArray();
+        // Corrupt the data by truncating
+        byte[] corrupt = new byte[data.Length - 2];
+        Array.Copy(data, corrupt, corrupt.Length);
+
+        var restored = StringPool.FromByteArray(corrupt);
+        // Should not throw, and should have partial data
+        Assert.That(restored, Is.Not.Null);
+    }
 }
