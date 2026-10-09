@@ -360,12 +360,36 @@ namespace GameVM.Compiler.Backend.Atari2600
                         break;
                     case LlirInstructionKind.Call:
                     case LlirInstructionKind.Syscall:
-                        // JSR to address (low byte in operand[0], high byte in operand[1])
+                        // Slice-1 calling convention: JSR to the function's resolved
+                        // address; the callee returns with RTS; a single value is
+                        // carried in the accumulator (A). No stack-passed arguments
+                        // in this slice.
+                        // Two operands: explicit [addrLow, addrHigh] -> JSR abs.
                         if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
                         {
                             rom[currentAddress++] = 0x20; // JSR
                             rom[currentAddress++] = (byte)operands[0];
                             rom[currentAddress++] = (byte)operands[1];
+                            bytesWritten = 3;
+                        }
+                        else if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
+                        {
+                            // Single-operand: operand is the function label's pool
+                            // offset — resolve it to a ROM byte address exactly like
+                            // Jump does via labelOffsets.
+                            rom[currentAddress++] = 0x20; // JSR
+                            if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                            {
+                                int abs = 0xF000 + targetAddr;
+                                rom[currentAddress++] = (byte)(abs & 0xFF);
+                                rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
+                            }
+                            else
+                            {
+                                // Unresolved target; fall back to ROM start (consistent with Jump).
+                                rom[currentAddress++] = 0x00;
+                                rom[currentAddress++] = 0xF0;
+                            }
                             bytesWritten = 3;
                         }
                         break;

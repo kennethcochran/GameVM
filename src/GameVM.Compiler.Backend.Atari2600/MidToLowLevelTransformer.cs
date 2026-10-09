@@ -330,7 +330,9 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             uint funcOffset = operands[0];
 
-            // Function calls are emitted as JSRs; the target address is resolved later.
+            // Function calls are emitted as single-operand Calls carrying the
+            // function's label pool-offset; the codegen resolves it to a ROM
+            // address via labelOffsets, exactly like Jump.
             builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, funcOffset);
         }
 

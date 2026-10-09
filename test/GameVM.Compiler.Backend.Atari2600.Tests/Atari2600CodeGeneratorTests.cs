@@ -629,4 +629,60 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         Assert.That(rom[3], Is.EqualTo(0x81));
     }
 
+    [Test]
+    public void GenerateFromSlab_WithSingleOperandCall_ResolvesLabelAddressAndEmitsJsr()
+    {
+        // A 1-operand Call carries the function label's pool-offset; the codegen
+        // must resolve it to a ROM address (like Jump) and emit JSR — and, crucially,
+        // instructions after the Call must survive (the old code broke out of the
+        // emission loop and silently dropped the rest of the ROM).
+        // Layout: Label(main)@0; Call(func)@0; Load #7@3; Label(func)@5; Load #$42@5; Return@7
+        const uint mainHash = 0x1111u;
+        const uint funcHash = 0x2222u;
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, mainHash);
+        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, funcHash);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x07);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, funcHash);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
+        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        // func label is at ROM offset 5 -> absolute $F005 (forward reference resolves)
+        Assert.That(rom[0], Is.EqualTo(0x20), "Single-operand Call must emit JSR (0x20)");
+        Assert.That(rom[1], Is.EqualTo(0x05), "JSR low byte = $F005");
+        Assert.That(rom[2], Is.EqualTo(0xF0), "JSR high byte = $F005");
+        // The instruction after the Call survives — no truncation.
+        Assert.That(rom[3], Is.EqualTo(0xA9), "Instruction after Call must survive in the ROM");
+        Assert.That(rom[4], Is.EqualTo(0x07));
+        // Function body follows the label.
+        Assert.That(rom[5], Is.EqualTo(0xA9));
+        Assert.That(rom[6], Is.EqualTo(0x42));
+        Assert.That(rom[7], Is.EqualTo(0x60), "Function body ends with RTS");
+        Assert.That(rom[8], Is.EqualTo(0x4C), "Self-loop JMP follows");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithTwoOperandCall_EmitsJsrAbsolute()
+    {
+        // The explicit [addrLow, addrHigh] form keeps working: JSR $1234.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x07);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom, Is.Not.Null);
+        Assert.That(rom[0], Is.EqualTo(0x20), "JSR opcode");
+        Assert.That(rom[1], Is.EqualTo(0x34));
+        Assert.That(rom[2], Is.EqualTo(0x12));
+        Assert.That(rom[3], Is.EqualTo(0xA9), "Instruction after Call must survive in the ROM");
+        Assert.That(rom[4], Is.EqualTo(0x07));
+    }
 }
