@@ -66,6 +66,7 @@ namespace GameVM.Compiler.CSharp
 
                 var context = parser.program();
 
+                _lastParseErrors.AddRange(errorListener.Errors);
                 if (_lastParseErrors.Any())
                     return new ParseResult(HlirTree.Empty, default);
 

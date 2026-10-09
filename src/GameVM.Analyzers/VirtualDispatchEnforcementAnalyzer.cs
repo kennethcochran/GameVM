@@ -42,7 +42,7 @@ namespace GameVM.Analyzers
             if (!options.TryGetValue(EditorConfigKey, out var rawList))
                 return;
 
-            if (context.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol methodSymbol)
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
                 return;
 
             if (ShouldReportInvocation(
