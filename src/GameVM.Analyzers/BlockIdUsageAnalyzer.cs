@@ -34,7 +34,7 @@ namespace GameVM.Analyzers
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
-            if (context.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol methodSymbol)
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
                 return;
 
             if (!IsCfgTableNamespace(methodSymbol.ContainingNamespace?.ToDisplayString()))

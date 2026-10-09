@@ -83,6 +83,11 @@ namespace GameVM.Compiler.Core.IR.Buffers
                     break;
                 pos = nextPos;
                 
+                // Skip the reserved empty string at offset 0; Intern("") returns 0
+                // without adding to the dictionary, so the restored pool must match.
+                if (entryOffset == 0)
+                    continue;
+                    
                 if (!pool._interned.ContainsKey(str))
                     pool._interned[str] = entryOffset;
             }

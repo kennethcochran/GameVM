@@ -162,7 +162,7 @@ namespace GameVM.Compiler.Backend.Atari2600
         private static int EmitAdd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
         {
             // ADC immediate/abs: A += operand
-            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
             {
                 rom[currentAddress++] = 0x18; // CLC
                 rom[currentAddress++] = 0x69; // ADC #imm
@@ -175,7 +175,7 @@ namespace GameVM.Compiler.Backend.Atari2600
         private static int EmitSub(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
         {
             // SBC immediate/abs: A -= operand (with carry set)
-            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
             {
                 rom[currentAddress++] = 0x38; // SEC
                 rom[currentAddress++] = 0xE9; // SBC #imm
@@ -196,11 +196,15 @@ namespace GameVM.Compiler.Backend.Atari2600
                 rom[currentAddress++] = (byte)operands[0];
                 written = 2;
             }
-            else
+            else if (currentAddress + 1 <= RomSize)
             {
                 // Handle unexpected cases
                 rom[currentAddress++] = 0xEA; // NOP
                 written = 1;
+            }
+            else
+            {
+                written = 0;
             }
             lastWasTransition = false;
             return written;
@@ -209,7 +213,7 @@ namespace GameVM.Compiler.Backend.Atari2600
         private static int EmitAssign(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
         {
             // Assign: operands[0]=targetAddr (zero-page), operands[1]=value.
-            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            if (operands.Length >= 2 && currentAddress + 4 <= RomSize)
             {
                 int target = (int)operands[0];
                 uint value = operands[1];
@@ -219,7 +223,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 rom[currentAddress++] = (byte)target;
                 return 4;
             }
-            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            if (operands.Length >= 1 && currentAddress + 4 <= RomSize)
             {
                 int target = (int)operands[0];
                 rom[currentAddress++] = 0xA9; // LDA #0
@@ -364,8 +368,8 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Store when op.Length == 0 => 0,
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
                 LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
-                LlirInstructionKind.Cmp => 2,
-                LlirInstructionKind.Assign => op.Length >= 2 ? 4 : 3,
+                LlirInstructionKind.Cmp => op.Length >= 1 ? 2 : 1,
+                LlirInstructionKind.Assign => op.Length >= 1 ? 4 : 0,
                 LlirInstructionKind.Branch => 2,
                 LlirInstructionKind.Jump => 3,
                 LlirInstructionKind.Return => 1,

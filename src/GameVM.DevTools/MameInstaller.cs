@@ -128,7 +128,14 @@ public class MameInstaller : IMameInstaller
             return false;
         }
 
-        var success = await _processService.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", redirectOutput: true, createNoWindow: true);
+        var updateSuccess = await _processService.RunProcessAsync("sudo", "apt-get update", redirectOutput: true, createNoWindow: true);
+        if (!updateSuccess)
+        {
+            _consoleService.WriteLine("Failed to update package lists");
+            return false;
+        }
+
+        var success = await _processService.RunProcessAsync("sudo", "apt-get install -y mame", redirectOutput: true, createNoWindow: true);
         if (success)
         {
             _consoleService.WriteLine("MAME installed successfully from Debian repositories");

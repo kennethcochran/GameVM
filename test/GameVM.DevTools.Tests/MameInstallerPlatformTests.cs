@@ -82,7 +82,9 @@ public class MameInstallerPlatformTests
     public async Task InstallOnLinuxAsync_AptGetFound_InstallSucceeds()
     {
         _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
-        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update", true, true))
+            .ReturnsAsync(true);
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get install -y mame", true, true))
             .ReturnsAsync(true);
         _processService.Setup(x => x.GetCommandPath("mame")).Returns("/usr/bin/mame");
 
@@ -92,10 +94,25 @@ public class MameInstallerPlatformTests
     }
 
     [Test]
+    public async Task InstallOnLinuxAsync_UpdateFails_ReturnsFalse()
+    {
+        _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update", true, true))
+            .ReturnsAsync(false);
+
+        var result = await CreateInstaller().InstallOnLinuxAsync();
+
+        Assert.That(result, Is.False);
+        _processService.Verify(x => x.RunProcessAsync("sudo", "apt-get install -y mame", true, true), Times.Never);
+    }
+
+    [Test]
     public async Task InstallOnLinuxAsync_InstallFails_ReturnsFalse()
     {
         _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
-        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update", true, true))
+            .ReturnsAsync(true);
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get install -y mame", true, true))
             .ReturnsAsync(false);
 
         var result = await CreateInstaller().InstallOnLinuxAsync();

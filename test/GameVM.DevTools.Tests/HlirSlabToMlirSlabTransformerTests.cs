@@ -66,8 +66,8 @@ public class HlirSlabToMlirSlabTransformerTests
         var transformer = new HlirSlabToMlirSlabTransformer();
         var slab = SlabWithKind((byte)MlirInstructionKind.Label, 5u);
         var result = transformer.Transform(slab);
-        // Label is processed (may emit or be handled); verify transform completes
-        Assert.That(result.Count, Is.GreaterThanOrEqualTo(0));
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label));
     }
 
     [Test]
@@ -76,7 +76,8 @@ public class HlirSlabToMlirSlabTransformerTests
         var transformer = new HlirSlabToMlirSlabTransformer();
         var slab = SlabWithKind((byte)MlirInstructionKind.Call, 7u);
         var result = transformer.Transform(slab);
-        Assert.That(result.Count, Is.GreaterThanOrEqualTo(0));
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Call));
     }
 
     [Test]
