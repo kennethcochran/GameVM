@@ -4,6 +4,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using NUnit.Framework;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
@@ -536,5 +537,56 @@ public class MidToLowLevelTransformerTests
             Assert.That(result.Count, Is.EqualTo(1));
             Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Jump));
         }
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L1)
+
+        [Test]
+        public void Transform_MlirNop_ThrowsGameVmException()
+        {
+            // Unlowered constructs (console output has no lowering on this target)
+            // arrive here as no-ops; the transformer must fail loudly, never silently drop them.
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Nop, Array.Empty<uint>()));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("'Nop'"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_UnmappedKind_ThrowsGameVmException()
+        {
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Variable, new uint[] { 1, 2 }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("0x08"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L3)
+
+        [Test]
+        public void Transform_129thVariable_ThrowsZeroPageExhausted()
+        {
+            // The 2600 has 128 bytes of RAM ($80-$FF); the 129th variable must
+            // fail loudly instead of wrapping into TIA register space.
+            var builder = new InstListBuilder();
+            uint value = _stringPool.Intern("1");
+            for (int v = 0; v < 129; v++)
+            {
+                uint target = _stringPool.Intern("var" + v);
+                builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, target, value);
+            }
+            var mlir = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.ZeroPageExhausted));
+            Assert.That(ex.Message, Does.Contain("var128"));
+        }
+
         #endregion
 }

@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
@@ -68,8 +69,21 @@ namespace GameVM.Compiler.Backend.Atari2600
                         break;
 
                     case MlirInstructionKind.Nop:
-                        // write/writeln stub placeholder — no LLIR emitted.
-                        break;
+                        // write/writeln and any other unlowered construct reach MLIR as
+                        // Nop. The 2600 has no console and no lowering exists: fail
+                        // loudly instead of silently dropping the construct.
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"MidToLowLevelTransformer has no LLIR lowering for MLIR instruction " +
+                            $"'Nop' (kind 0x{kind:X2}) at slab index {i}. The construct is not " +
+                            "supported on the Atari 2600 target (e.g. write/writeln).",
+                            ErrorSeverity.Error,
+                            new Dictionary<string, object?>
+                            {
+                                ["SlabIndex"] = i,
+                                ["MlirKind"] = nameof(MlirInstructionKind.Nop),
+                                ["MlirKindByte"] = kind,
+                            });
 
                     default:
                         MapArithmetic(inputSlab, i, kind, builder, stringPool);
@@ -109,7 +123,16 @@ namespace GameVM.Compiler.Backend.Atari2600
             };
 
             if (llirKind == (byte)LlirInstructionKind.Nop)
-                return;
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer has no LLIR mapping for MLIR instruction " +
+                    $"kind 0x{kind:X2} at slab index {instIdx}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["SlabIndex"] = instIdx,
+                        ["MlirKindByte"] = kind,
+                    });
 
             // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
@@ -324,9 +347,20 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
+                if (_nextUserAddress > 0xFF)
+                    throw new GameVmException(
+                        ErrorCode.ZeroPageExhausted,
+                        $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
+                        "The Atari 2600 has 128 bytes of RAM ($80-$FF); reduce the number of live variables.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["VariableName"] = name,
+                            ["AllocatedCount"] = _userAddresses.Count,
+                        });
                 addr = _nextUserAddress;
                 _userAddresses[name] = addr;
-                _nextUserAddress = (ushort)((_nextUserAddress + 1) & 0xFF);
+                _nextUserAddress++;
             }
             return addr;
         }

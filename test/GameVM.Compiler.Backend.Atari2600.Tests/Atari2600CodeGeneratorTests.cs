@@ -3,6 +3,8 @@ using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 
 using NUnit.Framework;
 
@@ -214,17 +216,43 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
-    public void GenerateFromSlab_WithUnknownInstruction_GeneratesNOP()
+    public void GenerateFromSlab_WithUnknownInstruction_ThrowsGameVmException()
     {
         var builder = new InstListBuilder();
         builder.Add(255, InstructionFlag.None, 0); // Unknown kind
         var slab = builder.Build();
         var stringPool = new StringPool();
-        
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
-        Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xEA)); // NOP
+
+        var ex = Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions()));
+
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledLlirInstruction));
+        Assert.That(ex.Message, Does.Contain("0xFF"));
+    }
+
+
+
+    [Test]
+    public void GenerateFromSlab_WithUnemittedBranchKinds_ThrowsNamingTheKind()
+    {
+        foreach (byte kind in new[]
+                 {
+                     (byte)LlirInstructionKind.Bne,
+                     (byte)LlirInstructionKind.Beq,
+                     (byte)LlirInstructionKind.Bpl,
+                     (byte)LlirInstructionKind.Bmi,
+                 })
+        {
+            var builder = new InstListBuilder();
+            builder.Add(kind, InstructionFlag.None, 0, 0x10);
+            var slab = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() =>
+                _codeGenerator.GenerateFromSlab(slab, stringPool: new StringPool(), new CodeGenOptions()));
+
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledLlirInstruction));
+            Assert.That(ex.Message, Does.Contain(((LlirInstructionKind)kind).ToString()));
+        }
     }
 
     [Test]
@@ -449,7 +477,6 @@ public class Atari2600CodeGeneratorTests
         builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12); // JSR $1234 (3 bytes)
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 0x7F);  // BCC +127 (2 bytes)
         builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);           // RTS (1 byte)
-builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         var slab = builder.Build();
         var stringPool = new StringPool();
         
@@ -466,8 +493,7 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         Assert.That(rom[7], Is.EqualTo(0xD0)); // BNE +127
         Assert.That(rom[8], Is.EqualTo(0x7F));
         Assert.That(rom[9], Is.EqualTo(0x60)); // RTS
-        Assert.That(rom[10], Is.EqualTo(0xEA)); // NOP
-        Assert.That(rom[11], Is.EqualTo(0x4C)); // self-loop JMP
+        Assert.That(rom[10], Is.EqualTo(0x4C)); // self-loop JMP
     }
 
     [Test]
