@@ -139,7 +139,7 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 1.  **`clean-test-results`**: Ensures a clean test run by removing previous test artifacts.
 2.  **`run-tests-with-coverage`**: Executes the full test suite and collects code coverage. **All tests MUST pass.**
-3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check. Methods exceeding the configured complexity/coverage threshold (`.husky/csx/crap-gate.csx`) will fail the commit. **You MUST reduce complexity or increase test coverage.**
+3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check via `tools/GameVM.CrapGate`. Methods exceeding the configured complexity/coverage threshold will fail the commit. **You MUST reduce complexity or increase test coverage.**
 
 ### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
 

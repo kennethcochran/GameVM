@@ -184,7 +184,19 @@ public class ProgramTests
         mockPlatformService.Setup(x => x.IsLinux()).Returns(true);
 
         var mockConsole = new Mock<IConsoleService>();
-        var installer = new MameInstaller(mockConsole.Object, mockProcessService.Object, mockPlatformService.Object);
+
+        // Isolate from the real filesystem: simulate no .tools/mame directory
+        // so the "MAME not installed" path is exercised regardless of the
+        // developer's machine state.
+        var mockFileSystem = new Mock<IFileSystemService>();
+        mockFileSystem.Setup(x => x.DirectoryExists(It.IsAny<string>())).Returns(false);
+        mockFileSystem.Setup(x => x.GetBaseDirectory()).Returns("/nonexistent");
+
+        var installer = new MameInstaller(
+            mockConsole.Object,
+            mockProcessService.Object,
+            mockPlatformService.Object,
+            mockFileSystem.Object);
 
         // Act & Assert
         Assert.DoesNotThrowAsync(async () => await installer.RunMameAsync("test.rom", "test.lua"));

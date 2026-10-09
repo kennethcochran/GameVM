@@ -109,7 +109,9 @@ jobs:
 
           # Run Unit/BDD tests with coverage (no Sonar on Windows)
           # Use full path to dotnet-coverage to ensure it's found
-          & dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          # Note: dotnet test is hardcoded to vstest; GameVM uses the NUnitLite
+          # TestRunner instead (vstest testhost deadlocks in some environments).
+          & dotnet-coverage collect "dotnet run --project test/GameVM.TestRunner" -f xml -o "coverage.xml"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
           # Verify coverage file exists
@@ -134,12 +136,14 @@ jobs:
           if [ $? -ne 0 ]; then exit 1; fi
 
           # Run Unit/BDD tests with coverage (only for Sonar on Ubuntu)
+          # Note: dotnet test is hardcoded to vstest; GameVM uses the NUnitLite
+          # TestRunner instead (vstest testhost deadlocks in some environments).
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             ~/.sonar/scanner/dotnet-sonarscanner begin /k:"kennethcochran_GameVM" /o:"kennethcochran" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" /d:sonar.qualitygate.wait=true
             if [ $? -ne 0 ]; then exit 1; fi
           fi
 
-          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          dotnet-coverage collect "dotnet run --project test/GameVM.TestRunner" -f xml -o "coverage.xml"
           if [ $? -ne 0 ]; then exit 1; fi
 
           # Verify coverage file exists
