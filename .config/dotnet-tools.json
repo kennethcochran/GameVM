@@ -36,6 +36,13 @@
         "dotnet-stryker"
       ],
       "rollForward": false
+    },
+    "nudge": {
+      "version": "0.0.0-alpha.0.6",
+      "commands": [
+        "nudge"
+      ],
+      "rollForward": false
     }
   }
 }
