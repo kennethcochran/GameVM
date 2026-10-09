@@ -24,6 +24,7 @@ namespace GameVM.Compiler.CSharp
         public StringPool? StringPool => _stringPool;
         public IReadOnlyList<string>? LastParseErrors => _lastParseErrors;
         private readonly List<string> _lastParseErrors = new();
+        public IReadOnlyList<SemanticError>? SemanticErrors => null;
 
         // Custom ANTLR error listener to capture syntax error messages
         private sealed class CollectingErrorListener : IParserErrorListener, IAntlrErrorListener<int>
@@ -65,6 +66,7 @@ namespace GameVM.Compiler.CSharp
 
                 var context = parser.program();
 
+                _lastParseErrors.AddRange(errorListener.Errors);
                 if (_lastParseErrors.Any())
                     return new ParseResult(HlirTree.Empty, default);
 

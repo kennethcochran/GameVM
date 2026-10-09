@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -40,63 +42,85 @@ namespace GameVM.Analyzers
         private static void AnalyzeSwitch(SyntaxNodeAnalysisContext context)
         {
             var switchStmt = (SwitchStatementSyntax)context.Node;
-
             var semanticModel = context.SemanticModel;
-            var typeInfo = semanticModel.GetTypeInfo(switchStmt.Expression);
 
-            if (typeInfo.Type == null)
+            if (!IsGameVmInstructionSwitch(switchStmt, semanticModel))
                 return;
+
+            var (handledKinds, hasDefault) = CollectHandledKinds(switchStmt, semanticModel);
+
+            if (!hasDefault && HasTooManyMissingKinds(handledKinds))
+            {
+                var diagnostic = Diagnostic.Create(Rule, switchStmt.SwitchKeyword.GetLocation());
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+
+        internal static bool IsGameVmInstructionSwitch(SwitchStatementSyntax switchStmt, SemanticModel semanticModel)
+        {
+            var typeInfo = semanticModel.GetTypeInfo(switchStmt.Expression);
+            if (typeInfo.Type == null)
+                return false;
 
             var typeName = typeInfo.Type.Name;
             if (typeName != "Byte" && typeName != "InstructionKind")
-                return;
+                return false;
 
             var ns = typeInfo.Type.ContainingNamespace?.ToDisplayString() ?? "";
-            if (!ns.Contains("GameVM"))
-                return;
+            return ns.Contains("GameVM");
+        }
 
-            var sections = switchStmt.Sections;
-            var handledKinds = new System.Collections.Generic.HashSet<string>();
+        internal static (HashSet<string> HandledKinds, bool HasDefault) CollectHandledKinds(
+            SwitchStatementSyntax switchStmt, SemanticModel semanticModel)
+        {
+            var handledKinds = new HashSet<string>();
+            var hasDefault = false;
 
-            bool hasDefault = false;
-            foreach (var section in sections)
+            foreach (var section in switchStmt.Sections)
             {
                 foreach (var label in section.Labels)
                 {
-                    if (label is DefaultSwitchLabelSyntax)
-                    {
+                    if (ProcessLabel(label, semanticModel, handledKinds))
                         hasDefault = true;
-                    }
-                    else if (label is CasePatternSwitchLabelSyntax caseLabel)
-                    {
-                        if (caseLabel.Pattern != null)
-                        {
-                            var constValue = semanticModel.GetConstantValue(caseLabel.Pattern);
-                            if (constValue.HasValue && constValue.Value != null)
-                                handledKinds.Add(constValue.Value.ToString()!);
-                        }
-                    }
-                    else if (label is CaseSwitchLabelSyntax simpleLabel)
-                    {
-                        handledKinds.Add(simpleLabel.Value.ToString());
-                    }
                 }
             }
 
-            if (!hasDefault)
+            return (handledKinds, hasDefault);
+        }
+
+        internal static bool ProcessLabel(SyntaxNode label, SemanticModel semanticModel, HashSet<string> handledKinds)
+        {
+            if (label is DefaultSwitchLabelSyntax)
+                return true;
+
+            if (label is CasePatternSwitchLabelSyntax caseLabel)
             {
-                int missingCount = 0;
-                for (int i = 0; i < KnownInstructionKinds.Length; i++)
-                {
-                    if (!handledKinds.Contains(KnownInstructionKinds[i]))
-                        missingCount++;
-                }
-                if (missingCount > KnownInstructionKinds.Length / 2)
-                {
-                    var diagnostic = Diagnostic.Create(Rule, switchStmt.SwitchKeyword.GetLocation());
-                    context.ReportDiagnostic(diagnostic);
-                }
+                var kind = GetConstantKind(caseLabel, semanticModel);
+                if (kind != null)
+                    handledKinds.Add(kind);
             }
+            else if (label is CaseSwitchLabelSyntax simpleLabel)
+            {
+                handledKinds.Add(simpleLabel.Value.ToString());
+            }
+
+            return false;
+        }
+
+        internal static string? GetConstantKind(CasePatternSwitchLabelSyntax label, SemanticModel semanticModel)
+        {
+            if (label.Pattern == null)
+                return null;
+            var constValue = semanticModel.GetConstantValue(label.Pattern);
+            return constValue.HasValue && constValue.Value != null
+                ? constValue.Value.ToString()
+                : null;
+        }
+
+        internal static bool HasTooManyMissingKinds(HashSet<string> handledKinds)
+        {
+            var missingCount = KnownInstructionKinds.Count(k => !handledKinds.Contains(k));
+            return missingCount > KnownInstructionKinds.Length / 2;
         }
     }
 }

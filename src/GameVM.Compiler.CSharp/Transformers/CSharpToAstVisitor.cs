@@ -27,11 +27,10 @@ namespace GameVM.Compiler.CSharp.Transformers
             return _builder.Build();
         }
 
-        public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
+        /// <summary>Maps a C# type name to its AST type-kind byte. Pure function for testability.</summary>
+        internal static byte MapTypeNameToKind(string typeNameStr)
         {
-            // VARIABLE_DECLARATION: payload = typeKind, child = [nameIdentifier, initExpression?]
-            string typeNameStr = context.type().GetText();
-            byte typeKind = typeNameStr switch
+            return typeNameStr switch
             {
                 "int" => 1,
                 "string" => 2,
@@ -40,6 +39,12 @@ namespace GameVM.Compiler.CSharp.Transformers
                 "int64" => 1,
                 _ => 4
             };
+        }
+
+        public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
+        {
+            // VARIABLE_DECLARATION: payload = typeKind, child = [nameIdentifier, initExpression?]
+            byte typeKind = MapTypeNameToKind(context.type().GetText());
 
             string varName = context.identifier().GetText();
             uint nameOffset = _stringPool.Intern(varName);
@@ -78,30 +83,52 @@ namespace GameVM.Compiler.CSharp.Transformers
         {
             if (context.INT_LITERAL() != null)
             {
-                string text = context.INT_LITERAL().GetText();
-                if (long.TryParse(text, out long value))
+                if (TryParseIntLiteral(context.INT_LITERAL().GetText(), out uint value))
                 {
-                    return _builder.Add((byte)CSharpAstNodeKind.LiteralInt, 0, (uint)value);
+                    return _builder.Add((byte)CSharpAstNodeKind.LiteralInt, 0, value);
                 }
             }
             else if (context.STRING_LITERAL() != null)
             {
-                string text = context.STRING_LITERAL().GetText();
-                // Remove quotes
-                if (text.Length >= 2 && text.StartsWith('"') && text.EndsWith('"'))
-                {
-                    text = text.Substring(1, text.Length - 2);
-                }
+                string text = UnquoteStringLiteral(context.STRING_LITERAL().GetText());
                 uint stringOffset = _stringPool.Intern(text);
                 return _builder.Add((byte)CSharpAstNodeKind.LiteralString, 0, stringOffset);
             }
             else if (context.BOOL_LITERAL() != null)
             {
-                bool value = context.BOOL_LITERAL().GetText() == "true";
-                return _builder.Add((byte)CSharpAstNodeKind.LiteralBool, 0, value ? 1u : 0u);
+                uint value = ParseBoolLiteral(context.BOOL_LITERAL().GetText());
+                return _builder.Add((byte)CSharpAstNodeKind.LiteralBool, 0, value);
             }
 
             return 0;
+        }
+
+        /// <summary>Parses an integer literal to uint. Pure function for testability.</summary>
+        internal static bool TryParseIntLiteral(string text, out uint value)
+        {
+            if (long.TryParse(text, out long longValue))
+            {
+                value = (uint)longValue;
+                return true;
+            }
+            value = 0;
+            return false;
+        }
+
+        /// <summary>Parses a bool literal to 1/0. Pure function for testability.</summary>
+        internal static uint ParseBoolLiteral(string text)
+        {
+            return text == "true" ? 1u : 0u;
+        }
+
+        /// <summary>Removes surrounding double quotes from a string literal. Pure function for testability.</summary>
+        internal static string UnquoteStringLiteral(string text)
+        {
+            if (text.Length >= 2 && text.StartsWith('"') && text.EndsWith('"'))
+            {
+                return text.Substring(1, text.Length - 2);
+            }
+            return text;
         }
 
         public override object VisitIdentifier(CSharpParser.IdentifierContext context)

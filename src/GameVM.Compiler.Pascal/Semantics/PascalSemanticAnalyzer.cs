@@ -108,20 +108,7 @@ namespace GameVM.Compiler.Pascal.Semantics
                     ProcessForStatement(astTree, stmtIdx);
                     break;
                 case PascalAstNodeKind.MethodDeclaration:
-                    {
-                        var mChildren = astTree.Children(stmtIdx);
-                        for (int i = 0; i < mChildren.Length - 1; i++)
-                        {
-                            int childIdx = mChildren[i];
-                            PascalAstNodeKind childKind = (PascalAstNodeKind)astTree.GetKind(childIdx);
-                            if (childKind == PascalAstNodeKind.VariableDeclaration)
-                                RegisterDeclaration(astTree, childIdx);
-                            else if (childKind == PascalAstNodeKind.ConstantDefinition)
-                                RegisterConstant(astTree, childIdx);
-                        }
-                        if (mChildren.Length > 0)
-                            ProcessStatement(astTree, mChildren[mChildren.Length - 1]);
-                    }
+                    ProcessMethodDeclaration(astTree, stmtIdx);
                     break;
                 case PascalAstNodeKind.ReturnStatement:
                     ProcessReturnStatement(astTree, stmtIdx);
@@ -139,6 +126,22 @@ namespace GameVM.Compiler.Pascal.Semantics
         {
             foreach (int childIdx in astTree.Children(blockIdx))
                 ProcessStatement(astTree, childIdx);
+        }
+
+        private void ProcessMethodDeclaration(AstTree astTree, int stmtIdx)
+        {
+            var mChildren = astTree.Children(stmtIdx);
+            for (int i = 0; i < mChildren.Length - 1; i++)
+            {
+                int childIdx = mChildren[i];
+                PascalAstNodeKind childKind = (PascalAstNodeKind)astTree.GetKind(childIdx);
+                if (childKind == PascalAstNodeKind.VariableDeclaration)
+                    RegisterDeclaration(astTree, childIdx);
+                else if (childKind == PascalAstNodeKind.ConstantDefinition)
+                    RegisterConstant(astTree, childIdx);
+            }
+            if (mChildren.Length > 0)
+                ProcessStatement(astTree, mChildren[mChildren.Length - 1]);
         }
 
         /// <summary>Registers a variable declaration's name and type, mirroring the

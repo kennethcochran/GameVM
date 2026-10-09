@@ -141,5 +141,64 @@ namespace UnitTests.Application
         {
             public IEnumerable<string> Validate(uint[] hlirSlab, CapabilityLevel profile, List<string> systemExtensions) => new List<string>();
         }
+
+        [Test]
+        public void Compile_NullSource_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                _compileUseCase.Execute(null!, ".pas", new CompilationOptions { Target = Architecture.Atari2600 }));
+        }
+
+        [Test]
+        public void Compile_EmptyHlir_ReturnsFailure()
+        {
+            var invalidFrontend = new MockFrontend(isInvalid: true);
+            var useCase = new CompileUseCase(
+                invalidFrontend,
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
+
+            var result = useCase.Execute("program test; begin end.", ".pas",
+                new CompilationOptions { Target = Architecture.Atari2600 });
+
+            Assert.That(result.Success, Is.False);
+        }
+
+        [Test]
+        public void Compile_NullStringPool_ReturnsFailure()
+        {
+            var nullPoolFrontend = new MockFrontendNullPool();
+            var useCase = new CompileUseCase(
+                nullPoolFrontend,
+                new MockMidLevelOptimizer(),
+                new MockLowLevelOptimizer(),
+                new MockMlirToLlir(),
+                new MockCodeGenerator(),
+                new MockCapabilityProvider(),
+                new MockCapabilityValidator());
+
+            var result = useCase.Execute("program test; begin end.", ".pas",
+                new CompilationOptions { Target = Architecture.Atari2600 });
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.ErrorMessage, Does.Contain("String pool"));
+        }
+
+        private class MockFrontendNullPool : ILanguageFrontend
+        {
+            public ParseResult ParseToHlir(string sourceCode)
+            {
+                var builder = new HlirBuilder();
+                builder.Add((byte)HlirNodeKind.Nop);
+                return new ParseResult(builder.Build(), new SymbolTable());
+            }
+            public IReadOnlyList<string>? LastParseErrors => null;
+            public StringPool? StringPool => null;
+            public IReadOnlyList<SemanticError>? SemanticErrors => null;
+        }
     }
 }
