@@ -53,32 +53,30 @@ namespace GameVM.Analyzers
 
         private bool IsLinqMethod(IMethodSymbol method)
         {
-            var containingType = method.ContainingType;
-            var containingNamespace = containingType?.ContainingNamespace;
-            
-            // Check if it's from System.Linq namespace
-            if (containingNamespace != null)
-            {
-                var fullNamespace = containingNamespace.ToDisplayString();
-                if (fullNamespace == "System.Linq" || fullNamespace.StartsWith("System.Linq."))
-                {
-                    return true;
-                }
-            }
-            
-            // Also check for Enumerable extension methods by name
-            var methodName = method.Name;
+            return IsInLinqNamespace(method) || IsLinqExtensionMethod(method);
+        }
+
+        private bool IsInLinqNamespace(IMethodSymbol method)
+        {
+            var containingNamespace = method.ContainingType?.ContainingNamespace;
+            if (containingNamespace == null)
+                return false;
+
+            var fullNamespace = containingNamespace.ToDisplayString();
+            return fullNamespace == "System.Linq" || fullNamespace.StartsWith("System.Linq.");
+        }
+
+        private bool IsLinqExtensionMethod(IMethodSymbol method)
+        {
             var linqMethods = new[] { "Where", "Select", "OrderBy", "GroupBy", "ToList", "ToArray", "Any", "All", "Count", "Min", "Max", "Average", "First", "Last", "Single", "ElementAt", "Skip", "Take", "Distinct", "Union", "Intersect", "Except", "Join", "GroupJoin", "SelectMany", "Reverse", "Concat", "Zip", "Aggregate", "Sum", "MinBy", "MaxBy" };
-            
-            if (linqMethods.Contains(methodName) && method.IsExtensionMethod)
-            {
-                // Verify it's from System.Linq.Enumerable
-                var extendedType = method.Parameters[0].Type;
-                return extendedType?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>" ||
-                       extendedType?.OriginalDefinition?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>";
-            }
-            
-            return false;
+
+            if (!linqMethods.Contains(method.Name) || !method.IsExtensionMethod)
+                return false;
+
+            // Verify it's from System.Linq.Enumerable
+            var extendedType = method.Parameters[0].Type;
+            return extendedType?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>" ||
+                   extendedType?.OriginalDefinition?.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>";
         }
     }
 }

@@ -123,7 +123,9 @@ namespace GameVM.Compiler.Backend.Atari2600
         {
             var insnAddr = new int[llirSlab.Count];
             var labelOffsets = new Dictionary<uint, int>();
-            int addr = 0;
+            // Addresses are ROM offsets; the reset prologue occupies the first
+            // ResetPrologue.Length bytes, so LLIR instruction addresses start there.
+            int addr = ResetPrologue.Length;
             for (int i = 0; i < llirSlab.Count; i++)
             {
                 insnAddr[i] = addr;

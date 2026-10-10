@@ -30,27 +30,13 @@ namespace GameVM.Compiler.CSharp.Transformers
         public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
         {
             // VARIABLE_DECLARATION: payload = typeKind, child = [nameIdentifier, initExpression?]
-            string typeNameStr = context.type().GetText();
-            byte typeKind = typeNameStr switch
-            {
-                "int" => 1,
-                "string" => 2,
-                "bool" => 3,
-                "int32" => 1,
-                "int64" => 1,
-                _ => 4
-            };
+            byte typeKind = GetTypeKind(context.type().GetText());
 
             string varName = context.identifier().GetText();
             uint nameOffset = _stringPool.Intern(varName);
             int nameIdx = _builder.Add((byte)CSharpAstNodeKind.Identifier, 0, nameOffset);
 
-            int initIdx = -1;
-            if (context.expression() != null)
-            {
-                var result = Visit(context.expression());
-                if (result is int idx) initIdx = idx;
-            }
+            int initIdx = VisitInitializer(context);
 
             // VARIABLE_DECLARATION: payload = typeKind, children = [name, init?]
             if (initIdx >= 0)
@@ -61,6 +47,30 @@ namespace GameVM.Compiler.CSharp.Transformers
             {
                 return _builder.Add((byte)CSharpAstNodeKind.VariableDeclaration, 0, (uint)typeKind, nameIdx);
             }
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<string, byte> _typeKinds =
+            new()
+            {
+                ["int"] = 1,
+                ["int32"] = 1,
+                ["int64"] = 1,
+                ["string"] = 2,
+                ["bool"] = 3,
+            };
+
+        private static byte GetTypeKind(string typeNameStr)
+        {
+            return _typeKinds.TryGetValue(typeNameStr, out byte kind) ? kind : (byte)4;
+        }
+
+        private int VisitInitializer(CSharpParser.VariableDeclarationContext context)
+        {
+            if (context.expression() == null)
+                return -1;
+
+            var result = Visit(context.expression());
+            return result is int idx ? idx : -1;
         }
 
         public override object VisitExpression(CSharpParser.ExpressionContext context)
@@ -77,31 +87,41 @@ namespace GameVM.Compiler.CSharp.Transformers
         public override object VisitLiteral(CSharpParser.LiteralContext context)
         {
             if (context.INT_LITERAL() != null)
-            {
-                string text = context.INT_LITERAL().GetText();
-                if (long.TryParse(text, out long value))
-                {
-                    return _builder.Add((byte)CSharpAstNodeKind.LiteralInt, 0, (uint)value);
-                }
-            }
-            else if (context.STRING_LITERAL() != null)
-            {
-                string text = context.STRING_LITERAL().GetText();
-                // Remove quotes
-                if (text.Length >= 2 && text.StartsWith('"') && text.EndsWith('"'))
-                {
-                    text = text.Substring(1, text.Length - 2);
-                }
-                uint stringOffset = _stringPool.Intern(text);
-                return _builder.Add((byte)CSharpAstNodeKind.LiteralString, 0, stringOffset);
-            }
-            else if (context.BOOL_LITERAL() != null)
-            {
-                bool value = context.BOOL_LITERAL().GetText() == "true";
-                return _builder.Add((byte)CSharpAstNodeKind.LiteralBool, 0, value ? 1u : 0u);
-            }
+                return VisitIntLiteral(context);
+            if (context.STRING_LITERAL() != null)
+                return VisitStringLiteral(context);
+            if (context.BOOL_LITERAL() != null)
+                return VisitBoolLiteral(context);
 
             return 0;
+        }
+
+        private object VisitIntLiteral(CSharpParser.LiteralContext context)
+        {
+            string text = context.INT_LITERAL().GetText();
+            if (long.TryParse(text, out long value))
+            {
+                return _builder.Add((byte)CSharpAstNodeKind.LiteralInt, 0, (uint)value);
+            }
+            return 0;
+        }
+
+        private object VisitStringLiteral(CSharpParser.LiteralContext context)
+        {
+            string text = context.STRING_LITERAL().GetText();
+            // Remove quotes
+            if (text.Length >= 2 && text.StartsWith('"') && text.EndsWith('"'))
+            {
+                text = text.Substring(1, text.Length - 2);
+            }
+            uint stringOffset = _stringPool.Intern(text);
+            return _builder.Add((byte)CSharpAstNodeKind.LiteralString, 0, stringOffset);
+        }
+
+        private object VisitBoolLiteral(CSharpParser.LiteralContext context)
+        {
+            bool value = context.BOOL_LITERAL().GetText() == "true";
+            return _builder.Add((byte)CSharpAstNodeKind.LiteralBool, 0, value ? 1u : 0u);
         }
 
         public override object VisitIdentifier(CSharpParser.IdentifierContext context)

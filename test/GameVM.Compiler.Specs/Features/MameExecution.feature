@@ -109,6 +109,8 @@ Feature: MAME Execution Validation
       """
     When I compile the program
     And I run the program in MAME
-    # x allocates to $80; after the loop x should be 0 and PC should be on the self-loop
-    Then MAME execution output should contain "$80: 00"
-    And MAME execution output should contain "PC: F016"
+    # x allocates to $80; after the loop x should be 0. The "GAMEVM PROGRAM
+    # HALTED" marker proves the program reached its JMP * halt loop
+    # (termination); no hardcoded PC address needed.
+    Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
+    And MAME execution output should contain "$80: 00"

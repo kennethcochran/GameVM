@@ -32,33 +32,42 @@ namespace GameVM.Compiler.CSharp.Transformers
         public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
         {
             // VARIABLE_DECLARATION: [typeKind, nameOffset]
-            string typeNameStr = context.type().GetText();
-            byte typeKind = typeNameStr switch
+            byte typeKind = GetTypeKind(context.type().GetText());
+
+            string varName = context.identifier().GetText();
+            uint nameOffset = _stringPool.Intern(varName);
+
+            // Always allocate 3 args: typeKind, nameOffset, initValue (0 if no initializer)
+            uint initValue = GetInitValue(context);
+
+            int index = _builder.Add(VARIABLE_DECLARATION, InstructionFlag.None, 3, 0,
+                (uint)typeKind, nameOffset, initValue);
+
+            return index;
+        }
+
+        private static byte GetTypeKind(string typeNameStr)
+        {
+            return typeNameStr switch
             {
                 "int" => 1,
                 "string" => 2,
                 "bool" => 3,
                 _ => 4
             };
+        }
 
-            string varName = context.identifier().GetText();
-            uint nameOffset = _stringPool.Intern(varName);
+        private uint GetInitValue(CSharpParser.VariableDeclarationContext context)
+        {
+            if (context.expression() == null)
+                return 0u;
 
-            // Always allocate 3 args: typeKind, nameOffset, initValue (0 if no initializer)
-            uint initValue = 0u;
-            if (context.expression() != null)
+            var exprObj = VisitExpression(context.expression());
+            if (exprObj is int exprInt && exprInt >= 0)
             {
-                var exprObj = VisitExpression(context.expression());
-                if (exprObj is int exprInt && exprInt >= 0)
-                {
-                    initValue = (uint)exprInt;
-                }
+                return (uint)exprInt;
             }
-
-            int index = _builder.Add(VARIABLE_DECLARATION, InstructionFlag.None, 3, 0,
-                (uint)typeKind, nameOffset, initValue);
-
-            return index;
+            return 0u;
         }
 
         public override object VisitExpression(CSharpParser.ExpressionContext context)

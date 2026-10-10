@@ -38,6 +38,20 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
         public CfgTable Build(System.Func<int, int[]> successorResolver)
         {
             // Step 1: Identify basic-block leaders.
+            var isLeader = IdentifyLeaders(successorResolver);
+
+            // Step 2: Assign block IDs to each instruction in order.
+            var (blockIdAt, blockCount) = AssignBlockIds(isLeader);
+
+            // Step 3: Populate InstList.BlockIds[] with BlockId handle values.
+            PopulateBlockIds(blockIdAt);
+
+            // Step 4: Count edges and build CfgTable.
+            return BuildCfgTable(successorResolver, isLeader, blockIdAt, blockCount);
+        }
+
+        private bool[] IdentifyLeaders(System.Func<int, int[]> successorResolver)
+        {
             // Leaders are: the entry instruction, and every instruction reported by the
             // successor resolver as a control-flow target of a terminator.
             var isLeader = new bool[_slab.Count];
@@ -49,23 +63,24 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
             // First pass: walk instructions, mark targets reported by the resolver as leaders.
             for (int i = 0; i < _slab.Count; i++)
             {
-                ushort flags = _slab.GetFlags(i);
-                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
-                if (isTerminator)
+                if (!IsTerminator(i))
+                    continue;
+
+                int[] successors = successorResolver(i);
+                if (successors == null)
+                    continue;
+
+                foreach (int target in successors)
                 {
-                    int[] successors = successorResolver(i);
-                    if (successors != null)
-                    {
-                        foreach (int target in successors)
-                        {
-                            if (target >= 0 && target < _slab.Count)
-                                isLeader[target] = true;
-                        }
-                    }
+                    if (target >= 0 && target < _slab.Count)
+                        isLeader[target] = true;
                 }
             }
+            return isLeader;
+        }
 
-            // Step 2: Assign block IDs to each instruction in order.
+        private (int[] blockIdAt, int blockCount) AssignBlockIds(bool[] isLeader)
+        {
             // Instructions between leaders (inclusive) belong to the same block.
             int blockCount = 0;
             var blockIdAt = new int[_slab.Count];
@@ -80,8 +95,11 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
                 }
                 blockIdAt[i] = currentBlockId;
             }
+            return (blockIdAt, blockCount);
+        }
 
-            // Step 3: Populate InstList.BlockIds[] with BlockId handle values:
+        private void PopulateBlockIds(int[] blockIdAt)
+        {
             // 0 = unassigned (BlockId.Unassigned), 1+ = assigned block ID (BlockId.FromInt(blockIndex + 1))
             for (int i = 0; i < _slab.Count; i++)
             {
@@ -90,32 +108,18 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
                 else
                     _slab.SetBlockId(i, 0); // BlockId.Unassigned.Value
             }
+        }
 
-            // Step 4: Count edges and build CfgTable.
+        private CfgTable BuildCfgTable(
+            System.Func<int, int[]> successorResolver,
+            bool[] isLeader,
+            int[] blockIdAt,
+            int blockCount)
+        {
             var edgeWritten = new int[blockCount];
 
             // Count edges to size the flat adjacency list.
-            int edgePairs = 0;
-            for (int i = 0; i < _slab.Count; i++)
-            {
-                ushort flags = _slab.GetFlags(i);
-                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
-                if (isTerminator)
-                {
-                    int[] successors = successorResolver(i);
-                    if (successors != null)
-                    {
-                        foreach (int target in successors)
-                        {
-                            if (target >= 0 && target < _slab.Count && blockIdAt[target] >= 0)
-                            {
-                                edgePairs++;
-                                edgeWritten[blockIdAt[i]]++;
-                            }
-                        }
-                    }
-                }
-            }
+            int edgePairs = CountEdges(successorResolver, blockIdAt, edgeWritten);
 
             var table = new CfgTable(blockCount, edgePairs);
 
@@ -134,31 +138,7 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
             }
 
             // Populate edges (source, target) pairs, using edgeStart as the write cursor.
-            var edgeCursor = (int[])edgeStart.Clone();
-            for (int i = 0; i < _slab.Count; i++)
-            {
-                ushort flags = _slab.GetFlags(i);
-                bool isTerminator = (flags & (ushort)InstructionFlag.Terminator) != 0;
-                if (isTerminator)
-                {
-                    int[] successors = successorResolver(i);
-                    if (successors != null)
-                    {
-                        int srcBlock = blockIdAt[i];
-                        foreach (int target in successors)
-                        {
-                            if (target >= 0 && target < _slab.Count && blockIdAt[target] >= 0)
-                            {
-                                int dstBlock = blockIdAt[target];
-                                int slot = edgeCursor[srcBlock];
-                                table.SetEdge(slot, srcBlock);
-                                table.SetEdge(slot + 1, dstBlock);
-                                edgeCursor[srcBlock] = slot + 2;
-                            }
-                        }
-                    }
-                }
-            }
+            PopulateEdges(table, successorResolver, blockIdAt, edgeStart);
 
             // Record per-block edge spans.
             for (int b = 0; b < blockCount; b++)
@@ -167,6 +147,81 @@ namespace GameVM.Compiler.Core.IR.SlabProcessing
             }
 
             return table;
+        }
+
+        private int CountEdges(
+            System.Func<int, int[]> successorResolver,
+            int[] blockIdAt,
+            int[] edgeWritten)
+        {
+            int edgePairs = 0;
+            for (int i = 0; i < _slab.Count; i++)
+            {
+                if (!IsTerminator(i))
+                    continue;
+
+                int[] successors = successorResolver(i);
+                if (successors == null)
+                    continue;
+
+                edgePairs += CountValidSuccessors(successors, blockIdAt, blockIdAt[i], edgeWritten);
+            }
+            return edgePairs;
+        }
+
+        private static int CountValidSuccessors(int[] successors, int[] blockIdAt, int srcBlock, int[] edgeWritten)
+        {
+            int count = 0;
+            foreach (int target in successors)
+            {
+                if (target < 0 || target >= blockIdAt.Length || blockIdAt[target] < 0)
+                    continue;
+                count++;
+                edgeWritten[srcBlock]++;
+            }
+            return count;
+        }
+
+        private void PopulateEdges(
+            CfgTable table,
+            System.Func<int, int[]> successorResolver,
+            int[] blockIdAt,
+            int[] edgeStart)
+        {
+            var edgeCursor = (int[])edgeStart.Clone();
+            for (int i = 0; i < _slab.Count; i++)
+            {
+                if (!IsTerminator(i))
+                    continue;
+
+                int[] successors = successorResolver(i);
+                if (successors == null)
+                    continue;
+
+                int srcBlock = blockIdAt[i];
+                foreach (int target in successors)
+                {
+                    if (!IsValidEdgeTarget(target, blockIdAt))
+                        continue;
+
+                    int dstBlock = blockIdAt[target];
+                    int slot = edgeCursor[srcBlock];
+                    table.SetEdge(slot, srcBlock);
+                    table.SetEdge(slot + 1, dstBlock);
+                    edgeCursor[srcBlock] = slot + 2;
+                }
+            }
+        }
+
+        private bool IsTerminator(int i)
+        {
+            ushort flags = _slab.GetFlags(i);
+            return (flags & (ushort)InstructionFlag.Terminator) != 0;
+        }
+
+        private bool IsValidEdgeTarget(int target, int[] blockIdAt)
+        {
+            return target >= 0 && target < _slab.Count && blockIdAt[target] >= 0;
         }
     }
 }

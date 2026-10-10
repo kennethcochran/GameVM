@@ -40,26 +40,38 @@ namespace GameVM.Analyzers
         private static void AnalyzeSwitch(SyntaxNodeAnalysisContext context)
         {
             var switchStmt = (SwitchStatementSyntax)context.Node;
-
             var semanticModel = context.SemanticModel;
             var typeInfo = semanticModel.GetTypeInfo(switchStmt.Expression);
 
-            if (typeInfo.Type == null)
+            if (!IsTargetSwitchType(typeInfo.Type))
                 return;
 
-            var typeName = typeInfo.Type.Name;
+            var (handledKinds, hasDefault) = CollectHandledKinds(switchStmt, semanticModel);
+
+            if (!hasDefault)
+                ReportIfNotExhaustive(context, switchStmt, handledKinds);
+        }
+
+        private static bool IsTargetSwitchType(ITypeSymbol? type)
+        {
+            if (type == null)
+                return false;
+
+            var typeName = type.Name;
             if (typeName != "Byte" && typeName != "InstructionKind")
-                return;
+                return false;
 
-            var ns = typeInfo.Type.ContainingNamespace?.ToDisplayString() ?? "";
-            if (!ns.Contains("GameVM"))
-                return;
+            var ns = type.ContainingNamespace?.ToDisplayString() ?? "";
+            return ns.Contains("GameVM");
+        }
 
-            var sections = switchStmt.Sections;
+        private static (System.Collections.Generic.HashSet<string> handledKinds, bool hasDefault) CollectHandledKinds(
+            SwitchStatementSyntax switchStmt, SemanticModel semanticModel)
+        {
             var handledKinds = new System.Collections.Generic.HashSet<string>();
-
             bool hasDefault = false;
-            foreach (var section in sections)
+
+            foreach (var section in switchStmt.Sections)
             {
                 foreach (var label in section.Labels)
                 {
@@ -67,35 +79,52 @@ namespace GameVM.Analyzers
                     {
                         hasDefault = true;
                     }
-                    else if (label is CasePatternSwitchLabelSyntax caseLabel)
+                    else
                     {
-                        if (caseLabel.Pattern != null)
-                        {
-                            var constValue = semanticModel.GetConstantValue(caseLabel.Pattern);
-                            if (constValue.HasValue && constValue.Value != null)
-                                handledKinds.Add(constValue.Value.ToString()!);
-                        }
-                    }
-                    else if (label is CaseSwitchLabelSyntax simpleLabel)
-                    {
-                        handledKinds.Add(simpleLabel.Value.ToString());
+                        string? kind = GetLabelKind(label, semanticModel);
+                        if (kind != null)
+                            handledKinds.Add(kind);
                     }
                 }
             }
 
-            if (!hasDefault)
+            return (handledKinds, hasDefault);
+        }
+
+        private static string? GetLabelKind(SwitchLabelSyntax label, SemanticModel semanticModel)
+        {
+            if (label is CasePatternSwitchLabelSyntax caseLabel)
+                return GetPatternLabelKind(caseLabel, semanticModel);
+            if (label is CaseSwitchLabelSyntax simpleLabel)
+                return simpleLabel.Value.ToString();
+            return null;
+        }
+
+        private static string? GetPatternLabelKind(CasePatternSwitchLabelSyntax caseLabel, SemanticModel semanticModel)
+        {
+            if (caseLabel.Pattern == null)
+                return null;
+            var constValue = semanticModel.GetConstantValue(caseLabel.Pattern);
+            if (constValue.HasValue && constValue.Value != null)
+                return constValue.Value.ToString();
+            return null;
+        }
+
+        private static void ReportIfNotExhaustive(
+            SyntaxNodeAnalysisContext context,
+            SwitchStatementSyntax switchStmt,
+            System.Collections.Generic.HashSet<string> handledKinds)
+        {
+            int missingCount = 0;
+            for (int i = 0; i < KnownInstructionKinds.Length; i++)
             {
-                int missingCount = 0;
-                for (int i = 0; i < KnownInstructionKinds.Length; i++)
-                {
-                    if (!handledKinds.Contains(KnownInstructionKinds[i]))
-                        missingCount++;
-                }
-                if (missingCount > KnownInstructionKinds.Length / 2)
-                {
-                    var diagnostic = Diagnostic.Create(Rule, switchStmt.SwitchKeyword.GetLocation());
-                    context.ReportDiagnostic(diagnostic);
-                }
+                if (!handledKinds.Contains(KnownInstructionKinds[i]))
+                    missingCount++;
+            }
+            if (missingCount > KnownInstructionKinds.Length / 2)
+            {
+                var diagnostic = Diagnostic.Create(Rule, switchStmt.SwitchKeyword.GetLocation());
+                context.ReportDiagnostic(diagnostic);
             }
         }
     }

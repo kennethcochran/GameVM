@@ -1,10 +1,14 @@
 -- GameVM MAME Monitor Script
--- Dumps CPU state to stdout for verification in tests
+-- Runs the emulated program until it reaches the halt loop (JMP *),
+-- then dumps CPU state to stdout for verification in tests.
+-- If the program never halts, MAME is killed by the test runner's timeout
+-- (a hung test is a failure).
 
 local function dump_state()
     local cpu = manager.machine.devices[":maincpu"]
-    
+
     print("--- GAMEVM MAME DUMP ---")
+    print("GAMEVM PROGRAM HALTED")
     print("CPU state:")
     print("A: " .. string.format("%02X", cpu.state["A"].value))
     print("X: " .. string.format("%02X", cpu.state["X"].value))
@@ -22,11 +26,24 @@ local function dump_state()
     print("--- END GAMEVM DUMP ---")
 end
 
-local frames = 0
+-- True when the CPU is sitting on the halt loop: a JMP absolute (opcode 0x4C)
+-- whose target address is the address of the JMP itself.
+local function is_halted()
+    local ok, result = pcall(function()
+        local cpu = manager.machine.devices[":maincpu"]
+        local pc = cpu.state["PC"].value
+        local mem = cpu.spaces["program"]
+        if mem:read_u8(pc) ~= 0x4C then
+            return false
+        end
+        local target = mem:read_u8(pc + 1) + mem:read_u8(pc + 2) * 256
+        return target == pc
+    end)
+    return ok and result
+end
 
 local function on_frame_callback(mach)
-    frames = frames + 1
-    if frames == 30 then
+    if is_halted() then
         dump_state()
         mach:exit()
     end
@@ -59,17 +76,26 @@ if not registered and manager and manager.machine and manager.machine.register_f
     if ok then registered = true end
 end
 
--- Pattern 5: emu.wait-based loop (fallback)
+-- Pattern 5: emu.wait-based polling loop (fallback).
+-- Polls until the halt loop is seen; the runner's process timeout is the
+-- backstop if the program never halts.
 if not registered then
     local function run_loop()
-        for i = 1, 30 do
-            -- Wait for next frame
+        while true do
             if emu and emu.wait then
                 emu.wait(1.0/60.0)
             elseif os and os.execute then
                 os.execute("sleep 0.016")
+            else
+                break
             end
-            on_frame_callback(manager.machine)
+            if is_halted() then
+                dump_state()
+                if manager and manager.machine then
+                    manager.machine:exit()
+                end
+                break
+            end
         end
     end
     run_loop()

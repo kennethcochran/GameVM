@@ -40,25 +40,23 @@ namespace GameVM.Analyzers
             if (namedType.TypeKind != TypeKind.Struct)
                 return;
 
-            var ns = namedType.ContainingNamespace;
-            if (ns == null || ns.IsGlobalNamespace)
+            var namespaceName = GetNamespaceName(namedType);
+            if (namespaceName == null)
                 return;
 
-            var namespaceName = ns.ToDisplayString();
-
-            var syntaxRef = namedType.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef == null)
-                return;
-
-            var syntaxTree = syntaxRef.SyntaxTree;
-            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxTree);
-            if (!options.TryGetValue(EditorConfigKey, out var rawList) || string.IsNullOrWhiteSpace(rawList))
-                return;
-
-            var targetNamespaces = ParseNamespaces(rawList);
+            var targetNamespaces = GetTargetNamespaces(context, namedType);
             if (targetNamespaces.Count == 0)
                 return;
 
+            ReportIfInTargetNamespace(context, namedType, namespaceName, targetNamespaces);
+        }
+
+        private static void ReportIfInTargetNamespace(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol namedType,
+            string namespaceName,
+            System.Collections.Generic.IReadOnlyList<string> targetNamespaces)
+        {
             foreach (var target in targetNamespaces)
             {
                 if (!IsOrUnderNamespace(namespaceName, target))
@@ -66,31 +64,61 @@ namespace GameVM.Analyzers
 
                 if (!HasValidStructLayout(namedType))
                 {
-                    var location = syntaxRef.GetSyntax().GetLocation();
-                    var diagnostic = Diagnostic.Create(Rule, location, namedType.Name, namespaceName);
-                    context.ReportDiagnostic(diagnostic);
+                    ReportInvalidLayout(context, namedType, namespaceName);
                 }
                 return;
             }
         }
 
+        private static string? GetNamespaceName(INamedTypeSymbol namedType)
+        {
+            var ns = namedType.ContainingNamespace;
+            if (ns == null || ns.IsGlobalNamespace)
+                return null;
+            return ns.ToDisplayString();
+        }
+
+        private static IReadOnlyList<string> GetTargetNamespaces(SymbolAnalysisContext context, INamedTypeSymbol namedType)
+        {
+            var syntaxRef = namedType.DeclaringSyntaxReferences.FirstOrDefault();
+            if (syntaxRef == null)
+                return Array.Empty<string>();
+
+            var options = context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxRef.SyntaxTree);
+            if (!options.TryGetValue(EditorConfigKey, out var rawList) || string.IsNullOrWhiteSpace(rawList))
+                return Array.Empty<string>();
+
+            return ParseNamespaces(rawList);
+        }
+
+        private static void ReportInvalidLayout(SymbolAnalysisContext context, INamedTypeSymbol namedType, string namespaceName)
+        {
+            var syntaxRef = namedType.DeclaringSyntaxReferences.FirstOrDefault();
+            var location = syntaxRef?.GetSyntax().GetLocation();
+            var diagnostic = Diagnostic.Create(Rule, location, namedType.Name, namespaceName);
+            context.ReportDiagnostic(diagnostic);
+        }
+
         private static bool HasValidStructLayout(INamedTypeSymbol type)
+        {
+            var layoutKind = GetStructLayoutKind(type);
+            return layoutKind == LayoutKind.Sequential || layoutKind == LayoutKind.Explicit;
+        }
+
+        private static LayoutKind? GetStructLayoutKind(INamedTypeSymbol type)
         {
             foreach (var attr in type.GetAttributes())
             {
-                if (attr.AttributeClass?.ToDisplayString() == "System.Runtime.InteropServices.StructLayoutAttribute")
-                {
-                    if (attr.ConstructorArguments.Length > 0)
-                    {
-                        var layoutKind = attr.ConstructorArguments[0].Value;
-                        if (layoutKind is LayoutKind kind)
-                        {
-                            return kind == LayoutKind.Sequential || kind == LayoutKind.Explicit;
-                        }
-                    }
-                }
+                if (attr.AttributeClass?.ToDisplayString() != "System.Runtime.InteropServices.StructLayoutAttribute")
+                    continue;
+
+                if (attr.ConstructorArguments.Length == 0)
+                    continue;
+
+                if (attr.ConstructorArguments[0].Value is LayoutKind kind)
+                    return kind;
             }
-            return false;
+            return null;
         }
 
         private static IReadOnlyList<string> ParseNamespaces(string raw)
