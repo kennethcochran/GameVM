@@ -122,26 +122,30 @@ namespace GameVM.Compiler.Pascal.Semantics
             }
         }
 
-        private void ProcessBlock(AstTree astTree, int blockIdx)
-        {
-            foreach (int childIdx in astTree.Children(blockIdx))
-                ProcessStatement(astTree, childIdx);
-        }
-
         private void ProcessMethodDeclaration(AstTree astTree, int stmtIdx)
         {
             var mChildren = astTree.Children(stmtIdx);
             for (int i = 0; i < mChildren.Length - 1; i++)
             {
-                int childIdx = mChildren[i];
-                PascalAstNodeKind childKind = (PascalAstNodeKind)astTree.GetKind(childIdx);
-                if (childKind == PascalAstNodeKind.VariableDeclaration)
-                    RegisterDeclaration(astTree, childIdx);
-                else if (childKind == PascalAstNodeKind.ConstantDefinition)
-                    RegisterConstant(astTree, childIdx);
+                RegisterChildDeclaration(astTree, mChildren[i]);
             }
             if (mChildren.Length > 0)
                 ProcessStatement(astTree, mChildren[mChildren.Length - 1]);
+        }
+
+        private void RegisterChildDeclaration(AstTree astTree, int childIdx)
+        {
+            PascalAstNodeKind childKind = (PascalAstNodeKind)astTree.GetKind(childIdx);
+            if (childKind == PascalAstNodeKind.VariableDeclaration)
+                RegisterDeclaration(astTree, childIdx);
+            else if (childKind == PascalAstNodeKind.ConstantDefinition)
+                RegisterConstant(astTree, childIdx);
+        }
+
+        private void ProcessBlock(AstTree astTree, int blockIdx)
+        {
+            foreach (int childIdx in astTree.Children(blockIdx))
+                ProcessStatement(astTree, childIdx);
         }
 
         /// <summary>Registers a variable declaration's name and type, mirroring the

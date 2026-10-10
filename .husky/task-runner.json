@@ -32,7 +32,9 @@
         "-f",
         "xml",
         "-o",
-        "TestResults/coverage.xml"
+        "TestResults/coverage.xml",
+        "-t",
+        "300000"
       ]
     },
     {

@@ -50,13 +50,6 @@
         "nudge"
       ],
       "rollForward": false
-    },
-    "dotnet-coverage": {
-      "version": "18.12.0",
-      "commands": [
-        "dotnet-coverage"
-      ],
-      "rollForward": false
     }
   }
 }

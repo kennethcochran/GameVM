@@ -76,14 +76,7 @@ namespace GameVM.Compiler.Application
                 var stringPool = _frontend.StringPool;
                 if (stringPool == null)
                 {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = "String pool not available from frontend"
-                    };
+                    return FailResult(extension, options, "String pool not available from frontend");
                 }
 
                 // Lower the HLIR semantic tree to a flat MLIR instruction stream.
@@ -91,14 +84,7 @@ namespace GameVM.Compiler.Application
                 InstList mlirFromHlir = hlirToMlir.Transform(hlirTree);
                 if (mlirFromHlir.Count == 0)
                 {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = "Failed to lower HLIR tree to MLIR"
-                    };
+                    return FailResult(extension, options, "Failed to lower HLIR tree to MLIR");
                 }
 
                 // Validate Capability Profile
@@ -132,28 +118,14 @@ namespace GameVM.Compiler.Application
                 InstList mlirSlab = _midLevelOptimizer.OptimizeSlab(mlirFromHlir, stringPool, options.OptimizationLevel);
                 if (mlirSlab.Count == 0)
                 {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = "Failed to optimize HLIR slab to MLIR slab"
-                    };
+                    return FailResult(extension, options, "Failed to optimize HLIR slab to MLIR slab");
                 }
 
                 // Convert MLIR slab to LLIR slab (DOD pipeline) - now using InstList directly
                 InstList llirSlab = _mlirToLlir.TransformSlab(mlirSlab, stringPool);
                 if (llirSlab.Count == 0)
                 {
-                    return new CompilationResult
-                    {
-                        Success = false,
-                        Code = Array.Empty<byte>(),
-                        SourceFile = extension,
-                        Target = options.Target,
-                        ErrorMessage = "Failed to convert MLIR slab to LLIR slab"
-                    };
+                    return FailResult(extension, options, "Failed to convert MLIR slab to LLIR slab");
                 }
 
                 // Optimize LLIR slab (DOD pipeline) - bridge InstList to InstList and back
@@ -196,15 +168,20 @@ namespace GameVM.Compiler.Application
             catch (Exception ex)
             {
                 var error = $"Complication failed: {ex.Message}";
-                return new CompilationResult
-                {
-                    Success = false,
-                    Code = Array.Empty<byte>(),
-                    SourceFile = extension,
-                    Target = options.Target,
-                    ErrorMessage = error
-                };
+                return FailResult(extension, options, error);
             }
+        }
+
+        private static CompilationResult FailResult(string extension, CompilationOptions options, string errorMessage)
+        {
+            return new CompilationResult
+            {
+                Success = false,
+                Code = Array.Empty<byte>(),
+                SourceFile = extension,
+                Target = options.Target,
+                ErrorMessage = errorMessage
+            };
         }
 
         /// <summary>
