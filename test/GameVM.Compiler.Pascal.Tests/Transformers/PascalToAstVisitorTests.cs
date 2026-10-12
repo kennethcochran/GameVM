@@ -262,5 +262,88 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 Console.WriteLine($"  [{i}] Kind: {(PascalAstNodeKind)node.Kind}, Flags: {node.Flags}, Payload: {node.Payload}, Children: {children.Length}");
             }
         }
+        [Test]
+        public void Visitor_EmitsUnaryOpForUnaryMinus()
+        {
+            string code = @"
+                program Test;
+                var x, y: integer;
+                begin
+                    x := -y;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            // The assignment must survive lowering (previously the whole
+            // statement was silently dropped).
+            bool foundAssignment = false;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.Assignment)
+                {
+                    foundAssignment = true;
+                    break;
+                }
+            }
+            Assert.That(foundAssignment, Is.True, "x := -y must not be dropped");
+
+            // Exactly one UnaryOp node: payload '-', exactly one child (the operand).
+            uint yOffset = pool.Intern("y");
+            int unaryCount = 0;
+            int yOperandCount = 0;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.UnaryOp)
+                {
+                    unaryCount++;
+                    Assert.That(tree[i].Payload, Is.EqualTo((uint)'-'), "UnaryOp payload must be the '-' op char");
+                    Assert.That(tree[i].ChildCount, Is.EqualTo(1), "UnaryOp must wrap exactly one operand");
+                    var operand = tree[tree.Children(i)[0]];
+                    Assert.That((PascalAstNodeKind)operand.Kind, Is.EqualTo(PascalAstNodeKind.Identifier));
+                    Assert.That(operand.Payload, Is.EqualTo(yOffset));
+                    yOperandCount++;
+                }
+            }
+            Assert.That(unaryCount, Is.EqualTo(1), "exactly one UnaryOp node expected");
+            Assert.That(yOperandCount, Is.EqualTo(1), "the factor must be visited exactly once (no duplicate subtree)");
+        }
+
+        [Test]
+        public void Visitor_EmitsUnaryOpForNegativeLiteral()
+        {
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := -5;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            bool foundUnary = false;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.UnaryOp)
+                {
+                    foundUnary = true;
+                    Assert.That(tree[i].ChildCount, Is.EqualTo(1));
+                    var operand = tree[tree.Children(i)[0]];
+                    Assert.That((PascalAstNodeKind)operand.Kind, Is.EqualTo(PascalAstNodeKind.LiteralInt));
+                    break;
+                }
+            }
+            Assert.That(foundUnary, Is.True, "x := -5 must produce a UnaryOp node");
+        }
     }
 }

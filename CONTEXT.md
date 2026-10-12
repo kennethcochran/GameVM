@@ -140,6 +140,20 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
   - `Type mismatch: cannot assign '{valueText}' to Integer variable '{targetName}'`
 - No new rules added (duplicate decl, for-control, call arity are later tickets).
 
+### Slice 1 Frontend Correctness (F1)
+
+- **F1 — Unary minus.** `VisitSignedFactor` used to visit the factor twice and
+  wrap it in a 1-child `BinaryOp`, which `BuildBinaryOp` rejected (needs ≥2
+  children) — `x := -y;` vanished silently. It now emits the new
+  `PascalAstNodeKind.UnaryOp` (payload `'-'`, single operand child).
+  `PascalAstToHlirTransformer` lowers it to the previously-never-produced
+  `HlirNodeKind.UnaryOp`, constant-folding integer literals and named constants
+  to their 8-bit two's complement value (`-5` → `251`);
+  `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)`, reusing the
+  existing `Sub` path through LLIR to `SEC; SBC` on the 6502.
+  `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
+  `x := -undeclared` still reports PAS0001.
+
 ### Semantic Error Structure
 
 - `SemanticError` is a plain data class in `GameVM.Compiler.Core.Interfaces` with properties: `Message`, `ErrorCode`, `Line`, `Column`.
@@ -164,7 +178,7 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 ## 3. Current Platform Reality
 
 - **Backend:** Atari 2600 (`Atari2600CodeGenerator`) — emits 4KB ROM images (`$F000`-`$FFFF`). Uses zero-page pointer promotion and strict cycle budgeting.
-- **Conditional branch polarity:** `if x <> 0 then y := 1` lowers through the pipeline as `Cmp(x,0); Transition; Branch(L_end)` (BEQ → skip when x==0) and `if x = 0 then y := 1` as `Cmp(x,0); Branch(L_end)` (BNE → skip when x!=0). The operator payload drives the marker: `<>` emits `Transition` → BEQ; `=` emits no `Transition` → BNE (invert semantics selected by ProcessIf/ProcessWhile). `ProcessBranch` preserves the `Transition` marker so the codegen's `lastWasTransition` flag selects BEQ/BNE correctly. `- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`) for a single-operand immediate; `LDA` zero-page (`0xA5`) when two operands form an address `< $100`, else absolute (`0xAD`). `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). `LLIR_ADD`/`LLIR_SUB` → `CLC; ADC` / `SEC; SBC`: immediate form (`0x69`/`0xE9`) for a single operand, zero-page memory form (`0x65`/`0xE5`, addr `< $100`) or absolute (`0x6D`/`0xED`) when two operands form an address — so `z := x + y` emits `LDA $80; CLC; ADC $81`, adding y's *value*, never its address as an immediate. `LLIR_CMP` → `CMP #imm` (`0xC9`) single-operand, `CMP` zero-page (`0xC5`) / absolute (`0xCD`) for the two-operand memory form. `LLIR_CALL` (single operand) carries the function's label pool-offset and resolves to a ROM address through the pass-1 `labelOffsets` map exactly like `Jump`, then emits `JSR` absolute (`0x20`); the two-operand form is an explicit `[low, high]` address. Slice-1 calling convention: `JSR` in, `RTS` out, a single value carried in the accumulator (A) — no stack-passed arguments. A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`…
+- **Conditional branch polarity:** `if x <> 0 then y := 1` lowers through the pipeline as `Cmp(x,0); Transition; Branch(L_end)` (BEQ → skip when x==0) and `if x = 0 then y := 1` as `Cmp(x,0); Branch(L_end)` (BNE → skip when x!=0). The operator payload drives the marker: `<>` emits `Transition` → BEQ; `=` emits no `Transition` → BNE (invert semantics selected by ProcessIf/ProcessWhile). `ProcessBranch` preserves the `Transition` marker so the codegen's `lastWasTransition` flag selects BEQ/BNE correctly. `- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`) for a single-operand immediate; `LDA` zero-page (`0xA5`) when two operands form an address `< $100`, else absolute (`0xAD`). `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). `LLIR_SUB` → `SEC; SBC #imm` (`0x38 0xE9`). `LLIR_CMP` → `CMP #imm` (`0xC9`). A loaded cartridge has total machine control, so the emitted program never returns: codegen emits a 13-byte reset prologue at `$F000` (`SEI; CLD; LDX #$FF; TXS;` then a loop zeroing all 256 zero-page bytes, which also parks the TIA in a safe state), every LLIR `Return` on the main path is patched to `JMP` the halt loop (never `RTS` — there is no caller and the stack was just initialized), and a **self-loop** (`JMP *` → `0x4C <self>`) is appended so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware per the full 45-register Stella Programmer's Guide write map (`VSYNC`→`$00` … `CXCLR`→`$2C`; e.g. `COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `RESP0`→`$10`, `GRP0`→`$1B`, `HMOVE`→`$2A`), user variables allocate zero-page from `$80` upward.
 
 ### Aspirational / Not Yet Implemented
 

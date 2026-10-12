@@ -29,17 +29,22 @@ namespace GameVM.Compiler.CSharp.Transformers
             return _builder.Build();
         }
 
-        public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
+        /// <summary>Maps a C# type name to its slab type-kind byte. Pure function for testability.</summary>
+        internal static byte MapTypeNameToKind(string typeNameStr)
         {
-            // VARIABLE_DECLARATION: [typeKind, nameOffset]
-            string typeNameStr = context.type().GetText();
-            byte typeKind = typeNameStr switch
+            return typeNameStr switch
             {
                 "int" => 1,
                 "string" => 2,
                 "bool" => 3,
                 _ => 4
             };
+        }
+
+        public override object VisitVariableDeclaration(CSharpParser.VariableDeclarationContext context)
+        {
+            // VARIABLE_DECLARATION: [typeKind, nameOffset]
+            byte typeKind = MapTypeNameToKind(context.type().GetText());
 
             string varName = context.identifier().GetText();
             uint nameOffset = _stringPool.Intern(varName);

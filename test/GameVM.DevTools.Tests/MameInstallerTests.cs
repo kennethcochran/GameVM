@@ -39,7 +39,9 @@ public class MameInstallerTests
         // Arrange - Test the Linux platform path with apt-get available
         _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
         _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
-        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update", true, true))
+            .ReturnsAsync(true);
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get install -y mame", true, true))
             .ReturnsAsync(true);
         _processService.Setup(x => x.GetCommandPath("mame")).Returns("/usr/bin/mame");
 
@@ -103,7 +105,7 @@ public class MameInstallerTests
         // Arrange - Test the exception handling path
         _platformServiceMock.Setup(x => x.IsLinux()).Returns(true);
         _processService.Setup(x => x.GetCommandPath("apt-get")).Returns("/usr/bin/apt-get");
-        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update && apt-get install -y mame", true, true))
+        _processService.Setup(x => x.RunProcessAsync("sudo", "apt-get update", true, true))
             .ThrowsAsync(new InvalidOperationException("Network error"));
 
         var installer = new MameInstaller(_consoleService.Object, _processService.Object, _platformServiceMock.Object, _fileSystemServiceMock.Object);

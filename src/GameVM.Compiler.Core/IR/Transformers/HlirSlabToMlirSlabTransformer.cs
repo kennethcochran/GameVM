@@ -39,10 +39,10 @@ namespace GameVM.Compiler.Core.IR.Transformers
                 0);
         }
 
-        private void ProcessInstruction(InstList hlirSlab, int instIdx, InstListBuilder builder)
+        internal void ProcessInstruction(InstList hlirSlab, int instIdx, InstListBuilder builder)
         {
             var kind = (MlirInstructionKind)hlirSlab.GetKind(instIdx);
-            
+
             switch (kind)
             {
                 case MlirInstructionKind.Label:

@@ -9,6 +9,12 @@
     <IsTestProject>false</IsTestProject>
     <!-- Don't generate the Microsoft Testing Platform entry point; NUnitLite provides the Main. -->
     <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
+    <!-- Direct kill-switch for the MTP MSBuild entry-point generator (v2.x).
+         UseMicrosoftTestingPlatformRunner alone does not stop
+         Microsoft.Testing.Platform.MSBuild from emitting
+         MicrosoftTestingPlatformEntryPoint.cs, which then triggers CS7022/CS8892
+         entry-point ambiguity warnings. -->
+    <GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
     <RootNamespace>GameVM.TestRunner</RootNamespace>
     <AssemblyName>GameVM.TestRunner</AssemblyName>
   </PropertyGroup>

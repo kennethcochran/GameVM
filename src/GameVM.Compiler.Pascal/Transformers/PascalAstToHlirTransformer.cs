@@ -389,6 +389,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return _builder.Add((byte)HlirNodeKind.Identifier, 0, node.Payload, HlirPayloadKind.PoolOffset);
                 case PascalAstNodeKind.BinaryOp:
                     return BuildBinaryOp(astTree, exprIdx);
+                case PascalAstNodeKind.UnaryOp:
+                    return BuildUnaryOp(astTree, exprIdx);
                 case PascalAstNodeKind.MethodCall:
                     return ProcessMethodCall(astTree, exprIdx);
                 default:
@@ -435,6 +437,46 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (leftHlir < 0 || rightHlir < 0) return -1;
 
             return _builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)op, HlirPayloadKind.Immediate, leftHlir, rightHlir);
+        }
+
+        private int BuildUnaryOp(AstTree astTree, int exprIdx)
+        {
+            var children = astTree.Children(exprIdx);
+            if (children.Length < 1) return -1;
+
+            char op = (char)astTree[exprIdx].Payload;
+            if (op != '-') return -1; // unary minus is the only unary op the frontend produces
+
+            // Constant-fold: -N becomes its 8-bit two's complement value, interned
+            // as decimal text like every other integer literal in this pipeline.
+            var operandNode = astTree[children[0]];
+            uint? constVal = ResolveConstantOperand(operandNode);
+            if (constVal.HasValue)
+            {
+                uint folded = (256 - (constVal.Value & 0xFF)) & 0xFF;
+                uint foldedOffset = _pool.Intern(folded.ToString());
+                return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, foldedOffset, HlirPayloadKind.Immediate);
+            }
+
+            int operandHlir = BuildExpression(astTree, children[0]);
+            if (operandHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, operandHlir);
+        }
+
+        /// <summary>
+        /// Resolves an AST operand node to its constant integer value when it is a
+        /// literal or a registered named constant. Returns null otherwise.
+        /// </summary>
+        private uint? ResolveConstantOperand(AstNode operandNode)
+        {
+            if ((PascalAstNodeKind)operandNode.Kind == PascalAstNodeKind.LiteralInt &&
+                uint.TryParse(_pool.Resolve(operandNode.Payload), out uint literal))
+                return literal;
+            if ((PascalAstNodeKind)operandNode.Kind == PascalAstNodeKind.Identifier &&
+                _constantValues.TryGetValue(operandNode.Payload, out uint named))
+                return named;
+            return null;
         }
     }
 }

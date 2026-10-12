@@ -341,4 +341,59 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 5: unconditional back-edge");
         Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 6: exit label");
     }
+
+    [Test]
+    public void Transform_UnaryMinusVariable_LowersToSubFromZero()
+    {
+        // HLIR -> MLIR seam: x := -y lowers to the temp sequence
+        //   Sub(0, y); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        // i.e. -y == 0 - y, reusing the existing Sub lowering.
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zeroOffset = _pool.Intern("0");
+        var builder = new HlirBuilder();
+        int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int unary = builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, operand);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, unary);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        Assert.That(result.Count, Is.EqualTo(3),
+            "x := -y should lower to Sub; Assign(tmp,0); Assign(x,tmp)");
+
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Sub));
+        var subOps = result.GetOperands(0);
+        Assert.That(subOps.Length, Is.EqualTo(2));
+        Assert.That(subOps[0], Is.EqualTo(zeroOffset), "Sub left operand is literal 0");
+        Assert.That(subOps[1], Is.EqualTo(yOffset), "Sub right operand is y");
+
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var tmpOps = result.GetOperands(1);
+        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+    }
+
+    [Test]
+    public void Transform_UnaryMinusNonMinusOp_ProducesNoInstructions()
+    {
+        // Defensive: only '-' is produced by the frontend; any other op char
+        // must not emit a bogus Sub.
+        uint yOffset = _pool.Intern("y");
+        var builder = new HlirBuilder();
+        int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        Assert.That(result.Count, Is.EqualTo(0), "non-'-' UnaryOp must not lower to a Sub");
+    }
 }

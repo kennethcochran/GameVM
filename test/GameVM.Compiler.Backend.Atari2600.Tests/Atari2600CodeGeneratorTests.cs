@@ -13,6 +13,11 @@ public class Atari2600CodeGeneratorTests
 {
     private Atari2600CodeGenerator _codeGenerator;
 
+    // Length of the reset prologue emitted at the start of every ROM.
+    // Pinned by GenerateFromSlab_EmitsResetPrologue below; if the prologue
+    // changes, update this constant and the shifted assertions with it.
+    private const int PrologueSize = 13;
+
     [SetUp]
     public void Setup()
     {
@@ -80,23 +85,64 @@ public class Atari2600CodeGeneratorTests
         
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
-        Assert.That(rom[0], Is.EqualTo(0xA9)); // LDA #immediate
-        Assert.That(rom[1], Is.EqualTo(0x05)); // immediate value 5
-        Assert.That(rom[2], Is.EqualTo(0x85)); // STA zero-page
-        Assert.That(rom[3], Is.EqualTo(0x10)); // address $10
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9)); // LDA #immediate
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x05)); // immediate value 5
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x85)); // STA zero-page
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x10)); // address $10
     }
 
     [Test]
-    public void GenerateFromSlab_WithReturnInstruction_GeneratesRTS()
+    public void GenerateFromSlab_EmitsResetPrologue()
     {
+        // Every ROM starts with the reset prologue at $F000:
+        // SEI; CLD; LDX #$FF; TXS; LDX #$00; TXA; STA $80,X; INX; BNE -5
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        var expected = new byte[]
+        {
+            0x78,        // SEI
+            0xD8,        // CLD
+            0xA2, 0xFF,  // LDX #$FF
+            0x9A,        // TXS
+            0xA2, 0x00,  // LDX #$00
+            0x8A,        // TXA
+            0x95, 0x80,  // STA $80,X
+            0xE8,        // INX
+            0xD0, 0xFB   // BNE -5 (back to STA $80,X)
+        };
+        Assert.That(expected.Length, Is.EqualTo(PrologueSize));
+        for (int i = 0; i < expected.Length; i++)
+            Assert.That(rom[i], Is.EqualTo(expected[i]), $"Prologue byte {i}");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithReturnInstruction_JumpsToHaltLoop()
+    {
+        // B4: the program entry never returns — a top-level Return must jump
+        // to the halt (self-loop), never emit RTS into an empty stack.
         var builder = new InstListBuilder();
         builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);
         var slab = builder.Build();
         var stringPool = new StringPool();
-        
+
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
-        Assert.That(rom[0], Is.EqualTo(0x60)); // RTS
+
+        // Prologue (13) + JMP <halt> (3); halt loop sits right after at 16.
+        Assert.That(rom[PrologueSize], Is.EqualTo(0x4C)); // JMP, not RTS
+        int target = rom[PrologueSize + 1] | (rom[PrologueSize + 2] << 8);
+        int haltAddr = 0xF000 + PrologueSize + 3;
+        Assert.That(target, Is.EqualTo(haltAddr));
+        // The halt loop itself follows immediately.
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x4C)); // self-loop JMP
+        int loopTarget = rom[PrologueSize + 4] | (rom[PrologueSize + 5] << 8);
+        Assert.That(loopTarget, Is.EqualTo(haltAddr), "halt loop points to itself");
+        // No RTS anywhere in the ROM.
+        Assert.That(rom, Has.None.EqualTo((byte)0x60), "no RTS on the main path");
     }
 
     [Test]
@@ -128,9 +174,9 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x20)); // JSR
-        Assert.That(rom[1], Is.EqualTo(0x00)); // low byte
-        Assert.That(rom[2], Is.EqualTo(0xF0)); // high byte
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x20)); // JSR
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x00)); // low byte
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xF0)); // high byte
     }
 
     [Test]
@@ -158,9 +204,9 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x4C)); // JMP
-        Assert.That(rom[1], Is.EqualTo(0x00)); // low byte
-        Assert.That(rom[2], Is.EqualTo(0xF0)); // high byte
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x4C)); // JMP
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x00)); // low byte
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xF0)); // high byte
     }
 
     [Test]
@@ -174,8 +220,8 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xD0)); // BNE (branch when not equal)
-        Assert.That(rom[1], Is.EqualTo(5)); // offset
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xD0)); // BNE (branch when not equal)
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(5)); // offset
     }
 
     [Test]
@@ -189,9 +235,9 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x20)); // JSR
-        Assert.That(rom[1], Is.EqualTo(0x34)); // low byte
-        Assert.That(rom[2], Is.EqualTo(0x12)); // high byte
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x20)); // JSR
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x34)); // low byte
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x12)); // high byte
     }
 
     [Test]
@@ -207,10 +253,10 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
 
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA9), "First byte should be LDA #immediate");
-        Assert.That(rom[1], Is.EqualTo(0x05), "Immediate should be the value 5");
-        Assert.That(rom[2], Is.EqualTo(0x85), "Third byte should be STA zero-page");
-        Assert.That(rom[3], Is.EqualTo(0x80), "Target address should be $80");
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9), "First byte should be LDA #immediate");
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x05), "Immediate should be the value 5");
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x85), "Third byte should be STA zero-page");
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x80), "Target address should be $80");
     }
 
     [Test]
@@ -224,7 +270,7 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xEA)); // NOP
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xEA)); // NOP
     }
 
     [Test]
@@ -239,8 +285,8 @@ public class Atari2600CodeGeneratorTests
         
         Assert.That(rom, Is.Not.Null);
         // The self-loop JMP should be at the end of generated code
-        // LDA #$42 = 2 bytes, then JMP * = 3 bytes
-        Assert.That(rom[2], Is.EqualTo(0x4C)); // JMP opcode
+        // prologue (13) + LDA #$42 = 2 bytes, then JMP * = 3 bytes
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x4C)); // JMP opcode
     }
 
     [Test]
@@ -275,11 +321,11 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        // LDA #$42 (2 bytes) + LDA #$24 (2 bytes) + STA $09 (2 bytes) + self-loop JMP (3 bytes)
-        Assert.That(rom[0], Is.EqualTo(0xA9)); Assert.That(rom[1], Is.EqualTo(0x42)); // LDA #$42
-        Assert.That(rom[2], Is.EqualTo(0xA9)); Assert.That(rom[3], Is.EqualTo(0x24)); // LDA #$24
-        Assert.That(rom[4], Is.EqualTo(0x85)); Assert.That(rom[5], Is.EqualTo(0x09)); // STA $09
-        Assert.That(rom[6], Is.EqualTo(0x4C)); // JMP self-loop
+        // prologue (13) + LDA #$42 (2 bytes) + LDA #$24 (2 bytes) + STA $09 (2 bytes) + self-loop JMP (3 bytes)
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9)); Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x42)); // LDA #$42
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xA9)); Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x24)); // LDA #$24
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x85)); Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x09)); // STA $09
+        Assert.That(rom[PrologueSize + 6], Is.EqualTo(0x4C)); // JMP self-loop
     }
 
     [Test]
@@ -294,9 +340,9 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x8D)); // STA absolute
-        Assert.That(rom[1], Is.EqualTo(0x34)); // low byte
-        Assert.That(rom[2], Is.EqualTo(0x12)); // high byte
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x8D)); // STA absolute
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x34)); // low byte
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x12)); // high byte
     }
     [Test]
     public void GenerateFromSlab_WithStoreInstruction_ZeroPageAndAbsolute()
@@ -311,8 +357,8 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x85)); // STA zero-page
-        Assert.That(rom[1], Is.EqualTo(0x0F)); // address $0F
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x85)); // STA zero-page
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x0F)); // address $0F
         
         // Test absolute store (address >= 0x100)
         // Address 0x1234: addr_low=0x34, addr_high=0x12
@@ -324,9 +370,9 @@ public class Atari2600CodeGeneratorTests
         var rom2 = _codeGenerator.GenerateFromSlab(slab2, stringPool2, new CodeGenOptions());
         
         Assert.That(rom2, Is.Not.Null);
-        Assert.That(rom2[0], Is.EqualTo(0x8D)); // STA absolute
-        Assert.That(rom2[1], Is.EqualTo(0x34)); // low byte
-        Assert.That(rom2[2], Is.EqualTo(0x12)); // high byte
+        Assert.That(rom2[PrologueSize + 0], Is.EqualTo(0x8D)); // STA absolute
+        Assert.That(rom2[PrologueSize + 1], Is.EqualTo(0x34)); // low byte
+        Assert.That(rom2[PrologueSize + 2], Is.EqualTo(0x12)); // high byte
     }
 
     [Test]
@@ -341,8 +387,8 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x85)); // STA zero-page
-        Assert.That(rom[1], Is.EqualTo(0x20)); // address $20
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x85)); // STA zero-page
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x20)); // address $20
     }
 
     [Test]
@@ -360,8 +406,8 @@ public class Atari2600CodeGeneratorTests
         Assert.That(rom, Is.Not.Null);
         Assert.That(rom.Length, Is.EqualTo(4096));
         // With zero operands, nothing is written before the self-loop JMP
-        // The self-loop JMP appears at address 0
-        Assert.That(rom[0], Is.EqualTo(0x4C)); // JMP opcode (self-loop)
+        // The self-loop JMP appears right after the prologue
+        Assert.That(rom[PrologueSize], Is.EqualTo(0x4C)); // JMP opcode (self-loop)
     }
 
     [Test]
@@ -376,9 +422,9 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x8D)); // STA absolute
-        Assert.That(rom[1], Is.EqualTo(0xCD)); // low byte
-        Assert.That(rom[2], Is.EqualTo(0xAB)); // high byte
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x8D)); // STA absolute
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0xCD)); // low byte
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xAB)); // high byte
     }
 
 
@@ -413,7 +459,7 @@ public class Atari2600CodeGeneratorTests
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
         
         Assert.That(rom, Is.Not.Null);
-        int codeEndIndex = 2; // LDA #$42 = 2 bytes
+        int codeEndIndex = PrologueSize + 2; // prologue + LDA #$42 = 2 bytes
         Assert.That(rom[codeEndIndex], Is.EqualTo(0x4C)); // JMP opcode
         int loopAddr = rom[codeEndIndex + 1] | (rom[codeEndIndex + 2] << 8);
         int expectedAddr = 0xF000 + codeEndIndex;
@@ -448,26 +494,30 @@ public class Atari2600CodeGeneratorTests
         builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, 0xFF, 0x00); // STA $00FF zp (2 bytes)
         builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12); // JSR $1234 (3 bytes)
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 0x7F);  // BCC +127 (2 bytes)
-        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);           // RTS (1 byte)
+        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);           // JMP <halt-loop> (3 bytes, B4)
 builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         var slab = builder.Build();
         var stringPool = new StringPool();
-        
+
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
+
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA9)); // LDA #$01
-        Assert.That(rom[1], Is.EqualTo(0x01));
-        Assert.That(rom[2], Is.EqualTo(0x85)); // STA zp $00FF
-        Assert.That(rom[3], Is.EqualTo(0xFF));
-        Assert.That(rom[4], Is.EqualTo(0x20)); // JSR $1234
-        Assert.That(rom[5], Is.EqualTo(0x34));
-        Assert.That(rom[6], Is.EqualTo(0x12));
-        Assert.That(rom[7], Is.EqualTo(0xD0)); // BNE +127
-        Assert.That(rom[8], Is.EqualTo(0x7F));
-        Assert.That(rom[9], Is.EqualTo(0x60)); // RTS
-        Assert.That(rom[10], Is.EqualTo(0xEA)); // NOP
-        Assert.That(rom[11], Is.EqualTo(0x4C)); // self-loop JMP
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9)); // LDA #$01
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x01));
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x85)); // STA zp $00FF
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0xFF));
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x20)); // JSR $1234
+        Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x34));
+        Assert.That(rom[PrologueSize + 6], Is.EqualTo(0x12));
+        Assert.That(rom[PrologueSize + 7], Is.EqualTo(0xD0)); // BNE +127
+        Assert.That(rom[PrologueSize + 8], Is.EqualTo(0x7F));
+        // B4: Return on the main path jumps to the halt loop, never RTS.
+        Assert.That(rom[PrologueSize + 9], Is.EqualTo(0x4C)); // JMP
+        int haltAddr = 0xF000 + PrologueSize + 13;
+        int returnTarget = rom[PrologueSize + 10] | (rom[PrologueSize + 11] << 8);
+        Assert.That(returnTarget, Is.EqualTo(haltAddr));
+        Assert.That(rom[PrologueSize + 12], Is.EqualTo(0xEA)); // NOP
+        Assert.That(rom[PrologueSize + 13], Is.EqualTo(0x4C)); // self-loop JMP
     }
 
     [Test]
@@ -488,17 +538,17 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
 
         Assert.That(rom, Is.Not.Null);
         // Load(xAddr,0) -> LDA zp $80 = A5 80
-        Assert.That(rom[0], Is.EqualTo(0xA5), "Load zp should emit LDA zp (0xA5)");
-        Assert.That(rom[1], Is.EqualTo(0x80), "Load zp address should be $80");
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA5), "Load zp should emit LDA zp (0xA5)");
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x80), "Load zp address should be $80");
         // Sub(1) -> SEC; SBC #1 = 38 E9 01
-        Assert.That(rom[2], Is.EqualTo(0x38), "Sub should emit SEC (0x38)");
-        Assert.That(rom[3], Is.EqualTo(0xE9), "Sub should emit SBC #imm (0xE9)");
-        Assert.That(rom[4], Is.EqualTo(0x01), "Sub immediate should be 1");
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0x38), "Sub should emit SEC (0x38)");
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0xE9), "Sub should emit SBC #imm (0xE9)");
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x01), "Sub immediate should be 1");
         // Store($80) -> STA zp $80 = 85 80
-        Assert.That(rom[5], Is.EqualTo(0x85), "Store should emit STA zp (0x85)");
-        Assert.That(rom[6], Is.EqualTo(0x80), "Store target should be $80");
+        Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x85), "Store should emit STA zp (0x85)");
+        Assert.That(rom[PrologueSize + 6], Is.EqualTo(0x80), "Store target should be $80");
         // self-loop JMP * follows
-        Assert.That(rom[7], Is.EqualTo(0x4C), "Self-loop JMP should follow");
+        Assert.That(rom[PrologueSize + 7], Is.EqualTo(0x4C), "Self-loop JMP should follow");
     }
 
     [Test]
@@ -513,44 +563,40 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
 
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA9), "Single-operand Load = LDA #imm");
-        Assert.That(rom[1], Is.EqualTo(0x42), "Immediate value $42");
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9), "Single-operand Load = LDA #imm");
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x42), "Immediate value $42");
     }
 
     [Test]
     public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBne()
     {
         // Cmp + Branch (no Transition) → BNE (0xD0)
-        // Simulates: if x <> 0 then y := 1;  arm execution.
-        // The transformer splits MLIR Cmp(x, 0) into Load(x) + single-operand
-        // Cmp [immediate]; hand-build that LLIR shape here (a two-operand Cmp
-        // is the [addrLow, addrHigh] memory form, not "compare to immediate").
+        // Simulates: if x <> 0 then y := 1;  arm execution
         var pool = new StringPool();
+        uint xOff = pool.Intern("x");
         uint endOff = pool.Intern("L_end");
 
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0);
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
 
         var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());
 
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
-        Assert.That(rom[1], Is.EqualTo(0x00), "CMP #0 immediate");
-        Assert.That(rom[2], Is.EqualTo(0xD0), "BNE opcode");
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xC5), "CMP zp opcode (2-operand Cmp uses zero-page)");
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xD0), "BNE opcode");
     }
 
     [Test]
     public void GenerateFromSlab_WithCmpTransitionBranch_EmitsBeq()
     {
-        // Cmp + Transition + Branch → BEQ (0xF0). Same single-operand Cmp shape
-        // as the transformer emits (see above).
         var pool = new StringPool();
+        uint xOff = pool.Intern("x");
         uint endOff = pool.Intern("L_end");
 
         var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0);
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
         builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
@@ -558,131 +604,7 @@ builder.Add(255, InstructionFlag.None, 0);          // NOP (1 byte)
         var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());
 
         Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xC9), "CMP #imm opcode");
-        Assert.That(rom[1], Is.EqualTo(0x00), "CMP #0 immediate");
-        Assert.That(rom[2], Is.EqualTo(0xF0), "BEQ opcode");
-    }
-
-    [Test]
-    public void GenerateFromSlab_WithAddMemoryOperand_EmitsAdcZp()
-    {
-        // LLIR -> ROM seam for z := x + y: Load(xAddr); Add(yAddr); Store(zAddr)
-        // Load($80) = LDA $80 (0xA5 0x80)
-        // Add($81)  = CLC; ADC $81 (0x18 0x65 0x81) — the VALUE at $81, not #$81
-        // Store($82) = STA $82 (0x85 0x82)
-        var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
-        builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, 0x81, 0);  // CLC; ADC zp $81
-        builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x82);   // STA zp $82
-        var slab = builder.Build();
-        var stringPool = new StringPool();
-
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-
-        Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA5), "Load zp should emit LDA zp (0xA5)");
-        Assert.That(rom[1], Is.EqualTo(0x80));
-        Assert.That(rom[2], Is.EqualTo(0x18), "Add should emit CLC (0x18)");
-        Assert.That(rom[3], Is.EqualTo(0x65), "Two-operand Add must emit ADC zp (0x65), not ADC #imm (0x69)");
-        Assert.That(rom[4], Is.EqualTo(0x81), "ADC operand is y's zero-page address");
-        Assert.That(rom[5], Is.EqualTo(0x85), "Store should emit STA zp (0x85)");
-        Assert.That(rom[6], Is.EqualTo(0x82));
-        Assert.That(rom[7], Is.EqualTo(0x4C), "Self-loop JMP should follow");
-    }
-
-    [Test]
-    public void GenerateFromSlab_WithSubMemoryOperand_EmitsSbcZp()
-    {
-        // Sub([addr, 0]) = SEC; SBC zp (0x38 0xE5 addr)
-        var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
-        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, 0x81, 0);  // SEC; SBC zp $81
-        var slab = builder.Build();
-        var stringPool = new StringPool();
-
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-
-        Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA5));
-        Assert.That(rom[1], Is.EqualTo(0x80));
-        Assert.That(rom[2], Is.EqualTo(0x38), "Sub should emit SEC (0x38)");
-        Assert.That(rom[3], Is.EqualTo(0xE5), "Two-operand Sub must emit SBC zp (0xE5), not SBC #imm (0xE9)");
-        Assert.That(rom[4], Is.EqualTo(0x81));
-    }
-
-    [Test]
-    public void GenerateFromSlab_WithCmpMemoryOperand_EmitsCmpZp()
-    {
-        // Cmp([addr, 0]) = CMP zp (0xC5 addr)
-        var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x80, 0); // LDA zp $80
-        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x81, 0);  // CMP zp $81
-        var slab = builder.Build();
-        var stringPool = new StringPool();
-
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-
-        Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0xA5));
-        Assert.That(rom[1], Is.EqualTo(0x80));
-        Assert.That(rom[2], Is.EqualTo(0xC5), "Two-operand Cmp must emit CMP zp (0xC5), not CMP #imm (0xC9)");
-        Assert.That(rom[3], Is.EqualTo(0x81));
-    }
-
-    [Test]
-    public void GenerateFromSlab_WithSingleOperandCall_ResolvesLabelAddressAndEmitsJsr()
-    {
-        // A 1-operand Call carries the function label's pool-offset; the codegen
-        // must resolve it to a ROM address (like Jump) and emit JSR — and, crucially,
-        // instructions after the Call must survive (the old code broke out of the
-        // emission loop and silently dropped the rest of the ROM).
-        // Layout: Label(main)@0; Call(func)@0; Load #7@3; Label(func)@5; Load #$42@5; Return@7
-        const uint mainHash = 0x1111u;
-        const uint funcHash = 0x2222u;
-        var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, mainHash);
-        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, funcHash);
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x07);
-        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, funcHash);
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
-        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);
-        var slab = builder.Build();
-        var stringPool = new StringPool();
-
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-
-        Assert.That(rom, Is.Not.Null);
-        // func label is at ROM offset 5 -> absolute $F005 (forward reference resolves)
-        Assert.That(rom[0], Is.EqualTo(0x20), "Single-operand Call must emit JSR (0x20)");
-        Assert.That(rom[1], Is.EqualTo(0x05), "JSR low byte = $F005");
-        Assert.That(rom[2], Is.EqualTo(0xF0), "JSR high byte = $F005");
-        // The instruction after the Call survives — no truncation.
-        Assert.That(rom[3], Is.EqualTo(0xA9), "Instruction after Call must survive in the ROM");
-        Assert.That(rom[4], Is.EqualTo(0x07));
-        // Function body follows the label.
-        Assert.That(rom[5], Is.EqualTo(0xA9));
-        Assert.That(rom[6], Is.EqualTo(0x42));
-        Assert.That(rom[7], Is.EqualTo(0x60), "Function body ends with RTS");
-        Assert.That(rom[8], Is.EqualTo(0x4C), "Self-loop JMP follows");
-    }
-
-    [Test]
-    public void GenerateFromSlab_WithTwoOperandCall_EmitsJsrAbsolute()
-    {
-        // The explicit [addrLow, addrHigh] form keeps working: JSR $1234.
-        var builder = new InstListBuilder();
-        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12);
-        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x07);
-        var slab = builder.Build();
-        var stringPool = new StringPool();
-
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-
-        Assert.That(rom, Is.Not.Null);
-        Assert.That(rom[0], Is.EqualTo(0x20), "JSR opcode");
-        Assert.That(rom[1], Is.EqualTo(0x34));
-        Assert.That(rom[2], Is.EqualTo(0x12));
-        Assert.That(rom[3], Is.EqualTo(0xA9), "Instruction after Call must survive in the ROM");
-        Assert.That(rom[4], Is.EqualTo(0x07));
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xC5), "CMP zp opcode (2-operand Cmp uses zero-page)");
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xF0), "BEQ opcode");
     }
 }

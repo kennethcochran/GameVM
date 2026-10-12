@@ -21,14 +21,20 @@
     {
       "name": "run-tests-with-coverage",
       "group": "pre-commit",
-      "command": "dotnet-coverage",
+      "command": "dotnet",
       "args": [
+        "tool",
+        "run",
+        "dotnet-coverage",
+        "--",
         "collect",
         "dotnet run --project test/GameVM.TestRunner",
         "-f",
         "xml",
         "-o",
-        "TestResults/coverage.xml"
+        "TestResults/coverage.xml",
+        "-t",
+        "300000"
       ]
     },
     {

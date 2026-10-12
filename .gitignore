@@ -417,10 +417,8 @@ docs/html/
 # Project specific folders (temporarily allowed for coverage analysis)
 # coveragereport/
 **/.antlr/
-**/tools/
-!**/tools/packages.config
-# GameVM's own dev tools (not third-party tool downloads)
-!/tools/GameVM.CrapGate/
+# GameVM's own dev tools live in tools/ and are tracked normally.
+# (bin/obj build outputs are ignored by the standard .NET patterns below.)
 
 # SonarQube
 .sonarqube/
