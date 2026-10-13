@@ -128,8 +128,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: bash
         run: |
-          dotnet build
-          if [ $? -ne 0 ]; then exit 1; fi
+          # Tee the build log so the nudge dogfooding step can analyze the diagnostics.
+          dotnet build 2>&1 | tee build.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then exit 1; fi
 
           # Install .NET tools (including reportgenerator)
           dotnet tool restore
@@ -158,6 +159,23 @@ jobs:
             ~/.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
             if [ $? -ne 0 ]; then exit 1; fi
           fi
+
+      # --- Nudge dogfooding: coaching report on build diagnostics ---
+      # Informational only — this step never fails the build. The report is
+      # uploaded as an artifact for review. See AGENTS.md ("Nudge Coaching").
+      - name: Nudge coaching report
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          dotnet tool run nudge -- --stdin < build.log > nudge-report.md || true
+          echo "Nudge report: $(wc -l < nudge-report.md) lines"
+
+      - name: Upload Nudge report
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nudge-report
+          path: nudge-report.md
 
       - name: Check SonarQube Quality Gate
         if: matrix.os == 'ubuntu-latest'
