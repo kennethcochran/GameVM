@@ -211,38 +211,32 @@ namespace GameVM.Compiler.Backend.Atari2600
         {
             // Two operands [addr, 0]: variable — ADC zp (add VALUE at address)
             // One operand [val]: immediate — ADC #imm (add literal value)
-            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-            {
-                rom[currentAddress++] = 0x18; // CLC
-                rom[currentAddress++] = 0x65; // ADC zp
-                rom[currentAddress++] = (byte)operands[0];
-                return 3;
-            }
-            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
-            {
-                rom[currentAddress++] = 0x18; // CLC
-                rom[currentAddress++] = 0x69; // ADC #imm
-                rom[currentAddress++] = (byte)operands[0];
-                return 3;
-            }
-            return 0;
+            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x18, zeroPageOpcode: 0x65, immediateOpcode: 0x69); // CLC; ADC zp; ADC #imm
         }
 
         private static int EmitSub(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
         {
             // Two operands [addr, 0]: variable — SBC zp (subtract VALUE at address)
             // One operand [val]: immediate — SBC #imm (subtract literal value)
+            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x38, zeroPageOpcode: 0xE5, immediateOpcode: 0xE9); // SEC; SBC zp; SBC #imm
+        }
+
+        // Shared shape for ADC/SBC: set the carry flag, then the zero-page
+        // form for a variable operand or the immediate form for a literal.
+        private static int EmitArithmetic(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
+            byte carryOpcode, byte zeroPageOpcode, byte immediateOpcode)
+        {
             if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
             {
-                rom[currentAddress++] = 0x38; // SEC
-                rom[currentAddress++] = 0xE5; // SBC zp
+                rom[currentAddress++] = carryOpcode;
+                rom[currentAddress++] = zeroPageOpcode;
                 rom[currentAddress++] = (byte)operands[0];
                 return 3;
             }
             if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
             {
-                rom[currentAddress++] = 0x38; // SEC
-                rom[currentAddress++] = 0xE9; // SBC #imm
+                rom[currentAddress++] = carryOpcode;
+                rom[currentAddress++] = immediateOpcode;
                 rom[currentAddress++] = (byte)operands[0];
                 return 3;
             }
@@ -313,19 +307,26 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         private static int EmitJump(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets)
         {
-            // JMP absolute
+            // JMP absolute (see EmitTransfer for the operand shapes).
+            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, opcode: 0x4C); // JMP
+        }
+
+        // Shared shape for JMP/JSR: two operands are an explicit
+        // [addrLow, addrHigh]; a single operand is a label pool-offset,
+        // resolved to its ROM byte address ($F000-relative → absolute)
+        // via labelOffsets, falling back to ROM start when unresolved.
+        private static int EmitTransfer(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets, byte opcode)
+        {
             if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
             {
-                rom[currentAddress++] = 0x4C; // JMP
+                rom[currentAddress++] = opcode;
                 rom[currentAddress++] = (byte)operands[0];
                 rom[currentAddress++] = (byte)operands[1];
                 return 3;
             }
             if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
             {
-                // Single-operand: operand is a label pool-offset; resolve to
-                // its ROM byte address ($F000-relative → absolute).
-                rom[currentAddress++] = 0x4C; // JMP
+                rom[currentAddress++] = opcode;
                 if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
                 {
                     int abs = 0xF000 + targetAddr;
@@ -334,7 +335,6 @@ namespace GameVM.Compiler.Backend.Atari2600
                 }
                 else
                 {
-                    // Unresolved target; fall back to ROM start.
                     rom[currentAddress++] = 0x00;
                     rom[currentAddress++] = 0xF0;
                 }
@@ -395,34 +395,11 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         private static int EmitCall(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets)
         {
-            // Two operands: explicit [addrLow, addrHigh] -> JSR abs.
-            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-            {
-                rom[currentAddress++] = 0x20; // JSR
-                rom[currentAddress++] = (byte)operands[0];
-                rom[currentAddress++] = (byte)operands[1];
-                return 3;
-            }
-            // Single-operand: operand is the function label's pool offset —
-            // resolve it to a ROM byte address exactly like Jump does via labelOffsets.
-            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
-            {
-                rom[currentAddress++] = 0x20; // JSR
-                if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
-                {
-                    int abs = 0xF000 + targetAddr;
-                    rom[currentAddress++] = (byte)(abs & 0xFF);
-                    rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
-                }
-                else
-                {
-                    // Unresolved target; fall back to ROM start (consistent with Jump).
-                    rom[currentAddress++] = 0x00;
-                    rom[currentAddress++] = 0xF0;
-                }
-                return 3;
-            }
-            return 0;
+            // JSR absolute. Operand shapes mirror Jump (see EmitTransfer):
+            // two operands are an explicit [addrLow, addrHigh]; a single
+            // operand is the function label's pool offset, resolved via
+            // labelOffsets exactly like Jump.
+            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, opcode: 0x20); // JSR
         }
 
         private static int EmitNop(byte[] rom, ref int currentAddress)

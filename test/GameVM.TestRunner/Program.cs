@@ -19,6 +19,8 @@ using GameVM.TestRunner.Core;
 // with top-level statements the compiler emits CS7022 for the ambiguity.
 // An explicit Main removes the ambiguity at the source.
 
+namespace GameVM.TestRunner;
+
 internal static class Program
 {
     internal static int Main(string[] args)
@@ -27,3 +29,4 @@ internal static class Program
         return runner.Run(AssemblyTestRunner.DefaultAssemblies, args);
     }
 }
+
