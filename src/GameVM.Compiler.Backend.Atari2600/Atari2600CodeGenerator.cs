@@ -3,6 +3,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using System;
 using System.Collections.Generic;
 
@@ -38,6 +39,17 @@ namespace GameVM.Compiler.Backend.Atari2600
         public byte[] GenerateFromSlab(InstList llirSlab, StringPool stringPool, CodeGenOptions options)
         {
             return GenerateFromInstList(llirSlab);
+        }
+
+        /// <summary>
+        /// Names an LLIR kind byte for diagnostics: the enum name when the byte is
+        /// a defined <see cref="LlirInstructionKind"/>, otherwise the raw hex value.
+        /// </summary>
+        private static string LlirKindName(byte kindByte)
+        {
+            return Enum.IsDefined(typeof(LlirInstructionKind), kindByte)
+                ? ((LlirInstructionKind)kindByte).ToString()
+                : $"0x{kindByte:X2}";
         }
 
         private static byte[] GenerateFromInstList(InstList llirSlab)
@@ -188,7 +200,8 @@ namespace GameVM.Compiler.Backend.Atari2600
             if (operands.Length >= 3 && currentAddress + 3 <= RomSize)
                 return EmitSta(rom, ref currentAddress, (int)operands[1] | ((int)operands[2] << 8));
             if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
-                return EmitSta(rom, ref currentAddress, (int)operands[1]);
+                // Two operands: [addrLow, addrHigh] — the same convention as Load.
+                return EmitSta(rom, ref currentAddress, (int)operands[0] | ((int)operands[1] << 8));
             if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
                 return EmitSta(rom, ref currentAddress, (int)operands[0]);
             return 0;
@@ -459,7 +472,16 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Return => 3, // JMP <halt-loop>, patched after emission
                 LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
                 LlirInstructionKind.Transition => 0,
-                _ => 1,
+                _ => throw new GameVmException(
+                        ErrorCode.UnhandledLlirInstruction,
+                        $"Atari2600CodeGenerator cannot size LLIR instruction '{LlirKindName(k)}' " +
+                        $"(kind 0x{k:X2}): no 6502 emission is defined for it.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["LlirKind"] = LlirKindName(k),
+                            ["LlirKindByte"] = k,
+                        }),
             };
         }
 

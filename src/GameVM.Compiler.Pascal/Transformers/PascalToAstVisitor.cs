@@ -144,6 +144,9 @@ namespace GameVM.Compiler.Pascal.Transformers
                 if (unlabelled.simpleStatement()?.assignmentStatement() != null)
                     return VisitAssignmentStatement(unlabelled.simpleStatement().assignmentStatement());
 
+                if (unlabelled.simpleStatement()?.procedureStatement() != null)
+                    return VisitProcedureStatement(unlabelled.simpleStatement().procedureStatement());
+
                 if (unlabelled.structuredStatement() != null)
                 {
                     var structured = unlabelled.structuredStatement();
@@ -179,6 +182,29 @@ namespace GameVM.Compiler.Pascal.Transformers
             int valueIdx = Visit(context.expression()) is int v ? v : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.expression()?.Start ?? context.Start);
 
             return Add((byte)PascalAstNodeKind.Assignment, 0, 0, context.Start, targetIdx, valueIdx);
+        }
+
+        public override object VisitProcedureStatement(PascalParser.ProcedureStatementContext context)
+        {
+            // A procedure call used as a statement. The MethodCall node
+            // carries the callee name as its payload (StringPool offset) and
+            // the argument expressions as children — the shape
+            // PascalAstToHlirTransformer.ProcessMethodCall consumes. Before
+            // this override existed, VisitStatement dropped every procedure
+            // call into a Nop and the call vanished silently.
+            uint nameOffset = _strings.Intern(context.identifier().GetText());
+            var argIndices = new List<int>();
+            var paramList = context.parameterList();
+            if (paramList != null)
+            {
+                foreach (var ap in paramList.actualParameter())
+                {
+                    if (Visit(ap.expression()) is int ei)
+                        argIndices.Add(ei);
+                }
+            }
+
+            return Add((byte)PascalAstNodeKind.MethodCall, 0, nameOffset, context.Start, argIndices.ToArray());
         }
 
         public override object VisitIfStatement(PascalParser.IfStatementContext context)

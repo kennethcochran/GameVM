@@ -359,6 +359,18 @@ namespace GameVM.Compiler.Pascal.Transformers
                     argIndices.Add(argHlir);
             }
 
+            // Built-in output procedures lower to a dedicated Output node
+            // (payload 0 = write, 1 = writeln) so targets without a console
+            // can reject them loudly instead of treating them as user calls
+            // to an undeclared procedure.
+            string callee = _pool.Resolve(nameOffset);
+            if (string.Equals(callee, "write", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(callee, "writeln", StringComparison.OrdinalIgnoreCase))
+            {
+                uint outputPayload = string.Equals(callee, "writeln", StringComparison.OrdinalIgnoreCase) ? 1u : 0u;
+                return _builder.Add((byte)HlirNodeKind.Output, 0, outputPayload, HlirPayloadKind.Immediate, argIndices.ToArray());
+            }
+
             if (argIndices.Count == 0)
                 return _builder.Add((byte)HlirNodeKind.Call, 0, nameOffset, HlirPayloadKind.PoolOffset);
 

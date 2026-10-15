@@ -1,3 +1,5 @@
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Hlir;
@@ -193,8 +195,11 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
-    public void Transform_Output_EmitsNopPlaceholder()
+    public void Transform_Output_EmitsOutputInstruction()
     {
+        // Output lowers to the dedicated MLIR Output kind — never a Nop —
+        // so backends can distinguish an unlowered construct (must fail
+        // loudly on console-less targets) from a benign no-op.
         var builder = new HlirBuilder();
         builder.Add((byte)HlirNodeKind.Output);
         var tree = builder.Build();
@@ -202,7 +207,7 @@ public class HlirTreeToMlirTransformerTests
         var result = _transformer.Transform(tree);
 
         Assert.That(result.Count, Is.EqualTo(1));
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Nop));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Output));
     }
 
     [Test]
@@ -382,18 +387,53 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
-    public void Transform_UnaryMinusNonMinusOp_ProducesNoInstructions()
+    public void Transform_UnaryMinusNonMinusOp_ThrowsFailLoud()
     {
-        // Defensive: only '-' is produced by the frontend; any other op char
-        // must not emit a bogus Sub.
+        // Only '-' is produced by the frontend; any other op char must fail
+        // loudly rather than silently lowering to nothing (or a bogus Sub).
         uint yOffset = _pool.Intern("y");
         var builder = new HlirBuilder();
         int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
         builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
         var tree = builder.Build();
 
+        var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void Transform_BareBinaryOpStatement_EvaluatesExpression()
+    {
+        // A bare expression in statement position (no ExpressionStatement
+        // wrapper, no Block) is evaluated and its result discarded — the
+        // semantics of an expression statement.
+        uint xOffset = _pool.Intern("x");
+        uint oneOffset = _pool.Intern("1");
+        var builder = new HlirBuilder();
+        int leftX = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int rightOne = builder.Add((byte)HlirNodeKind.LiteralInt, 0, oneOffset, HlirPayloadKind.Immediate);
+        builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, leftX, rightOne);
+        var tree = builder.Build();
+
         var result = _transformer.Transform(tree);
 
-        Assert.That(result.Count, Is.EqualTo(0), "non-'-' UnaryOp must not lower to a Sub");
+        Assert.That(result.Count, Is.EqualTo(2), "x - 1 as a statement lowers to Sub; Assign(tmp,0)");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Sub));
+    }
+
+    [Test]
+    public void Transform_UnhandledNodeKind_ThrowsFailLoud()
+    {
+        // A statement-position node with no lowering (here a TypeReference,
+        // which is only meaningful inside a declaration) must fail loudly
+        // at the HLIR -> MLIR boundary, never vanish silently.
+        uint intOffset = _pool.Intern("Integer");
+        var builder = new HlirBuilder();
+        builder.Add((byte)HlirNodeKind.TypeReference, 0, intOffset, HlirPayloadKind.PoolOffset);
+        var tree = builder.Build();
+
+        var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+        Assert.That(ex.Message, Does.Contain("TypeReference"));
     }
 }

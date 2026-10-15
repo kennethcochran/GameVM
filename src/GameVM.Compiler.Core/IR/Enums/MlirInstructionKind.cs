@@ -25,6 +25,15 @@ namespace GameVM.Compiler.Core.IR
         
         /// <summary>Call instruction (MLIR style)</summary>
         Call = 131,
+
+        /// <summary>Built-in output (write/writeln); operand[0] = 0 (write) or 1 (writeln).
+        /// Backends for targets without a console must reject this loudly.</summary>
+        Output = 132,
+
+        /// <summary>Branch polarity transition marker, immediately before a Branch.
+        /// Shares its value with LlirInstructionKind.Transition: the marker passes
+        /// through the MLIR stream unchanged in meaning.</summary>
+        Transition = 207,
         
         /// <summary>Return instruction</summary>
         Return = 16,

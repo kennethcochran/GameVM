@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
@@ -52,6 +54,16 @@ public sealed class HlirTreeToMlirTransformer
     private void ProcessNode(HlirTree tree, int idx, InstListBuilder builder)
     {
         var node = tree[idx];
+
+        // A bare expression in statement position (e.g. a single-statement
+        // branch not wrapped in a Block): evaluate it and discard the
+        // result — the semantics of an expression statement.
+        if (IsExpressionKind((HlirNodeKind)node.Kind))
+        {
+            EvaluateExpression(tree, idx, builder, out _);
+            return;
+        }
+
         switch ((HlirNodeKind)node.Kind)
         {
             case HlirNodeKind.FunctionDeclaration:
@@ -99,7 +111,11 @@ public sealed class HlirTreeToMlirTransformer
                 break;
 
             case HlirNodeKind.Output:
-                builder.Add((byte)MlirInstructionKind.Nop, InstructionFlag.None, 0);
+                // Dedicated MLIR kind (not Nop): benign no-ops and unlowered
+                // output must stay distinguishable downstream, because a
+                // target without a console has to reject output loudly while
+                // a Nop is simply skipped.
+                builder.Add((byte)MlirInstructionKind.Output, InstructionFlag.None, 0, node.Payload);
                 break;
 
             case HlirNodeKind.Nop:
@@ -115,8 +131,33 @@ public sealed class HlirTreeToMlirTransformer
                 for (int i = 0; i < blockChildren.Length; i++)
                     ProcessNode(tree, ChildIndex(tree, idx, i), builder);
                 break;
+
+            default:
+                // Fail loud at the point of ignorance: an HLIR construct with
+                // no lowering must never vanish silently into the MLIR stream.
+                throw UnhandledNode(idx, node);
         }
     }
+
+    private static bool IsExpressionKind(HlirNodeKind kind) => kind switch
+    {
+        HlirNodeKind.BinaryOp or HlirNodeKind.UnaryOp or HlirNodeKind.Identifier
+            or HlirNodeKind.LiteralInt or HlirNodeKind.LiteralBool or HlirNodeKind.LiteralString => true,
+        _ => false,
+    };
+
+    private static GameVmException UnhandledNode(int idx, HlirNode node) =>
+        new(
+            ErrorCode.UnhandledInstruction,
+            $"HlirTreeToMlirTransformer has no MLIR lowering for HLIR node " +
+            $"kind '{(HlirNodeKind)node.Kind}' (kind 0x{node.Kind:X2}) at tree index {idx}.",
+            ErrorSeverity.Error,
+            new Dictionary<string, object?>
+            {
+                ["TreeIndex"] = idx,
+                ["HlirKind"] = ((HlirNodeKind)node.Kind).ToString(),
+                ["HlirKindByte"] = node.Kind,
+            });
 
     private static int ChildIndex(HlirTree tree, int parentIdx, int offset)
     {
@@ -212,11 +253,22 @@ public sealed class HlirTreeToMlirTransformer
                 {
                     // Unary minus: -x == 0 - x. Reuses the existing Sub lowering so
                     // the operand flows through the normal Load/Sub path.
+                    // Any other unary op is unsupported: fail loudly rather
+                    // than silently evaluating to 0.
                     var children = tree.Children(idx);
                     if (children.Length < 1 || (char)node.Payload != '-')
                     {
-                        isImmediate = true;
-                        return 0;
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"HlirTreeToMlirTransformer has no MLIR lowering for unary operator " +
+                            $"'{(char)node.Payload}' at tree index {idx}; only unary minus is supported.",
+                            ErrorSeverity.Error,
+                            new Dictionary<string, object?>
+                            {
+                                ["TreeIndex"] = idx,
+                                ["HlirKind"] = nameof(HlirNodeKind.UnaryOp),
+                                ["Operator"] = ((char)node.Payload).ToString(),
+                            });
                     }
 
                     uint operandSlot = EvaluateExpression(tree, children[0], builder, out _);

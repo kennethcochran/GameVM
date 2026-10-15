@@ -147,11 +147,11 @@ public class CompilationSteps
             var x, i: Integer;
             begin
               if x > 0 then
-                writeln(1);
+                x := 1;
               while i < 10 do
                 i := i + 1;
               for i := 1 to 10 do
-                writeln(i);
+                x := i;
             end.";
     }
 
@@ -160,12 +160,13 @@ public class CompilationSteps
     {
         _context.SourceCode = @"
             program Test;
+            var result: Integer;
             function Double(x: Integer): Integer;
             begin
               Double := x * 2;
             end;
             begin
-              writeln(Double(5));
+              result := Double(5);
             end.";
     }
 

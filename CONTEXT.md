@@ -129,7 +129,17 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 
 - Errors are categorised **Fatal / Error / Warning / Info**, reported through `GameVmException` (C#) carrying an `ErrorCode` and a context dictionary.
 - Compiler diagnostics are written to a lightweight **Diagnostic Journal**, never mixed into the executable instruction slab (metadata header has a Diagnostic Present flag on the affected instruction).
-- Error codes are grouped by domain: general (0x0001 OutOfMemory, 0x0002 InvalidArgument), file (0x1000+), network (0x2000+), module (0x3000+).
+- Error codes are grouped by domain: general (0x0001 OutOfMemory, 0x0002 InvalidArgument), file (0x1000+), network (0x2000+), module (0x3000+), backend/codegen (0x4000+).
+- `GameVmException` lives in `GameVM.Compiler.Core.Exceptions`; `ErrorCode` and `ErrorSeverity` live in `GameVM.Compiler.Core.Enums`. The context dictionary carries the construct name and whatever position info the stage has (IR stages below the frontend generally only have slab indexes).
+
+### Fail-Loud Error Contract (Slice 1)
+
+Silent miscompilation is a P0 defect: every stage must either lower a construct
+correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
+
+- **L1 — `MidToLowLevelTransformer`:** MLIR `Nop` (the write/writeln stub — the 2600
+  has no console) and any MLIR kind with no LLIR mapping now throw
+  `ErrorCode.UnhandledInstruction` naming the kind and slab index.
 ### Pascal Semantic Errors (Ticket 01)
 
 - `PascalFrontend` now runs `PascalSemanticAnalyzer` between AST build and HLIR lowering.

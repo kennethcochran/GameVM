@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
@@ -58,6 +59,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ProcessBranch(inputSlab, i, builder);
                         break;
 
+                    case MlirInstructionKind.Transition:
+                        // Branch polarity marker: consumed, not copied.
+                        // ProcessBranch (for the Branch that follows) reads
+                        // this marker from the input slab to decide polarity
+                        // and re-emits it ahead of the LLIR Branch, so
+                        // emitting it here as well would duplicate it.
+                        break;
+
                     case MlirInstructionKind.Call:
                         ProcessCall(inputSlab, i, builder);
                         break;
@@ -68,8 +77,27 @@ namespace GameVM.Compiler.Backend.Atari2600
                         break;
 
                     case MlirInstructionKind.Nop:
-                        // write/writeln stub placeholder — no LLIR emitted.
+                        // Benign no-op (empty statement, empty block): skip
+                        // it. Emits zero bytes — on a 4K 2600 ROM, padding
+                        // NOPs for scaffolding would be pure waste.
                         break;
+
+                    case MlirInstructionKind.Output:
+                        // write/writeln have no lowering on this target: the
+                        // 2600 has no console. Fail loudly instead of silently
+                        // dropping the construct.
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"MidToLowLevelTransformer has no LLIR lowering for MLIR instruction " +
+                            $"'Output' (kind 0x{kind:X2}) at slab index {i}. The construct is not " +
+                            "supported on the Atari 2600 target (write/writeln require a console).",
+                            ErrorSeverity.Error,
+                            new Dictionary<string, object?>
+                            {
+                                ["SlabIndex"] = i,
+                                ["MlirKind"] = nameof(MlirInstructionKind.Output),
+                                ["MlirKindByte"] = kind,
+                            });
 
                     default:
                         MapArithmetic(inputSlab, i, kind, builder, stringPool);
@@ -109,7 +137,16 @@ namespace GameVM.Compiler.Backend.Atari2600
             };
 
             if (llirKind == (byte)LlirInstructionKind.Nop)
-                return;
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer has no LLIR mapping for MLIR instruction " +
+                    $"kind 0x{kind:X2} at slab index {instIdx}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["SlabIndex"] = instIdx,
+                        ["MlirKindByte"] = kind,
+                    });
 
             // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
@@ -349,9 +386,20 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
+                if (_nextUserAddress > 0xFF)
+                    throw new GameVmException(
+                        ErrorCode.ZeroPageExhausted,
+                        $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
+                        "The Atari 2600 has 128 bytes of RAM ($80-$FF); reduce the number of live variables.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["VariableName"] = name,
+                            ["AllocatedCount"] = _userAddresses.Count,
+                        });
                 addr = _nextUserAddress;
                 _userAddresses[name] = addr;
-                _nextUserAddress = (ushort)((_nextUserAddress + 1) & 0xFF);
+                _nextUserAddress++;
             }
             return addr;
         }

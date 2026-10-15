@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using NUnit.Framework;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
@@ -720,5 +721,70 @@ public class MidToLowLevelTransformerTests
             Assert.That(storeOps.Length, Is.EqualTo(1));
             Assert.That(storeOps[0], Is.EqualTo(0x81u), "Store targets x's zero-page address");
         }
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L1)
+
+        [Test]
+        public void Transform_MlirOutput_ThrowsGameVmException()
+        {
+            // Console output has no lowering on this target and arrives as a
+            // dedicated Output instruction; the transformer must fail loudly,
+            // never silently drop it.
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Output, new uint[] { 1 }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("'Output'"));
+            Assert.That(ex.Message, Does.Contain("not supported on the Atari 2600 target"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_MlirNop_IsElided()
+        {
+            // A benign no-op (empty statement/block) lowers to nothing:
+            // zero LLIR instructions, zero ROM bytes.
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Nop, Array.Empty<uint>()));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            Assert.That(result.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_UnmappedKind_ThrowsGameVmException()
+        {
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Variable, new uint[] { 1, 2 }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("0x08"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L3)
+
+        [Test]
+        public void Transform_129thVariable_ThrowsZeroPageExhausted()
+        {
+            // The 2600 has 128 bytes of RAM ($80-$FF); the 129th variable must
+            // fail loudly instead of wrapping into TIA register space.
+            var builder = new InstListBuilder();
+            uint value = _stringPool.Intern("1");
+            for (int v = 0; v < 129; v++)
+            {
+                uint target = _stringPool.Intern("var" + v);
+                builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, target, value);
+            }
+            var mlir = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.ZeroPageExhausted));
+            Assert.That(ex.Message, Does.Contain("var128"));
+        }
+
         #endregion
 }
