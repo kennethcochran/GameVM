@@ -5,6 +5,21 @@ namespace GameVM.Compiler.Specs.Support;
 
 public static class MameRunner
 {
+    /// <summary>
+    /// True when a usable MAME executable was located (local .tools install,
+    /// PATH, or Flatpak). Dev environments without MAME installed must skip
+    /// MAME scenarios rather than fail them.
+    /// </summary>
+    public static bool IsAvailable => GetMameExecutable() != null;
+
+    /// <summary>
+    /// Opt-out escape hatch: set GAMEVM_SKIP_MAME=1 to skip MAME scenarios even
+    /// when MAME is installed (e.g. a headless host with no display available).
+    /// </summary>
+    public static bool SkipRequested =>
+        string.Equals(Environment.GetEnvironmentVariable("GAMEVM_SKIP_MAME"), "1",
+            StringComparison.Ordinal);
+
     public static async Task<string> Run(byte[] rom, string monitorScriptPath)
     {
         var root = FindProjectRoot(AppContext.BaseDirectory);
@@ -19,7 +34,7 @@ public static class MameRunner
         var mameExe = GetMameExecutable();
         if (string.IsNullOrEmpty(mameExe))
         {
-            throw new Exception("MAME is not installed. Please run 'dotnet run --project src/GameVM.DevTools -- mame install' first.");
+            throw new Exception("MAME is not installed. Please run 'dotnet run --project src/GameVM.DevTools -- mame install' first, or set GAMEVM_SKIP_MAME=1 to skip MAME scenarios.");
         }
 
         // Run unthrottled with no video: the Lua monitor exits MAME as soon as

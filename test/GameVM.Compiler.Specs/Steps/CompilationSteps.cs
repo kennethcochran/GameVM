@@ -303,6 +303,11 @@ public class CompilationSteps
     [When(@"I run the program in MAME")]
     public async Task WhenIRunTheProgramInMAME()
     {
+        if (!MameRunner.IsAvailable || MameRunner.SkipRequested)
+        {
+            Assert.Ignore("MAME is not available in this environment. Run 'dotnet run --project src/GameVM.DevTools -- mame install' to enable MAME execution scenarios (set GAMEVM_SKIP_MAME=1 to silence this message).");
+        }
+
         Assert.That(_context.CompilationResult, Is.Not.Null);
         Assert.That(_context.CompilationResult!.Success, Is.True);
 
