@@ -463,6 +463,44 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void Transform_NestedFunctionDeclaration_IsBranchedOverOnEntryPath()
+    {
+        // A nested callable declared before the program's own statements
+        // must not execute on the entry path: labels emit no code, so
+        // without a skip the entry would fall through into the function
+        // body and hit its CalleeReturn (RTS) with an empty stack. The
+        // lowering must emit an unconditional Branch over the body,
+        // targeting a label placed immediately after it.
+        uint progOffset = _pool.Intern("Prog");
+        uint fnOffset = _pool.Intern("Fn");
+        var builder = new HlirBuilder();
+        int fnRet = builder.Add((byte)HlirNodeKind.Return);
+        int fnBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fnRet);
+        int fn = builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, fnOffset, HlirPayloadKind.PoolOffset, fnBlock);
+        int progRet = builder.Add((byte)HlirNodeKind.Return);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fn, progRet);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        // Expected stream: Label(Prog), Branch(after), Label(Fn),
+        // Return(CalleeReturn), Label(after), Return(entry).
+        Assert.That(result.Count, Is.EqualTo(6));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetOperands(2)[0], Is.EqualTo(fnOffset));
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(3), Is.EqualTo(InstructionFlag.CalleeReturn));
+        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetOperands(1)[0], Is.EqualTo(result.GetOperands(4)[0]),
+            "The skip Branch must target the label placed after the function body");
+        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(5), Is.EqualTo(InstructionFlag.None));
+    }
+
+    [Test]
     public void Transform_ReturnAtProgramEntry_IsNotFlaggedCalleeReturn()
     {
         uint progOffset = _pool.Intern("Prog");

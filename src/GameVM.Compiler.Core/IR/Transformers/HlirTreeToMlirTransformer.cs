@@ -68,6 +68,22 @@ public sealed class HlirTreeToMlirTransformer
         switch ((HlirNodeKind)node.Kind)
         {
             case HlirNodeKind.FunctionDeclaration:
+                // A nested callable (declared inside the program or an
+                // enclosing function) sits in the enclosing body's
+                // instruction stream, but its body may only be entered via
+                // a Call. Emit an unconditional branch over it so
+                // sequential execution — above all the program entry path,
+                // which a Pascal program reaches before its own statements
+                // when declarations come first — can never fall through
+                // into the body and hit its CalleeReturn (an RTS) with no
+                // return address on the stack. The outermost declaration
+                // is the entry itself and is never skipped.
+                string? afterFnLabel = null;
+                if (_functionDepth > 0)
+                {
+                    afterFnLabel = $"L_after_fn_{_labelCounter++}";
+                    builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(afterFnLabel));
+                }
                 builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, node.Payload);
                 var bodyChildren = tree.Children(idx);
                 if (bodyChildren.Length > 0)
@@ -82,6 +98,8 @@ public sealed class HlirTreeToMlirTransformer
                         _functionDepth--;
                     }
                 }
+                if (afterFnLabel != null)
+                    builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(afterFnLabel));
                 break;
 
             case HlirNodeKind.Assign:
