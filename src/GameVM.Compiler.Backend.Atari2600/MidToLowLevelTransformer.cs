@@ -73,7 +73,10 @@ namespace GameVM.Compiler.Backend.Atari2600
 
                     case MlirInstructionKind.Return:
                         uint retVal = operands.Length > 0 ? operands[0] : 0;
-                        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0, retVal);
+                        // Preserve instruction flags (notably CalleeReturn)
+                        // so the code generator can tell a callee return
+                        // (RTS) from the program-entry return (halt loop).
+                        builder.Add((byte)LlirInstructionKind.Return, (InstructionFlag)inputSlab.GetFlags(i), 0, retVal);
                         break;
 
                     case MlirInstructionKind.Nop:

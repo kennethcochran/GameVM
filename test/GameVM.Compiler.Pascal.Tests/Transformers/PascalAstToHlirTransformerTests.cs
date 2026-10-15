@@ -189,5 +189,51 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt));
             Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"));
         }
+
+        private static AstTree BuildCallStatementAst(StringPool pool, string callee)
+        {
+            var builder = new AstBuilder();
+            // Argument-less call statement: MethodCall carries the callee name
+            // in its payload and has NO children (children are the arguments).
+            int call = builder.Add((byte)PascalAstNodeKind.MethodCall, 0, pool.Intern(callee));
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, call);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+            return builder.Build();
+        }
+
+        [Test]
+        public void Transform_ZeroArgProcedureCallStatement_ProducesCallNode()
+        {
+            // Regression: ProcessMethodCall used to return -1 for childless
+            // MethodCall nodes, silently discarding argument-less calls.
+            var pool = new StringPool();
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(BuildCallStatementAst(pool, "TestProc"));
+
+            int callIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Call) { callIdx = i; break; }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "zero-arg procedure call must lower to an HLIR Call");
+            Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("TestProc"));
+        }
+
+        [Test]
+        public void Transform_BareWritelnStatement_ProducesOutputNode()
+        {
+            // Bare writeln; (no arguments) must still reach the Output
+            // lowering so console-less targets can reject it loudly.
+            var pool = new StringPool();
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(BuildCallStatementAst(pool, "writeln"));
+
+            int outputIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Output) { outputIdx = i; break; }
+
+            Assert.That(outputIdx, Is.GreaterThanOrEqualTo(0), "bare writeln; must lower to an HLIR Output node");
+            Assert.That(hlir[outputIdx].Payload, Is.EqualTo(1u), "writeln payload is 1");
+        }
     }
 }

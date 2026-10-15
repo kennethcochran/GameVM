@@ -27,6 +27,7 @@ public sealed class HlirTreeToMlirTransformer
     private readonly StringPool _pool = null!;
     private int _labelCounter;
     private int _tempCounter;
+    private int _functionDepth;
 
 
 
@@ -70,7 +71,17 @@ public sealed class HlirTreeToMlirTransformer
                 builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, node.Payload);
                 var bodyChildren = tree.Children(idx);
                 if (bodyChildren.Length > 0)
-                    ProcessNode(tree, ChildIndex(tree, idx, 0), builder);
+                {
+                    _functionDepth++;
+                    try
+                    {
+                        ProcessNode(tree, ChildIndex(tree, idx, 0), builder);
+                    }
+                    finally
+                    {
+                        _functionDepth--;
+                    }
+                }
                 break;
 
             case HlirNodeKind.Assign:
@@ -339,16 +350,21 @@ public sealed class HlirTreeToMlirTransformer
 
     private void ProcessReturn(HlirTree tree, int idx, InstListBuilder builder)
     {
+        // The outermost function declaration is the program entry, so a
+        // return at that level stays unflagged. A return inside any nested
+        // function body is a callee return and gets the flag, so backends
+        // emit a subroutine return instead of the entry halt.
+        var flags = _functionDepth > 1 ? InstructionFlag.CalleeReturn : InstructionFlag.None;
         var children = tree.Children(idx);
         if (children.Length == 0)
         {
-            builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.None, 0);
+            builder.Add((byte)MlirInstructionKind.Return, flags, 0);
             return;
         }
 
         int valueIdx = ChildIndex(tree, idx, 0);
         uint valueSlot = EvaluateExpression(tree, valueIdx, builder, out _);
-        builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.None, 0, valueSlot);
+        builder.Add((byte)MlirInstructionKind.Return, flags, 0, valueSlot);
     }
 
     private void ProcessIf(HlirTree tree, int idx, InstListBuilder builder)

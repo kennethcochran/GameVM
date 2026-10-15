@@ -308,6 +308,23 @@ public class MidToLowLevelTransformerTests
     }
 
     [Test]
+    public void Transform_CalleeReturnFlag_IsPreserved()
+    {
+        // The CalleeReturn flag set at the HLIR -> MLIR lowering must
+        // survive to the LLIR so the code generator emits RTS (callee)
+        // rather than the entry halt.
+        var builder = new InstListBuilder();
+        builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.CalleeReturn, 0);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+    }
+
+    [Test]
     public void Transform_ReturnWithValue_CopiesOperandsAsReturn()
     {
         // Arrange: return x

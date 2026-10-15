@@ -436,4 +436,48 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
         Assert.That(ex.Message, Does.Contain("TypeReference"));
     }
+
+    [Test]
+    public void Transform_ReturnInsideNestedFunction_IsFlaggedCalleeReturn()
+    {
+        // The outermost FunctionDeclaration is the program entry; a Return
+        // inside a nested function body must carry CalleeReturn so the
+        // backend emits RTS instead of the entry halt.
+        uint progOffset = _pool.Intern("Prog");
+        uint fnOffset = _pool.Intern("Fn");
+        var builder = new HlirBuilder();
+        int ret = builder.Add((byte)HlirNodeKind.Return);
+        int fnBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, ret);
+        int fn = builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, fnOffset, HlirPayloadKind.PoolOffset, fnBlock);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fn);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        int returnIdx = -1;
+        for (int i = 0; i < result.Count; i++)
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Return) { returnIdx = i; break; }
+        Assert.That(returnIdx, Is.GreaterThanOrEqualTo(0));
+        Assert.That((InstructionFlag)result.GetFlags(returnIdx), Is.EqualTo(InstructionFlag.CalleeReturn));
+    }
+
+    [Test]
+    public void Transform_ReturnAtProgramEntry_IsNotFlaggedCalleeReturn()
+    {
+        uint progOffset = _pool.Intern("Prog");
+        var builder = new HlirBuilder();
+        int ret = builder.Add((byte)HlirNodeKind.Return);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, ret);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        int returnIdx = -1;
+        for (int i = 0; i < result.Count; i++)
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Return) { returnIdx = i; break; }
+        Assert.That(returnIdx, Is.GreaterThanOrEqualTo(0));
+        Assert.That((InstructionFlag)result.GetFlags(returnIdx), Is.EqualTo(InstructionFlag.None));
+    }
 }

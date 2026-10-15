@@ -148,6 +148,76 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
+    public void GenerateFromSlab_WithCalleeReturn_EmitsRTS()
+    {
+        // A Return flagged CalleeReturn (lowering inside a function body)
+        // emits RTS so a JSR caller resumes at the next instruction.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.CalleeReturn, 0);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize], Is.EqualTo(0x60)); // RTS (1 byte)
+        // The halt self-loop follows immediately after the 1-byte RTS.
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x4C)); // self-loop JMP
+    }
+
+    [Test]
+    public void GenerateFromSlab_CalleeReturnLayout_JumpTargetAccountsForRtsSize()
+    {
+        // Layout: [Label fn][Return (callee, 1 byte)][Jump after][Label after][LDA #$42]
+        // If EmitSize still sized a callee Return as 3 (the entry JMP), the
+        // 'after' label would be computed 2 bytes late and the Jump would
+        // land past the LDA.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 1000); // fn:
+        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.CalleeReturn, 0); // RTS
+        builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, 2000); // JMP after
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 2000); // after:
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x60)); // RTS at 13
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x4C)); // JMP at 14
+        int jumpTarget = rom[PrologueSize + 2] | (rom[PrologueSize + 3] << 8);
+        Assert.That(jumpTarget, Is.EqualTo(0xF000 + PrologueSize + 4), "jump lands on the LDA after the 1-byte RTS + 3-byte JMP");
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0xA9)); // LDA #$42
+        Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x42));
+    }
+
+    [Test]
+    public void GenerateFromSlab_TwoOperandStoreAbsolute_JumpTargetAccountsForSize()
+    {
+        // Regression: EmitSize sized a two-operand Store by its high byte
+        // alone (op[1] < 0x100 -> 2 bytes), while EmitStore emits a 3-byte
+        // absolute STA for [addrLow, addrHigh] = $1234. A label after such
+        // a Store was computed 1 byte early, corrupting jump targets.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, 3000); // JMP target
+        builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x34, 0x12); // STA $1234 (3 bytes)
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 3000); // target:
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x07); // LDA #$07
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x4C)); // JMP at 13
+        int jumpTarget = rom[PrologueSize + 1] | (rom[PrologueSize + 2] << 8);
+        Assert.That(jumpTarget, Is.EqualTo(0xF000 + PrologueSize + 6), "label sits after JMP (3) + STA abs (3)");
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x8D)); // STA abs
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x34));
+        Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x12));
+        Assert.That(rom[PrologueSize + 6], Is.EqualTo(0xA9)); // LDA #$07
+        Assert.That(rom[PrologueSize + 7], Is.EqualTo(0x07));
+    }
+
+    [Test]
     public void GenerateFromSlab_WithLargeCode_HandlesBoundsCorrectly()
     {
         var builder = new InstListBuilder();

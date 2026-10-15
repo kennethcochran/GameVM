@@ -346,8 +346,11 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         private int ProcessMethodCall(AstTree astTree, int stmtIdx)
         {
+            // The callee name rides in the node payload, not a child — a
+            // zero-argument call (writeln;, TestProc;) legitimately has no
+            // children and must still lower (Output for write/writeln, Call
+            // otherwise). Discarding it here would silently drop the call.
             var children = astTree.Children(stmtIdx);
-            if (children.Length < 1) return -1;
 
             uint nameOffset = astTree[stmtIdx].Payload;
 

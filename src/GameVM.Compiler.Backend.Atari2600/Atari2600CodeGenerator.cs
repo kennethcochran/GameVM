@@ -89,7 +89,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Jump => EmitJump(rom, ref currentAddress, operands, labelOffsets),
                     LlirInstructionKind.Branch => EmitBranch(rom, ref currentAddress, operands, labelOffsets, insnAddr[i], ref lastWasTransition),
                     LlirInstructionKind.Transition => EmitTransition(ref lastWasTransition),
-                    LlirInstructionKind.Return => EmitReturn(rom, ref currentAddress, returnPatchPositions),
+                    LlirInstructionKind.Return => EmitReturn(rom, ref currentAddress, returnPatchPositions, (InstructionFlag)llirSlab.GetFlags(i)),
                     LlirInstructionKind.Call => EmitCall(rom, ref currentAddress, operands, labelOffsets),
                     LlirInstructionKind.Syscall => EmitCall(rom, ref currentAddress, operands, labelOffsets),
                     _ => EmitNop(rom, ref currentAddress),
@@ -143,12 +143,13 @@ namespace GameVM.Compiler.Backend.Atari2600
                 insnAddr[i] = addr;
                 byte k = llirSlab.GetKind(i);
                 ReadOnlySpan<uint> op = llirSlab.GetOperands(i);
+                var flags = (InstructionFlag)llirSlab.GetFlags(i);
                 if ((LlirInstructionKind)k == LlirInstructionKind.Label && op.Length >= 1)
                 {
                     uint lbl = op[0];
-                    labelOffsets[lbl] = exitLabels.Contains(lbl) ? addr + EmitSize(k, op) : addr;
+                    labelOffsets[lbl] = exitLabels.Contains(lbl) ? addr + EmitSize(k, op, flags) : addr;
                 }
-                addr += EmitSize(k, op);
+                addr += EmitSize(k, op, flags);
             }
             return (insnAddr, labelOffsets);
         }
@@ -374,14 +375,26 @@ namespace GameVM.Compiler.Backend.Atari2600
             return -1;
         }
 
-        private static int EmitReturn(byte[] rom, ref int currentAddress, List<int> patchPositions)
+        private static int EmitReturn(byte[] rom, ref int currentAddress, List<int> patchPositions, InstructionFlag flags)
         {
-            // The program entry never returns. There is no caller, and the stack
-            // was just initialized by the prologue, so an RTS would pop garbage
-            // and jump to a random address. The entry path therefore ends in a JMP
-            // to the halt loop, patched below once the self-loop address is known.
-            // (Function returns via RTS arrive with the B3 calling convention, so
-            // until then every Return is the main-path exit.)
+            // Callee return (flagged at the HLIR -> MLIR lowering, where
+            // function nesting is known): the caller pushed a return address
+            // via JSR, so a real RTS resumes it.
+            if (flags.HasFlag(InstructionFlag.CalleeReturn))
+            {
+                if (currentAddress < RomSize)
+                {
+                    rom[currentAddress++] = 0x60; // RTS
+                    return 1;
+                }
+                return 0;
+            }
+
+            // The program entry never returns. There is no caller, and the
+            // stack was just initialized by the prologue, so an RTS would pop
+            // garbage and jump to a random address. The entry path therefore
+            // ends in a JMP to the halt loop, patched below once the
+            // self-loop address is known.
             if (currentAddress + 3 <= RomSize)
             {
                 patchPositions.Add(currentAddress);
@@ -429,7 +442,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             return exitLabels;
         }
 
-        private static int EmitSize(byte k, ReadOnlySpan<uint> op)
+        private static int EmitSize(byte k, ReadOnlySpan<uint> op, InstructionFlag flags)
         {
             LlirInstructionKind kind = (LlirInstructionKind)k;
             return kind switch
@@ -438,7 +451,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Load when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
                 LlirInstructionKind.Load => 2,
                 LlirInstructionKind.Store when op.Length >= 3 => (int)(op[1] | (op[2] << 8)) < 0x100 ? 2 : 3,
-                LlirInstructionKind.Store when op.Length >= 2 => (int)op[1] < 0x100 ? 2 : 3,
+                // Two-operand Store is [addrLow, addrHigh] (see EmitStore):
+                // size by the full 16-bit address, not the high byte alone.
+                LlirInstructionKind.Store when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
                 LlirInstructionKind.Store when op.Length == 0 => 0,
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
                 LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
@@ -446,7 +461,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Assign => op.Length >= 1 ? 4 : 0,
                 LlirInstructionKind.Branch => 2,
                 LlirInstructionKind.Jump => 3,
-                LlirInstructionKind.Return => 3, // JMP <halt-loop>, patched after emission
+                // Callee returns are a 1-byte RTS; the entry return is a
+                // 3-byte JMP <halt-loop>, patched after emission.
+                LlirInstructionKind.Return => flags.HasFlag(InstructionFlag.CalleeReturn) ? 1 : 3,
                 LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
                 LlirInstructionKind.Transition => 0,
                 _ => throw new GameVmException(

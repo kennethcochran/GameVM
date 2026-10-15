@@ -72,14 +72,12 @@ GameVM/
 # Restore dependencies
 dotnet restore
 
-# Build solution
-dotnet build
+# Build solution (via nudge — see below; never bare `dotnet build`)
+DOTNET_ROOT=$HOME/dotnet PATH=$HOME/.dotnet/tools:$HOME/dotnet:$PATH \
+  nudge --sln GameVM.sln --baseline .nudge/baseline.txt
 
 # Run all tests
 dotnet run --project test/GameVM.TestRunner
-
-# Build specific project
-dotnet build src/GameVM.Compiler.Core/GameVM.Compiler.Core.csproj
 ```
 
 **Build via nudge, never bare `dotnet build`.** The shim replaces raw analyzer

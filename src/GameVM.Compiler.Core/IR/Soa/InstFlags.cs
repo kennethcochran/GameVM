@@ -18,5 +18,14 @@ public enum InstructionFlag : ushort
     /// <summary>Diagnostic information is available for this instruction (cold path).</summary>
     Diagnostic = 1 << 1,
 
-    // Bits 2-15 reserved for future use
+    /// <summary>
+    /// On a Return instruction: the return belongs to a callable body (a
+    /// function/procedure reached via Call), not to the program entry.
+    /// Backends emit a true subroutine return (e.g. 6502 RTS) for flagged
+    /// returns; the unflagged entry return has no caller and typically
+    /// ends in a halt loop instead.
+    /// </summary>
+    CalleeReturn = 1 << 2,
+
+    // Bits 3-15 reserved for future use
 }
