@@ -78,6 +78,9 @@ Feature: Atari 2600 Backend
     When I compile the program
     Then the compilation succeeds
     And the output binary should contain the hex sequence "a9 01 85 80"
+    # z := x + y must add y's VALUE: LDA $80; CLC; ADC $81; STA $82
+    # (never ADC #$81 — that would add y's address, not its value)
+    And the output binary should contain the hex sequence "a5 80 18 65 81 85 82"
 
   Scenario: Hardware Registers (TIA)
     Given the following Pascal program:
@@ -112,3 +115,17 @@ Feature: Atari 2600 Backend
     # Atari 2600 ROMs have vectors at the end
     # Reset vector at $FFFC (offset $0FFC in 4KB ROM)
     # The actual value depends on the entry point, but it should be present
+  Scenario: Unary minus on a constant folds to two's complement
+    Given the following Pascal program:
+      """
+      program UnaryMinus;
+      var
+          x: integer;
+      begin
+          x := -5;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a9 fb 85 80"
+

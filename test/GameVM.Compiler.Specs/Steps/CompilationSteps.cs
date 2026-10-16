@@ -147,11 +147,11 @@ public class CompilationSteps
             var x, i: Integer;
             begin
               if x > 0 then
-                writeln(1);
+                x := 1;
               while i < 10 do
                 i := i + 1;
               for i := 1 to 10 do
-                writeln(i);
+                x := i;
             end.";
     }
 
@@ -160,12 +160,13 @@ public class CompilationSteps
     {
         _context.SourceCode = @"
             program Test;
+            var result: Integer;
             function Double(x: Integer): Integer;
             begin
               Double := x * 2;
             end;
             begin
-              writeln(Double(5));
+              result := Double(5);
             end.";
     }
 
@@ -302,6 +303,11 @@ public class CompilationSteps
     [When(@"I run the program in MAME")]
     public async Task WhenIRunTheProgramInMAME()
     {
+        if (!MameRunner.IsAvailable || MameRunner.SkipRequested)
+        {
+            Assert.Ignore("MAME is not available in this environment. Run 'dotnet run --project src/GameVM.DevTools -- mame install' to enable MAME execution scenarios (set GAMEVM_SKIP_MAME=1 to silence this message).");
+        }
+
         Assert.That(_context.CompilationResult, Is.Not.Null);
         Assert.That(_context.CompilationResult!.Success, Is.True);
 

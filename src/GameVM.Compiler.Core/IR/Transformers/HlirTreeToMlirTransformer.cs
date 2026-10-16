@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
@@ -25,6 +27,7 @@ public sealed class HlirTreeToMlirTransformer
     private readonly StringPool _pool = null!;
     private int _labelCounter;
     private int _tempCounter;
+    private int _functionDepth;
 
 
 
@@ -52,13 +55,51 @@ public sealed class HlirTreeToMlirTransformer
     private void ProcessNode(HlirTree tree, int idx, InstListBuilder builder)
     {
         var node = tree[idx];
+
+        // A bare expression in statement position (e.g. a single-statement
+        // branch not wrapped in a Block): evaluate it and discard the
+        // result — the semantics of an expression statement.
+        if (IsExpressionKind((HlirNodeKind)node.Kind))
+        {
+            EvaluateExpression(tree, idx, builder, out _);
+            return;
+        }
+
         switch ((HlirNodeKind)node.Kind)
         {
             case HlirNodeKind.FunctionDeclaration:
+                // A nested callable (declared inside the program or an
+                // enclosing function) sits in the enclosing body's
+                // instruction stream, but its body may only be entered via
+                // a Call. Emit an unconditional branch over it so
+                // sequential execution — above all the program entry path,
+                // which a Pascal program reaches before its own statements
+                // when declarations come first — can never fall through
+                // into the body and hit its CalleeReturn (an RTS) with no
+                // return address on the stack. The outermost declaration
+                // is the entry itself and is never skipped.
+                string? afterFnLabel = null;
+                if (_functionDepth > 0)
+                {
+                    afterFnLabel = $"L_after_fn_{_labelCounter++}";
+                    builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(afterFnLabel));
+                }
                 builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, node.Payload);
                 var bodyChildren = tree.Children(idx);
                 if (bodyChildren.Length > 0)
-                    ProcessNode(tree, ChildIndex(tree, idx, 0), builder);
+                {
+                    _functionDepth++;
+                    try
+                    {
+                        ProcessNode(tree, ChildIndex(tree, idx, 0), builder);
+                    }
+                    finally
+                    {
+                        _functionDepth--;
+                    }
+                }
+                if (afterFnLabel != null)
+                    builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(afterFnLabel));
                 break;
 
             case HlirNodeKind.Assign:
@@ -99,7 +140,11 @@ public sealed class HlirTreeToMlirTransformer
                 break;
 
             case HlirNodeKind.Output:
-                builder.Add((byte)MlirInstructionKind.Nop, InstructionFlag.None, 0);
+                // Dedicated MLIR kind (not Nop): benign no-ops and unlowered
+                // output must stay distinguishable downstream, because a
+                // target without a console has to reject output loudly while
+                // a Nop is simply skipped.
+                builder.Add((byte)MlirInstructionKind.Output, InstructionFlag.None, 0, node.Payload);
                 break;
 
             case HlirNodeKind.Nop:
@@ -115,8 +160,33 @@ public sealed class HlirTreeToMlirTransformer
                 for (int i = 0; i < blockChildren.Length; i++)
                     ProcessNode(tree, ChildIndex(tree, idx, i), builder);
                 break;
+
+            default:
+                // Fail loud at the point of ignorance: an HLIR construct with
+                // no lowering must never vanish silently into the MLIR stream.
+                throw UnhandledNode(idx, node);
         }
     }
+
+    private static bool IsExpressionKind(HlirNodeKind kind) => kind switch
+    {
+        HlirNodeKind.BinaryOp or HlirNodeKind.UnaryOp or HlirNodeKind.Identifier
+            or HlirNodeKind.LiteralInt or HlirNodeKind.LiteralBool or HlirNodeKind.LiteralString => true,
+        _ => false,
+    };
+
+    private static GameVmException UnhandledNode(int idx, HlirNode node) =>
+        new(
+            ErrorCode.UnhandledInstruction,
+            $"HlirTreeToMlirTransformer has no MLIR lowering for HLIR node " +
+            $"kind '{(HlirNodeKind)node.Kind}' (kind 0x{node.Kind:X2}) at tree index {idx}.",
+            ErrorSeverity.Error,
+            new Dictionary<string, object?>
+            {
+                ["TreeIndex"] = idx,
+                ["HlirKind"] = ((HlirNodeKind)node.Kind).ToString(),
+                ["HlirKindByte"] = node.Kind,
+            });
 
     private static int ChildIndex(HlirTree tree, int parentIdx, int offset)
     {
@@ -208,6 +278,40 @@ public sealed class HlirTreeToMlirTransformer
                     return tempOffset;
                 }
 
+            case HlirNodeKind.UnaryOp:
+                {
+                    // Unary minus: -x == 0 - x. Reuses the existing Sub lowering so
+                    // the operand flows through the normal Load/Sub path.
+                    // Any other unary op is unsupported: fail loudly rather
+                    // than silently evaluating to 0.
+                    var children = tree.Children(idx);
+                    if (children.Length < 1 || (char)node.Payload != '-')
+                    {
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"HlirTreeToMlirTransformer has no MLIR lowering for unary operator " +
+                            $"'{(char)node.Payload}' at tree index {idx}; only unary minus is supported.",
+                            ErrorSeverity.Error,
+                            new Dictionary<string, object?>
+                            {
+                                ["TreeIndex"] = idx,
+                                ["HlirKind"] = nameof(HlirNodeKind.UnaryOp),
+                                ["Operator"] = ((char)node.Payload).ToString(),
+                            });
+                    }
+
+                    uint operandSlot = EvaluateExpression(tree, children[0], builder, out _);
+                    uint zeroSlot = _pool.Intern("0");
+
+                    string temp = NewTemp();
+                    uint tempOffset = _pool.Intern(temp);
+                    builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, zeroSlot, operandSlot);
+                    builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tempOffset, 0);
+
+                    isImmediate = false;
+                    return tempOffset;
+                }
+
             default:
                 isImmediate = true;
                 return 0;
@@ -264,16 +368,21 @@ public sealed class HlirTreeToMlirTransformer
 
     private void ProcessReturn(HlirTree tree, int idx, InstListBuilder builder)
     {
+        // The outermost function declaration is the program entry, so a
+        // return at that level stays unflagged. A return inside any nested
+        // function body is a callee return and gets the flag, so backends
+        // emit a subroutine return instead of the entry halt.
+        var flags = _functionDepth > 1 ? InstructionFlag.CalleeReturn : InstructionFlag.None;
         var children = tree.Children(idx);
         if (children.Length == 0)
         {
-            builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.None, 0);
+            builder.Add((byte)MlirInstructionKind.Return, flags, 0);
             return;
         }
 
         int valueIdx = ChildIndex(tree, idx, 0);
         uint valueSlot = EvaluateExpression(tree, valueIdx, builder, out _);
-        builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.None, 0, valueSlot);
+        builder.Add((byte)MlirInstructionKind.Return, flags, 0, valueSlot);
     }
 
     private void ProcessIf(HlirTree tree, int idx, InstListBuilder builder)

@@ -15,6 +15,7 @@ namespace GameVM.Compiler.Pascal
         LiteralBool = 3,
         Identifier = 4,
         BinaryOp = 5,
+        UnaryOp = 6,
 
         Assignment = 7,
         VariableDeclaration = 8,

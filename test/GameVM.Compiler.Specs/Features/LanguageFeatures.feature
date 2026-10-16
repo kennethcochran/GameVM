@@ -15,11 +15,11 @@ Feature: Pascal Language Features
     Then the compilation succeeds
     And function calls are handled correctly
 
-  Scenario: Built-in functions
+  Scenario: Built-in functions fail loudly (no console on the 2600)
     Given a Pascal program using write and writeln
     When I compile the program
-    Then the compilation succeeds
-    And built-in functions are called correctly
+    Then the compilation fails
+    And the error message contains "not supported on the Atari 2600 target"
 
   Scenario: Variable scope
     Given a Pascal program with global and local variables

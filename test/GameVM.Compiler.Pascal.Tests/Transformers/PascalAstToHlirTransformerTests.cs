@@ -66,5 +66,174 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(hlir.GetKind(children[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
                 "Assign value should be a LiteralInt");
         }
+        [Test]
+        public void Transform_UnaryMinusVariable_ProducesUnaryOpNode()
+        {
+            // x := -y  ->  Assign(Identifier x, UnaryOp('-', Identifier y))
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint yOffset = pool.Intern("y");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int operand = builder.Add((byte)PascalAstNodeKind.Identifier, 0, yOffset);
+            int unary = builder.Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', operand);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, unary);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+            int yId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, yOffset);
+            int yType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int yDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, yId, yType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, yDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(assignChildren.Length, Is.EqualTo(2));
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.UnaryOp),
+                "x := -y must lower to an HLIR UnaryOp, not vanish");
+
+            int unaryIdx = assignChildren[1];
+            Assert.That(hlir[unaryIdx].Payload, Is.EqualTo((uint)'-'), "UnaryOp payload must be the '-' op char");
+            var unaryChildren = hlir.Children(unaryIdx);
+            Assert.That(unaryChildren.Length, Is.EqualTo(1), "UnaryOp must have exactly one operand child");
+            Assert.That(hlir.GetKind(unaryChildren[0]), Is.EqualTo((byte)HlirNodeKind.Identifier));
+            Assert.That(hlir[unaryChildren[0]].Payload, Is.EqualTo(yOffset), "operand must be y");
+        }
+
+        [Test]
+        public void Transform_UnaryMinusLiteral_FoldsToTwosComplement()
+        {
+            // x := -5  ->  Assign(Identifier x, LiteralInt "251")
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int literal = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern("5"));
+            int unary = builder.Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', literal);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, unary);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0));
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                "-5 must constant-fold to a LiteralInt");
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"),
+                "-5 folds to its 8-bit two's complement value 251");
+        }
+
+        [Test]
+        public void Transform_UnaryMinusNamedConstant_FoldsToTwosComplement()
+        {
+            // const FIVE = 5; x := -FIVE  ->  Assign(Identifier x, LiteralInt "251")
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint fiveOffset = pool.Intern("FIVE");
+            uint intOffset = pool.Intern("integer");
+
+            int constName = builder.Add((byte)PascalAstNodeKind.Identifier, 0, fiveOffset);
+            int constVal = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern("5"));
+            int constDef = builder.Add((byte)PascalAstNodeKind.ConstantDefinition, 0, 0, constName, constVal);
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int operand = builder.Add((byte)PascalAstNodeKind.Identifier, 0, fiveOffset);
+            int unary = builder.Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', operand);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, unary);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), constDef, xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0));
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt));
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"));
+        }
+
+        private static AstTree BuildCallStatementAst(StringPool pool, string callee)
+        {
+            var builder = new AstBuilder();
+            // Argument-less call statement: MethodCall carries the callee name
+            // in its payload and has NO children (children are the arguments).
+            int call = builder.Add((byte)PascalAstNodeKind.MethodCall, 0, pool.Intern(callee));
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, call);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+            return builder.Build();
+        }
+
+        [Test]
+        public void Transform_ZeroArgProcedureCallStatement_ProducesCallNode()
+        {
+            // Regression: ProcessMethodCall used to return -1 for childless
+            // MethodCall nodes, silently discarding argument-less calls.
+            var pool = new StringPool();
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(BuildCallStatementAst(pool, "TestProc"));
+
+            int callIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Call) { callIdx = i; break; }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "zero-arg procedure call must lower to an HLIR Call");
+            Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("TestProc"));
+        }
+
+        [Test]
+        public void Transform_BareWritelnStatement_ProducesOutputNode()
+        {
+            // Bare writeln; (no arguments) must still reach the Output
+            // lowering so console-less targets can reject it loudly.
+            var pool = new StringPool();
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(BuildCallStatementAst(pool, "writeln"));
+
+            int outputIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Output) { outputIdx = i; break; }
+
+            Assert.That(outputIdx, Is.GreaterThanOrEqualTo(0), "bare writeln; must lower to an HLIR Output node");
+            Assert.That(hlir[outputIdx].Payload, Is.EqualTo(1u), "writeln payload is 1");
+        }
     }
 }

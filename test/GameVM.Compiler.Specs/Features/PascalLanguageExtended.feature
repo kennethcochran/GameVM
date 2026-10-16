@@ -78,7 +78,7 @@ Feature: Pascal Language Extended
     When I compile the program
     Then the compilation succeeds
 
-  Scenario: Built-in Functions
+  Scenario: Built-in Functions fail loudly (no console on the 2600)
     Given the following Pascal program:
       """
       program BuiltinFunctions;
@@ -88,7 +88,8 @@ Feature: Pascal Language Extended
       end.
       """
     When I compile the program
-    Then the compilation succeeds
+    Then the compilation fails
+    And the error message contains "not supported on the Atari 2600 target"
 
   Scenario: Complex Expressions
     Given the following Pascal program:

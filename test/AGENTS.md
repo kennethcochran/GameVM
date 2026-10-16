@@ -36,3 +36,12 @@ dotnet run --project test/GameVM.TestRunner -- --test=GameVM.Compiler.Core.Tests
 dotnet test
 ```
 
+### MAME Execution Scenarios
+
+The BDD scenarios in `test/GameVM.Compiler.Specs/Features/MameExecution.feature` run
+compiled ROMs in real MAME to verify behavioral correctness on the target hardware.
+They require a MAME install (`dotnet run --project src/GameVM.DevTools -- mame install`);
+on machines without MAME, or on headless hosts with no display, the scenarios report
+**skipped**, not failed. Set `GAMEVM_SKIP_MAME=1` to force the skip (and silence the
+skip message) when MAME is installed but unusable.
+

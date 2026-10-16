@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Interfaces;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 
 namespace GameVM.Compiler.Backend.Atari2600
 {
@@ -58,18 +59,48 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ProcessBranch(inputSlab, i, builder);
                         break;
 
+                    case MlirInstructionKind.Transition:
+                        // Branch polarity marker: consumed, not copied.
+                        // ProcessBranch (for the Branch that follows) reads
+                        // this marker from the input slab to decide polarity
+                        // and re-emits it ahead of the LLIR Branch, so
+                        // emitting it here as well would duplicate it.
+                        break;
+
                     case MlirInstructionKind.Call:
                         ProcessCall(inputSlab, i, builder);
                         break;
 
                     case MlirInstructionKind.Return:
                         uint retVal = operands.Length > 0 ? operands[0] : 0;
-                        builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0, retVal);
+                        // Preserve instruction flags (notably CalleeReturn)
+                        // so the code generator can tell a callee return
+                        // (RTS) from the program-entry return (halt loop).
+                        builder.Add((byte)LlirInstructionKind.Return, (InstructionFlag)inputSlab.GetFlags(i), 0, retVal);
                         break;
 
                     case MlirInstructionKind.Nop:
-                        // write/writeln stub placeholder — no LLIR emitted.
+                        // Benign no-op (empty statement, empty block): skip
+                        // it. Emits zero bytes — on a 4K 2600 ROM, padding
+                        // NOPs for scaffolding would be pure waste.
                         break;
+
+                    case MlirInstructionKind.Output:
+                        // write/writeln have no lowering on this target: the
+                        // 2600 has no console. Fail loudly instead of silently
+                        // dropping the construct.
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"MidToLowLevelTransformer has no LLIR lowering for MLIR instruction " +
+                            $"'Output' (kind 0x{kind:X2}) at slab index {i}. The construct is not " +
+                            "supported on the Atari 2600 target (write/writeln require a console).",
+                            ErrorSeverity.Error,
+                            new Dictionary<string, object?>
+                            {
+                                ["SlabIndex"] = i,
+                                ["MlirKind"] = nameof(MlirInstructionKind.Output),
+                                ["MlirKindByte"] = kind,
+                            });
 
                     default:
                         MapArithmetic(inputSlab, i, kind, builder, stringPool);
@@ -109,44 +140,28 @@ namespace GameVM.Compiler.Backend.Atari2600
             };
 
             if (llirKind == (byte)LlirInstructionKind.Nop)
-                return;
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer has no LLIR mapping for MLIR instruction " +
+                    $"kind 0x{kind:X2} at slab index {instIdx}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["SlabIndex"] = instIdx,
+                        ["MlirKindByte"] = kind,
+                    });
 
             // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
             {
-                string leftText = stringPool.Resolve(operands[0]);
-                uint rightVal = ResolveSlot(operands[1], stringPool);
-                bool leftIsName = IsName(leftText);
-                if (leftIsName)
-                {
-                    ushort leftAddr = GetAddressForVariable(leftText);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
-                }
-                else
-                {
-                    // left is numeric: LDA #imm
-                    uint leftVal = ResolveSlot(operands[0], stringPool);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
-                }
-                builder.Add(llirKind, InstructionFlag.None, 0, rightVal);
+                EmitLoadThenOp(builder, stringPool, llirKind, operands);
                 return;
             }
 
-            // Cmp: emit Load(left) first so A holds the value, then CMP #immediate.
+            // Cmp: emit Load(left) first so A holds the value, then CMP.
             if (llirKind == (byte)LlirInstructionKind.Cmp && operands.Length >= 2)
             {
-                string leftText = stringPool.Resolve(operands[0]);
-                if (IsName(leftText))
-                {
-                    ushort leftAddr = GetAddressForVariable(leftText);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
-                }
-                else
-                {
-                    uint leftVal = ResolveSlot(operands[0], stringPool);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
-                }
-                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                EmitLoadThenOp(builder, stringPool, llirKind, operands);
                 return;
             }
 
@@ -155,6 +170,35 @@ namespace GameVM.Compiler.Backend.Atari2600
             for (int i = 0; i < operands.Length; i++)
                 resolved[i] = ResolveSlot(operands[i], stringPool);
             builder.Add(llirKind, InstructionFlag.None, 0, resolved);
+        }
+
+        // Binary op sequence shared by Add/Sub/Cmp: Load the left operand
+        // into A, then apply the op with the right operand. A variable right
+        // operand contributes its VALUE from memory ([addr, 0] -> zp form) —
+        // never its address as an immediate.
+        private void EmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
+        {
+            string leftText = stringPool.Resolve(operands[0]);
+            string rightText = stringPool.Resolve(operands[1]);
+            if (IsName(leftText))
+            {
+                ushort leftAddr = GetAddressForVariable(leftText);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
+            }
+            else
+            {
+                uint leftVal = ResolveSlot(operands[0], stringPool);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
+            }
+            if (IsName(rightText))
+            {
+                ushort rightAddr = GetAddressForVariable(rightText);
+                builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+            }
+            else
+            {
+                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+            }
         }
 
         /// <summary>
@@ -307,7 +351,9 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             uint funcOffset = operands[0];
 
-            // Function calls are emitted as JSRs; the target address is resolved later.
+            // Function calls are emitted as single-operand Calls carrying the
+            // function's label pool-offset; the codegen resolves it to a ROM
+            // address via labelOffsets, exactly like Jump.
             builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, funcOffset);
         }
 
@@ -324,50 +370,78 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
+                if (_nextUserAddress > 0xFF)
+                    throw new GameVmException(
+                        ErrorCode.ZeroPageExhausted,
+                        $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
+                        "The Atari 2600 has 128 bytes of RAM ($80-$FF); reduce the number of live variables.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["VariableName"] = name,
+                            ["AllocatedCount"] = _userAddresses.Count,
+                        });
                 addr = _nextUserAddress;
                 _userAddresses[name] = addr;
-                _nextUserAddress = (ushort)((_nextUserAddress + 1) & 0xFF);
+                _nextUserAddress++;
             }
             return addr;
         }
 
         private void InitializeAddressMap()
         {
+            // TIA write-register map, verified against the Stella Programmer's
+            // Guide "TIA WRITE ADDRESS SUMMARY"
+            // (https://alienbill.com/2600/101/docs/stella.html).
+            // NOTE: TIA read registers (CXM0P..INPT5 at $00-$0D) share addresses
+            // with this write map; the table below covers STA targets only.
+            // Loads from TIA read registers are not yet supported.
             _addressMap.Clear();
-            _addressMap["COLUBK"] = "$09";
-            _addressMap["COLUPF"] = "$08";
+            _addressMap["VSYNC"] = "$00";
+            _addressMap["VBLANK"] = "$01";
+            _addressMap["WSYNC"] = "$02";
+            _addressMap["RSYNC"] = "$03";
+            _addressMap["NUSIZ0"] = "$04";
+            _addressMap["NUSIZ1"] = "$05";
             _addressMap["COLUP0"] = "$06";
             _addressMap["COLUP1"] = "$07";
+            _addressMap["COLUPF"] = "$08";
+            _addressMap["COLUBK"] = "$09";
+            _addressMap["CTRLPF"] = "$0A";
+            _addressMap["REFP0"] = "$0B";
+            _addressMap["REFP1"] = "$0C";
             _addressMap["PF0"] = "$0D";
             _addressMap["PF1"] = "$0E";
             _addressMap["PF2"] = "$0F";
-            _addressMap["RESP0"] = "$01";
-            _addressMap["RESP1"] = "$02";
-            _addressMap["RESM0"] = "$03";
-            _addressMap["RESM1"] = "$04";
-            _addressMap["RESBL"] = "$05";
-            _addressMap["AUDC0"] = "$02";
-            _addressMap["AUDC1"] = "$06";
-            _addressMap["AUDF0"] = "$04";
-            _addressMap["AUDF1"] = "$08";
-            _addressMap["AUDV0"] = "$03";
-            _addressMap["AUDV1"] = "$07";
-            _addressMap["WSYNC"] = "$02";
-            _addressMap["RSYNC"] = "$04";
-            _addressMap["NUSIZ0"] = "$0B";
-            _addressMap["NUSIZ1"] = "$0C";
-            _addressMap["RESF0"] = "$07";
-            _addressMap["RESF1"] = "$08";
-            _addressMap["HMP0"] = "$00";
-            _addressMap["HMP1"] = "$01";
-            _addressMap["HMM0"] = "$02";
-            _addressMap["HMM1"] = "$03";
-            _addressMap["HMPG"] = "$04";
-            _addressMap["HMBL"] = "$05";
-            _addressMap["VDELP0"] = "$0B";
-            _addressMap["VDELP1"] = "$0C";
-            _addressMap["VDELBL"] = "$0D";
-            _addressMap["RESET"] = "$FF";
+            _addressMap["RESP0"] = "$10";
+            _addressMap["RESP1"] = "$11";
+            _addressMap["RESM0"] = "$12";
+            _addressMap["RESM1"] = "$13";
+            _addressMap["RESBL"] = "$14";
+            _addressMap["AUDC0"] = "$15";
+            _addressMap["AUDC1"] = "$16";
+            _addressMap["AUDF0"] = "$17";
+            _addressMap["AUDF1"] = "$18";
+            _addressMap["AUDV0"] = "$19";
+            _addressMap["AUDV1"] = "$1A";
+            _addressMap["GRP0"] = "$1B";
+            _addressMap["GRP1"] = "$1C";
+            _addressMap["ENAM0"] = "$1D";
+            _addressMap["ENAM1"] = "$1E";
+            _addressMap["ENABL"] = "$1F";
+            _addressMap["HMP0"] = "$20";
+            _addressMap["HMP1"] = "$21";
+            _addressMap["HMM0"] = "$22";
+            _addressMap["HMM1"] = "$23";
+            _addressMap["HMBL"] = "$24";
+            _addressMap["VDELP0"] = "$25";
+            _addressMap["VDELP1"] = "$26";
+            _addressMap["VDELBL"] = "$27";
+            _addressMap["RESMP0"] = "$28";
+            _addressMap["RESMP1"] = "$29";
+            _addressMap["HMOVE"] = "$2A";
+            _addressMap["HMCLR"] = "$2B";
+            _addressMap["CXCLR"] = "$2C";
         }
     }
 }

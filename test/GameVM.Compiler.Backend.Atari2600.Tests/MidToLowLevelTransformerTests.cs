@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using GameVM.Compiler.Backend.Atari2600;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using NUnit.Framework;
 
 namespace GameVM.Compiler.Backend.Atari2600.Tests;
@@ -306,6 +308,23 @@ public class MidToLowLevelTransformerTests
     }
 
     [Test]
+    public void Transform_CalleeReturnFlag_IsPreserved()
+    {
+        // The CalleeReturn flag set at the HLIR -> MLIR lowering must
+        // survive to the LLIR so the code generator emits RTS (callee)
+        // rather than the entry halt.
+        var builder = new InstListBuilder();
+        builder.Add((byte)MlirInstructionKind.Return, InstructionFlag.CalleeReturn, 0);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+    }
+
+    [Test]
     public void Transform_ReturnWithValue_CopiesOperandsAsReturn()
     {
         // Arrange: return x
@@ -413,21 +432,25 @@ public class MidToLowLevelTransformerTests
     [Test]
     public void Transform_AllTIARegisters_MapCorrectly()
     {
-        // Verify all TIA registers from InitializeAddressMap map correctly
+        // TIA write-register map verified against the Stella Programmer's Guide
+        // "TIA WRITE ADDRESS SUMMARY"
+        // (https://alienbill.com/2600/101/docs/stella.html).
         var tiaRegisters = new (string name, int addr)[]
         {
-            ("COLUBK", 0x09), ("COLUPF", 0x08), ("COLUP0", 0x06), ("COLUP1", 0x07),
+            ("VSYNC", 0x00), ("VBLANK", 0x01), ("WSYNC", 0x02), ("RSYNC", 0x03),
+            ("NUSIZ0", 0x04), ("NUSIZ1", 0x05),
+            ("COLUP0", 0x06), ("COLUP1", 0x07), ("COLUPF", 0x08), ("COLUBK", 0x09),
+            ("CTRLPF", 0x0A), ("REFP0", 0x0B), ("REFP1", 0x0C),
             ("PF0", 0x0D), ("PF1", 0x0E), ("PF2", 0x0F),
-            ("RESP0", 0x01), ("RESP1", 0x02), ("RESM0", 0x03), ("RESM1", 0x04), ("RESBL", 0x05),
-            ("AUDC0", 0x02), ("AUDC1", 0x06), ("AUDF0", 0x04), ("AUDF1", 0x08),
-            ("AUDV0", 0x03), ("AUDV1", 0x07),
-            ("WSYNC", 0x02), ("RSYNC", 0x04),
-            ("NUSIZ0", 0x0B), ("NUSIZ1", 0x0C),
-            ("RESF0", 0x07), ("RESF1", 0x08),
-            ("HMP0", 0x00), ("HMP1", 0x01), ("HMM0", 0x02), ("HMM1", 0x03),
-            ("HMPG", 0x04), ("HMBL", 0x05),
-            ("VDELP0", 0x0B), ("VDELP1", 0x0C), ("VDELBL", 0x0D),
-            ("RESET", 0xFF)
+            ("RESP0", 0x10), ("RESP1", 0x11), ("RESM0", 0x12), ("RESM1", 0x13), ("RESBL", 0x14),
+            ("AUDC0", 0x15), ("AUDC1", 0x16), ("AUDF0", 0x17), ("AUDF1", 0x18),
+            ("AUDV0", 0x19), ("AUDV1", 0x1A),
+            ("GRP0", 0x1B), ("GRP1", 0x1C),
+            ("ENAM0", 0x1D), ("ENAM1", 0x1E), ("ENABL", 0x1F),
+            ("HMP0", 0x20), ("HMP1", 0x21), ("HMM0", 0x22), ("HMM1", 0x23), ("HMBL", 0x24),
+            ("VDELP0", 0x25), ("VDELP1", 0x26), ("VDELBL", 0x27),
+            ("RESMP0", 0x28), ("RESMP1", 0x29),
+            ("HMOVE", 0x2A), ("HMCLR", 0x2B), ("CXCLR", 0x2C)
         };
 
         foreach (var (name, addr) in tiaRegisters)
@@ -436,10 +459,66 @@ public class MidToLowLevelTransformerTests
             uint valueOffset = _stringPool.Intern("42");
             var mlir = BuildMlirAssign(targetOffset, valueOffset);
             var result = _transformer.TransformSlab(mlir, _stringPool);
-            
+
             Assert.That(result.Count, Is.EqualTo(1), $"Failed for {name}");
             var ops = result.GetOperands(0);
             Assert.That(ops[0], Is.EqualTo((uint)addr), $"{name} should map to ${addr:X2}");
+        }
+    }
+
+    [Test]
+    public void Transform_TiaRegisterMap_HasNoAddressCollisions()
+    {
+        // Regression guard for B1: several registers used to alias the same
+        // address ($02 was WSYNC, AUDC0 and HMM0 at once). Every TIA name must
+        // resolve to a distinct hardware address.
+        var tiaNames = new[]
+        {
+            "VSYNC", "VBLANK", "WSYNC", "RSYNC", "NUSIZ0", "NUSIZ1",
+            "COLUP0", "COLUP1", "COLUPF", "COLUBK", "CTRLPF", "REFP0", "REFP1",
+            "PF0", "PF1", "PF2", "RESP0", "RESP1", "RESM0", "RESM1", "RESBL",
+            "AUDC0", "AUDC1", "AUDF0", "AUDF1", "AUDV0", "AUDV1",
+            "GRP0", "GRP1", "ENAM0", "ENAM1", "ENABL",
+            "HMP0", "HMP1", "HMM0", "HMM1", "HMBL",
+            "VDELP0", "VDELP1", "VDELBL", "RESMP0", "RESMP1",
+            "HMOVE", "HMCLR", "CXCLR"
+        };
+
+        var seen = new Dictionary<uint, string>();
+        foreach (string name in tiaNames)
+        {
+            uint targetOffset = _stringPool.Intern(name);
+            uint valueOffset = _stringPool.Intern("42");
+            var mlir = BuildMlirAssign(targetOffset, valueOffset);
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            uint addr = result.GetOperands(0)[0];
+            Assert.That(seen.TryGetValue(addr, out string? other), Is.False,
+                $"{name} collides with {other} at ${addr:X2}");
+            seen[addr] = name;
+        }
+
+        Assert.That(seen.Count, Is.EqualTo(tiaNames.Length));
+    }
+
+    [Test]
+    public void Transform_RemovedInventedTiaNames_AllocateAsUserVariables()
+    {
+        // RESF0/RESF1, HMPG and RESET were invented names in the old map; they
+        // are not TIA registers and must now allocate as ordinary zero-page
+        // user variables ($80+) instead of shadowing hardware addresses.
+        foreach (string name in new[] { "RESF0", "RESF1", "HMPG", "RESET" })
+        {
+            var freshTransformer = new MidToLowLevelTransformer();
+            var freshPool = new StringPool();
+            uint targetOffset = freshPool.Intern(name);
+            uint valueOffset = freshPool.Intern("42");
+            var mlir = BuildMlirAssign(targetOffset, valueOffset);
+            var result = freshTransformer.TransformSlab(mlir, freshPool);
+
+            uint addr = result.GetOperands(0)[0];
+            Assert.That(addr, Is.GreaterThanOrEqualTo(0x80u),
+                $"{name} should allocate as a user variable ($80+), not a TIA register");
         }
     }
 
@@ -492,6 +571,93 @@ public class MidToLowLevelTransformerTests
         Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
         Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
     }
+
+    [Test]
+    public void Transform_AddVariableToVariable_EmitsLoadAndMemoryOperandAdd()
+    {
+        // MLIR for: z := x + y  ->  Add(x, y); Assign(__tmp_0, 0); Assign(z, __tmp_0)
+        // must lower to: Load(xAddr); Add(yAddr); Store(zAddr) where Add carries
+        // the [addrLow, addrHigh] memory-operand form — never the address as an
+        // immediate (that would add y's address, not its value).
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+        uint zOffset = _stringPool.Intern("z");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, xOffset, yOffset);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmpOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        // Load(x); Add(y-addr); Store(z)
+        Assert.That(result.Count, Is.EqualTo(3));
+
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        var loadOps = result.GetOperands(0);
+        Assert.That(loadOps.Length, Is.EqualTo(2));
+        Assert.That(loadOps[0], Is.EqualTo(0x80u), "x allocated at $80");
+
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
+        var addOps = result.GetOperands(1);
+        Assert.That(addOps.Length, Is.EqualTo(2), "Add of a variable must use the [addrLow, addrHigh] memory-operand form");
+        Assert.That(addOps[0], Is.EqualTo(0x81u), "y allocated at $81 — its VALUE address, not an immediate");
+        Assert.That(addOps[1], Is.EqualTo(0x00u));
+
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps[0], Is.EqualTo(0x82u), "z allocated at $82");
+    }
+
+    [Test]
+    public void Transform_SubVariableMinusVariable_EmitsMemoryOperandSub()
+    {
+        // z := x - y must lower to Load(x); Sub([yAddr, 0]); Store(z)
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+        uint zOffset = _stringPool.Intern("z");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, xOffset, yOffset);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+        builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmpOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(3));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+        var subOps = result.GetOperands(1);
+        Assert.That(subOps.Length, Is.EqualTo(2), "Sub of a variable must use the memory-operand form");
+        Assert.That(subOps[0], Is.EqualTo(0x81u), "y's value address, not an immediate");
+        Assert.That(subOps[1], Is.EqualTo(0x00u));
+    }
+
+    [Test]
+    public void Transform_CmpVariableToVariable_EmitsMemoryOperandCmp()
+    {
+        // Cmp(x, y) must lower to Load(x); Cmp([yAddr, 0]) — comparing against
+        // y's VALUE, not its address.
+        uint xOffset = _stringPool.Intern("x");
+        uint yOffset = _stringPool.Intern("y");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOffset, yOffset);
+        var mlir = builder.Build();
+
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        Assert.That(result.Count, Is.EqualTo(2));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+        var cmpOps = result.GetOperands(1);
+        Assert.That(cmpOps.Length, Is.EqualTo(2), "Cmp of a variable must use the memory-operand form");
+        Assert.That(cmpOps[0], Is.EqualTo(0x81u), "y's value address, not an immediate");
+        Assert.That(cmpOps[1], Is.EqualTo(0x00u));
+    }
         #endregion
         #region Branch Polarity Tests
 
@@ -536,5 +702,106 @@ public class MidToLowLevelTransformerTests
             Assert.That(result.Count, Is.EqualTo(1));
             Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Jump));
         }
+        [Test]
+        public void Transform_UnaryMinusSequence_EmitsLoadZeroSubStore()
+        {
+            // MLIR for x := -y as produced by the HLIR UnaryOp lowering:
+            //   Sub("0", y); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+            // Lowers to: Load #0 (LDA #0), Sub(yAddr), Store(xAddr).
+            // y is allocated first ($80), x second ($81).
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint xOffset = _stringPool.Intern("x");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var mlir = BuildMlirSlab(
+                ((byte)LlirInstructionKind.Sub, new uint[] { zeroOffset, yOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { tmpOffset, 0 }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, tmpOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            Assert.That(result.Count, Is.EqualTo(3));
+
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            var loadOps = result.GetOperands(0);
+            Assert.That(loadOps.Length, Is.EqualTo(1));
+            Assert.That(loadOps[0], Is.EqualTo(0u), "Load immediate 0");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            var subOps = result.GetOperands(1);
+            Assert.That(subOps.Length, Is.EqualTo(2));
+            Assert.That(subOps[0], Is.EqualTo(0x80u), "Sub operand is y's zero-page address");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps.Length, Is.EqualTo(1));
+            Assert.That(storeOps[0], Is.EqualTo(0x81u), "Store targets x's zero-page address");
+        }
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L1)
+
+        [Test]
+        public void Transform_MlirOutput_ThrowsGameVmException()
+        {
+            // Console output has no lowering on this target and arrives as a
+            // dedicated Output instruction; the transformer must fail loudly,
+            // never silently drop it.
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Output, new uint[] { 1 }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("'Output'"));
+            Assert.That(ex.Message, Does.Contain("not supported on the Atari 2600 target"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_MlirNop_IsElided()
+        {
+            // A benign no-op (empty statement/block) lowers to nothing:
+            // zero LLIR instructions, zero ROM bytes.
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Nop, Array.Empty<uint>()));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            Assert.That(result.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_UnmappedKind_ThrowsGameVmException()
+        {
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Variable, new uint[] { 1, 2 }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("0x08"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        #endregion
+
+        #region Fail-Loud Tests (Slice 1, L3)
+
+        [Test]
+        public void Transform_129thVariable_ThrowsZeroPageExhausted()
+        {
+            // The 2600 has 128 bytes of RAM ($80-$FF); the 129th variable must
+            // fail loudly instead of wrapping into TIA register space.
+            var builder = new InstListBuilder();
+            uint value = _stringPool.Intern("1");
+            for (int v = 0; v < 129; v++)
+            {
+                uint target = _stringPool.Intern("var" + v);
+                builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, target, value);
+            }
+            var mlir = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.ZeroPageExhausted));
+            Assert.That(ex.Message, Does.Contain("var128"));
+        }
+
         #endregion
 }

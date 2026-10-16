@@ -5,6 +5,21 @@ namespace GameVM.Compiler.Specs.Support;
 
 public static class MameRunner
 {
+    /// <summary>
+    /// True when a usable MAME executable was located (local .tools install,
+    /// PATH, or Flatpak). Dev environments without MAME installed must skip
+    /// MAME scenarios rather than fail them.
+    /// </summary>
+    public static bool IsAvailable => GetMameExecutable() != null;
+
+    /// <summary>
+    /// Opt-out escape hatch: set GAMEVM_SKIP_MAME=1 to skip MAME scenarios even
+    /// when MAME is installed (e.g. a headless host with no display available).
+    /// </summary>
+    public static bool SkipRequested =>
+        string.Equals(Environment.GetEnvironmentVariable("GAMEVM_SKIP_MAME"), "1",
+            StringComparison.Ordinal);
+
     public static async Task<string> Run(byte[] rom, string monitorScriptPath)
     {
         var root = FindProjectRoot(AppContext.BaseDirectory);
@@ -19,17 +34,20 @@ public static class MameRunner
         var mameExe = GetMameExecutable();
         if (string.IsNullOrEmpty(mameExe))
         {
-            throw new Exception("MAME is not installed. Please run 'dotnet run --project src/GameVM.DevTools -- mame install' first.");
+            throw new Exception("MAME is not installed. Please run 'dotnet run --project src/GameVM.DevTools -- mame install' first, or set GAMEVM_SKIP_MAME=1 to skip MAME scenarios.");
         }
 
+        // Run unthrottled with no video: the Lua monitor exits MAME as soon as
+        // it sees the program's halt loop (JMP *). The process timeout below
+        // is the backstop for a program that never halts (hung test = failure).
         string args;
         if (mameExe == "flatpak")
         {
-            args = $"run org.mamedev.MAME -window -bench 10 a2600 -cart \"{tempRomPath}\" -autoboot_script \"{monitorScriptPath}\"";
+            args = $"run org.mamedev.MAME -nothrottle -video none -sound none a2600 -cart \"{tempRomPath}\" -autoboot_script \"{monitorScriptPath}\"";
         }
         else
         {
-            args = $"-window -bench 10 a2600 -cart \"{tempRomPath}\" -autoboot_script \"{monitorScriptPath}\"";
+            args = $"-nothrottle -video none -sound none a2600 -cart \"{tempRomPath}\" -autoboot_script \"{monitorScriptPath}\"";
         }
 
         var startInfo = new ProcessStartInfo
@@ -53,8 +71,9 @@ public static class MameRunner
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
         
-        // Wait for process to complete with timeout
-        bool exited = process.WaitForExit(30000); // 30 second timeout
+        // Wait for process to complete with timeout.
+        // The Lua monitor exits MAME on halt; this timeout catches hung programs.
+        bool exited = process.WaitForExit(60000); // 60 second timeout
         
         if (!exited)
         {
@@ -67,7 +86,7 @@ public static class MameRunner
             {
                 // Ignore cleanup errors
             }
-            throw new Exception("MAME process timed out after 30 seconds.");
+            throw new Exception("MAME process timed out after 60 seconds (program never reached halt loop).");
         }
 
         // Get the output

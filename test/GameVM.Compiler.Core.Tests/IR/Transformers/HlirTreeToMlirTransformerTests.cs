@@ -1,3 +1,5 @@
+using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Hlir;
@@ -193,8 +195,11 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
-    public void Transform_Output_EmitsNopPlaceholder()
+    public void Transform_Output_EmitsOutputInstruction()
     {
+        // Output lowers to the dedicated MLIR Output kind — never a Nop —
+        // so backends can distinguish an unlowered construct (must fail
+        // loudly on console-less targets) from a benign no-op.
         var builder = new HlirBuilder();
         builder.Add((byte)HlirNodeKind.Output);
         var tree = builder.Build();
@@ -202,7 +207,7 @@ public class HlirTreeToMlirTransformerTests
         var result = _transformer.Transform(tree);
 
         Assert.That(result.Count, Is.EqualTo(1));
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Nop));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Output));
     }
 
     [Test]
@@ -340,5 +345,177 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 4: body assignment");
         Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 5: unconditional back-edge");
         Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 6: exit label");
+    }
+
+    [Test]
+    public void Transform_UnaryMinusVariable_LowersToSubFromZero()
+    {
+        // HLIR -> MLIR seam: x := -y lowers to the temp sequence
+        //   Sub(0, y); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        // i.e. -y == 0 - y, reusing the existing Sub lowering.
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zeroOffset = _pool.Intern("0");
+        var builder = new HlirBuilder();
+        int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int unary = builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, operand);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, unary);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        Assert.That(result.Count, Is.EqualTo(3),
+            "x := -y should lower to Sub; Assign(tmp,0); Assign(x,tmp)");
+
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Sub));
+        var subOps = result.GetOperands(0);
+        Assert.That(subOps.Length, Is.EqualTo(2));
+        Assert.That(subOps[0], Is.EqualTo(zeroOffset), "Sub left operand is literal 0");
+        Assert.That(subOps[1], Is.EqualTo(yOffset), "Sub right operand is y");
+
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var tmpOps = result.GetOperands(1);
+        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        var storeOps = result.GetOperands(2);
+        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+    }
+
+    [Test]
+    public void Transform_UnaryMinusNonMinusOp_ThrowsFailLoud()
+    {
+        // Only '-' is produced by the frontend; any other op char must fail
+        // loudly rather than silently lowering to nothing (or a bogus Sub).
+        uint yOffset = _pool.Intern("y");
+        var builder = new HlirBuilder();
+        int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
+        var tree = builder.Build();
+
+        var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void Transform_BareBinaryOpStatement_EvaluatesExpression()
+    {
+        // A bare expression in statement position (no ExpressionStatement
+        // wrapper, no Block) is evaluated and its result discarded — the
+        // semantics of an expression statement.
+        uint xOffset = _pool.Intern("x");
+        uint oneOffset = _pool.Intern("1");
+        var builder = new HlirBuilder();
+        int leftX = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int rightOne = builder.Add((byte)HlirNodeKind.LiteralInt, 0, oneOffset, HlirPayloadKind.Immediate);
+        builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'-', HlirPayloadKind.Immediate, leftX, rightOne);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        Assert.That(result.Count, Is.EqualTo(2), "x - 1 as a statement lowers to Sub; Assign(tmp,0)");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Sub));
+    }
+
+    [Test]
+    public void Transform_UnhandledNodeKind_ThrowsFailLoud()
+    {
+        // A statement-position node with no lowering (here a TypeReference,
+        // which is only meaningful inside a declaration) must fail loudly
+        // at the HLIR -> MLIR boundary, never vanish silently.
+        uint intOffset = _pool.Intern("Integer");
+        var builder = new HlirBuilder();
+        builder.Add((byte)HlirNodeKind.TypeReference, 0, intOffset, HlirPayloadKind.PoolOffset);
+        var tree = builder.Build();
+
+        var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+        Assert.That(ex.Message, Does.Contain("TypeReference"));
+    }
+
+    [Test]
+    public void Transform_ReturnInsideNestedFunction_IsFlaggedCalleeReturn()
+    {
+        // The outermost FunctionDeclaration is the program entry; a Return
+        // inside a nested function body must carry CalleeReturn so the
+        // backend emits RTS instead of the entry halt.
+        uint progOffset = _pool.Intern("Prog");
+        uint fnOffset = _pool.Intern("Fn");
+        var builder = new HlirBuilder();
+        int ret = builder.Add((byte)HlirNodeKind.Return);
+        int fnBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, ret);
+        int fn = builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, fnOffset, HlirPayloadKind.PoolOffset, fnBlock);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fn);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        int returnIdx = -1;
+        for (int i = 0; i < result.Count; i++)
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Return) { returnIdx = i; break; }
+        Assert.That(returnIdx, Is.GreaterThanOrEqualTo(0));
+        Assert.That((InstructionFlag)result.GetFlags(returnIdx), Is.EqualTo(InstructionFlag.CalleeReturn));
+    }
+
+    [Test]
+    public void Transform_NestedFunctionDeclaration_IsBranchedOverOnEntryPath()
+    {
+        // A nested callable declared before the program's own statements
+        // must not execute on the entry path: labels emit no code, so
+        // without a skip the entry would fall through into the function
+        // body and hit its CalleeReturn (RTS) with an empty stack. The
+        // lowering must emit an unconditional Branch over the body,
+        // targeting a label placed immediately after it.
+        uint progOffset = _pool.Intern("Prog");
+        uint fnOffset = _pool.Intern("Fn");
+        var builder = new HlirBuilder();
+        int fnRet = builder.Add((byte)HlirNodeKind.Return);
+        int fnBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fnRet);
+        int fn = builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, fnOffset, HlirPayloadKind.PoolOffset, fnBlock);
+        int progRet = builder.Add((byte)HlirNodeKind.Return);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, fn, progRet);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        // Expected stream: Label(Prog), Branch(after), Label(Fn),
+        // Return(CalleeReturn), Label(after), Return(entry).
+        Assert.That(result.Count, Is.EqualTo(6));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetOperands(2)[0], Is.EqualTo(fnOffset));
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(3), Is.EqualTo(InstructionFlag.CalleeReturn));
+        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetOperands(1)[0], Is.EqualTo(result.GetOperands(4)[0]),
+            "The skip Branch must target the label placed after the function body");
+        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Return));
+        Assert.That((InstructionFlag)result.GetFlags(5), Is.EqualTo(InstructionFlag.None));
+    }
+
+    [Test]
+    public void Transform_ReturnAtProgramEntry_IsNotFlaggedCalleeReturn()
+    {
+        uint progOffset = _pool.Intern("Prog");
+        var builder = new HlirBuilder();
+        int ret = builder.Add((byte)HlirNodeKind.Return);
+        int progBlock = builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, ret);
+        builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, progOffset, HlirPayloadKind.PoolOffset, progBlock);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        int returnIdx = -1;
+        for (int i = 0; i < result.Count; i++)
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Return) { returnIdx = i; break; }
+        Assert.That(returnIdx, Is.GreaterThanOrEqualTo(0));
+        Assert.That((InstructionFlag)result.GetFlags(returnIdx), Is.EqualTo(InstructionFlag.None));
     }
 }

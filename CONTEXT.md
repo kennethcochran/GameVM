@@ -129,7 +129,17 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 
 - Errors are categorised **Fatal / Error / Warning / Info**, reported through `GameVmException` (C#) carrying an `ErrorCode` and a context dictionary.
 - Compiler diagnostics are written to a lightweight **Diagnostic Journal**, never mixed into the executable instruction slab (metadata header has a Diagnostic Present flag on the affected instruction).
-- Error codes are grouped by domain: general (0x0001 OutOfMemory, 0x0002 InvalidArgument), file (0x1000+), network (0x2000+), module (0x3000+).
+- Error codes are grouped by domain: general (0x0001 OutOfMemory, 0x0002 InvalidArgument), file (0x1000+), network (0x2000+), module (0x3000+), backend/codegen (0x4000+).
+- `GameVmException` lives in `GameVM.Compiler.Core.Exceptions`; `ErrorCode` and `ErrorSeverity` live in `GameVM.Compiler.Core.Enums`. The context dictionary carries the construct name and whatever position info the stage has (IR stages below the frontend generally only have slab indexes).
+
+### Fail-Loud Error Contract (Slice 1)
+
+Silent miscompilation is a P0 defect: every stage must either lower a construct
+correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
+
+- **L1 — `MidToLowLevelTransformer`:** MLIR `Nop` (the write/writeln stub — the 2600
+  has no console) and any MLIR kind with no LLIR mapping now throw
+  `ErrorCode.UnhandledInstruction` naming the kind and slab index.
 ### Pascal Semantic Errors (Ticket 01)
 
 - `PascalFrontend` now runs `PascalSemanticAnalyzer` between AST build and HLIR lowering.
@@ -139,6 +149,20 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
   - `Undefined variable '{name}'`
   - `Type mismatch: cannot assign '{valueText}' to Integer variable '{targetName}'`
 - No new rules added (duplicate decl, for-control, call arity are later tickets).
+
+### Slice 1 Frontend Correctness (F1)
+
+- **F1 — Unary minus.** `VisitSignedFactor` used to visit the factor twice and
+  wrap it in a 1-child `BinaryOp`, which `BuildBinaryOp` rejected (needs ≥2
+  children) — `x := -y;` vanished silently. It now emits the new
+  `PascalAstNodeKind.UnaryOp` (payload `'-'`, single operand child).
+  `PascalAstToHlirTransformer` lowers it to the previously-never-produced
+  `HlirNodeKind.UnaryOp`, constant-folding integer literals and named constants
+  to their 8-bit two's complement value (`-5` → `251`);
+  `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)`, reusing the
+  existing `Sub` path through LLIR to `SEC; SBC` on the 6502.
+  `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
+  `x := -undeclared` still reports PAS0001.
 
 ### Semantic Error Structure
 
@@ -164,7 +188,8 @@ Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-
 ## 3. Current Platform Reality
 
 - **Backend:** Atari 2600 (`Atari2600CodeGenerator`) — emits 4KB ROM images (`$F000`-`$FFFF`). Uses zero-page pointer promotion and strict cycle budgeting.
-- **Conditional branch polarity:** `if x <> 0 then y := 1` lowers through the pipeline as `Cmp(x,0); Transition; Branch(L_end)` (BEQ → skip when x==0) and `if x = 0 then y := 1` as `Cmp(x,0); Branch(L_end)` (BNE → skip when x!=0). The operator payload drives the marker: `<>` emits `Transition` → BEQ; `=` emits no `Transition` → BNE (invert semantics selected by ProcessIf/ProcessWhile). `ProcessBranch` preserves the `Transition` marker so the codegen's `lastWasTransition` flag selects BEQ/BNE correctly. `- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`) for a single-operand immediate; `LDA` zero-page (`0xA5`) when two operands form an address `< $100`, else absolute (`0xAD`). `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). `LLIR_SUB` → `SEC; SBC #imm` (`0x38 0xE9`). `LLIR_CMP` → `CMP #imm` (`0xC9`). A loaded cartridge has total machine control, so the emitted program never returns: codegen appends a **self-loop** (`JMP *` → `0x4C <self>`) so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware (`COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `COLUP1`…
+- **Conditional branch polarity:** `if x <> 0 then y := 1` lowers through the pipeline as `Cmp(x,0); Transition; Branch(L_end)` (BEQ → skip when x==0) and `if x = 0 then y := 1` as `Cmp(x,0); Branch(L_end)` (BNE → skip when x!=0). The operator payload drives the marker: `<>` emits `Transition` → BEQ; `=` emits no `Transition` → BNE (invert semantics selected by ProcessIf/ProcessWhile). `ProcessBranch` preserves the `Transition` marker so the codegen's `lastWasTransition` flag selects BEQ/BNE correctly.
+- **Atari 2600 codegen mechanics:** `GenerateFromSlab` emits 6502 opcodes — `LLIR_LOAD` → `LDA #imm` (`0xA9`) for a single-operand immediate; `LDA` zero-page (`0xA5`) when two operands form an address `< $100`, else absolute (`0xAD`). `LLIR_STORE` → `STA` zero-page (`0x85`) when addr `< $100`, else absolute (`0x8D`). `LLIR_SUB` → `SEC; SBC #imm` (`0x38 0xE9`). `LLIR_CMP` → `CMP #imm` (`0xC9`). A loaded cartridge has total machine control, so the emitted program never returns: codegen emits a 13-byte reset prologue at `$F000` (`SEI; CLD; LDX #$FF; TXS;` then a loop zeroing all 256 zero-page bytes, which also parks the TIA in a safe state), every LLIR `Return` on the main path is patched to `JMP` the halt loop (never `RTS` — there is no caller and the stack was just initialized), while a `Return` lowered inside a function body carries the `CalleeReturn` flag (set at HLIR→MLIR lowering, where function nesting is known) and emits a real `RTS` (`0x60`, 1 byte) so a `JSR` caller resumes; nested callable declarations are branched over at the same lowering (an unconditional `Branch` to an `L_after_fn_N` label placed after the body) so sequential execution — above all the program entry path, which reaches declarations before the program's own statements — can never fall through into a callee body and hit its `RTS` with an empty stack; `EmitSize` sizes flagged returns as 1 and entry returns as 3 so label addresses stay exact, and a **self-loop** (`JMP *` → `0x4C <self>`) is appended so the CPU holds the final state instead of falling into zeroed ROM. Reset/IRQ vectors (`$FFFC`-`$FFFF`) point to `$F000`. Variables resolve via the shared `StringPool`: known TIA registers map to hardware per the full 45-register Stella Programmer's Guide write map (`VSYNC`→`$00` … `CXCLR`→`$2C`; e.g. `COLUBK`→`$09`, `COLUPF`→`$08`, `COLUP0`→`$06`, `RESP0`→`$10`, `GRP0`→`$1B`, `HMOVE`→`$2A`), user variables allocate zero-page from `$80` upward.
 
 ### Aspirational / Not Yet Implemented
 
