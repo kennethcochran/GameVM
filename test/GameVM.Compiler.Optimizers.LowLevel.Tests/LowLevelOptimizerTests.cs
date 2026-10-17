@@ -352,10 +352,13 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             var resultBasic = _optimizer.OptimizeSlab(instList, stringPool, OptimizationLevel.Basic);
 
             // Assert
-            Assert.That(resultNone.Count, Is.EqualTo(1));
-            Assert.That((InstructionFlag)resultNone.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
-            Assert.That(resultBasic.Count, Is.EqualTo(1));
-            Assert.That((InstructionFlag)resultBasic.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+            Assert.Multiple(() =>
+            {
+                Assert.That(resultNone.Count, Is.EqualTo(1));
+                Assert.That((InstructionFlag)resultNone.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+                Assert.That(resultBasic.Count, Is.EqualTo(1));
+                Assert.That((InstructionFlag)resultBasic.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+            });
         }
 
     }

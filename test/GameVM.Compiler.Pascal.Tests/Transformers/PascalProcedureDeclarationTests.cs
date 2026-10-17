@@ -82,9 +82,12 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                     methodDeclIdx = i;
             }
 
-            Assert.That(methodDeclIdx, Is.GreaterThanOrEqualTo(0),
-                "a declared procedure must appear in the AST as a MethodDeclaration");
-            Assert.That(pool.Resolve(ast[methodDeclIdx].Payload), Is.EqualTo("bump"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(methodDeclIdx, Is.GreaterThanOrEqualTo(0),
+                    "a declared procedure must appear in the AST as a MethodDeclaration");
+                Assert.That(pool.Resolve(ast[methodDeclIdx].Payload), Is.EqualTo("bump"));
+            });
         }
 
         [Test]
@@ -95,17 +98,19 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var hlir = result.Hlir;
 
             var functions = FindByKind(hlir, HlirNodeKind.FunctionDeclaration);
-            Assert.That(functions.Count, Is.EqualTo(2),
-                "HLIR must contain the program entry plus the declared procedure");
-
             int bumpIdx = functions.First(i =>
                 frontend.StringPool!.Resolve(hlir[i].Payload) == "bump");
             var bumpSubtree = Subtree(hlir, bumpIdx).ToList();
 
-            Assert.That(bumpSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Assign),
-                Is.True, "the procedure body (x := 42) must be inside the nested FunctionDeclaration");
-            Assert.That(bumpSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Return),
-                Is.True, "a procedure body must end in an implicit return so HLIR->MLIR flags it CalleeReturn");
+            Assert.Multiple(() =>
+            {
+                Assert.That(functions, Has.Count.EqualTo(2),
+                    "HLIR must contain the program entry plus the declared procedure");
+                Assert.That(bumpSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Assign),
+                    Is.True, "the procedure body (x := 42) must be inside the nested FunctionDeclaration");
+                Assert.That(bumpSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Return),
+                    Is.True, "a procedure body must end in an implicit return so HLIR->MLIR flags it CalleeReturn");
+            });
         }
 
         [Test]
@@ -126,9 +131,12 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var frontend = new PascalFrontend();
             var result = frontend.ParseToHlir(ProcedureProgram);
 
-            Assert.That(result.Hlir.Count, Is.GreaterThan(0));
-            Assert.That(frontend.LastParseErrors, Is.Null.Or.Empty,
-                "assigning to a program-level variable inside a procedure body is valid Pascal");
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Hlir.Count, Is.GreaterThan(0));
+                Assert.That(frontend.LastParseErrors, Is.Null.Or.Empty,
+                    "assigning to a program-level variable inside a procedure body is valid Pascal");
+            });
         }
 
         [Test]
@@ -195,10 +203,13 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var result = frontend.ParseToHlir(source);
 
-            Assert.That(result.Hlir.Count, Is.EqualTo(0),
-                "using a procedure-local constant in the main body is a semantic error");
-            Assert.That(frontend.LastParseErrors,
-                Has.Some.Contains("Undefined variable 'k'"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Hlir.Count, Is.Zero,
+                    "using a procedure-local constant in the main body is a semantic error");
+                Assert.That(frontend.LastParseErrors,
+                    Has.Some.Contains("Undefined variable 'k'"));
+            });
         }
 
         [Test]
@@ -227,9 +238,12 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 string.Equals(frontend.StringPool!.Resolve(hlir[i].Payload), "Bump",
                     StringComparison.OrdinalIgnoreCase));
             var calls = FindByKind(hlir, HlirNodeKind.Call);
-            Assert.That(calls, Is.Not.Empty, "the call must lower");
-            Assert.That(hlir[calls[0]].Payload, Is.EqualTo(hlir[bumpIdx].Payload),
-                "call site and declaration must share one pool offset, or the label never resolves");
+            Assert.Multiple(() =>
+            {
+                Assert.That(calls, Is.Not.Empty, "the call must lower");
+                Assert.That(hlir[calls[0]].Payload, Is.EqualTo(hlir[bumpIdx].Payload),
+                    "call site and declaration must share one pool offset, or the label never resolves");
+            });
         }
 
         [Test]
@@ -248,10 +262,13 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var result = frontend.ParseToHlir(source);
 
-            Assert.That(result.Hlir.Count, Is.EqualTo(0),
-                "a semantic violation inside a procedure body must still reject the program");
-            Assert.That(frontend.LastParseErrors,
-                Has.Some.Contains("Undefined variable 'y'"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Hlir.Count, Is.Zero,
+                    "a semantic violation inside a procedure body must still reject the program");
+                Assert.That(frontend.LastParseErrors,
+                    Has.Some.Contains("Undefined variable 'y'"));
+            });
         }
     }
 }
