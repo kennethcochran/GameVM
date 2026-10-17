@@ -181,6 +181,17 @@ correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
 - `PascalSemanticAnalyzer.ProcessMethodDeclaration` is now live code (it was written
   for a node the visitor never emitted): a procedure body's declarations register and
   its statements are checked, so an undeclared variable inside a body reports PAS0001.
+- **Callable scopes are restored after lowering.** Both the transformer
+  (`ProcessFunction` snapshots `_constantValues`) and the semantic analyzer
+  (`ProcessMethodDeclaration` snapshots its declared sets) restore the enclosing
+  scope when a callable finishes: a procedure-local `const k = 2` shadows the
+  program-level `k` only inside the procedure. Without the restore, the local value
+  leaked into the enclosing body — later folds resolved to the wrong constant
+  (transformer) and out-of-scope uses passed the undefined-variable check (analyzer).
+- **Procedure identifiers intern canonically lowercase** (`InternIdentifier` in the
+  visitor, used by the declaration site and `VisitProcedureStatement`): Pascal is
+  case-insensitive, so `Bump` declared and `bump;` called must share one pool offset
+  or the call's label never resolves. String literals are not normalized.
 - **Instruction flags are semantics.** `DefaultLowLevelOptimizer.OptimizeSlab` copies
   every surviving instruction with its original `InstructionFlag`s; it previously
   rebuilt instructions with `InstructionFlag.None`, silently stripping `CalleeReturn`

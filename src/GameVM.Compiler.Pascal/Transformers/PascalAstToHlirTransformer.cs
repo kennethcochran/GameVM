@@ -95,6 +95,13 @@ namespace GameVM.Compiler.Pascal.Transformers
 
             int bodyIdx = fnChildren[fnChildren.Length - 1]; // last child = body block
 
+            // Constants are scoped to the function that declares them: a
+            // procedure-local `const k = 2` shadows the program-level k only
+            // inside the procedure. Snapshot the enclosing map and restore it
+            // before returning, or the local value leaks into the enclosing
+            // body and later folds resolve to the wrong constant.
+            var savedConstants = new Dictionary<uint, uint>(_constantValues);
+
             // Pre-register constants and variable declarations declared in the
             // method header so body expressions can reference them.
             for (int i = 0; i < fnChildren.Length - 1; i++)
@@ -138,7 +145,13 @@ namespace GameVM.Compiler.Pascal.Transformers
                     RegisterConstantSymbol(astTree, childIdx, parentCtx);
             }
 
-            return _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
+            int functionHlir = _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
+
+            _constantValues.Clear();
+            foreach (var pair in savedConstants)
+                _constantValues[pair.Key] = pair.Value;
+
+            return functionHlir;
         }
 
         /// <summary>

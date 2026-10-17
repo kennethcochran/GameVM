@@ -84,7 +84,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             Assert.That(methodDeclIdx, Is.GreaterThanOrEqualTo(0),
                 "a declared procedure must appear in the AST as a MethodDeclaration");
-            Assert.That(pool.Resolve(ast[methodDeclIdx].Payload), Is.EqualTo("Bump"));
+            Assert.That(pool.Resolve(ast[methodDeclIdx].Payload), Is.EqualTo("bump"));
         }
 
         [Test]
@@ -99,7 +99,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 "HLIR must contain the program entry plus the declared procedure");
 
             int bumpIdx = functions.First(i =>
-                frontend.StringPool!.Resolve(hlir[i].Payload) == "Bump");
+                frontend.StringPool!.Resolve(hlir[i].Payload) == "bump");
             var bumpSubtree = Subtree(hlir, bumpIdx).ToList();
 
             Assert.That(bumpSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Assign),
@@ -116,7 +116,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var hlir = result.Hlir;
 
             var calls = FindByKind(hlir, HlirNodeKind.Call);
-            Assert.That(calls.Any(i => frontend.StringPool!.Resolve(hlir[i].Payload) == "Bump"),
+            Assert.That(calls.Any(i => frontend.StringPool!.Resolve(hlir[i].Payload) == "bump"),
                 Is.True, "the statement call in the main body must lower to an HLIR Call naming Bump");
         }
 
@@ -129,6 +129,107 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(result.Hlir.Count, Is.GreaterThan(0));
             Assert.That(frontend.LastParseErrors, Is.Null.Or.Empty,
                 "assigning to a program-level variable inside a procedure body is valid Pascal");
+        }
+
+        [Test]
+        public void ParseToHlir_ProcedureLocalConstantShadowingGlobal_MainBodyKeepsGlobalValue()
+        {
+            // A procedure-local const must not leak into the enclosing scope:
+            // the main body's `x := k` folds the PROGRAM-level k (1), the
+            // procedure body's folds its own k (2).
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "const k = 1;\n" +
+                "var x: Integer;\n" +
+                "procedure Bump;\n" +
+                "const k = 2;\n" +
+                "begin\n" +
+                "  x := k;\n" +
+                "end;\n" +
+                "begin\n" +
+                "  x := k;\n" +
+                "  Bump;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+            var hlir = result.Hlir;
+            Assert.That(hlir.Count, Is.GreaterThan(0), "program must lower");
+
+            var functions = FindByKind(hlir, HlirNodeKind.FunctionDeclaration);
+            int bumpIdx = functions.First(i =>
+                frontend.StringPool!.Resolve(hlir[i].Payload) == "bump");
+            var bumpNodes = Subtree(hlir, bumpIdx);
+
+            uint FoldedAssignValue(List<int> scope)
+            {
+                int assignIdx = scope.First(i => hlir.GetKind(i) == (byte)HlirNodeKind.Assign);
+                int valueIdx = hlir.Children(assignIdx)[1];
+                Assert.That(hlir.GetKind(valueIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a named-constant assignment must fold to a literal");
+                return hlir[valueIdx].Payload;
+            }
+
+            Assert.That(FoldedAssignValue(bumpNodes), Is.EqualTo(2u),
+                "inside Bump, k is the procedure-local constant");
+            var mainNodes = Enumerable.Range(0, hlir.Count).Except(bumpNodes).ToList();
+            Assert.That(FoldedAssignValue(mainNodes), Is.EqualTo(1u),
+                "in the main body, k is the program-level constant — the procedure's k must not leak");
+        }
+
+        [Test]
+        public void ParseToHlir_ProcedureLocalConstant_NotVisibleInMainBodySemantics()
+        {
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "procedure Bump;\n" +
+                "const k = 2;\n" +
+                "begin\n" +
+                "  x := k;\n" +
+                "end;\n" +
+                "begin\n" +
+                "  x := k;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            Assert.That(result.Hlir.Count, Is.EqualTo(0),
+                "using a procedure-local constant in the main body is a semantic error");
+            Assert.That(frontend.LastParseErrors,
+                Has.Some.Contains("Undefined variable 'k'"));
+        }
+
+        [Test]
+        public void ParseToHlir_MixedCaseProcedureCall_ResolvesToDeclaration()
+        {
+            // Pascal identifiers are case-insensitive: `bump;` must resolve to
+            // the procedure declared as `Bump`, i.e. the HLIR Call and the
+            // FunctionDeclaration carry the same name pool offset.
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "procedure Bump;\n" +
+                "begin\n" +
+                "  x := 42;\n" +
+                "end;\n" +
+                "begin\n" +
+                "  bump;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+            var hlir = result.Hlir;
+
+            var functions = FindByKind(hlir, HlirNodeKind.FunctionDeclaration);
+            int bumpIdx = functions.First(i =>
+                string.Equals(frontend.StringPool!.Resolve(hlir[i].Payload), "Bump",
+                    StringComparison.OrdinalIgnoreCase));
+            var calls = FindByKind(hlir, HlirNodeKind.Call);
+            Assert.That(calls, Is.Not.Empty, "the call must lower");
+            Assert.That(hlir[calls[0]].Payload, Is.EqualTo(hlir[bumpIdx].Payload),
+                "call site and declaration must share one pool offset, or the label never resolves");
         }
 
         [Test]

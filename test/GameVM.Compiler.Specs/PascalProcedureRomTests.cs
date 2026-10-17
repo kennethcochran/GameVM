@@ -110,7 +110,9 @@ public class PascalProcedureRomTests
         var mlir = new HlirTreeToMlirTransformer(frontend.StringPool!)
             .Transform(parsed.Hlir);
 
-        uint bumpOffset = frontend.StringPool!.Intern("Bump");
+        // "bump" is the canonical lowercase spelling the visitor interns
+        // procedure identifiers under (Pascal is case-insensitive).
+        uint bumpOffset = frontend.StringPool!.Intern("bump");
         int labelIdx = -1;
         int callIdx = -1;
         int returnIdx = -1;

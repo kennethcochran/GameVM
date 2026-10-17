@@ -54,6 +54,19 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         public StringPool StringPool => _strings;
 
+        /// <summary>
+        /// Interns an identifier under its canonical (lowercase) spelling.
+        /// Pascal identifiers are case-insensitive, so a declaration site and
+        /// a call site that spell the same name with different casing must
+        /// intern the SAME pool offset — otherwise the call's label never
+        /// resolves downstream and the backend falls back to JSR $F000.
+        /// Only identifiers go through here; string literals keep their case.
+        /// </summary>
+        private uint InternIdentifier(string identifierText)
+        {
+            return _strings.Intern(identifierText.ToLowerInvariant());
+        }
+
         public StringPool? ExternalPool { get; set; }
         public AstTree GetTree() => _builder.Build();
 
@@ -143,7 +156,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             // declarations plus its compound statement. Before this override
             // existed, VisitBlock never visited the declaration part at all
             // and every user procedure was silently dropped.
-            uint nameOffset = _strings.Intern(context.identifier().GetText());
+            uint nameOffset = InternIdentifier(context.identifier().GetText());
             var blockResult = VisitBlock(context.block());
             int blockIdx = blockResult is int b ? b : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.block()?.Start ?? context.Start);
             return Add((byte)PascalAstNodeKind.MethodDeclaration, 0, nameOffset, context.Start, blockIdx);
@@ -226,7 +239,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             // PascalAstToHlirTransformer.ProcessMethodCall consumes. Before
             // this override existed, VisitStatement dropped every procedure
             // call into a Nop and the call vanished silently.
-            uint nameOffset = _strings.Intern(context.identifier().GetText());
+            uint nameOffset = InternIdentifier(context.identifier().GetText());
             var argIndices = new List<int>();
             var paramList = context.parameterList();
             if (paramList != null)
