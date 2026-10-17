@@ -249,8 +249,18 @@ public class EdgeCaseTests
         // Act
         var result = _frontend.ParseToHlir(code.ToString());
 
-        // Assert
+        // Assert — every declared procedure must reach HLIR as its own
+        // FunctionDeclaration (plus one for the program entry). Before the
+        // procedure-declaration slice this asserted only Count > 0 and
+        // passed while all 50 bodies were silently dropped.
         Assert.That(result.Hlir.Count, Is.GreaterThan(0));
+        int functionDeclarations = 0;
+        for (int i = 0; i < result.Hlir.Count; i++)
+        {
+            if (result.Hlir.GetKind(i) == (byte)GameVM.Compiler.Core.IR.Hlir.HlirNodeKind.FunctionDeclaration)
+                functionDeclarations++;
+        }
+        Assert.That(functionDeclarations, Is.EqualTo(51));
     }
 
     #endregion

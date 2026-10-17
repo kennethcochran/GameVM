@@ -333,5 +333,33 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
         }
 
+        [Test]
+        public void OptimizeSlab_ShouldPreserveInstructionFlags()
+        {
+            // Arrange: a callee Return (198) whose CalleeReturn flag tells the
+            // backend to emit RTS instead of the entry halt. The optimizer's
+            // copy pass must not strip flags — before this regression test it
+            // rebuilt every instruction with InstructionFlag.None, so a called
+            // procedure's return silently became a jump to the halt loop.
+            var builder = new InstListBuilder();
+            builder.Append(198, InstructionFlag.CalleeReturn, 0, 0, ReadOnlySpan<uint>.Empty);
+            var instList = builder.Build();
+            var stringPool = new StringPool();
+
+            // Act — flags must survive at every optimization level, including
+            // None (the copy loop runs unconditionally).
+            var resultNone = _optimizer.OptimizeSlab(instList, stringPool, OptimizationLevel.None);
+            var resultBasic = _optimizer.OptimizeSlab(instList, stringPool, OptimizationLevel.Basic);
+
+            // Assert
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(resultNone.Count, Is.EqualTo(1));
+                Assert.That((InstructionFlag)resultNone.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+                Assert.That(resultBasic.Count, Is.EqualTo(1));
+                Assert.That((InstructionFlag)resultBasic.GetFlags(0), Is.EqualTo(InstructionFlag.CalleeReturn));
+            }
+        }
+
     }
 }
