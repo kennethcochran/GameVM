@@ -19,6 +19,11 @@ namespace GameVM.Compiler.Pascal.Transformers
     ///  - The transformer finds the Program root, lowers its MethodDeclaration body
     ///    recursively (blocks nested in blocks included), and processes function
     ///    MethodDeclaration nodes (payload = name pool offset, child = body Block).
+    ///  - A nested MethodDeclaration (a user procedure declaration, emitted by
+    ///    the visitor as a child of the enclosing Block) lowers through the same
+    ///    ProcessFunction path with an implicit Return appended to its body:
+    ///    Pascal procedures return by reaching the end of their block, and the
+    ///    HLIR contract expects a callable body to end in an explicit Return.
     ///  - Errors surface directly (no rewrap): "Undefined variable 'name'".
     /// </summary>
     public sealed class PascalAstToHlirTransformer
@@ -50,7 +55,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                 throw new InvalidOperationException("Failed to convert AST tree to HLIR tree: no program root");
             }
 
-            ProcessFunction(astTree, programIdx);
+            ProcessFunction(astTree, programIdx, isProgramEntry: true);
 
             return _builder.Build();
         }
@@ -83,10 +88,10 @@ namespace GameVM.Compiler.Pascal.Transformers
             return -1;
         }
 
-        private void ProcessFunction(AstTree astTree, int fnIdx)
+        private int ProcessFunction(AstTree astTree, int fnIdx, bool isProgramEntry)
         {
             var fnChildren = astTree.Children(fnIdx);
-            if (fnChildren.Length == 0) return;
+            if (fnChildren.Length == 0) return -1;
 
             int bodyIdx = fnChildren[fnChildren.Length - 1]; // last child = body block
 
@@ -100,6 +105,18 @@ namespace GameVM.Compiler.Pascal.Transformers
                     RegisterConstant(astTree, childIdx);
             }
             int bodyHlir = BuildBlock(astTree, bodyIdx);
+
+            if (!isProgramEntry)
+            {
+                // Pascal procedures return by reaching the end of their block.
+                // Append the implicit Return the HLIR contract expects at the
+                // end of a callable body: HlirTreeToMlirTransformer flags a
+                // Return inside a nested function CalleeReturn, so the backend
+                // emits a real RTS for the JSR caller. The program entry must
+                // NOT get one — its return is the halt loop, not an RTS.
+                int returnHlir = _builder.Add((byte)HlirNodeKind.Return, 0, 0, HlirPayloadKind.None);
+                bodyHlir = _builder.Add((byte)HlirNodeKind.Block, 0, 0, HlirPayloadKind.None, bodyHlir, returnHlir);
+            }
 
             uint nameOffset = astTree[fnIdx].Payload;
 
@@ -121,7 +138,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                     RegisterConstantSymbol(astTree, childIdx, parentCtx);
             }
 
-            _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
+            return _builder.Add((byte)HlirNodeKind.FunctionDeclaration, 0, nameOffset, HlirPayloadKind.PoolOffset, bodyHlir);
         }
 
         /// <summary>
@@ -176,6 +193,12 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return ProcessReturnStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.MethodCall:
                     return ProcessMethodCall(astTree, stmtIdx);
+                case PascalAstNodeKind.MethodDeclaration:
+                    // A user procedure declaration nested in a block: lower it
+                    // as a callable FunctionDeclaration (body + implicit
+                    // return) so HLIR->MLIR branches over it on the entry path
+                    // and emits its label for Call sites to target.
+                    return ProcessFunction(astTree, stmtIdx, isProgramEntry: false);
                 case PascalAstNodeKind.Nop:
                     return _builder.Add((byte)HlirNodeKind.Nop, 0, 0, HlirPayloadKind.None);
                 default:

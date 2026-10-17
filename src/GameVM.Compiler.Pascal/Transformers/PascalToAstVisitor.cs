@@ -106,6 +106,23 @@ namespace GameVM.Compiler.Pascal.Transformers
                 }
             }
 
+            foreach (var pdp in context.procedureAndFunctionDeclarationPart().Where(p => p != null))
+            {
+                var decl = pdp.procedureOrFunctionDeclaration();
+                if (decl == null)
+                    continue;
+                // Slice scope: zero-argument procedure declarations.
+                // Function declarations and parameterized procedures are
+                // not lowered yet (known gap, see CONTEXT.md); only
+                // parameterless procedures become MethodDeclarations.
+                var proc = decl.procedureDeclaration();
+                if (proc == null || proc.formalParameterList() != null)
+                    continue;
+                var procResult = VisitProcedureDeclaration(proc);
+                if (procResult is int pidx)
+                    childIndices.Add(pidx);
+            }
+
             if (context.compoundStatement() != null)
             {
                 var csResult = VisitCompoundStatement(context.compoundStatement());
@@ -113,6 +130,23 @@ namespace GameVM.Compiler.Pascal.Transformers
             }
 
             return Add((byte)PascalAstNodeKind.Block, 0, 0, context.Start, childIndices.ToArray());
+        }
+
+        public override object VisitProcedureDeclaration(PascalParser.ProcedureDeclarationContext context)
+        {
+            // procedureDeclaration: PROCEDURE identifier SEMI block (the
+            // formalParameterList case is filtered out by VisitBlock).
+            // Emit MethodDeclaration(payload = name pool offset, single
+            // child = the declaration's Block) — the shape
+            // PascalAstToHlirTransformer.ProcessFunction consumes for a
+            // callable: the Block carries the body's own const/var
+            // declarations plus its compound statement. Before this override
+            // existed, VisitBlock never visited the declaration part at all
+            // and every user procedure was silently dropped.
+            uint nameOffset = _strings.Intern(context.identifier().GetText());
+            var blockResult = VisitBlock(context.block());
+            int blockIdx = blockResult is int b ? b : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.block()?.Start ?? context.Start);
+            return Add((byte)PascalAstNodeKind.MethodDeclaration, 0, nameOffset, context.Start, blockIdx);
         }
 
         public override object VisitVariableDeclaration(PascalParser.VariableDeclarationContext context)
