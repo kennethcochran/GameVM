@@ -124,6 +124,14 @@ namespace GameVM.Compiler.Pascal.Semantics
 
         private void ProcessMethodDeclaration(AstTree astTree, int stmtIdx)
         {
+            // Declarations inside a callable are scoped to it: a
+            // procedure-local constant or variable must not become visible
+            // to the enclosing body after the declaration is walked, or the
+            // undefined-variable check silently accepts out-of-scope uses.
+            var savedVariables = new HashSet<uint>(_declaredVariables);
+            var savedTypes = new Dictionary<uint, string>(_declaredTypes);
+            var savedConstants = new HashSet<uint>(_constants);
+
             var mChildren = astTree.Children(stmtIdx);
             for (int i = 0; i < mChildren.Length - 1; i++)
             {
@@ -131,6 +139,14 @@ namespace GameVM.Compiler.Pascal.Semantics
             }
             if (mChildren.Length > 0)
                 ProcessStatement(astTree, mChildren[mChildren.Length - 1]);
+
+            _declaredVariables.Clear();
+            _declaredVariables.UnionWith(savedVariables);
+            _declaredTypes.Clear();
+            foreach (var pair in savedTypes)
+                _declaredTypes[pair.Key] = pair.Value;
+            _constants.Clear();
+            _constants.UnionWith(savedConstants);
         }
 
         private void RegisterChildDeclaration(AstTree astTree, int childIdx)

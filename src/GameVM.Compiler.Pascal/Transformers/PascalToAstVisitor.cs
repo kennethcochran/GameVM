@@ -54,6 +54,19 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         public StringPool StringPool => _strings;
 
+        /// <summary>
+        /// Interns an identifier under its canonical (lowercase) spelling.
+        /// Pascal identifiers are case-insensitive, so a declaration site and
+        /// a call site that spell the same name with different casing must
+        /// intern the SAME pool offset — otherwise the call's label never
+        /// resolves downstream and the backend falls back to JSR $F000.
+        /// Only identifiers go through here; string literals keep their case.
+        /// </summary>
+        private uint InternIdentifier(string identifierText)
+        {
+            return _strings.Intern(identifierText.ToLowerInvariant());
+        }
+
         public StringPool? ExternalPool { get; set; }
         public AstTree GetTree() => _builder.Build();
 
@@ -106,6 +119,23 @@ namespace GameVM.Compiler.Pascal.Transformers
                 }
             }
 
+            foreach (var pdp in context.procedureAndFunctionDeclarationPart().Where(p => p != null))
+            {
+                var decl = pdp.procedureOrFunctionDeclaration();
+                if (decl == null)
+                    continue;
+                // Slice scope: zero-argument procedure declarations.
+                // Function declarations and parameterized procedures are
+                // not lowered yet (known gap, see CONTEXT.md); only
+                // parameterless procedures become MethodDeclarations.
+                var proc = decl.procedureDeclaration();
+                if (proc == null || proc.formalParameterList() != null)
+                    continue;
+                var procResult = VisitProcedureDeclaration(proc);
+                if (procResult is int pidx)
+                    childIndices.Add(pidx);
+            }
+
             if (context.compoundStatement() != null)
             {
                 var csResult = VisitCompoundStatement(context.compoundStatement());
@@ -113,6 +143,23 @@ namespace GameVM.Compiler.Pascal.Transformers
             }
 
             return Add((byte)PascalAstNodeKind.Block, 0, 0, context.Start, childIndices.ToArray());
+        }
+
+        public override object VisitProcedureDeclaration(PascalParser.ProcedureDeclarationContext context)
+        {
+            // procedureDeclaration: PROCEDURE identifier SEMI block (the
+            // formalParameterList case is filtered out by VisitBlock).
+            // Emit MethodDeclaration(payload = name pool offset, single
+            // child = the declaration's Block) — the shape
+            // PascalAstToHlirTransformer.ProcessFunction consumes for a
+            // callable: the Block carries the body's own const/var
+            // declarations plus its compound statement. Before this override
+            // existed, VisitBlock never visited the declaration part at all
+            // and every user procedure was silently dropped.
+            uint nameOffset = InternIdentifier(context.identifier().GetText());
+            var blockResult = VisitBlock(context.block());
+            int blockIdx = blockResult is int b ? b : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.block()?.Start ?? context.Start);
+            return Add((byte)PascalAstNodeKind.MethodDeclaration, 0, nameOffset, context.Start, blockIdx);
         }
 
         public override object VisitVariableDeclaration(PascalParser.VariableDeclarationContext context)
@@ -192,7 +239,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             // PascalAstToHlirTransformer.ProcessMethodCall consumes. Before
             // this override existed, VisitStatement dropped every procedure
             // call into a Nop and the call vanished silently.
-            uint nameOffset = _strings.Intern(context.identifier().GetText());
+            uint nameOffset = InternIdentifier(context.identifier().GetText());
             var argIndices = new List<int>();
             var paramList = context.parameterList();
             if (paramList != null)

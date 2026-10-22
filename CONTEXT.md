@@ -164,6 +164,45 @@ correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
   `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
   `x := -undeclared` still reports PAS0001.
 
+### Pascal Procedure Declarations (Slice 2)
+
+- **Zero-argument user procedures now lower end-to-end.** `PascalToAstVisitor.VisitBlock`
+  visits `procedureAndFunctionDeclarationPart`; a parameterless `procedureDeclaration`
+  becomes a `MethodDeclaration` AST node (payload = name pool offset, single child = the
+  declaration's `Block`). Before this slice the visitor never visited the declaration
+  part, so every user procedure body was silently dropped and a call to one compiled to
+  the backend's unresolved-label fallback (`JSR $F000`, the reset entry).
+- `PascalAstToHlirTransformer` lowers a nested `MethodDeclaration` through the same
+  `ProcessFunction` path as the program entry, appending an implicit `Return` to the
+  body (Pascal procedures return by reaching the end of their block; the HLIR contract
+  expects a callable body to end in an explicit `Return`, which HLIR→MLIR flags
+  `CalleeReturn` so the backend emits a real `RTS`). The program entry gets no implicit
+  return — its return is the halt loop.
+- `PascalSemanticAnalyzer.ProcessMethodDeclaration` is now live code (it was written
+  for a node the visitor never emitted): a procedure body's declarations register and
+  its statements are checked, so an undeclared variable inside a body reports PAS0001.
+- **Callable scopes are restored after lowering.** Both the transformer
+  (`ProcessFunction` snapshots `_constantValues`) and the semantic analyzer
+  (`ProcessMethodDeclaration` snapshots its declared sets) restore the enclosing
+  scope when a callable finishes: a procedure-local `const k = 2` shadows the
+  program-level `k` only inside the procedure. Without the restore, the local value
+  leaked into the enclosing body — later folds resolved to the wrong constant
+  (transformer) and out-of-scope uses passed the undefined-variable check (analyzer).
+- **Procedure identifiers intern canonically lowercase** (`InternIdentifier` in the
+  visitor, used by the declaration site and `VisitProcedureStatement`): Pascal is
+  case-insensitive, so `Bump` declared and `bump;` called must share one pool offset
+  or the call's label never resolves. String literals are not normalized.
+- **Instruction flags are semantics.** `DefaultLowLevelOptimizer.OptimizeSlab` copies
+  every surviving instruction with its original `InstructionFlag`s; it previously
+  rebuilt instructions with `InstructionFlag.None`, silently stripping `CalleeReturn`
+  (a called procedure's return became a jump to the halt loop). Regression-tested in
+  `LowLevelOptimizerTests.OptimizeSlab_ShouldPreserveInstructionFlags`.
+- **Known remaining gaps (not lowered yet):** function declarations, parameterized
+  procedures (a declaration with a formal parameter list is not emitted as a
+  `MethodDeclaration`), expression-position function calls (the visitor's
+  `functionDesignator` shape loses the callee name in the transformer), `repeat`,
+  and `case` (both still become AST `Nop` in the visitor and are silently skipped).
+
 ### Semantic Error Structure
 
 - `SemanticError` is a plain data class in `GameVM.Compiler.Core.Interfaces` with properties: `Message`, `ErrorCode`, `Line`, `Column`.

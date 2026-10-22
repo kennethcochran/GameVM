@@ -60,7 +60,11 @@ namespace GameVM.Compiler.Optimizers.LowLevel
 
                 if (!skip)
                 {
-                    builder.Append(kind, InstructionFlag.None, argCount, 0, operands);
+                    // Preserve the instruction's flags verbatim: flags are
+                    // semantics, not decoration — CalleeReturn on a Return is
+                    // what makes the backend emit RTS instead of the entry
+                    // halt, and rebuilding with None silently stripped it.
+                    builder.Append(kind, (InstructionFlag)llirSlab.GetFlags(i), argCount, 0, operands);
                 }
             }
 
