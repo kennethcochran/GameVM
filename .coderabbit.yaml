@@ -4,5 +4,7 @@
 # @coderabbitai approve is disabled (the agent is the PR author).
 reviews:
   auto_approvals:
+    # Clean-review approval checks only CodeRabbit-created discussions.
+    # Open human threads do not block it. Merge gating is set in branch rules.
     enabled: true
     allow_author_approval: false
