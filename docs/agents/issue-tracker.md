@@ -46,6 +46,6 @@ An incoming GitHub issue is not the persistent artifact — it is the *seed*. Wh
 3. If real, distill into `.scratch/` and/or failing tests:
    - planned feature → failing test files (the spec); the effort is tracked in `.scratch/<feature>/`
    - implementation ticket → `.scratch/<feature>/issues/<NN>-<slug>.md`
-4. **Close the GitHub issue** with a pointer to what now owns it (e.g. "Tracked in `.scratch/itc-dispatch/`; spec is the failing tests").
+4. **Close the GitHub issue** with a pointer to what now owns it (e.g. "Spec: failing tests in `test/GameVM.Compiler.Specs/`; local tracking notes in `.scratch/itc-dispatch/`").
 
 The GitHub issue is closed; the `.scratch/` file is the live truth.
