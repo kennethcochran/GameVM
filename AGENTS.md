@@ -123,7 +123,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that would block the commit, and the full-suite guard is enforced by the GitHub workflow, not locally. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
+Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. The documentation gate still applies: a spec commit needs a documentation update or `override-no-doc: <reason>` in its commit message. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -152,7 +152,7 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 ### Where the test and coverage guards live
 
-The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on every push and pull request, on all three platforms. A failing spec (red test files committed as the spec) is never blocked locally; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or deterministic guard that would block committing red tests.**
+The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on pull-request events (opened, synchronize, reopened) and pushes to `main`, on all three platforms. A feature-branch push with no open pull request receives no test or CRAP check. A failing spec (red test files committed as the spec) is never blocked by a local test or coverage guard; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or guard that runs tests or coverage checks.** The documentation gate is not covered by this precedence: a spec commit still needs a documentation update or `override-no-doc: <reason>` in its commit message.
 
 ### Consequences of Disabling Hooks
 
