@@ -10,12 +10,12 @@ GameVM documentation lives in two persistent locations, plus an ephemeral planne
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
 2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
 
-Planned work that does not exist yet lives as `.scratch/<feature>/spec.md` until it is implemented, then moves into `CONTEXT.md`/`docs/`.
+Planned work that does not exist yet lives as failing test files until it is implemented; then its architecture/API details move into `CONTEXT.md`/`docs/`.
 
 ## Mandatory Documentation Rules
 
 **1. Never Write Aspirational Docs**
-If you are designing a feature that doesn't exist yet, track it as a `.scratch/<feature>/spec.md` spec. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
+If you are designing a feature that doesn't exist yet, specify it as failing tests — NUnit for unit behavior, Reqnroll for acceptance and end-to-end. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
 
 **2. The "True North" Update Rule**
 If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/LLIR), or the structural invariants of the compiler, you **must** update `CONTEXT.md` in the exact same session. 
@@ -30,7 +30,7 @@ The `doc-sync-gate.csx` script (run by the husky `validate-docs` commit-msg hook
 
 ## Starting New Work
 
-New work follows the Matt flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `.scratch/`. A feature spec lives at `.scratch/<feature>/spec.md`; once implemented, its architecture/API details move into `CONTEXT.md`.
+New work follows the Matt flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `.scratch/`. The feature spec is the failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end); once implemented, its architecture/API details move into `CONTEXT.md`.
 
 
 ## Adding Documentation
