@@ -45,7 +45,7 @@ For each affected doc:
 4. **Verify** relative links still resolve and headers still exist.
 5. **Update** the document's changelog section (if present).
 
-Implemented behavior lands in `CONTEXT.md`/`docs/adr/`/`docs/` in the same commit; planned work lives under `.scratch/<feature>/spec.md`.
+Implemented behavior lands in `CONTEXT.md`/`docs/adr/`/`docs/` in the same commit; planned work lives as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end).
 
 ### 3. Verify with the doc gate
 

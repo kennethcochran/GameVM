@@ -160,6 +160,17 @@ jobs:
             if [ $? -ne 0 ]; then exit 1; fi
           fi
 
+      # --- CRAP gate (moved here from the local pre-commit hook) ---
+      # The full-suite and CRAP guards live in CI, not in local hooks, so
+      # failing-spec (red) commits are not blocked locally. See AGENTS.md.
+      # Runs only when the test suite passes (the build step above exits 1
+      # on test failure), on the coverage file it produces.
+      - name: Check CRAP scores
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          dotnet run --project tools/GameVM.CrapGate -- coverage.xml src 30
+
       # --- Nudge dogfooding: coaching report on build diagnostics ---
       # Informational only — this step never fails the build. The report is
       # uploaded as an artifact for review. See AGENTS.md ("Nudge Coaching").

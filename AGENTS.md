@@ -123,7 +123,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Work is tracked as local markdown under `.scratch/<feature>/`: one `spec.md` per feature plus `issues/<NN>-<slug>.md` tickets. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
+Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. The documentation gate still applies: a spec commit needs a documentation update or `override-no-doc: <reason>` in its commit message. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -144,13 +144,15 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 ### Pre-Commit Tasks (`.husky/task-runner.json`)
 
-1.  **`clean-test-results`**: Ensures a clean test run by removing previous test artifacts.
-2.  **`run-tests-with-coverage`**: Executes the full test suite and collects code coverage. **All tests MUST pass.**
-3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check via `tools/GameVM.CrapGate`. Methods exceeding the configured complexity/coverage threshold will fail the commit. **You MUST reduce complexity or increase test coverage.**
+1.  **`nudge-coaching`**: Runs the `nudge` coaching guides over the build diagnostics. Fix the underlying issue each guide describes; do not use the metric-gaming dodges the guides name.
 
 ### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
 
 1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md or docs/adr/). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
+
+### Where the test and coverage guards live
+
+The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on pull-request events (opened, synchronize, reopened) and pushes to `main`, on all three platforms. A feature-branch push with no open pull request receives no test or CRAP check. A failing spec (red test files committed as the spec) is never blocked by a local test or coverage guard; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or guard that runs tests or coverage checks.** The documentation gate is not covered by this precedence: a spec commit still needs a documentation update or `override-no-doc: <reason>` in its commit message.
 
 ### Consequences of Disabling Hooks
 

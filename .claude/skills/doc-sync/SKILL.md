@@ -34,7 +34,7 @@ This skill ensures every code change is accompanied by the necessary documentati
 
 2.  **Address reported issues**:
     *   If the gate reports missing updates, update the identified documentation files (`CONTEXT.md`, `docs/adr/`, `docs/`) per `docs/DOC-IMPACT.md`.
-    *   Ensure `CONTEXT.md` reflects the **implemented reality**; planned work lives under `.scratch/<feature>/spec.md`, not `docs/`.
+    *   Ensure `CONTEXT.md` reflects the **implemented reality**; planned work lives as failing test files, not `docs/`.
     *   For architectural decisions, create or update an ADR in `docs/adr/`.
 
 3.  **Re-run the gate**:

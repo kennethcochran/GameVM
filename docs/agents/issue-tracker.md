@@ -1,11 +1,11 @@
 # Issue tracker: Local Markdown
 
-Issues and specs for this repo live as markdown files in `.scratch/`, which is gitignored.
+Issues for this repo live as markdown files in `.scratch/`, which is gitignored. Specs are the failing test files, not markdown.
 
 ## Conventions
 
 - One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
+- The spec is the failing test files — NUnit for unit behavior, Reqnroll for acceptance and end-to-end.
 - Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
@@ -33,7 +33,7 @@ Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 
 GitHub Issues is **only** for external intake: user-reported bugs and suggested ideas. The `gh` CLI runs against GitHub (kennethcochran/GameVM).
 
-**When a skill says "publish to the issue tracker", it means `.scratch/`.** Write the spec/ticket file to `.scratch/<feature-slug>/`, not to a GitHub issue.
+**When a skill says "publish to the issue tracker", it means `.scratch/`.** Write the ticket file to `.scratch/<feature-slug>/`, not to a GitHub issue.
 
 **When a skill says "fetch the relevant ticket":** read the file at the referenced path.
 
@@ -43,9 +43,9 @@ An incoming GitHub issue is not the persistent artifact — it is the *seed*. Wh
 
 1. User files bug / idea → GitHub issue (unlabeled or `needs-triage`).
 2. `/triage` categorises (bug/enhancement), moves state roles; if `wontfix`, the issue is closed.
-3. If real, distill into a `.scratch/<feature>/` file:
-   - planned feature → `.scratch/<feature>/spec.md`
+3. If real, distill into `.scratch/` and/or failing tests:
+   - planned feature → failing test files (the spec); the effort is tracked in `.scratch/<feature>/`
    - implementation ticket → `.scratch/<feature>/issues/<NN>-<slug>.md`
-4. **Close the GitHub issue** with a pointer to the file that now owns it (e.g. "Tracked in `.scratch/itc-dispatch/spec.md`").
+4. **Close the GitHub issue** with a pointer to what now owns it (e.g. "Spec: failing tests in `test/GameVM.Compiler.Specs/`; local tracking notes in `.scratch/itc-dispatch/`").
 
 The GitHub issue is closed; the `.scratch/` file is the live truth.

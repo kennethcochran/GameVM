@@ -86,4 +86,4 @@ Done when the list exists, every idea cites a real pressure point from the conte
 
 ## Output destination
 
-Write the list to the conversation. If the user asks to track an idea, create the corresponding `.scratch/<feature>/spec.md` or `.scratch/<feature>/issues/` ticket using the issue-tracker convention from `docs/agents/issue-tracker.md`.
+Write the list to the conversation. If the user asks to track an idea, create the corresponding `.scratch/<feature>/issues/` ticket using the issue-tracker convention from `docs/agents/issue-tracker.md`.
