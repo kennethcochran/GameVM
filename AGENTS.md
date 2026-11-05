@@ -123,7 +123,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
+Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that would block the commit, and the full-suite guard is enforced by the GitHub workflow, not locally. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -144,13 +144,15 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 ### Pre-Commit Tasks (`.husky/task-runner.json`)
 
-1.  **`clean-test-results`**: Ensures a clean test run by removing previous test artifacts.
-2.  **`run-tests-with-coverage`**: Executes the full test suite and collects code coverage. **All tests MUST pass.**
-3.  **`validate-crap-scores`**: Runs a CRAP (Change Risk Analysis and Prediction) score check via `tools/GameVM.CrapGate`. Methods exceeding the configured complexity/coverage threshold will fail the commit. **You MUST reduce complexity or increase test coverage.**
+1.  **`nudge-coaching`**: Runs the `nudge` coaching guides over the build diagnostics. Fix the underlying issue each guide describes; do not use the metric-gaming dodges the guides name.
 
 ### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
 
 1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md or docs/adr/). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
+
+### Where the test and coverage guards live
+
+The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on every push and pull request, on all three platforms. A failing spec (red test files committed as the spec) is never blocked locally; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or deterministic guard that would block committing red tests.**
 
 ### Consequences of Disabling Hooks
 

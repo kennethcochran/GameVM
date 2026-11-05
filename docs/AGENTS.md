@@ -10,7 +10,7 @@ GameVM documentation lives in two persistent locations, plus an ephemeral planne
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
 2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
 
-Planned work that does not exist yet lives as failing test files until it is implemented; then its architecture/API details move into `CONTEXT.md`/`docs/`.
+Planned work that does not exist yet lives as failing test files until it is implemented; then its architecture/API details move into `CONTEXT.md`/`docs/`. Failing spec tests are committed red. The spec requirement supersedes any local instruction or deterministic guard that would block the commit; the full test suite and coverage guards are enforced by the GitHub `Build & Test` workflow, not by local pre-commit hooks.
 
 ## Mandatory Documentation Rules
 

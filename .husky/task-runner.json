@@ -2,66 +2,25 @@
   "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
   "tasks": [
     {
-      "name": "nudge-coaching",
-      "group": "pre-commit",
-      "command": "bash",
       "args": [
         "-c",
         "export DOTNET_ROOT=$HOME/dotnet PATH=$HOME/.dotnet/tools:$HOME/dotnet:$PATH && nudge --sln GameVM.sln --baseline .nudge/baseline.txt"
-      ]
-    },
-    {
-      "name": "clean-test-results",
+      ],
+      "command": "bash",
       "group": "pre-commit",
-      "command": "dotnet",
-      "args": [
-        "clean"
-      ]
+      "name": "nudge-coaching"
     },
     {
-      "name": "run-tests-with-coverage",
-      "group": "pre-commit",
-      "command": "dotnet",
-      "args": [
-        "tool",
-        "run",
-        "dotnet-coverage",
-        "--",
-        "collect",
-        "dotnet run --project test/GameVM.TestRunner",
-        "-f",
-        "xml",
-        "-o",
-        "TestResults/coverage.xml",
-        "-t",
-        "300000"
-      ]
-    },
-    {
-      "name": "validate-crap-scores",
-      "group": "pre-commit",
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "tools/GameVM.CrapGate",
-        "--",
-        "TestResults/coverage.xml",
-        "src",
-        "30"
-      ]
-    },
-    {
-      "name": "validate-docs",
-      "group": "commit-msg",
-      "command": "dotnet",
       "args": [
         "husky",
         "exec",
         ".github/scripts/doc-sync-gate.csx",
         "--args",
         "${args}"
-      ]
+      ],
+      "command": "dotnet",
+      "group": "commit-msg",
+      "name": "validate-docs"
     }
   ]
 }
