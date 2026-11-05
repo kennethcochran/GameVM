@@ -18,8 +18,8 @@ GameVM requires:
 
 GameVM uses several testing strategies to ensure correctness:
 
-- **Unit Tests**: NUnit tests for individual components (found in `src/UnitTests`, `src/GameVM.Compiler.Core.Tests`, etc.).
-- **BDD Tests**: Scenario-based end-to-end tests using Reqnroll (found in `src/GameVM.Compiler.Specs`). These tests cover language features, backend code generation, and behavior validation via MAME execution.
+- **Unit Tests**: NUnit tests for individual components (found in `test/GameVM.Compiler.Core.Tests`, etc.).
+- **BDD Tests**: Scenario-based end-to-end tests using Reqnroll (found in `test/GameVM.Compiler.Specs`). These tests cover language features, backend code generation, and behavior validation via MAME execution.
 
 ### Build
 ```pwsh
@@ -34,7 +34,7 @@ Comprehensive documentation is available in the [docs](docs/) directory:
 - [System References](docs/platforms/specs/) - Hardware specs and platforms
 - [Architecture](docs/architecture/) - Strategy, testing, and lifecycle
 
-For an overview of the project architecture and design principles, start with the [Architecture Overview](docs/architecture/ArchitectureOverview.md).
+For an overview of the project architecture and design principles, start with the [Architecture Overview](docs/architecture/README.md).
 
 ## Development Status
 
