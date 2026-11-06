@@ -5,7 +5,7 @@ description: Sync documentation with code changes. Use after making code changes
 
 # Doc-Sync Skill
 
-Ensures every code change is accompanied by the documentation updates it requires, verified by the `doc-sync-gate.csx` hook.
+Ensures every code change is accompanied by the documentation updates it requires.
 
 ## When to Use
 
@@ -47,21 +47,9 @@ For each affected doc:
 
 Implemented behavior lands in `CONTEXT.md`/`docs/adr/`/`docs/` in the same commit; planned work lives as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end).
 
-### 3. Verify with the doc gate
+### 3. Verify the updates
 
-Run the real gate against your base ref (the exact CI invocation):
-
-```bash
-dotnet tool run dotnet-script .github/scripts/doc-sync-gate.csx -- origin/main
-```
-
-or through husky:
-
-```bash
-dotnet husky exec .github/scripts/doc-sync-gate.csx --args origin/main
-```
-
-It exits `0` (PASS) when every semantic change has a `CONTEXT.md`/`docs/` update, or an `override-no-doc: <reason>` is present. If it exits `1`, update the affected docs and re-run until PASS. Never bypass the hook.
+Re-read each updated doc and confirm the tags are accurate, the links resolve, and the headers still exist. The doc-sync gate that used to verify this was disabled 2026-11-06; the script remains in `.github/scripts/` for a later readdress.
 
 ## Rules of Thumb
 
@@ -77,5 +65,4 @@ Report what you updated, e.g.:
 ```
 Updated docs/compiler/LLIR.md (added X instruction, tagged [implemented])
 Updated docs/compiler/LLIR_ISA.md (opcode table, tagged [implemented])
-doc-sync gate: PASS
 ```

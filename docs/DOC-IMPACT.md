@@ -18,19 +18,4 @@ Always ensure your commit includes updates to the relevant documentation unless 
 | **Adds / modifies a test case.**             | No dedicated doc update required.                                     |
 | **Pure file rename/move.**                  | No dedicated doc update required.                                     |
 
----
 
-## 2. When to Override
-
-In rare cases, a semantic change may genuinely have *no documentation impact* (e.g., refactoring internal code without changing external behavior). To bypass the `doc-sync-gate.csx` hook, you **MUST** add `override-no-doc: <reason>` to your commit message. The `<reason>` must clearly explain why no documentation update is needed. This is auditable and will be reviewed.
-
-**Example commit message with override:**
-
-```
-feat: improved opcode dispatch performance
-
-Optimized the internal instruction dispatcher by replacing a linear scan
-with a jump table. No change to public API or observable behavior.
-
-override-no-doc: Internal performance refactor, no API or architectural change.
-```

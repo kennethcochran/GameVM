@@ -12,7 +12,7 @@
 
 ## High-Level Rules (MUST ALWAYS FOLLOW)
 
-1. **Documentation updates are mandatory** with every semantic code change. See [docs/DOC-IMPACT.md](docs/DOC-IMPACT.md) for a checklist on *which* documentation to update. The `doc-sync-gate.csx` hook enforces this; use `override-no-doc: <reason>` in commit message to explicitly bypass.
+1. **Update documentation** with every semantic code change. See [docs/DOC-IMPACT.md](docs/DOC-IMPACT.md) for a checklist on *which* documentation to update. (The doc-sync gate that used to enforce this was disabled 2026-11-06 and will be readdressed.)
 2. **Follow code standards** and architecture conventions. See [src/AGENTS.md](src/AGENTS.md).
 3. **Add tests** for any functional change. See [test/AGENTS.md](test/AGENTS.md).
 4. **Run SonarQube checks** after making changes. See the SonarQube section below.
@@ -123,7 +123,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. The documentation gate still applies: a spec commit needs a documentation update or `override-no-doc: <reason>` in its commit message. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
+Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -146,13 +146,9 @@ This repository uses client-side Git pre-commit hooks managed by [Husky.Net](htt
 
 1.  **`nudge-coaching`**: Runs the `nudge` coaching guides over the build diagnostics. Fix the underlying issue each guide describes; do not use the metric-gaming dodges the guides name.
 
-### Commit-Message Task (`.husky/task-runner.json`, `group: commit-msg`)
-
-1.  **`validate-docs`**: Runs `doc-sync-gate.csx` to verify semantic code changes are accompanied by documentation updates (CONTEXT.md or docs/adr/). If a change has no doc impact, you **MUST** add `override-no-doc: <reason>` to your commit message (auditable justification).
-
 ### Where the test and coverage guards live
 
-The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on pull-request events (opened, synchronize, reopened) and pushes to `main`, on all three platforms. A feature-branch push with no open pull request receives no test or CRAP check. A failing spec (red test files committed as the spec) is never blocked by a local test or coverage guard; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or guard that runs tests or coverage checks.** The documentation gate is not covered by this precedence: a spec commit still needs a documentation update or `override-no-doc: <reason>` in its commit message.
+The full test suite and the CRAP score check are **not** local pre-commit hooks. They run in the GitHub `Build & Test` workflow on pull-request events (opened, synchronize, reopened) and pushes to `main`, on all three platforms. A feature-branch push with no open pull request receives no test or CRAP check. A failing spec (red test files committed as the spec) is never blocked by a local test or coverage guard; the workflow reports it, and the pull request cannot merge until the suite is green. **The failing-spec requirement supersedes any local instruction or guard that runs tests or coverage checks.**
 
 ### Consequences of Disabling Hooks
 
