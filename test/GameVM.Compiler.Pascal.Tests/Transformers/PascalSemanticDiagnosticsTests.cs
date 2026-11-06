@@ -74,4 +74,39 @@ public class PascalSemanticDiagnosticsTests
         Assert.That(diagnostics.Summary, Does.Contain("Undefined variable 'y'"));
         Assert.That(diagnostics.Summary, Does.Contain("Undefined variable 'z'"));
     }
+
+    [Test]
+    public void Diagnostics_ForUndeclaredProcedureCall_ReportsError()
+    {
+        var code = "program Test;\nbegin\n  Bump;\nend.";
+        var (visitor, tree) = Build(code);
+        var analyzer = new PascalSemanticAnalyzer(visitor.StringPool);
+        var errors = analyzer.Analyze(tree, visitor.Positions!).ToArray();
+
+        Assert.That(errors, Has.Length.EqualTo(1));
+        Assert.That(errors[0].Message, Does.Contain("Undefined procedure 'bump'"));
+    }
+
+    [Test]
+    public void Diagnostics_ForDeclaredProcedureCall_NoError()
+    {
+        var code = "program Test;\nvar x: Integer;\nprocedure Bump;\nbegin\n  x := 42;\nend;\nbegin\n  Bump;\nend.";
+        var (visitor, tree) = Build(code);
+        var analyzer = new PascalSemanticAnalyzer(visitor.StringPool);
+        var errors = analyzer.Analyze(tree, visitor.Positions!).ToArray();
+
+        Assert.That(errors, Is.Empty);
+    }
+
+    [Test]
+    public void Diagnostics_ForUndeclaredCallInsideProcedureBody_ReportsError()
+    {
+        var code = "program Test;\nprocedure Bump;\nbegin\n  Nope;\nend;\nbegin\nend.";
+        var (visitor, tree) = Build(code);
+        var analyzer = new PascalSemanticAnalyzer(visitor.StringPool);
+        var errors = analyzer.Analyze(tree, visitor.Positions!).ToArray();
+
+        Assert.That(errors, Has.Length.EqualTo(1));
+        Assert.That(errors[0].Message, Does.Contain("Undefined procedure 'nope'"));
+    }
 }
