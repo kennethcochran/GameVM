@@ -30,7 +30,7 @@ The `doc-sync-gate.csx` script (run by the husky `validate-docs` commit-msg hook
 
 ## Starting New Work
 
-New work follows the Matt flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `.scratch/`. The feature spec is the failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end); once implemented, its architecture/API details move into `CONTEXT.md`.
+New work is discussed and sharpened first, then specified as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end), then broken into tickets tracked as local markdown under `.scratch/<feature>/`. Once implemented, its architecture/API details move into `CONTEXT.md`.
 
 
 ## Adding Documentation
