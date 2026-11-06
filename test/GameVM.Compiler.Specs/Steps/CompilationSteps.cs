@@ -62,6 +62,12 @@ public class CompilationSteps
         _context.SourceCode = "program Test;\nbegin\n  x := 42;\nend.";
     }
 
+    [Given(@"a Pascal program with an undeclared procedure call")]
+    public void GivenAPascalProgramWithAnUndeclaredProcedureCall()
+    {
+        _context.SourceCode = "program Test;\nbegin\n  Bump;\nend.";
+    }
+
     [Given(@"a Pascal program with a type mismatch")]
     public void GivenAPascalProgramWithATypeMismatch()
     {
