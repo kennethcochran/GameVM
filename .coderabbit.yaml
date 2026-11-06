@@ -1,0 +1,10 @@
+# Tier 0 auto-approval: a clean CodeRabbit review counts as the approving
+# review for Tier 0 PRs (doc-only, test-only, mechanical). Tier 1/2 still
+# require Kenneth's review and merge. Author self-approval via
+# @coderabbitai approve is disabled (the agent is the PR author).
+reviews:
+  auto_approvals:
+    # Clean-review approval checks only CodeRabbit-created discussions.
+    # Open human threads do not block it. Merge gating is set in branch rules.
+    enabled: true
+    allow_author_approval: false
