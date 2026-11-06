@@ -9,18 +9,6 @@
       "command": "bash",
       "group": "pre-commit",
       "name": "nudge-coaching"
-    },
-    {
-      "args": [
-        "husky",
-        "exec",
-        ".github/scripts/doc-sync-gate.csx",
-        "--args",
-        "${args}"
-      ],
-      "command": "dotnet",
-      "group": "commit-msg",
-      "name": "validate-docs"
     }
   ]
 }

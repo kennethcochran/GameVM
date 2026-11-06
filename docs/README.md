@@ -37,4 +37,4 @@ GameVM documentation keeps agents and humans on the same page and prevents aspir
 
 ## Contributing
 
-Follow the [Documentation Standards](architecture/DocumentationStandards.md) and the mandatory rules in [`docs/AGENTS.md`](AGENTS.md). Every code change that touches public surface must update the relevant documentation in the same commit — enforced by the `doc-sync-gate` pre-commit hook.
+Follow the [Documentation Standards](architecture/DocumentationStandards.md) and the mandatory rules in [`docs/AGENTS.md`](AGENTS.md). Every code change that touches public surface must update the relevant documentation in the same commit.

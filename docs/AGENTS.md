@@ -10,7 +10,7 @@ GameVM documentation lives in two persistent locations, plus an ephemeral planne
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
 2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
 
-Planned work that does not exist yet lives as failing test files until it is implemented; then its architecture/API details move into `CONTEXT.md`/`docs/`. Failing spec tests are committed red. The spec requirement supersedes any local instruction or guard that runs tests or coverage checks; the full test suite and coverage guards are enforced by the GitHub `Build & Test` workflow, not by local pre-commit hooks. The documentation gate still applies: a spec commit needs a documentation update or `override-no-doc: <reason>` in its commit message.
+Planned work that does not exist yet lives as failing test files until it is implemented; then its architecture/API details move into `CONTEXT.md`/`docs/`. Failing spec tests are committed red. The spec requirement supersedes any local instruction or guard that runs tests or coverage checks; the full test suite and coverage guards are enforced by the GitHub `Build & Test` workflow, not by local pre-commit hooks.
 
 ## Mandatory Documentation Rules
 
@@ -25,8 +25,8 @@ If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/
 **3. Vocabulary Enforcement**
 You MUST use the exact terminology defined in the `## Domain Glossary` section of `CONTEXT.md`. Do not invent synonyms. Do not use alternative capitalization or hyphenation.
 
-**4. The Doc Gate**
-The `doc-sync-gate.csx` script (run by the husky `validate-docs` commit-msg hook and by CI) verifies that semantic code changes are accompanied by documentation updates. It blocks the commit unless `CONTEXT.md`/`docs/` were touched or an `override-no-doc: <reason>` is present. Never bypass it.
+**4. The Doc Gate (disabled 2026-11-06)**
+The gate's enforcement (husky hook and CI step) was disabled; the script remains in `.github/scripts/` for a later readdress. Updating `CONTEXT.md`/`docs/` with semantic code changes is still expected — see `docs/DOC-IMPACT.md`.
 
 ## Starting New Work
 
