@@ -6,9 +6,9 @@ name: Mutation Testing
 # changes. This runs as its own workflow, not a step in build.yml, because
 # a mutation run is far slower than the test suite and has its own cadence.
 #
-# First version is informational: no break threshold yet, so the run reports
-# the score without failing the build. Once a baseline score is measured in
-# CI, a break threshold goes into stryker-config.json to gate regressions.
+# The mutation score is gated by the break threshold in stryker-config.json
+# (baseline measured 2026-11-07: 65.90%; break set to 60). Ratchet the
+# threshold up as test assertions improve.
 on:
   push:
     branches: [main]
@@ -24,6 +24,13 @@ jobs:
   mutation:
     name: Mutation (Atari 2600 backend)
     runs-on: ubuntu-latest
+    # Least privilege for this job: read the repo, upload the report.
+    # The job runs test code (Stryker executes the suite against mutants),
+    # so the token must not be able to modify repo contents, and checkout
+    # must not persist it into git config where test code could reach it.
+    permissions:
+      contents: read
+      actions: write
     # Bound a potential test-runner hang: Stryker runs tests via vstest,
     # which has deadlocked on the dev VM. GitHub runners may differ; the
     # timeout keeps a hang from consuming the whole CI budget.
@@ -32,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
