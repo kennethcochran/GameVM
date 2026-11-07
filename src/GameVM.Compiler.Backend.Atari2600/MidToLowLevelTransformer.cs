@@ -142,6 +142,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             {
                 (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
                 (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
+                (byte)LlirInstructionKind.Multiply => (byte)LlirInstructionKind.Multiply,
                 (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
                 (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
                 _ => (byte)LlirInstructionKind.Nop
@@ -158,6 +159,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ["SlabIndex"] = instIdx,
                         ["MlirKindByte"] = kind,
                     });
+
+            // Multiply: Load the left operand, then Multiply with the right
+            // operand plus two scratch addresses for the shift-and-add routine.
+            if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length >= 2)
+            {
+                EmitMultiplyOp(builder, stringPool, operands);
+                return;
+            }
 
             // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
@@ -181,13 +190,18 @@ namespace GameVM.Compiler.Backend.Atari2600
         }
 
         // Binary op sequence shared by Add/Sub/Cmp: Load the left operand
-        // into A, then apply the op with the right operand. A variable right
-        // operand contributes its VALUE from memory ([addr, 0] -> zp form) —
-        // never its address as an immediate.
+        // into A, then apply the op with the right operand.
         private void EmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
         {
+            EmitLoadLeft(builder, stringPool, operands);
+            builder.Add(llirKind, InstructionFlag.None, 0, RightOperands(stringPool, operands));
+        }
+
+        // Loads the left operand of a binary op into A: a variable loads its
+        // VALUE from memory ([addr, 0] -> zp form); a literal loads immediate.
+        private void EmitLoadLeft(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
             string leftText = stringPool.Resolve(operands[0]);
-            string rightText = stringPool.Resolve(operands[1]);
             if (IsName(leftText))
             {
                 ushort leftAddr = GetAddressForVariable(leftText);
@@ -198,15 +212,56 @@ namespace GameVM.Compiler.Backend.Atari2600
                 uint leftVal = ResolveSlot(operands[0], stringPool);
                 builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
             }
+        }
+
+        // The right operand of a binary op as the leading operands of the op
+        // instruction: a variable contributes its VALUE from memory
+        // ([addr, 0] -> zp form) — never its address as an immediate; a
+        // literal contributes its value. extraOperands are appended after
+        // the right operand (Multiply's two scratch addresses).
+        private uint[] RightOperands(StringPool stringPool, ReadOnlySpan<uint> operands, params uint[] extraOperands)
+        {
+            string rightText = stringPool.Resolve(operands[1]);
+            uint[] right;
             if (IsName(rightText))
             {
                 ushort rightAddr = GetAddressForVariable(rightText);
-                builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+                right = new uint[] { rightAddr, 0 };
             }
             else
             {
-                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                right = new uint[] { ResolveSlot(operands[1], stringPool) };
             }
+            if (extraOperands.Length == 0)
+                return right;
+            uint[] combined = new uint[right.Length + extraOperands.Length];
+            Array.Copy(right, combined, right.Length);
+            Array.Copy(extraOperands, 0, combined, right.Length, extraOperands.Length);
+            return combined;
+        }
+
+        /// <summary>
+        /// Multiply sequence: Load the left operand into A, then Multiply with
+        /// the right operand. The 6502 has no multiply, so the backend lowers
+        /// Multiply to an inline shift-and-add routine that needs two scratch
+        /// zero-page bytes — a copy of the multiplicand, shifted left each
+        /// iteration, and a copy of the multiplier, shifted right. Scratch is
+        /// allocated through the variable map under compiler-internal names,
+        /// so it never collides with user variables and is shared across
+        /// multiplies in one program. LLIR Multiply operands: variable right
+        /// is (rightAddr, 0, scratchM, scratchN); literal right is
+        /// (rightVal, scratchM, scratchN). The code generator tells them
+        /// apart by operand count (4 vs 3).
+        /// </summary>
+        private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
+            EmitLoadLeft(builder, stringPool, operands);
+
+            ushort scratchM = GetAddressForVariable("__mul_m");
+            ushort scratchN = GetAddressForVariable("__mul_n");
+
+            builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0,
+                RightOperands(stringPool, operands, scratchM, scratchN));
         }
 
         /// <summary>

@@ -91,6 +91,43 @@ public class PascalProcedureRomTests
         "  if false then x := 2;\n" +
         "end.";
 
+    private const string ProductProgram =
+        "program Test;\n" +
+        "var x: Integer;\n" +
+        "var y: Integer;\n" +
+        "begin\n" +
+        "  x := 6;\n" +
+        "  y := 7;\n" +
+        "  x := x * y;\n" +
+        "end.";
+
+    /// <summary>Scans for multiply machinery at or after
+    /// <paramref name="from"/>: a JSR to an in-ROM target (0x20), a
+    /// backward relative branch (a branch opcode with offset &gt;= 0x80),
+    /// or an ASL (0x0A/0x06/0x16/0x0E/0x1E). The 6502 has no multiply
+    /// instruction, so any real 8-bit multiply is a subroutine call, a
+    /// loop, or shift-and-add steps. The reset prologue's own BNE clear
+    /// loop sits before <paramref name="from"/> and is never counted.</summary>
+    private static bool HasMultiplyMachinery(byte[] rom, int from)
+    {
+        for (int i = from; i < rom.Length; i++)
+        {
+            byte op = rom[i];
+            if (op == 0x20 && i + 2 < rom.Length)
+            {
+                int target = rom[i + 1] | (rom[i + 2] << 8);
+                if (target > 0xF000 && target < 0xF000 + rom.Length) return true;
+                continue;
+            }
+            if (op == 0x0A || op == 0x06 || op == 0x16 || op == 0x0E || op == 0x1E) return true;
+            if ((op == 0x10 || op == 0x30 || op == 0x50 || op == 0x70 ||
+                 op == 0x90 || op == 0xB0 || op == 0xD0 || op == 0xF0) &&
+                i + 1 < rom.Length && rom[i + 1] >= 0x80)
+                return true;
+        }
+        return false;
+    }
+
     /// <summary>Finds the first occurrence of a byte sequence at or after
     /// <paramref name="from"/>, or -1.</summary>
     private static int IndexOfSequence(byte[] rom, int from, params byte[] sequence)
@@ -148,6 +185,49 @@ public class PascalProcedureRomTests
         int jmpTarget = rom[falseArm - 2] | (rom[falseArm - 1] << 8);
         Assert.That(jmpTarget - 0xF000, Is.EqualTo(falseArm + 4),
             "the JMP over the false arm must land just past its STA $80");
+    }
+
+    [Test]
+    public void ProgramComputingAProduct()
+    {
+        // End to end: 6 * 7 must be computed as a product, not a sum. Both
+        // operands are variables: only literal-vs-literal multiplication
+        // folds correctly today, in the constant folder. The 6502 has no
+        // multiply instruction, so a real multiply lowers to a routine —
+        // a subroutine call, a loop, or unrolled shift-and-add — never to
+        // the single ADC the buggy lowering emits.
+        var result = Compile(ProductProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
+
+        // Setup stays intact: x := 6 and y := 7 store their literals.
+        // Variables allocate from $80 in first-use order: x = $80, y = $81.
+        int xStore = IndexOfSequence(rom, bodyStart, 0xA9, 0x06, 0x85, 0x80);
+        Assert.That(xStore, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain x := 6 (LDA #6; STA $80)");
+        int yStore = IndexOfSequence(rom, xStore + 4, 0xA9, 0x07, 0x85, 0x81);
+        Assert.That(yStore, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain y := 7 (LDA #7; STA $81)");
+
+        // The miscompilation must be gone: the product statement must not
+        // lower to LDA $80; CLC; ADC $81; STA $80 (x + y, stored to x).
+        // No correct multiply emits that exact sequence — a shift-and-add
+        // or repeated-addition multiply adds the multiplicand to a
+        // partial-product temp, never x + y back into x with nothing
+        // between.
+        Assert.That(IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x18, 0x65, 0x81, 0x85, 0x80),
+            Is.EqualTo(-1),
+            "x := x * y must not lower to LDA $80; CLC; ADC $81; STA $80 — that computes x + y");
+
+        // A real 8-bit multiply routine must be present past the prologue.
+        // The buggy lowering emits no JSR, no branch, and no ASL here.
+        Assert.That(HasMultiplyMachinery(rom, bodyStart), Is.True,
+            "the ROM must contain multiply machinery (a JSR, a backward branch, or ASL) for x * y");
     }
 
     [Test]

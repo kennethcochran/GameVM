@@ -84,6 +84,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Store => EmitStore(rom, ref currentAddress, operands),
                     LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
                     LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Multiply => EmitMultiply(rom, ref currentAddress, operands),
                     LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition, ref lastWasBcs),
                     LlirInstructionKind.Assign => EmitAssign(rom, ref currentAddress, operands),
                     LlirInstructionKind.Label => EmitLabel(),
@@ -244,6 +245,75 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return 3;
             }
             return 0;
+        }
+
+        /// <summary>
+        /// 8-bit unsigned multiply as an inline shift-and-add routine
+        /// (22 bytes). Entry: A = multiplicand (loaded by the preceding
+        /// Load); operands carry the multiplier and two scratch zero-page
+        /// addresses (see MidToLowLevelTransformer.EmitMultiplyOp).
+        /// Variable right (4 operands: rightAddr, 0, scratchM, scratchN):
+        /// STA scratchM; LDA rightAddr; STA scratchN. Literal right
+        /// (3 operands: rightVal, scratchM, scratchN): STA scratchM;
+        /// LDA #rightVal; STA scratchN. Then A = 0 (result), X = 8 (bit
+        /// counter); loop 8 times: shift the multiplier right (bit 0 goes
+        /// to carry), add the multiplicand to the result when the bit is
+        /// set, shift the multiplicand left. The product is left in A.
+        /// Neither operand in memory is modified — only the scratch copies.
+        /// </summary>
+        private static int EmitMultiply(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Operand layout: 4 operands = variable right (rightAddr, 0,
+            // scratchM, scratchN); 3 operands = literal right (rightVal,
+            // scratchM, scratchN). Both forms emit the same 22 bytes.
+            bool variableRight = operands.Length >= 4;
+            if ((!variableRight && operands.Length < 3) || currentAddress + 22 > RomSize)
+                return 0;
+
+            byte scratchM;
+            byte scratchN;
+            if (variableRight)
+            {
+                scratchM = (byte)operands[2];
+                scratchN = (byte)operands[3];
+            }
+            else
+            {
+                scratchM = (byte)operands[1];
+                scratchN = (byte)operands[2];
+            }
+
+            rom[currentAddress++] = 0x85; // STA scratchM (save multiplicand from A)
+            rom[currentAddress++] = scratchM;
+            if (variableRight)
+            {
+                rom[currentAddress++] = 0xA5; // LDA rightAddr (multiplier)
+                rom[currentAddress++] = (byte)operands[0];
+            }
+            else
+            {
+                rom[currentAddress++] = 0xA9; // LDA #rightVal (multiplier)
+                rom[currentAddress++] = (byte)operands[0];
+            }
+            rom[currentAddress++] = 0x85; // STA scratchN (save multiplier)
+            rom[currentAddress++] = scratchN;
+            rom[currentAddress++] = 0xA9; // LDA #0 (result)
+            rom[currentAddress++] = 0x00;
+            rom[currentAddress++] = 0xA2; // LDX #8 (bit counter)
+            rom[currentAddress++] = 0x08;
+            rom[currentAddress++] = 0x46; // LSR scratchN (multiplier >>= 1, bit 0 -> carry)
+            rom[currentAddress++] = scratchN;
+            rom[currentAddress++] = 0x90; // BCC +3 (skip the add when the bit is clear)
+            rom[currentAddress++] = 0x03;
+            rom[currentAddress++] = 0x18; // CLC
+            rom[currentAddress++] = 0x65; // ADC scratchM (result += multiplicand)
+            rom[currentAddress++] = scratchM;
+            rom[currentAddress++] = 0x06; // ASL scratchM (multiplicand <<= 1)
+            rom[currentAddress++] = scratchM;
+            rom[currentAddress++] = 0xCA; // DEX
+            rom[currentAddress++] = 0xD0; // BNE -12 (loop, back to LSR)
+            rom[currentAddress++] = 0xF4;
+            return 22;
         }
 
         private static int EmitCmp(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, ref bool lastWasTransition, ref bool lastWasBcs)
@@ -477,6 +547,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Store when op.Length == 0 => 0,
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
                 LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                LlirInstructionKind.Multiply => 22,
                 LlirInstructionKind.Cmp => op.Length >= 1 ? 2 : 1,
                 LlirInstructionKind.Assign => op.Length >= 1 ? 4 : 0,
                 LlirInstructionKind.Branch => 2,
