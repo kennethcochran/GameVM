@@ -10,6 +10,11 @@
             "**/Atari2600CodeGenerator.cs",
             "**/MidToLowLevelTransformer.cs"
         ],
-        "coverage-analysis": "perTest"
+        "coverage-analysis": "perTest",
+        "thresholds": {
+            "high": 80,
+            "low": 60,
+            "break": 60
+        }
     }
 }
