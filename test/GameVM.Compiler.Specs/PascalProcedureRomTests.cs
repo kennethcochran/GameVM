@@ -144,18 +144,20 @@ public class PascalProcedureRomTests
     [Test]
     public void ProgramBranchingOnLessThan()
     {
-        // `x < 5` must skip its then-arm with BCC (0x90, carry clear after
-        // CMP): the unsigned less-than branch. Today it emits BNE (0xD0),
+        // `x < 5` must skip its then-arm with BCS (0xB0, carry set after
+        // CMP): after CMP, carry is set exactly when x >= 5, i.e. when
+        // the `<` condition is false — so BCS skips the then-arm exactly
+        // when the condition fails. Today it emits BNE (0xD0),
         // the '=' branch, so `if x < 5` behaves as `if x = 5`. This slice
         // covers '<' only; '>' is a separate slice.
         var lessThan = Compile(LessThanProgram);
         Assert.That(lessThan.Success, Is.True, lessThan.ErrorMessage);
         Assert.That(lessThan.Code, Is.Not.Null);
         Assert.That(lessThan.Code!.Length, Is.EqualTo(4096));
-        // LDA $80; CMP #5; BCC +4; LDA #1; STA $80.
+        // LDA $80; CMP #5; BCS +4; LDA #1; STA $80.
         Assert.That(ContainsSequence(lessThan.Code,
-            0xA5, 0x80, 0xC9, 0x05, 0x90, 0x04, 0xA9, 0x01, 0x85, 0x80), Is.True,
-            "`if x < 5` must guard its then-arm with BCC, not the '=' branch");
+            0xA5, 0x80, 0xC9, 0x05, 0xB0, 0x04, 0xA9, 0x01, 0x85, 0x80), Is.True,
+            "`if x < 5` must guard its then-arm with BCS, not the '=' branch");
     }
 
     [Test]
