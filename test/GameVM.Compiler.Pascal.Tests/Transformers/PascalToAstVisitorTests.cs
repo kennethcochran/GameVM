@@ -263,6 +263,42 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             }
         }
         [Test]
+        public void TrueAndFalseProduceLiteralBoolWithPayloadOneAndZero()
+        {
+            string code = @"
+                program Test;
+                var b: boolean;
+                begin
+                    b := true;
+                    b := false;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            // Boolean literals are values, not names: true is 1, false is 0.
+            // Today the visitor drops them in expression position — VisitFactor
+            // has no bool_ case, so each literal becomes a Nop and no
+            // LiteralBool node exists at all. (VisitBool_ itself interns
+            // "true"/"false" as strings, but nothing reaches it from an
+            // expression.) The fix must both visit bool_ as a factor and
+            // carry 1 for true and 0 for false as the payload.
+            var boolPayloads = new List<uint>();
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.LiteralBool)
+                    boolPayloads.Add(tree[i].Payload);
+            }
+            Assert.That(boolPayloads, Has.Count.EqualTo(2), "exactly two boolean literals expected");
+            Assert.That(boolPayloads[0], Is.EqualTo(1u), "true must carry payload 1");
+            Assert.That(boolPayloads[1], Is.EqualTo(0u), "false must carry payload 0");
+        }
+
+        [Test]
         public void Visitor_EmitsUnaryOpForUnaryMinus()
         {
             string code = @"
