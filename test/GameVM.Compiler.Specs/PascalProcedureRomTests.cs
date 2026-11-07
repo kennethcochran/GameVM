@@ -288,4 +288,54 @@ public class PascalProcedureRomTests
             Is.EqualTo(MlirInstructionKind.Branch),
             "sequential entry flow must branch over the procedure body");
     }
+
+    [Test]
+    public void ProgramBranchingOnLessThan()
+    {
+        // `x < 5` must skip its then-arm with BCS (0xB0, carry set after
+        // CMP): after CMP, carry is set exactly when x >= 5, i.e. when
+        // the `<` condition is false — so BCS skips the then-arm exactly
+        // when the condition fails. Today it emits BNE (0xD0),
+        // the '=' branch, so `if x < 5` behaves as `if x = 5`. This slice
+        // covers '<' only; '>' is a separate slice.
+        var lessThan = Compile(LessThanProgram);
+        Assert.That(lessThan.Success, Is.True, lessThan.ErrorMessage);
+        Assert.That(lessThan.Code, Is.Not.Null);
+        Assert.That(lessThan.Code!.Length, Is.EqualTo(4096));
+        // LDA $80; CMP #5; BCS +4; LDA #1; STA $80.
+        Assert.That(ContainsSequence(lessThan.Code,
+            0xA5, 0x80, 0xC9, 0x05, 0xB0, 0x04, 0xA9, 0x01, 0x85, 0x80), Is.True,
+            "`if x < 5` must guard its then-arm with BCS, not the '=' branch");
+    }
+
+    [Test]
+    public void ProgramBranchingOnEquality_StillSkipsWithNotEqual()
+    {
+        // Guard: `if x = 5` keeps its established lowering, a BNE skip over
+        // the then-arm; adding ordering comparisons must not disturb it.
+        var result = Compile(EqualityProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+        // LDA $80; CMP #5; BNE +4; LDA #1; STA $80.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0xC9, 0x05, 0xD0, 0x04, 0xA9, 0x01, 0x85, 0x80), Is.True,
+            "`if x = 5` must still guard its then-arm with BNE");
+    }
+
+    private const string LessThanProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 3;\n" +
+        "  if x < 5 then x := 1;\n" +
+        "end.";
+
+    private const string EqualityProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 5;\n" +
+        "  if x = 5 then x := 1;\n" +
+        "end.";
 }

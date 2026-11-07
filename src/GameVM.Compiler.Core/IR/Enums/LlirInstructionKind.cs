@@ -68,6 +68,15 @@ public enum LlirInstructionKind : byte
     Assign = 208,
 
     /// <summary>
+    /// Marks the following <see cref="Branch"/> as a carry-set branch (BCS):
+    /// after a Cmp, carry is set exactly when the left operand is greater
+    /// than or equal to the right, so BCS skips exactly when a less-than
+    /// condition is false. Emits no bytes; only meaningful immediately
+    /// before a Branch.
+    /// </summary>
+    Bcs = 209,
+
+    /// <summary>
     /// Multiply: 8-bit unsigned product. Operands are the right operand plus
     /// two scratch zero-page addresses (see MidToLowLevelTransformer):
     /// variable right is (rightAddr, 0, scratchM, scratchN), literal right

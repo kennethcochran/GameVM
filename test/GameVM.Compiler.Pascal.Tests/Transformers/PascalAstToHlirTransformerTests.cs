@@ -235,5 +235,122 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(outputIdx, Is.GreaterThanOrEqualTo(0), "bare writeln; must lower to an HLIR Output node");
             Assert.That(hlir[outputIdx].Payload, Is.EqualTo(1u), "writeln payload is 1");
         }
+
+        [Test]
+        public void LessThanOfLiteralsFoldsToCorrectValue()
+        {
+            // The visitor encodes '<=' as 'L' and '>=' as 'G' (single-char
+            // payloads); 8-bit unsigned semantics throughout. This slice
+            // covers '<' only; '>', '<=', '>=' are separate slices.
+            var cases = new (string Left, char Op, string Right, string Expected)[]
+            {
+                ("1", '<', "2", "1"),
+                ("2", '<', "1", "0"),
+            };
+            Assert.Multiple(() =>
+            {
+                foreach (var (left, op, right, expected) in cases)
+                {
+                    string actual = FoldComparison(left, op, right);
+                    Assert.That(actual, Is.EqualTo(expected),
+                        $"{left} {OpName(op)} {right} must fold to {expected}");
+                }
+            });
+        }
+
+        private static string OpName(char op)
+        {
+            return op switch
+            {
+                '<' => "<",
+                '>' => ">",
+                'L' => "<=",
+                'G' => ">=",
+                _ => op.ToString(),
+            };
+        }
+
+        /// <summary>Builds `x := left op right;` for literal operands, lowers
+        /// it, and returns the folded value as decimal text.</summary>
+        private static string FoldComparison(string left, char op, string right)
+        {
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int leftLit = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(left));
+            int rightLit = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(right));
+            int opNode = builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)op);
+            int comparison = builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, 0, leftLit, rightLit, opNode);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, comparison);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                "a literal ordering comparison must constant-fold to a LiteralInt");
+            return pool.Resolve(hlir[assignChildren[1]].Payload);
+        }
+
+        [Test]
+        public void RelationalComparisonOfVariables_PreservesEqualityOperator()
+        {
+            // Guard: a non-literal equality comparison still lowers to a
+            // BinaryOp carrying '='; adding ordering comparisons must not
+            // disturb equality.
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint yOffset = pool.Intern("y");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int left = builder.Add((byte)PascalAstNodeKind.Identifier, 0, yOffset);
+            int right = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern("0"));
+            int opNode = builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'=');
+            int comparison = builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, 0, left, right, opNode);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, comparison);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+            int yId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, yOffset);
+            int yType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int yDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, yId, yType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, yDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.BinaryOp),
+                "a non-literal comparison must lower to an HLIR BinaryOp, not fold");
+            Assert.That(hlir[assignChildren[1]].Payload, Is.EqualTo((uint)'='),
+                "the BinaryOp must carry the '=' operator");
+        }
     }
 }
