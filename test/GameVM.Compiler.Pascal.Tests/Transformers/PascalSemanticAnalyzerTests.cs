@@ -80,14 +80,20 @@ public class PascalSemanticAnalyzerTests
         // no error is reported at all: the literal is dropped to a Nop by
         // the visitor, so it never reaches the analyzer as a LiteralBool.
         var trueErrors = Analyze("program Test;\nvar x: Integer;\nbegin\n  x := true;\nend.");
-        Assert.That(trueErrors, Has.Length.EqualTo(1));
-        Assert.That(trueErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'true' to Integer variable 'x'"));
-        Assert.That(trueErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueErrors, Has.Length.EqualTo(1));
+            Assert.That(trueErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'true' to Integer variable 'x'"));
+            Assert.That(trueErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
 
         var falseErrors = Analyze("program Test;\nvar x: Integer;\nbegin\n  x := false;\nend.");
-        Assert.That(falseErrors, Has.Length.EqualTo(1));
-        Assert.That(falseErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'false' to Integer variable 'x'"));
-        Assert.That(falseErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseErrors, Has.Length.EqualTo(1));
+            Assert.That(falseErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'false' to Integer variable 'x'"));
+            Assert.That(falseErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
     }
 
     [Test]

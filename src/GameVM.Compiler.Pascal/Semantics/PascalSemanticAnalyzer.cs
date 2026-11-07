@@ -265,19 +265,9 @@ namespace GameVM.Compiler.Pascal.Semantics
                 {
                     Report(targetIdx, $"Undefined variable '{_pool.Resolve(targetOffset)}'", ErrorCodeUndefinedVariable);
                 }
-                else if (_declaredTypes.TryGetValue(targetOffset, out string? targetType) &&
-                         string.Equals(targetType, "integer", StringComparison.OrdinalIgnoreCase))
+                else
                 {
-                    var valueKind = (PascalAstNodeKind)astTree[valueIdx].Kind;
-                    if (valueKind == PascalAstNodeKind.LiteralString || valueKind == PascalAstNodeKind.LiteralBool)
-                    {
-                        string valueText;
-                        if (valueKind == PascalAstNodeKind.LiteralBool)
-                            valueText = astTree[valueIdx].Payload != 0 ? "true" : "false";
-                        else
-                            valueText = _pool.Resolve(astTree[valueIdx].Payload);
-                        Report(valueIdx, $"Type mismatch: cannot assign '{valueText}' to Integer variable '{_pool.Resolve(targetOffset)}'", ErrorCodeTypeMismatch);
-                    }
+                    ReportIntegerLiteralTypeMismatch(astTree, valueIdx, targetOffset);
                 }
             }
 
@@ -288,6 +278,28 @@ namespace GameVM.Compiler.Pascal.Semantics
             if (!targetWasUndefined)
                 ProcessExpression(astTree, targetIdx);
             ProcessExpression(astTree, valueIdx);
+        }
+
+        /// <summary>Reports a type mismatch when an Integer variable is assigned
+        /// a string or boolean literal. A boolean literal's payload is the value
+        /// itself (1/0), so it maps back to 'true'/'false' instead of resolving
+        /// as a string-pool offset.</summary>
+        private void ReportIntegerLiteralTypeMismatch(AstTree astTree, int valueIdx, uint targetOffset)
+        {
+            if (!_declaredTypes.TryGetValue(targetOffset, out string? targetType) ||
+                !string.Equals(targetType, "integer", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var valueKind = (PascalAstNodeKind)astTree[valueIdx].Kind;
+            if (valueKind != PascalAstNodeKind.LiteralString && valueKind != PascalAstNodeKind.LiteralBool)
+                return;
+
+            string valueText;
+            if (valueKind == PascalAstNodeKind.LiteralBool)
+                valueText = astTree[valueIdx].Payload != 0 ? "true" : "false";
+            else
+                valueText = _pool.Resolve(astTree[valueIdx].Payload);
+            Report(valueIdx, $"Type mismatch: cannot assign '{valueText}' to Integer variable '{_pool.Resolve(targetOffset)}'", ErrorCodeTypeMismatch);
         }
 
 

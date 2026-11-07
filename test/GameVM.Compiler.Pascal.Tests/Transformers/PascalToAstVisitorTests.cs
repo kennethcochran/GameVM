@@ -293,9 +293,12 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 if (tree.GetKind(i) == (byte)PascalAstNodeKind.LiteralBool)
                     boolPayloads.Add(tree[i].Payload);
             }
-            Assert.That(boolPayloads, Has.Count.EqualTo(2), "exactly two boolean literals expected");
-            Assert.That(boolPayloads[0], Is.EqualTo(1u), "true must carry payload 1");
-            Assert.That(boolPayloads[1], Is.EqualTo(0u), "false must carry payload 0");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(boolPayloads, Has.Count.EqualTo(2), "exactly two boolean literals expected");
+                Assert.That(boolPayloads[0], Is.EqualTo(1u), "true must carry payload 1");
+                Assert.That(boolPayloads[1], Is.Zero, "false must carry payload 0");
+            }
         }
 
         [Test]

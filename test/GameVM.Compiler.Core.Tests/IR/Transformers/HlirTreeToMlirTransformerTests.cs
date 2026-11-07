@@ -520,20 +520,26 @@ public class HlirTreeToMlirTransformerTests
 
         var falseMlir = ToMlir(falseProgram, out uint falseX, out uint falseOne);
         int falseAssign = FindAssign(falseMlir, falseX, falseOne);
-        Assert.That(falseAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
         int falseBranch = FindBranchBefore(falseMlir, falseAssign);
-        Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
-            "if false must emit a branch skipping the then-arm");
         int falseEndLabel = FindLabelAfter(falseMlir, falseAssign);
-        Assert.That(falseEndLabel, Is.GreaterThanOrEqualTo(0), "the if must end in a label");
-        Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseEndLabel)[0]),
-            "the skip branch must target the label placed after the then-arm");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
+                "if false must emit a branch skipping the then-arm");
+            Assert.That(falseEndLabel, Is.GreaterThanOrEqualTo(0), "the if must end in a label");
+            Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseEndLabel)[0]),
+                "the skip branch must target the label placed after the then-arm");
+        }
 
         var trueMlir = ToMlir(trueProgram, out uint trueX, out uint trueOne);
         int trueAssign = FindAssign(trueMlir, trueX, trueOne);
-        Assert.That(trueAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
-        Assert.That(FindBranchBefore(trueMlir, trueAssign), Is.EqualTo(-1),
-            "if true must fall straight through into the then-arm (no skip branch)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(FindBranchBefore(trueMlir, trueAssign), Is.EqualTo(-1),
+                "if true must fall straight through into the then-arm (no skip branch)");
+        }
     }
 
     [Test]
@@ -551,20 +557,26 @@ public class HlirTreeToMlirTransformerTests
 
         var falseMlir = ToMlir(falseProgram, out uint falseX, out uint falseOne);
         int falseThen = FindAssign(falseMlir, falseX, falseOne);
-        Assert.That(falseThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
         int falseBranch = FindBranchBefore(falseMlir, falseThen);
-        Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
-            "if false must emit a branch to the else-arm before the then-arm");
         int falseElseLabel = FindLabelAfter(falseMlir, falseThen);
-        Assert.That(falseElseLabel, Is.GreaterThanOrEqualTo(0), "the else-arm must be labelled");
-        Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseElseLabel)[0]),
-            "the branch must target the label placed after the then-arm");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
+                "if false must emit a branch to the else-arm before the then-arm");
+            Assert.That(falseElseLabel, Is.GreaterThanOrEqualTo(0), "the else-arm must be labelled");
+            Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseElseLabel)[0]),
+                "the branch must target the label placed after the then-arm");
+        }
 
         var trueMlir = ToMlir(trueProgram, out uint trueX, out uint trueOne);
         int trueThen = FindAssign(trueMlir, trueX, trueOne);
-        Assert.That(trueThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
-        Assert.That(FindBranchBefore(trueMlir, trueThen), Is.EqualTo(-1),
-            "if true must fall straight through into the then-arm (no branch to the else-arm)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(FindBranchBefore(trueMlir, trueThen), Is.EqualTo(-1),
+                "if true must fall straight through into the then-arm (no branch to the else-arm)");
+        }
     }
 
     private static InstList ToMlir(string source, out uint xOffset, out uint oneOffset)
