@@ -73,6 +73,29 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             var (insnAddr, labelOffsets) = ComputeInstructionAddresses(llirSlab, exitLabels);
 
+            // The program must fit the usable ROM space: code plus the 3-byte
+            // halt loop must end at or before the interrupt vectors. Anything
+            // larger used to be silently truncated (the loop below breaks on
+            // the first instruction that no longer fits) or overwrite the
+            // vectors — fail loudly instead of returning a partial ROM.
+            int lastInsn = llirSlab.Count - 1;
+            int codeEnd = insnAddr[lastInsn] + EmitSize(
+                llirSlab.GetKind(lastInsn),
+                llirSlab.GetOperands(lastInsn),
+                (InstructionFlag)llirSlab.GetFlags(lastInsn));
+            if (codeEnd + 3 > VectorBaseOffset)
+                throw new GameVmException(
+                    ErrorCode.RomSizeExceeded,
+                    $"Atari2600CodeGenerator: program needs {codeEnd + 3} bytes (code plus " +
+                    $"halt loop) but only {VectorBaseOffset} bytes fit before the interrupt " +
+                    "vectors at $FFFC. Remove code or split the program.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["EmittedBytes"] = codeEnd + 3,
+                        ["UsableRomBytes"] = VectorBaseOffset,
+                    });
+
             for (int i = 0; i < llirSlab.Count; i++)
             {
                 byte kindByte = llirSlab.GetKind(i);
@@ -443,6 +466,22 @@ namespace GameVM.Compiler.Backend.Atari2600
                     displacement = targetAddr - (insnAddress + 2);
                 else if (operands.Length >= 1)
                     displacement = (sbyte)(byte)operands[0];
+                // The 6502 encodes a branch displacement in one signed byte.
+                // A target outside -128..+127 would wrap (a 130-byte skip
+                // encodes as 0x82 and jumps backward), so reject it loudly
+                // instead of emitting a branch to the wrong address.
+                if (displacement < -128 || displacement > 127)
+                    throw new GameVmException(
+                        ErrorCode.BranchOutOfRange,
+                        $"Atari2600CodeGenerator: conditional branch at ROM offset {insnAddress} " +
+                        $"needs displacement {displacement}, outside the 6502 relative-branch " +
+                        "range (-128..+127). Shorten the skipped code or split the branch.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["BranchAddress"] = insnAddress,
+                            ["Displacement"] = displacement,
+                        });
                 rom[currentAddress++] = (byte)(displacement & 0xFF);
                 written = 2;
             }

@@ -218,8 +218,11 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
-    public void GenerateFromSlab_WithLargeCode_HandlesBoundsCorrectly()
+    public void GenerateFromSlab_WithCodeExceedingRom_ThrowsRomSizeExceeded()
     {
+        // A program whose code plus the halt loop would run past the
+        // interrupt vectors must fail loudly instead of returning a
+        // truncated ROM with its tail silently omitted.
         var builder = new InstListBuilder();
         // Fill almost entire ROM with NOPs
         for (int i = 0; i < 4090; i++)
@@ -227,12 +230,12 @@ public class Atari2600CodeGeneratorTests
             builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0xEA); // LDA #$EA
         }
         var slab = builder.Build();
-        var stringPool = new StringPool();
-        
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
-        Assert.That(rom.Length, Is.EqualTo(4096));
-        Assert.That(rom[4095], Is.EqualTo(0xF0)); // Reset vector high byte
+
+        var ex = Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
+
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.RomSizeExceeded));
+        Assert.That(ex.Message, Does.Contain("4092"));
     }
 
     [Test]
@@ -527,22 +530,28 @@ public class Atari2600CodeGeneratorTests
 
 
     [Test]
-    public void GenerateFromSlab_BoundsOverflow_TruncatesGracefully()
+    public void GenerateFromSlab_WithCodeExactlyFillingRom_GeneratesRomWithVectorsIntact()
     {
+        // 2038 two-byte Loads end the code at offset 4089, and the 3-byte
+        // halt loop fills exactly to 4092, the vectors' base. This is the
+        // largest program that fits and must still generate.
         var builder = new InstListBuilder();
-        for (int i = 0; i < 5000; i++) // More instructions than fit in 4K ROM
+        for (int i = 0; i < 2038; i++)
         {
             builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0xEA);
         }
         var slab = builder.Build();
-        var stringPool = new StringPool();
-        
-        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions());
+
         Assert.That(rom.Length, Is.EqualTo(4096));
-        // Vectors should still be present
-        Assert.That(rom[4094], Is.EqualTo(0x00));
-        Assert.That(rom[4095], Is.EqualTo(0xF0));
+        Assert.That(rom[4089], Is.EqualTo(0x4C), "halt loop JMP must sit at 4089");
+        int loopTarget = rom[4090] | (rom[4091] << 8);
+        Assert.That(loopTarget, Is.EqualTo(0xF000 + 4089), "halt loop points to itself");
+        Assert.That(rom[4092], Is.EqualTo(0x00)); // IRQ low
+        Assert.That(rom[4093], Is.EqualTo(0xF0)); // IRQ high
+        Assert.That(rom[4094], Is.EqualTo(0x00)); // Reset low
+        Assert.That(rom[4095], Is.EqualTo(0xF0)); // Reset high
     }
 
     [Test]
@@ -660,6 +669,34 @@ public class Atari2600CodeGeneratorTests
         Assert.That(rom, Is.Not.Null);
         Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xA9), "Single-operand Load = LDA #imm");
         Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x42), "Immediate value $42");
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithBranchBeyondRange_ThrowsBranchOutOfRange()
+    {
+        // An if-body of five variable multiplications is 130 bytes (five
+        // times 26). The skip branch over it needs displacement +130,
+        // outside the 6502's -128..+127 relative range. The old code
+        // wrapped it to 0x82 and jumped backward into the body, so the
+        // generator must reject it.
+        var pool = new StringPool();
+        uint endOff = pool.Intern("L_end");
+
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x80, 0); // CMP $80 (2 bytes)
+        builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0); // polarity marker (0 bytes)
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff); // skip branch (2 bytes)
+        for (int i = 0; i < 65; i++)
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0xEA); // 130 bytes of body
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, endOff);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
+        var slab = builder.Build();
+
+        var ex = Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions()));
+
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.BranchOutOfRange));
+        Assert.That(ex.Message, Does.Contain("130"));
     }
 
     [Test]
