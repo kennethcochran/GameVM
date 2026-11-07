@@ -34,6 +34,11 @@ namespace GameVM.Compiler.Core.IR
         /// Shares its value with LlirInstructionKind.Transition: the marker passes
         /// through the MLIR stream unchanged in meaning.</summary>
         Transition = 207,
+
+        /// <summary>Branch-if-carry-set marker, immediately before a Branch.
+        /// Shares its value with LlirInstructionKind.Bcs: the marker passes
+        /// through the MLIR stream unchanged in meaning.</summary>
+        Bcs = 209,
         
         /// <summary>Return instruction</summary>
         Return = 16,

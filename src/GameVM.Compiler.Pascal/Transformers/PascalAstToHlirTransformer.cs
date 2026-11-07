@@ -475,6 +475,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                     '-' => leftVal - rightVal,
                     '*' => leftVal * rightVal,
                     '/' => rightVal != 0 ? leftVal / rightVal : 0,
+                    '<' => leftVal < rightVal ? 1u : 0u,
                     _ => 0
                 };
                 // Intern the folded value so the MLIR/backend layers treat it as a

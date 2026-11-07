@@ -475,11 +475,18 @@ public sealed class HlirTreeToMlirTransformer
                         // Polarity: emit Transition (→ BEQ) when the exit branch should
                         // fire on Z=1 (x==0). `<>` → emit Transition (BEQ); `=` → no
                         // Transition (BNE). invert merely selects skip/exit semantics.
+                        // `<` takes its own marker instead: after CMP, carry is set
+                        // exactly when left >= right, i.e. when `<` is false, so a
+                        // Bcs marker makes the following Branch skip exactly when
+                        // the condition fails. A Transition must not accompany it.
+                        bool isLessThan = condNode.Payload == (uint)'<';
                         bool opIsNotEqual = condNode.Payload == (uint)'!';
-                        bool emitTransition = opIsNotEqual == invert;
+                        bool emitTransition = !isLessThan && opIsNotEqual == invert;
 
                         if (emitTransition)
                             builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+                        if (isLessThan)
+                            builder.Add((byte)LlirInstructionKind.Bcs, InstructionFlag.None, 0);
                         builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
                     }
                 }
