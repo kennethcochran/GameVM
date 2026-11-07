@@ -234,8 +234,11 @@ public class Atari2600CodeGeneratorTests
         var ex = Assert.Throws<GameVmException>(() =>
             _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
 
-        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.RomSizeExceeded));
-        Assert.That(ex.Message, Does.Contain("4092"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.RomSizeExceeded));
+            Assert.That(ex.Message, Does.Contain("4092"));
+        }
     }
 
     [Test]
@@ -544,14 +547,17 @@ public class Atari2600CodeGeneratorTests
 
         var rom = _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions());
 
-        Assert.That(rom.Length, Is.EqualTo(4096));
-        Assert.That(rom[4089], Is.EqualTo(0x4C), "halt loop JMP must sit at 4089");
-        int loopTarget = rom[4090] | (rom[4091] << 8);
-        Assert.That(loopTarget, Is.EqualTo(0xF000 + 4089), "halt loop points to itself");
-        Assert.That(rom[4092], Is.EqualTo(0x00)); // IRQ low
-        Assert.That(rom[4093], Is.EqualTo(0xF0)); // IRQ high
-        Assert.That(rom[4094], Is.EqualTo(0x00)); // Reset low
-        Assert.That(rom[4095], Is.EqualTo(0xF0)); // Reset high
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(rom.Length, Is.EqualTo(4096));
+            Assert.That(rom[4089], Is.EqualTo(0x4C), "halt loop JMP must sit at 4089");
+            int loopTarget = rom[4090] | (rom[4091] << 8);
+            Assert.That(loopTarget, Is.EqualTo(0xF000 + 4089), "halt loop points to itself");
+            Assert.That(rom[4092], Is.Zero); // IRQ low
+            Assert.That(rom[4093], Is.EqualTo(0xF0)); // IRQ high
+            Assert.That(rom[4094], Is.Zero); // Reset low
+            Assert.That(rom[4095], Is.EqualTo(0xF0)); // Reset high
+        }
     }
 
     [Test]
@@ -695,8 +701,11 @@ public class Atari2600CodeGeneratorTests
         var ex = Assert.Throws<GameVmException>(() =>
             _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions()));
 
-        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.BranchOutOfRange));
-        Assert.That(ex.Message, Does.Contain("130"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.BranchOutOfRange));
+            Assert.That(ex.Message, Does.Contain("130"));
+        }
     }
 
     [Test]

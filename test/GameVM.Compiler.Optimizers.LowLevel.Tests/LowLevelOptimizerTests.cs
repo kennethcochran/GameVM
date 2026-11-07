@@ -353,13 +353,16 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
 
             var resultList = _optimizer.OptimizeSlab(instList, new StringPool(), OptimizationLevel.Basic);
 
-            Assert.That(resultList.Count, Is.EqualTo(6));
-            Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
-            Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_MULTIPLY));
-            Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_STORE));
-            Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_LOAD));
-            Assert.That(resultList.GetKind(4), Is.EqualTo(LLIR_MULTIPLY));
-            Assert.That(resultList.GetKind(5), Is.EqualTo(LLIR_STORE));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(resultList.Count, Is.EqualTo(6));
+                Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+                Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_MULTIPLY));
+                Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_STORE));
+                Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_LOAD));
+                Assert.That(resultList.GetKind(4), Is.EqualTo(LLIR_MULTIPLY));
+                Assert.That(resultList.GetKind(5), Is.EqualTo(LLIR_STORE));
+            }
         }
 
         [Test]
@@ -378,11 +381,14 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
 
             var resultList = _optimizer.OptimizeSlab(instList, new StringPool(), OptimizationLevel.Basic);
 
-            Assert.That(resultList.Count, Is.EqualTo(4));
-            Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
-            Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
-            Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_LOAD));
-            Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_STORE));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(resultList.Count, Is.EqualTo(4));
+                Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+                Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
+                Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_LOAD));
+                Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_STORE));
+            }
         }
 
         [Test]

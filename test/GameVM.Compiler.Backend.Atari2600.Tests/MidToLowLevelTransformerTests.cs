@@ -819,9 +819,12 @@ public class MidToLowLevelTransformerTests
             var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Multiply, new uint[] { xOffset }));
 
             var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
-            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
-            Assert.That(ex.Message, Does.Contain("Multiply"));
-            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+                Assert.That(ex.Message, Does.Contain("Multiply"));
+                Assert.That(ex.Context["SlabIndex"], Is.Zero);
+            }
         }
 
         [Test]
@@ -853,18 +856,21 @@ public class MidToLowLevelTransformerTests
             // Store x. The second temp is consumed directly from the
             // accumulator by the final Store, so it needs no materializing
             // store of its own.
-            Assert.That(result.Count, Is.EqualTo(6));
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Multiply));
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Multiply));
-            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(6));
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
 
-            uint tmp0Addr = result.GetOperands(2)[0];
-            Assert.That(tmp0Addr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
-            Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmp0Addr),
-                "the outer multiply must load the inner product from the address the materializing store wrote");
+                uint tmp0Addr = result.GetOperands(2)[0];
+                Assert.That(tmp0Addr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmp0Addr),
+                    "the outer multiply must load the inner product from the address the materializing store wrote");
+            }
         }
 
         #endregion

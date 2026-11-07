@@ -315,25 +315,28 @@ public class HlirTreeToMlirTransformerTests
 
         const byte multiplyKind = 210; // LlirInstructionKind.Multiply, added by this slice (Bcs took 209 on main via PR #18)
         uint tmpOffset = _pool.Intern("__tmp_0");
-        Assert.That(result.Count, Is.EqualTo(3),
-            "x := y * z should lower to Multiply; Assign(tmp,0); Assign(x,tmp)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y * z should lower to Multiply; Assign(tmp,0); Assign(x,tmp)");
 
-        Assert.That(result.GetKind(0), Is.EqualTo(multiplyKind),
-            "'*' must map to Multiply (byte 210), not Add — a * b is a product, not a sum");
-        var mulOps = result.GetOperands(0);
-        Assert.That(mulOps.Length, Is.EqualTo(2));
-        Assert.That(mulOps[0], Is.EqualTo(yOffset), "Multiply left operand = y");
-        Assert.That(mulOps[1], Is.EqualTo(zOffset), "Multiply right operand = z");
+            Assert.That(result.GetKind(0), Is.EqualTo(multiplyKind),
+                "'*' must map to Multiply (byte 210), not Add — a * b is a product, not a sum");
+            var mulOps = result.GetOperands(0);
+            Assert.That(mulOps.Length, Is.EqualTo(2));
+            Assert.That(mulOps[0], Is.EqualTo(yOffset), "Multiply left operand = y");
+            Assert.That(mulOps[1], Is.EqualTo(zOffset), "Multiply right operand = z");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var tmpOps = result.GetOperands(1);
-        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
-        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
-        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     [Test]
@@ -356,25 +359,28 @@ public class HlirTreeToMlirTransformerTests
         var result = _transformer.Transform(tree);
 
         uint tmpOffset = _pool.Intern("__tmp_0");
-        Assert.That(result.Count, Is.EqualTo(3),
-            "x := y + z should lower to Add; Assign(tmp,0); Assign(x,tmp)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y + z should lower to Add; Assign(tmp,0); Assign(x,tmp)");
 
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Add),
-            "'+' must keep mapping to Add");
-        var addOps = result.GetOperands(0);
-        Assert.That(addOps.Length, Is.EqualTo(2));
-        Assert.That(addOps[0], Is.EqualTo(yOffset), "Add left operand = y");
-        Assert.That(addOps[1], Is.EqualTo(zOffset), "Add right operand = z");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Add),
+                "'+' must keep mapping to Add");
+            var addOps = result.GetOperands(0);
+            Assert.That(addOps.Length, Is.EqualTo(2));
+            Assert.That(addOps[0], Is.EqualTo(yOffset), "Add left operand = y");
+            Assert.That(addOps[1], Is.EqualTo(zOffset), "Add right operand = z");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var tmpOps = result.GetOperands(1);
-        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
-        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
-        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     [Test]
