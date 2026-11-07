@@ -7,9 +7,10 @@ name: Mutation Testing
 # per-PR gate lives in mutation-pr.yml.
 #
 # Configured areas (each with a stryker-config.json in its test project):
-# Atari 2600 backend, Pascal frontend, C# frontend, compiler core,
-# application layer, compile CLI, interaction, both optimizers, DevTools.
-# Add a config to a test project to include its area here.
+# Atari 2600 backend, Pascal frontend, compiler core, application layer,
+# compile CLI, interaction, both optimizers, DevTools. Add a config to a
+# test project to include its area here. The C# frontend is excluded: it
+# is broken and abandoned, and is not in the solution file.
 on:
   push:
     branches: [main]
@@ -42,8 +43,6 @@ jobs:
             dir: test/GameVM.Compiler.Backend.Atari2600.Tests
           - id: pascal
             dir: test/GameVM.Compiler.Pascal.Tests
-          - id: csharp
-            dir: test/GameVM.Compiler.CSharp.Tests
           - id: core
             dir: test/GameVM.Compiler.Core.Tests
           - id: application
