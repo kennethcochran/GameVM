@@ -366,6 +366,31 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
         }
 
         [Test]
+        public void OptimizeSlab_LoadMultiplyLoadSameAddress_KeepsFirstLoad()
+        {
+            // Load; Multiply; Load with the same address in both loads
+            // and no Store between the Multiply and the second Load: the
+            // first Load feeds the Multiply through the accumulator, so
+            // it must survive Basic optimization even though a second
+            // Load of the same address follows it.
+            var instList = CreateLlirInstList(
+                new uint[] { LLIR_LOAD, 0x80u, 0u },                          // Load x
+                new uint[] { LLIR_MULTIPLY, 0x81u, 0u, 0x85u, 0x86u },       // Multiply y (scratch $85/$86)
+                new uint[] { LLIR_LOAD, 0x80u, 0u }                           // Load x again
+            );
+
+            var resultList = _optimizer.OptimizeSlab(instList, new StringPool(), OptimizationLevel.Basic);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(resultList.Count, Is.EqualTo(3));
+                Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+                Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_MULTIPLY));
+                Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_LOAD));
+            }
+        }
+
+        [Test]
         public void OptimizeSlab_WithConsecutiveCopies_KeepsLoadConsumedByStore()
         {
             // Two consecutive copies share their source: a gets x and b gets

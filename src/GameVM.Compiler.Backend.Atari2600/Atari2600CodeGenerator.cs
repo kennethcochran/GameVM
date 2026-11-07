@@ -289,8 +289,24 @@ namespace GameVM.Compiler.Backend.Atari2600
             // Operand layout: 4 operands = variable right (rightAddr, 0,
             // scratchM, scratchN); 3 operands = literal right (rightVal,
             // scratchM, scratchN). Both forms emit the same 22 bytes.
+            // A Multiply with fewer than three operands is malformed: the
+            // old code returned 0 here and the emit loop broke, returning
+            // a ROM that omitted this instruction and every following
+            // one. Fail loudly instead.
+            if (operands.Length < 3)
+                throw new GameVmException(
+                    ErrorCode.UnhandledLlirInstruction,
+                    $"Atari2600CodeGenerator cannot emit LLIR Multiply with {operands.Length} operand(s): " +
+                    "a well-formed Multiply carries three operands (literal right) or four (variable right).",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["LlirKind"] = nameof(LlirInstructionKind.Multiply),
+                        ["OperandCount"] = operands.Length,
+                    });
+
             bool variableRight = operands.Length >= 4;
-            if ((!variableRight && operands.Length < 3) || currentAddress + 22 > RomSize)
+            if (currentAddress + 22 > RomSize)
                 return 0;
 
             byte scratchM;

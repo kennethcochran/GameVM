@@ -242,6 +242,73 @@ public class Atari2600CodeGeneratorTests
     }
 
     [Test]
+    public void GenerateFromSlab_MultiplyWithFewerThanThreeOperands_ThrowsGameVmException()
+    {
+        // A direct LLIR producer can hand the code generator a Multiply
+        // with one or two operands (a well-formed LLIR Multiply carries
+        // three for a literal right operand, four for a variable one).
+        // The old code returned 0 bytes for it and the emit loop broke,
+        // returning a ROM that omitted that instruction and every
+        // following one. Fail loudly instead.
+        foreach (uint[] operands in new[] { new uint[] { 0x81 }, new uint[] { 0x81, 0x00 } })
+        {
+            var builder = new InstListBuilder();
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x06); // LDA #6
+            builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, operands);
+            builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x80); // STA $80
+            var slab = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() =>
+                _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledLlirInstruction));
+                Assert.That(ex.Message, Does.Contain("Multiply"));
+            }
+        }
+    }
+
+    [Test]
+    public void GenerateFromSlab_MultiplyEmitsShiftAndAddRoutine()
+    {
+        // Literal right (3 operands) and variable right (4 operands)
+        // both emit the same 22-byte shift-and-add routine; only the
+        // multiplier load differs (LDA #imm vs LDA zp).
+        var literalBuilder = new InstListBuilder();
+        literalBuilder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x03); // LDA #3
+        literalBuilder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, 0x07, 0x85, 0x86);
+        literalBuilder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x80); // STA $80
+        var literalRom = _codeGenerator.GenerateFromSlab(literalBuilder.Build(), new StringPool(), new CodeGenOptions());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(literalRom[PrologueSize + 0], Is.EqualTo(0xA9), "LDA #3");
+            Assert.That(literalRom[PrologueSize + 2], Is.EqualTo(0x85), "STA scratchM");
+            Assert.That(literalRom[PrologueSize + 3], Is.EqualTo(0x85), "scratchM $85");
+            Assert.That(literalRom[PrologueSize + 4], Is.EqualTo(0xA9), "LDA #rightVal");
+            Assert.That(literalRom[PrologueSize + 5], Is.EqualTo(0x07), "rightVal 7");
+            Assert.That(literalRom[PrologueSize + 24], Is.EqualTo(0x85), "STA $80 follows the 22-byte routine");
+            Assert.That(literalRom[PrologueSize + 25], Is.EqualTo(0x80));
+        }
+
+        var variableBuilder = new InstListBuilder();
+        variableBuilder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x03); // LDA #3
+        variableBuilder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, 0x81, 0x00, 0x85, 0x86);
+        variableBuilder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0x80); // STA $80
+        var variableRom = _codeGenerator.GenerateFromSlab(variableBuilder.Build(), new StringPool(), new CodeGenOptions());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(variableRom[PrologueSize + 2], Is.EqualTo(0x85), "STA scratchM");
+            Assert.That(variableRom[PrologueSize + 3], Is.EqualTo(0x85), "scratchM $85");
+            Assert.That(variableRom[PrologueSize + 4], Is.EqualTo(0xA5), "LDA rightAddr");
+            Assert.That(variableRom[PrologueSize + 5], Is.EqualTo(0x81), "rightAddr $81");
+            Assert.That(variableRom[PrologueSize + 24], Is.EqualTo(0x85), "STA $80 follows the 22-byte routine");
+            Assert.That(variableRom[PrologueSize + 25], Is.EqualTo(0x80));
+        }
+    }
+
+    [Test]
     public void GenerateFromSlab_WithCallInstruction_GeneratesJSR()
     {
         var builder = new InstListBuilder();

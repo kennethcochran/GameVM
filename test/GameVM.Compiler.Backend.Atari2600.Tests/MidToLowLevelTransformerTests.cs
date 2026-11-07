@@ -785,10 +785,13 @@ public class MidToLowLevelTransformerTests
         #region Fail-Loud Tests (Slice 1, L3)
 
         [Test]
-        public void Transform_129thVariable_ThrowsZeroPageExhausted()
+        public void Transform_127thVariable_ThrowsZeroPageExhausted()
         {
-            // The 2600 has 128 bytes of RAM ($80-$FF); the 129th variable must
-            // fail loudly instead of wrapping into TIA register space.
+            // The 2600 has 128 bytes of RAM ($80-$FF) shared between
+            // variables and the 6502 stack; $FE-$FF are reserved for the
+            // stack (the outermost JSR return address lives there), so
+            // $80-$FD hold variables and the 127th variable must fail
+            // loudly instead of wrapping into stack space.
             var builder = new InstListBuilder();
             uint value = _stringPool.Intern("1");
             for (int v = 0; v < 129; v++)
@@ -800,7 +803,7 @@ public class MidToLowLevelTransformerTests
 
             var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
             Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.ZeroPageExhausted));
-            Assert.That(ex.Message, Does.Contain("var128"));
+            Assert.That(ex.Message, Does.Contain("var126"));
         }
 
         #endregion
@@ -870,6 +873,106 @@ public class MidToLowLevelTransformerTests
                 Assert.That(tmp0Addr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
                 Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmp0Addr),
                     "the outer multiply must load the inner product from the address the materializing store wrote");
+            }
+        }
+
+        [Test]
+        public void Transform_MultiplyScratchDoesNotCollideWithUserVariableNamedMulM()
+        {
+            // A user variable literally named "__mul_m" must not share its
+            // address with the multiply scratch: the shift-and-add routine
+            // writes the left operand into the scratch, so sharing it
+            // would overwrite the user's variable and square the product
+            // (the right-operand load would read the left operand back).
+            uint mulMOffset = _stringPool.Intern("__mul_m");
+            uint aOffset = _stringPool.Intern("a");
+            uint xOffset = _stringPool.Intern("x");
+            uint tmp0Offset = _stringPool.Intern("__tmp_0");
+            uint sevenOffset = _stringPool.Intern("7");
+            uint threeOffset = _stringPool.Intern("3");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { mulMOffset, sevenOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { aOffset, threeOffset }),
+                ((byte)MlirInstructionKind.Multiply, new uint[] { aOffset, mulMOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, tmp0Offset }));
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            // Assign __mul_m, Assign a, Load a, Multiply, Store x.
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(5));
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+                uint userMulMAddr = result.GetOperands(0)[0];
+                ReadOnlySpan<uint> multiplyOps = result.GetOperands(3);
+                Assert.That(multiplyOps.Length, Is.EqualTo(4));
+                Assert.That(multiplyOps[0], Is.EqualTo(userMulMAddr),
+                    "the multiply must read the user's __mul_m variable");
+                Assert.That(multiplyOps[2], Is.Not.EqualTo(userMulMAddr),
+                    "scratch __mul_m must not share the user's __mul_m address");
+                Assert.That(multiplyOps[3], Is.Not.EqualTo(userMulMAddr),
+                    "scratch __mul_n must not share the user's __mul_m address");
+            }
+        }
+
+        [Test]
+        public void Transform_MultiplyAfter125Variables_ThrowsZeroPageExhausted()
+        {
+            // 125 variables fill $80-$FC; the multiply scratch would need
+            // $FD and $FE, but $FE-$FF are reserved for the 6502 stack
+            // (the outermost JSR return address lives there — zero page
+            // and stack share the 2600's 128 bytes of RAM). Fail loudly
+            // instead of letting the shift-and-add routine overwrite the
+            // return address.
+            var builder = new InstListBuilder();
+            uint value = _stringPool.Intern("1");
+            for (int v = 0; v < 125; v++)
+            {
+                uint target = _stringPool.Intern("var" + v);
+                builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, target, value);
+            }
+            uint aOffset = _stringPool.Intern("var0");
+            uint bOffset = _stringPool.Intern("var1");
+            builder.Add((byte)MlirInstructionKind.Multiply, InstructionFlag.None, 0, aOffset, bOffset);
+            var mlir = builder.Build();
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.ZeroPageExhausted));
+                Assert.That(ex.Message, Does.Contain("__mul_n"),
+                    "125 variables leave $FD for __mul_m; __mul_n is the allocation that hits the reserved $FE");
+            }
+        }
+
+        [Test]
+        public void Transform_MultiplyAfter124Variables_SucceedsWithScratchBelowStack()
+        {
+            // Boundary: 124 variables fill $80-$FB, so the scratch lands
+            // at $FC/$FD — the highest addresses below the reserved
+            // $FE-$FF stack bytes. This must still compile.
+            var builder = new InstListBuilder();
+            uint value = _stringPool.Intern("1");
+            for (int v = 0; v < 124; v++)
+            {
+                uint target = _stringPool.Intern("var" + v);
+                builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, target, value);
+            }
+            uint aOffset = _stringPool.Intern("var0");
+            uint bOffset = _stringPool.Intern("var1");
+            builder.Add((byte)MlirInstructionKind.Multiply, InstructionFlag.None, 0, aOffset, bOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            // 124 Assigns, then Load var0, then Multiply.
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(126));
+                Assert.That(result.GetKind(125), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+                ReadOnlySpan<uint> multiplyOps = result.GetOperands(125);
+                Assert.That(multiplyOps[2], Is.EqualTo(0xFCu), "scratch __mul_m must land at $FC");
+                Assert.That(multiplyOps[3], Is.EqualTo(0xFDu), "scratch __mul_n must land at $FD");
             }
         }
 

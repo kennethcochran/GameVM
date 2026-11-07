@@ -11,16 +11,25 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     /// <summary>
     /// Transforms MLIR (Mid-Level IR) to LLIR (Low-Level IR) for the Atari 2600 target.
-    /// Resolves StringPool offsets to zero-page addresses (deterministic $80+ allocation,
-    /// TIA register mapping), and lowers semantic arithmetic/compare/branch/call into
-    /// LLIR Load/Store/Add/Sub/Cmp/Branch/Jump instructions.
+    /// Resolves StringPool offsets to zero-page addresses (deterministic $80-$FD allocation
+    /// with $FE-$FF reserved for the 6502 stack, TIA register mapping), and lowers semantic
+    /// arithmetic/compare/branch/call into LLIR Load/Store/Add/Sub/Cmp/Branch/Jump instructions.
     /// </summary>
     public class MidToLowLevelTransformer : IIRSlabTransformer
     {
         private readonly Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
 
-        // Deterministic allocation of user variables to zero-page addresses ($80-$FF)
+        // Deterministic allocation of user variables to zero-page addresses
+        // ($80-$FD); $FE-$FF are reserved for the 6502 stack — the 2600's
+        // 128 bytes of RAM are shared between zero page and stack, and the
+        // outermost JSR return address is pushed at $01FF/$01FE.
         private readonly Dictionary<string, ushort> _userAddresses = new(StringComparer.OrdinalIgnoreCase);
+
+        // Compiler-internal scratch (multiply routine) lives in its own
+        // name map, so a user variable named "__mul_m" gets a different
+        // address than the scratch. Both maps share the address cursor
+        // below, so no two names ever share an address.
+        private readonly Dictionary<string, ushort> _scratchAddresses = new(StringComparer.OrdinalIgnoreCase);
         private ushort _nextUserAddress = 0x80;
 
         public MidToLowLevelTransformer()
@@ -263,19 +272,20 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// Multiply to an inline shift-and-add routine that needs two scratch
         /// zero-page bytes — a copy of the multiplicand, shifted left each
         /// iteration, and a copy of the multiplier, shifted right. Scratch is
-        /// allocated through the variable map under compiler-internal names,
-        /// so it never collides with user variables and is shared across
-        /// multiplies in one program. LLIR Multiply operands: variable right
-        /// is (rightAddr, 0, scratchM, scratchN); literal right is
-        /// (rightVal, scratchM, scratchN). The code generator tells them
+        /// allocated through a separate internal-name map (never the user
+        /// variable map), so a user variable named "__mul_m" gets its own
+        /// address and is never overwritten by the routine; the scratch is
+        /// shared across multiplies in one program. LLIR Multiply operands:
+        /// variable right is (rightAddr, 0, scratchM, scratchN); literal right
+        /// is (rightVal, scratchM, scratchN). The code generator tells them
         /// apart by operand count (4 vs 3).
         /// </summary>
         private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
         {
             EmitLoadLeft(builder, stringPool, operands);
 
-            ushort scratchM = GetAddressForVariable("__mul_m");
-            ushort scratchN = GetAddressForVariable("__mul_n");
+            ushort scratchM = GetAddressForScratch("__mul_m");
+            ushort scratchN = GetAddressForScratch("__mul_n");
 
             builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0,
                 RightOperands(stringPool, operands, scratchM, scratchN));
@@ -499,21 +509,55 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
-                if (_nextUserAddress > 0xFF)
-                    throw new GameVmException(
-                        ErrorCode.ZeroPageExhausted,
-                        $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
-                        "The Atari 2600 has 128 bytes of RAM ($80-$FF); reduce the number of live variables.",
-                        ErrorSeverity.Error,
-                        new Dictionary<string, object?>
-                        {
-                            ["VariableName"] = name,
-                            ["AllocatedCount"] = _userAddresses.Count,
-                        });
-                addr = _nextUserAddress;
+                addr = AllocateZeroPageAddress(name);
                 _userAddresses[name] = addr;
-                _nextUserAddress++;
             }
+            return addr;
+        }
+
+        /// <summary>
+        /// Allocates a zero-page address for a compiler-internal name
+        /// (multiply scratch). Internal names live in their own map, never
+        /// in the user-variable map, so a user variable with the same name
+        /// gets a different address. The address cursor is shared with
+        /// user variables.
+        /// </summary>
+        private ushort GetAddressForScratch(string name)
+        {
+            if (!_scratchAddresses.TryGetValue(name, out ushort addr))
+            {
+                addr = AllocateZeroPageAddress(name);
+                _scratchAddresses[name] = addr;
+            }
+            return addr;
+        }
+
+        /// <summary>
+        /// Hands out the next zero-page address ($80-$FD). $FE-$FF are
+        /// reserved for the 6502 stack: the reset prologue sets SP to $FF,
+        /// so the outermost JSR pushes its return address at $01FF/$01FE —
+        /// the same physical RAM as $FF/$FE, since zero page and stack
+        /// share the 2600's 128 bytes. Allocating there would let a
+        /// variable (or the multiply scratch) be overwritten by the return
+        /// address, or overwrite it.
+        /// </summary>
+        private ushort AllocateZeroPageAddress(string name)
+        {
+            if (_nextUserAddress > 0xFD)
+                throw new GameVmException(
+                    ErrorCode.ZeroPageExhausted,
+                    $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
+                    "The Atari 2600 has 128 bytes of RAM ($80-$FF) shared between variables and the " +
+                    "6502 stack; $FE-$FF are reserved for the stack (the outermost JSR return address), " +
+                    "so $80-$FD are available for variables. Reduce the number of live variables.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["VariableName"] = name,
+                        ["AllocatedCount"] = _userAddresses.Count + _scratchAddresses.Count,
+                    });
+            ushort addr = _nextUserAddress;
+            _nextUserAddress++;
             return addr;
         }
 
