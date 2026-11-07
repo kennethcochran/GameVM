@@ -67,6 +67,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                         // emitting it here as well would duplicate it.
                         break;
 
+                    case MlirInstructionKind.Bcs:
+                        // Carry-set marker: consumed, not copied.
+                        // ProcessBranch (for the Branch that follows) reads
+                        // this marker from the input slab and re-emits it
+                        // ahead of the LLIR Branch, so emitting it here as
+                        // well would duplicate it.
+                        break;
+
                     case MlirInstructionKind.Call:
                         ProcessCall(inputSlab, i, builder);
                         break;
@@ -309,6 +317,7 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             bool isConditional = false;
             bool invert = false;
+            bool carrySet = false;
 
             if (instIdx > 0)
             {
@@ -316,6 +325,13 @@ namespace GameVM.Compiler.Backend.Atari2600
                 if (prevKind == (byte)LlirInstructionKind.Transition)
                 {
                     invert = true;
+
+                    if (instIdx > 1 && inputSlab.GetKind(instIdx - 2) == (byte)LlirInstructionKind.Cmp)
+                        isConditional = true;
+                }
+                else if (prevKind == (byte)LlirInstructionKind.Bcs)
+                {
+                    carrySet = true;
 
                     if (instIdx > 1 && inputSlab.GetKind(instIdx - 2) == (byte)LlirInstructionKind.Cmp)
                         isConditional = true;
@@ -336,6 +352,10 @@ namespace GameVM.Compiler.Backend.Atari2600
                 // lastWasTransition=true and selects BEQ (not BNE).
                 if (invert)
                     builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+                // Emit Bcs BEFORE the Branch so the codegen sees the
+                // pending carry-set marker and selects BCS (not BNE).
+                if (carrySet)
+                    builder.Add((byte)LlirInstructionKind.Bcs, InstructionFlag.None, 0);
                 builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, targetLabel);
             }
             else

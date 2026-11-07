@@ -63,6 +63,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             Array.Copy(ResetPrologue, rom, ResetPrologue.Length);
             int currentAddress = ResetPrologue.Length; // Offset within ROM (0 = $F000)
             bool lastWasTransition = false; // pending polarity inversion
+            bool lastWasBcs = false; // pending carry-set branch marker
             // Positions of Return placeholders to patch to JMP <halt-loop> once
             // the self-loop address is known.
             var returnPatchPositions = new List<int>();
@@ -83,12 +84,13 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Store => EmitStore(rom, ref currentAddress, operands),
                     LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
                     LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
-                    LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition),
+                    LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition, ref lastWasBcs),
                     LlirInstructionKind.Assign => EmitAssign(rom, ref currentAddress, operands),
                     LlirInstructionKind.Label => EmitLabel(),
                     LlirInstructionKind.Jump => EmitJump(rom, ref currentAddress, operands, labelOffsets),
-                    LlirInstructionKind.Branch => EmitBranch(rom, ref currentAddress, operands, labelOffsets, insnAddr[i], ref lastWasTransition),
+                    LlirInstructionKind.Branch => EmitBranch(rom, ref currentAddress, operands, labelOffsets, insnAddr[i], ref lastWasTransition, ref lastWasBcs),
                     LlirInstructionKind.Transition => EmitTransition(ref lastWasTransition),
+                    LlirInstructionKind.Bcs => EmitBcs(ref lastWasBcs),
                     LlirInstructionKind.Return => EmitReturn(rom, ref currentAddress, returnPatchPositions, (InstructionFlag)llirSlab.GetFlags(i)),
                     LlirInstructionKind.Call => EmitCall(rom, ref currentAddress, operands, labelOffsets),
                     LlirInstructionKind.Syscall => EmitCall(rom, ref currentAddress, operands, labelOffsets),
@@ -244,7 +246,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             return 0;
         }
 
-        private static int EmitCmp(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, ref bool lastWasTransition)
+        private static int EmitCmp(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, ref bool lastWasTransition, ref bool lastWasBcs)
         {
             // Two operands [addr, 0]: variable — CMP zp (compare VALUE at address)
             // One operand [val]: immediate — CMP #imm (compare literal value)
@@ -272,6 +274,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 written = 0;
             }
             lastWasTransition = false;
+            lastWasBcs = false;
             return written;
         }
 
@@ -345,16 +348,25 @@ namespace GameVM.Compiler.Backend.Atari2600
         }
 
         private static int EmitBranch(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
-            Dictionary<uint, int> labelOffsets, int insnAddress, ref bool lastWasTransition)
+            Dictionary<uint, int> labelOffsets, int insnAddress, ref bool lastWasTransition, ref bool lastWasBcs)
         {
             // Conditional branch. The opcode is selected from the preceding
-            // Cmp + Transition marker. Branch-to-target-when-true.
+            // Cmp + Transition/Bcs marker. Branch-to-target-when-true.
             int written = 0;
             if (currentAddress + 2 <= RomSize)
             {
                 // Default: BNE (branch when not equal, flags from last Cmp).
-                // BEQ when lastWasTransition, otherwise BNE.
-                rom[currentAddress++] = lastWasTransition ? (byte)0xF0 : (byte)0xD0;
+                // BCS when lastWasBcs, BEQ when lastWasTransition, otherwise BNE.
+                // Bcs takes precedence: the two markers are alternatives and
+                // never accompany each other from the HLIR lowering.
+                byte opcode;
+                if (lastWasBcs)
+                    opcode = 0xB0; // BCS
+                else if (lastWasTransition)
+                    opcode = 0xF0; // BEQ
+                else
+                    opcode = 0xD0; // BNE
+                rom[currentAddress++] = opcode;
                 // Relative offset: resolved label byte-address, else operand[0].
                 int displacement = 0;
                 if (operands.Length >= 1 && labelOffsets.TryGetValue(operands[0], out int targetAddr))
@@ -365,6 +377,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 written = 2;
             }
             lastWasTransition = false;
+            lastWasBcs = false;
             return written;
         }
 
@@ -372,6 +385,13 @@ namespace GameVM.Compiler.Backend.Atari2600
         {
             // Marks polarity inversion for the next branch. No bytes.
             lastWasTransition = true;
+            return -1;
+        }
+
+        private static int EmitBcs(ref bool lastWasBcs)
+        {
+            // Marks the next branch as carry-set (BCS). No bytes.
+            lastWasBcs = true;
             return -1;
         }
 
@@ -466,6 +486,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Return => flags.HasFlag(InstructionFlag.CalleeReturn) ? 1 : 3,
                 LlirInstructionKind.Call or LlirInstructionKind.Syscall => 3,
                 LlirInstructionKind.Transition => 0,
+                LlirInstructionKind.Bcs => 0,
                 _ => throw new GameVmException(
                         ErrorCode.UnhandledLlirInstruction,
                         $"Atari2600CodeGenerator cannot size LLIR instruction '{LlirKindName(k)}' " +
