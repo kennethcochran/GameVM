@@ -1,0 +1,50 @@
+name: Mutation Testing
+
+# Stryker.NET mutation testing for the Atari 2600 backend (the only area
+# with a stryker-config.json). Mutation testing catches shallow tests that
+# line coverage misses: a mutant survives when no test pins the behavior it
+# changes. This runs as its own workflow, not a step in build.yml, because
+# a mutation run is far slower than the test suite and has its own cadence.
+#
+# First version is informational: no break threshold yet, so the run reports
+# the score without failing the build. Once a baseline score is measured in
+# CI, a break threshold goes into stryker-config.json to gate regressions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly full run (Monday 07:00 UTC) so the score is tracked even when
+    # main is quiet.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+jobs:
+  mutation:
+    name: Mutation (Atari 2600 backend)
+    runs-on: ubuntu-latest
+    # Bound a potential test-runner hang: Stryker runs tests via vstest,
+    # which has deadlocked on the dev VM. GitHub runners may differ; the
+    # timeout keeps a hang from consuming the whole CI budget.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore tools
+        run: dotnet tool restore
+      - name: Run Stryker
+        working-directory: test/GameVM.Compiler.Backend.Atari2600.Tests
+        run: dotnet tool run dotnet-stryker
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: test/GameVM.Compiler.Backend.Atari2600.Tests/StrykerOutput/**/reports/mutation-report.html
+          if-no-files-found: warn
