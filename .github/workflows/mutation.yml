@@ -1,18 +1,16 @@
 name: Mutation Testing
 
-# Stryker.NET mutation testing for the Atari 2600 backend (the only area
-# with a stryker-config.json). Mutation testing catches shallow tests that
-# line coverage misses: a mutant survives when no test pins the behavior it
-# changes. This runs as its own workflow, not a step in build.yml, because
-# a mutation run is far slower than the test suite and has its own cadence.
+# Full-codebase Stryker.NET mutation testing. Runs the complete mutation
+# suite for every configured area and publishes the HTML reports as
+# artifacts. Informational only: it never fails the build on the score
+# (--break-at 0), so the score is a health metric, not a gate. The
+# per-PR gate lives in mutation-pr.yml.
 #
-# The mutation score is gated by the break threshold in stryker-config.json
-# (baseline measured 2026-11-07: 65.90%; break set to 60). Ratchet the
-# threshold up as test assertions improve.
+# Configured areas (each with a stryker-config.json in its test project):
+# Atari 2600 backend, Pascal frontend. Add a config to a test project to
+# include its area here.
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   schedule:
     # Weekly full run (Monday 07:00 UTC) so the score is tracked even when
@@ -22,7 +20,7 @@ on:
 
 jobs:
   mutation:
-    name: Mutation (Atari 2600 backend)
+    name: Mutation (${{ matrix.id }})
     runs-on: ubuntu-latest
     # Least privilege for this job: read the repo, upload the report.
     # The job runs test code (Stryker executes the suite against mutants),
@@ -35,6 +33,14 @@ jobs:
     # which has deadlocked on the dev VM. GitHub runners may differ; the
     # timeout keeps a hang from consuming the whole CI budget.
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: atari2600
+            dir: test/GameVM.Compiler.Backend.Atari2600.Tests
+          - id: pascal
+            dir: test/GameVM.Compiler.Pascal.Tests
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,12 +53,14 @@ jobs:
       - name: Restore tools
         run: dotnet tool restore
       - name: Run Stryker
-        working-directory: test/GameVM.Compiler.Backend.Atari2600.Tests
-        run: dotnet tool run dotnet-stryker
+        working-directory: ${{ matrix.dir }}
+        # Informational only: --break-at 0 disables the score gate so the
+        # run always passes and just publishes the report.
+        run: dotnet tool run dotnet-stryker --break-at 0
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-report
-          path: test/GameVM.Compiler.Backend.Atari2600.Tests/StrykerOutput/**/reports/mutation-report.html
+          name: mutation-report-${{ matrix.id }}
+          path: ${{ matrix.dir }}/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
