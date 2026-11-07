@@ -313,13 +313,13 @@ public class HlirTreeToMlirTransformerTests
 
         var result = _transformer.Transform(tree);
 
-        const byte multiplyKind = 209; // LlirInstructionKind.Multiply, added by this slice
+        const byte multiplyKind = 210; // LlirInstructionKind.Multiply, added by this slice (Bcs took 209 on main via PR #18)
         uint tmpOffset = _pool.Intern("__tmp_0");
         Assert.That(result.Count, Is.EqualTo(3),
             "x := y * z should lower to Multiply; Assign(tmp,0); Assign(x,tmp)");
 
         Assert.That(result.GetKind(0), Is.EqualTo(multiplyKind),
-            "'*' must map to Multiply (byte 209), not Add — a * b is a product, not a sum");
+            "'*' must map to Multiply (byte 210), not Add — a * b is a product, not a sum");
         var mulOps = result.GetOperands(0);
         Assert.That(mulOps.Length, Is.EqualTo(2));
         Assert.That(mulOps[0], Is.EqualTo(yOffset), "Multiply left operand = y");
