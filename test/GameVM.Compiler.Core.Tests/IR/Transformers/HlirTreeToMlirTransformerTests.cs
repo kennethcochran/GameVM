@@ -5,6 +5,7 @@ using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.Transformers;
+using GameVM.Compiler.Pascal;
 
 namespace GameVM.Compiler.Core.Tests.IR.Transformers;
 
@@ -498,6 +499,120 @@ public class HlirTreeToMlirTransformerTests
             "The skip Branch must target the label placed after the function body");
         Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Return));
         Assert.That((InstructionFlag)result.GetFlags(5), Is.EqualTo(InstructionFlag.None));
+    }
+
+    [Test]
+    public void LiteralBoolConditionBranchesOnlyWhenTrue()
+    {
+        // A boolean-literal condition must branch (skip the then-arm) only
+        // when it is false. The HLIR is built by the real frontend, so the
+        // condition is whatever the frontend produces. Today the literal is
+        // dropped to a Nop by the visitor, and the AST-to-HLIR transformer
+        // has no lowering for a Nop condition (BuildExpression returns -1),
+        // so the whole if statement is silently dropped and the then-arm
+        // never reaches the MLIR at all. After the fix the payload is 1
+        // for true and 0 for false, and the LiteralBool case branches only
+        // when false.
+        const string falseProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if false then x := 1;\nend.";
+        const string trueProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if true then x := 1;\nend.";
+
+        var falseMlir = ToMlir(falseProgram, out uint falseX, out uint falseOne);
+        int falseAssign = FindAssign(falseMlir, falseX, falseOne);
+        int falseBranch = FindBranchBefore(falseMlir, falseAssign);
+        int falseEndLabel = FindLabelAfter(falseMlir, falseAssign);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
+                "if false must emit a branch skipping the then-arm");
+            Assert.That(falseEndLabel, Is.GreaterThanOrEqualTo(0), "the if must end in a label");
+            Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseEndLabel)[0]),
+                "the skip branch must target the label placed after the then-arm");
+        }
+
+        var trueMlir = ToMlir(trueProgram, out uint trueX, out uint trueOne);
+        int trueAssign = FindAssign(trueMlir, trueX, trueOne);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueAssign, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(FindBranchBefore(trueMlir, trueAssign), Is.EqualTo(-1),
+                "if true must fall straight through into the then-arm (no skip branch)");
+        }
+    }
+
+    [Test]
+    public void LiteralBoolConditionInIfElseBranchesToElseArmOnlyWhenFalse()
+    {
+        // if/else with a literal condition: the branch must fire exactly
+        // when the literal is false, sending control to the else-arm. The
+        // branch lowers to an unconditional jump (no Cmp precedes it), so
+        // no polarity applies — unlike a comparison, there is no BEQ/BNE
+        // to flip.
+        const string falseProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if false then x := 1 else x := 2;\nend.";
+        const string trueProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if true then x := 1 else x := 2;\nend.";
+
+        var falseMlir = ToMlir(falseProgram, out uint falseX, out uint falseOne);
+        int falseThen = FindAssign(falseMlir, falseX, falseOne);
+        int falseBranch = FindBranchBefore(falseMlir, falseThen);
+        int falseElseLabel = FindLabelAfter(falseMlir, falseThen);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
+                "if false must emit a branch to the else-arm before the then-arm");
+            Assert.That(falseElseLabel, Is.GreaterThanOrEqualTo(0), "the else-arm must be labelled");
+            Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseElseLabel)[0]),
+                "the branch must target the label placed after the then-arm");
+        }
+
+        var trueMlir = ToMlir(trueProgram, out uint trueX, out uint trueOne);
+        int trueThen = FindAssign(trueMlir, trueX, trueOne);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+            Assert.That(FindBranchBefore(trueMlir, trueThen), Is.EqualTo(-1),
+                "if true must fall straight through into the then-arm (no branch to the else-arm)");
+        }
+    }
+
+    private static InstList ToMlir(string source, out uint xOffset, out uint oneOffset)
+    {
+        var frontend = new PascalFrontend();
+        var parsed = frontend.ParseToHlir(source);
+        Assert.That(parsed.Hlir.Count, Is.GreaterThan(0), "frontend must produce HLIR");
+
+        xOffset = frontend.StringPool!.Intern("x");
+        oneOffset = frontend.StringPool.Intern("1");
+        return new HlirTreeToMlirTransformer(frontend.StringPool).Transform(parsed.Hlir);
+    }
+
+    private static int FindAssign(InstList mlir, uint target, uint value)
+    {
+        for (int i = 0; i < mlir.Count; i++)
+        {
+            if ((MlirInstructionKind)mlir.GetKind(i) != MlirInstructionKind.Assign) continue;
+            var ops = mlir.GetOperands(i);
+            if (ops.Length == 2 && ops[0] == target && ops[1] == value) return i;
+        }
+        return -1;
+    }
+
+    private static int FindBranchBefore(InstList mlir, int beforeIdx)
+    {
+        for (int i = 0; i < beforeIdx; i++)
+            if ((MlirInstructionKind)mlir.GetKind(i) == MlirInstructionKind.Branch) return i;
+        return -1;
+    }
+
+    private static int FindLabelAfter(InstList mlir, int afterIdx)
+    {
+        for (int i = afterIdx + 1; i < mlir.Count; i++)
+            if ((MlirInstructionKind)mlir.GetKind(i) == MlirInstructionKind.Label) return i;
+        return -1;
     }
 
     [Test]

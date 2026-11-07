@@ -71,6 +71,32 @@ public class PascalSemanticAnalyzerTests
     }
 
     [Test]
+    public void TypeMismatchMessageNamesBooleanValueCorrectly()
+    {
+        // A boolean literal assigned to an Integer must be reported by its
+        // value ('true' / 'false'), not by whatever its payload resolves to.
+        // The payload is the boolean value itself (1 / 0), not a string-pool
+        // offset, so the message must map the value back to its name. Today
+        // no error is reported at all: the literal is dropped to a Nop by
+        // the visitor, so it never reaches the analyzer as a LiteralBool.
+        var trueErrors = Analyze("program Test;\nvar x: Integer;\nbegin\n  x := true;\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(trueErrors, Has.Length.EqualTo(1));
+            Assert.That(trueErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'true' to Integer variable 'x'"));
+            Assert.That(trueErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+
+        var falseErrors = Analyze("program Test;\nvar x: Integer;\nbegin\n  x := false;\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(falseErrors, Has.Length.EqualTo(1));
+            Assert.That(falseErrors[0].Message, Does.Contain("Type mismatch: cannot assign 'false' to Integer variable 'x'"));
+            Assert.That(falseErrors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+    }
+
+    [Test]
     public void Analyze_MultipleErrors_AllReportedInOnePass()
     {
         var errors = Analyze("program Test;\nvar x: Integer;\nbegin\n  y := 'a';\n  z := 3;\nend.");

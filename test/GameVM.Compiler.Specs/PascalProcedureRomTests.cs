@@ -82,6 +82,74 @@ public class PascalProcedureRomTests
         return false;
     }
 
+    private const string IfTrueAndIfFalseProgram =
+        "program Test;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  if true then x := 1;\n" +
+        "  if false then x := 2;\n" +
+        "end.";
+
+    /// <summary>Finds the first occurrence of a byte sequence at or after
+    /// <paramref name="from"/>, or -1.</summary>
+    private static int IndexOfSequence(byte[] rom, int from, params byte[] sequence)
+    {
+        for (int i = from; i + sequence.Length <= rom.Length; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < sequence.Length; j++)
+            {
+                if (rom[i + j] != sequence[j]) { match = false; break; }
+            }
+            if (match) return i;
+        }
+        return -1;
+    }
+
+    [Test]
+    public void ProgramUsingIfTrueAndIfFalse()
+    {
+        // End to end: the true arm runs and the false arm is skipped.
+        // The false arm's code is still emitted in the ROM — only its
+        // execution is skipped — so both assertions are on control flow.
+        // The true arm must be reached by falling through from the
+        // preceding store, and the false arm must be jumped over.
+        var result = Compile(IfTrueAndIfFalseProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // True arm: load immediate 1 and store it to zero-page $80. It must
+        // sit immediately after the `x := 0` store (load immediate 0, store
+        // to $80) — no branch between them, so execution falls through into
+        // it. Today the visitor drops the `true` literal to a Nop and the
+        // AST-to-HLIR transformer drops the whole if statement (it has no
+        // lowering for a Nop condition), so the arm's code is never emitted.
+        int trueArm = IndexOfSequence(rom, 0, 0xA9, 0x01, 0x85, 0x80);
+        Assert.That(trueArm, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the true arm (LDA #1; STA $80)");
+        Assert.That(trueArm - 4, Is.GreaterThanOrEqualTo(0));
+        Assert.That(rom.AsSpan(trueArm - 4, 4).ToArray(),
+            Is.EqualTo(new byte[] { 0xA9, 0x00, 0x85, 0x80 }),
+            "the true arm must directly follow the x := 0 store (fall-through, no branch)");
+
+        // False arm is emitted but must be jumped over: load immediate 2
+        // and store it to $80, immediately preceded by a JMP to the byte
+        // just past the store.
+        int falseArm = IndexOfSequence(rom, trueArm + 4, 0xA9, 0x02, 0x85, 0x80);
+        Assert.That(falseArm, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the false arm (LDA #2; STA $80)");
+        Assert.That(falseArm - 3, Is.GreaterThanOrEqualTo(0));
+        Assert.That(rom[falseArm - 3], Is.EqualTo(0x4C),
+            "a JMP must sit immediately before the false arm so it never executes");
+        int jmpTarget = rom[falseArm - 2] | (rom[falseArm - 1] << 8);
+        Assert.That(jmpTarget - 0xF000, Is.EqualTo(falseArm + 4),
+            "the JMP over the false arm must land just past its STA $80");
+    }
+
     [Test]
     public void Compile_ProcedureProgram_EmitsBodyReachedByJsrEndingInRts()
     {
