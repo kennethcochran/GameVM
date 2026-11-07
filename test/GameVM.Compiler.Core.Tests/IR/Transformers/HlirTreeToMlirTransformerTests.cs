@@ -518,4 +518,81 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(returnIdx, Is.GreaterThanOrEqualTo(0));
         Assert.That((InstructionFlag)result.GetFlags(returnIdx), Is.EqualTo(InstructionFlag.None));
     }
+
+    [Test]
+    public void OrderingComparisonEmitsCorrectBranch()
+    {
+        // An if-skip on an ordering comparison must lower to a conditional
+        // branch distinct from the '=' and '<>' encodings. Today every
+        // ordering op emits exactly the '=' stream (Cmp + Branch), so
+        // `if x < 5` behaves as `if x = 5`. The exact new encoding (a
+        // carry-based branch kind, a flag, or an operand) is the
+        // implementer's; the ROM test pins the 6502 opcode it must become.
+        byte[] equalStream = IfKindStream('=');
+        byte[] notEqualStream = IfKindStream('!');
+
+        Assert.That(equalStream, Is.EqualTo(new byte[]
+        {
+            (byte)LlirInstructionKind.Cmp,
+            (byte)MlirInstructionKind.Branch,
+            (byte)MlirInstructionKind.Assign,
+            (byte)MlirInstructionKind.Label,
+        }), "the '=' baseline this test compares against must be Cmp + Branch + Assign + Label");
+
+        foreach (char op in new[] { '<', '>', 'L', 'G' })
+        {
+            byte[] stream = IfKindStream(op);
+            Assert.That(stream.Length, Is.GreaterThanOrEqualTo(4),
+                $"'{op}' must lower to at least Cmp + Branch + Assign + Label");
+            Assert.That(stream[0], Is.EqualTo((byte)LlirInstructionKind.Cmp),
+                $"'{op}' must start with a compare");
+            Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Branch),
+                $"'{op}' must emit a conditional Branch");
+            Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Assign),
+                $"'{op}' must keep the then-arm assignment after the branch");
+            Assert.That(stream, Is.Not.EqualTo(equalStream),
+                $"'{op}' must not lower like '='");
+            Assert.That(stream, Is.Not.EqualTo(notEqualStream),
+                $"'{op}' must not lower like '<>'");
+        }
+    }
+
+    [Test]
+    public void IfCondition_EqualityComparison_KeepsExistingBranchEncoding()
+    {
+        // Guard: '=' in an if-skip keeps its established encoding, Cmp +
+        // Branch with no Transition; adding ordering comparisons must not
+        // disturb it.
+        byte[] stream = IfKindStream('=');
+        Assert.That(stream, Is.EqualTo(new byte[]
+        {
+            (byte)LlirInstructionKind.Cmp,
+            (byte)MlirInstructionKind.Branch,
+            (byte)MlirInstructionKind.Assign,
+            (byte)MlirInstructionKind.Label,
+        }));
+    }
+
+    /// <summary>Lowers `if x op 0 then x := 0` (no else) and returns the
+    /// emitted instruction kinds in order.</summary>
+    private byte[] IfKindStream(char op)
+    {
+        uint xOffset = _pool.Intern("x");
+        uint zeroOffset = _pool.Intern("0");
+        var builder = new HlirBuilder();
+        int leftX = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int rightZero = builder.Add((byte)HlirNodeKind.LiteralInt, 0, zeroOffset, HlirPayloadKind.Immediate);
+        int cond = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)op, HlirPayloadKind.Immediate, leftX, rightZero);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value = builder.Add((byte)HlirNodeKind.LiteralInt, 0, zeroOffset, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, value);
+        builder.Add((byte)HlirNodeKind.If, 0, 0, HlirPayloadKind.None, cond, assign);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+        var kinds = new byte[result.Count];
+        for (int i = 0; i < result.Count; i++)
+            kinds[i] = result.GetKind(i);
+        return kinds;
+    }
 }
