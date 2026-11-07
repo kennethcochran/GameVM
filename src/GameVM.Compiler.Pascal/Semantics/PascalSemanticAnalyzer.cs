@@ -271,7 +271,11 @@ namespace GameVM.Compiler.Pascal.Semantics
                     var valueKind = (PascalAstNodeKind)astTree[valueIdx].Kind;
                     if (valueKind == PascalAstNodeKind.LiteralString || valueKind == PascalAstNodeKind.LiteralBool)
                     {
-                        string valueText = _pool.Resolve(astTree[valueIdx].Payload);
+                        string valueText;
+                        if (valueKind == PascalAstNodeKind.LiteralBool)
+                            valueText = astTree[valueIdx].Payload != 0 ? "true" : "false";
+                        else
+                            valueText = _pool.Resolve(astTree[valueIdx].Payload);
                         Report(valueIdx, $"Type mismatch: cannot assign '{valueText}' to Integer variable '{_pool.Resolve(targetOffset)}'", ErrorCodeTypeMismatch);
                     }
                 }

@@ -495,12 +495,14 @@ public sealed class HlirTreeToMlirTransformer
 
             case HlirNodeKind.LiteralBool:
                 {
-                    bool val = condNode.Payload != 0;
-                    byte branchKind = (val ^ invert)
-                        ? (byte)MlirInstructionKind.Branch
-                        : (byte)MlirInstructionKind.Nop;
-                    if (branchKind != (byte)MlirInstructionKind.Nop)
-                        builder.Add(branchKind, InstructionFlag.None, 0, labelOffset);
+                    // The branch target always skips the then-arm (or jumps to
+                    // the else-arm), so it fires exactly when the literal is
+                    // false. The value is known at compile time and the branch
+                    // lowers to an unconditional jump, so no polarity (invert)
+                    // applies — unlike a comparison, there is no Cmp/BEQ/BNE
+                    // to flip.
+                    if (condNode.Payload == 0)
+                        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
                 }
                 break;
             default:

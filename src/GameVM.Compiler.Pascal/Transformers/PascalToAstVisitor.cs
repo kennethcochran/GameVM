@@ -430,6 +430,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                 int operandIdx = VisitFactor(context.factor()) is int o ? o : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.factor()?.Start ?? context.Start);
                 return Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'!', context.NOT().Symbol, operandIdx);
             }
+            if (context.bool_() != null)
+                return VisitBool_(context.bool_());
             return Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start);
         }
 
@@ -470,8 +472,7 @@ namespace GameVM.Compiler.Pascal.Transformers
         public override object VisitBool_(PascalParser.Bool_Context context)
         {
             bool value = context.GetText().ToLower() == "true";
-            uint offset = _strings.Intern(value ? "true" : "false");
-            return Add((byte)PascalAstNodeKind.LiteralBool, 0, offset, context.Start);
+            return Add((byte)PascalAstNodeKind.LiteralBool, 0, value ? 1u : 0u, context.Start);
         }
 
         public override object VisitConstantChr(PascalParser.ConstantChrContext context)

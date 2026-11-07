@@ -536,6 +536,37 @@ public class HlirTreeToMlirTransformerTests
             "if true must fall straight through into the then-arm (no skip branch)");
     }
 
+    [Test]
+    public void LiteralBoolConditionInIfElseBranchesToElseArmOnlyWhenFalse()
+    {
+        // if/else with a literal condition: the branch must fire exactly
+        // when the literal is false, sending control to the else-arm. The
+        // branch lowers to an unconditional jump (no Cmp precedes it), so
+        // no polarity applies — unlike a comparison, there is no BEQ/BNE
+        // to flip.
+        const string falseProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if false then x := 1 else x := 2;\nend.";
+        const string trueProgram =
+            "program Test;\nvar x: Integer;\nbegin\n  if true then x := 1 else x := 2;\nend.";
+
+        var falseMlir = ToMlir(falseProgram, out uint falseX, out uint falseOne);
+        int falseThen = FindAssign(falseMlir, falseX, falseOne);
+        Assert.That(falseThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+        int falseBranch = FindBranchBefore(falseMlir, falseThen);
+        Assert.That(falseBranch, Is.GreaterThanOrEqualTo(0),
+            "if false must emit a branch to the else-arm before the then-arm");
+        int falseElseLabel = FindLabelAfter(falseMlir, falseThen);
+        Assert.That(falseElseLabel, Is.GreaterThanOrEqualTo(0), "the else-arm must be labelled");
+        Assert.That(falseMlir.GetOperands(falseBranch)[0], Is.EqualTo(falseMlir.GetOperands(falseElseLabel)[0]),
+            "the branch must target the label placed after the then-arm");
+
+        var trueMlir = ToMlir(trueProgram, out uint trueX, out uint trueOne);
+        int trueThen = FindAssign(trueMlir, trueX, trueOne);
+        Assert.That(trueThen, Is.GreaterThanOrEqualTo(0), "the then-arm assignment must be emitted");
+        Assert.That(FindBranchBefore(trueMlir, trueThen), Is.EqualTo(-1),
+            "if true must fall straight through into the then-arm (no branch to the else-arm)");
+    }
+
     private static InstList ToMlir(string source, out uint xOffset, out uint oneOffset)
     {
         var frontend = new PascalFrontend();
