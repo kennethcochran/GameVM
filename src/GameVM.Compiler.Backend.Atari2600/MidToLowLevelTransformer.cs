@@ -190,13 +190,18 @@ namespace GameVM.Compiler.Backend.Atari2600
         }
 
         // Binary op sequence shared by Add/Sub/Cmp: Load the left operand
-        // into A, then apply the op with the right operand. A variable right
-        // operand contributes its VALUE from memory ([addr, 0] -> zp form) —
-        // never its address as an immediate.
+        // into A, then apply the op with the right operand.
         private void EmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
         {
+            EmitLoadLeft(builder, stringPool, operands);
+            builder.Add(llirKind, InstructionFlag.None, 0, RightOperands(stringPool, operands));
+        }
+
+        // Loads the left operand of a binary op into A: a variable loads its
+        // VALUE from memory ([addr, 0] -> zp form); a literal loads immediate.
+        private void EmitLoadLeft(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
             string leftText = stringPool.Resolve(operands[0]);
-            string rightText = stringPool.Resolve(operands[1]);
             if (IsName(leftText))
             {
                 ushort leftAddr = GetAddressForVariable(leftText);
@@ -207,15 +212,32 @@ namespace GameVM.Compiler.Backend.Atari2600
                 uint leftVal = ResolveSlot(operands[0], stringPool);
                 builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
             }
+        }
+
+        // The right operand of a binary op as the leading operands of the op
+        // instruction: a variable contributes its VALUE from memory
+        // ([addr, 0] -> zp form) — never its address as an immediate; a
+        // literal contributes its value. extraOperands are appended after
+        // the right operand (Multiply's two scratch addresses).
+        private uint[] RightOperands(StringPool stringPool, ReadOnlySpan<uint> operands, params uint[] extraOperands)
+        {
+            string rightText = stringPool.Resolve(operands[1]);
+            uint[] right;
             if (IsName(rightText))
             {
                 ushort rightAddr = GetAddressForVariable(rightText);
-                builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+                right = new uint[] { rightAddr, 0 };
             }
             else
             {
-                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                right = new uint[] { ResolveSlot(operands[1], stringPool) };
             }
+            if (extraOperands.Length == 0)
+                return right;
+            uint[] combined = new uint[right.Length + extraOperands.Length];
+            Array.Copy(right, combined, right.Length);
+            Array.Copy(extraOperands, 0, combined, right.Length, extraOperands.Length);
+            return combined;
         }
 
         /// <summary>
@@ -233,31 +255,13 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// </summary>
         private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
         {
-            string leftText = stringPool.Resolve(operands[0]);
-            string rightText = stringPool.Resolve(operands[1]);
-            if (IsName(leftText))
-            {
-                ushort leftAddr = GetAddressForVariable(leftText);
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
-            }
-            else
-            {
-                uint leftVal = ResolveSlot(operands[0], stringPool);
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
-            }
+            EmitLoadLeft(builder, stringPool, operands);
 
             ushort scratchM = GetAddressForVariable("__mul_m");
             ushort scratchN = GetAddressForVariable("__mul_n");
 
-            if (IsName(rightText))
-            {
-                ushort rightAddr = GetAddressForVariable(rightText);
-                builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, rightAddr, 0, scratchM, scratchN);
-            }
-            else
-            {
-                builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool), scratchM, scratchN);
-            }
+            builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0,
+                RightOperands(stringPool, operands, scratchM, scratchN));
         }
 
         /// <summary>
