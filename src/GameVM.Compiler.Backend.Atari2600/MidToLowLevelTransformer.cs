@@ -134,6 +134,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             {
                 (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
                 (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
+                (byte)LlirInstructionKind.Multiply => (byte)LlirInstructionKind.Multiply,
                 (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
                 (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
                 _ => (byte)LlirInstructionKind.Nop
@@ -150,6 +151,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ["SlabIndex"] = instIdx,
                         ["MlirKindByte"] = kind,
                     });
+
+            // Multiply: Load the left operand, then Multiply with the right
+            // operand plus two scratch addresses for the shift-and-add routine.
+            if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length >= 2)
+            {
+                EmitMultiplyOp(builder, stringPool, operands);
+                return;
+            }
 
             // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
@@ -198,6 +207,48 @@ namespace GameVM.Compiler.Backend.Atari2600
             else
             {
                 builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+            }
+        }
+
+        /// <summary>
+        /// Multiply sequence: Load the left operand into A, then Multiply with
+        /// the right operand. The 6502 has no multiply, so the backend lowers
+        /// Multiply to an inline shift-and-add routine that needs two scratch
+        /// zero-page bytes — a copy of the multiplicand, shifted left each
+        /// iteration, and a copy of the multiplier, shifted right. Scratch is
+        /// allocated through the variable map under compiler-internal names,
+        /// so it never collides with user variables and is shared across
+        /// multiplies in one program. LLIR Multiply operands: variable right
+        /// is (rightAddr, 0, scratchM, scratchN); literal right is
+        /// (rightVal, scratchM, scratchN). The code generator tells them
+        /// apart by operand count (4 vs 3).
+        /// </summary>
+        private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
+            string leftText = stringPool.Resolve(operands[0]);
+            string rightText = stringPool.Resolve(operands[1]);
+            if (IsName(leftText))
+            {
+                ushort leftAddr = GetAddressForVariable(leftText);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
+            }
+            else
+            {
+                uint leftVal = ResolveSlot(operands[0], stringPool);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
+            }
+
+            ushort scratchM = GetAddressForVariable("__mul_m");
+            ushort scratchN = GetAddressForVariable("__mul_n");
+
+            if (IsName(rightText))
+            {
+                ushort rightAddr = GetAddressForVariable(rightText);
+                builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, rightAddr, 0, scratchM, scratchN);
+            }
+            else
+            {
+                builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool), scratchM, scratchN);
             }
         }
 

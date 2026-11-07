@@ -324,7 +324,7 @@ public sealed class HlirTreeToMlirTransformer
         {
             '+' => (byte)LlirInstructionKind.Add,
             '-' => (byte)LlirInstructionKind.Sub,
-            '*' => (byte)LlirInstructionKind.Add,
+            '*' => (byte)LlirInstructionKind.Multiply,
             '/' => (byte)LlirInstructionKind.Sub,
             _ => (byte)MlirInstructionKind.Nop
         };

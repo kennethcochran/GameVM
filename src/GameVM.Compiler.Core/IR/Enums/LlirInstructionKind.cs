@@ -66,4 +66,14 @@ public enum LlirInstructionKind : byte
 
     /// <summary>Assign: operands[0]=targetAddr, operands[1]=value (immediate).</summary>
     Assign = 208,
+
+    /// <summary>
+    /// Multiply: 8-bit unsigned product. Operands are the right operand plus
+    /// two scratch zero-page addresses (see MidToLowLevelTransformer):
+    /// variable right is (rightAddr, 0, scratchM, scratchN), literal right
+    /// is (rightVal, scratchM, scratchN). The left operand arrives in the
+    /// accumulator via a preceding Load. The backend lowers it to an inline
+    /// shift-and-add routine and leaves the product in the accumulator.
+    /// </summary>
+    Multiply = 210,
 }
