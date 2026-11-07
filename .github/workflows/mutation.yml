@@ -91,7 +91,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [mutation]
     # Deploy whatever reports were produced, even if one area's job failed.
-    if: always()
+    # Only from main: the github-pages environment's branch policy allows
+    # deployments from main only, so a run on any other branch would be
+    # rejected at job start. Skipping here keeps that a clean skip instead
+    # of a failed run.
+    if: always() && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       actions: read
