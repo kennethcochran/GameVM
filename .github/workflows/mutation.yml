@@ -2,9 +2,14 @@ name: Mutation Testing
 
 # Full-codebase Stryker.NET mutation testing. Runs the complete mutation
 # suite for every configured area and publishes the HTML reports as
-# artifacts. Informational only: it never fails the build on the score
-# (--break-at 0), so the score is a health metric, not a gate. The
-# per-PR gate lives in mutation-pr.yml.
+# artifacts and to GitHub Pages. Informational only: it never fails the
+# build on the score (--break-at 0), so the score is a health metric, not
+# a gate. The per-PR gate lives in mutation-pr.yml.
+#
+# The Pages site (deploy job below) serves the latest full-run reports at
+# https://kennethcochran.github.io/GameVM/ — one page per area plus an
+# index. Requires GitHub Pages enabled with source "GitHub Actions" in the
+# repo settings (Settings -> Pages -> Build and deployment).
 #
 # Configured areas (each with a stryker-config.json in its test project):
 # Atari 2600 backend, Pascal frontend, compiler core, application layer,
@@ -80,3 +85,61 @@ jobs:
           name: mutation-report-${{ matrix.id }}
           path: ${{ matrix.dir }}/StrykerOutput/**/reports/mutation-report.html
           if-no-files-found: warn
+
+  deploy:
+    name: Deploy reports to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [mutation]
+    # Deploy whatever reports were produced, even if one area's job failed.
+    if: always()
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download all mutation reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutation-report-*
+          path: _site/raw
+      - name: Build Pages site
+        run: |
+          mkdir -p _site
+          : > _site/_areas.html
+          for d in _site/raw/mutation-report-*/; do
+            [ -d "$d" ] || continue
+            area="${d#_site/raw/mutation-report-}"
+            area="${area%/}"
+            html=$(find "$d" -name 'mutation-report.html' | head -1)
+            if [ -n "$html" ]; then
+              mkdir -p "_site/$area"
+              cp "$html" "_site/$area/index.html"
+              printf '  <li><a href="%s/">%s</a></li>\n' "$area" "$area" >> _site/_areas.html
+            fi
+          done
+          {
+            echo '<!doctype html>'
+            echo '<html><head><meta charset="utf-8"><title>GameVM mutation reports</title></head>'
+            echo '<body><h1>GameVM mutation reports</h1>'
+            echo '<p>Full-codebase Stryker.NET mutation testing. Each area links to its latest report.</p>'
+            echo '<ul>'
+            cat _site/_areas.html
+            echo '</ul>'
+            echo '</body></html>'
+          } > _site/index.html
+          rm _site/_areas.html
+          rm -rf _site/raw
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
