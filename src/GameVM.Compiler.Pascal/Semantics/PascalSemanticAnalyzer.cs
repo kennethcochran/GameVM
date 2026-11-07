@@ -15,11 +15,14 @@ namespace GameVM.Compiler.Pascal.Semantics
     /// position of the offending node (line/column from the per-node source-position
     /// side table populated by the visitor). The pass never mutates the tree.
     ///
-    /// The two rules mirror exactly the checks that previously ran inside
-    /// <c>PascalAstToHlirTransformer</c> (scope guard: move, do not add):
+    /// The three rules mirror exactly the checks that previously ran inside
+    /// <c>PascalAstToHlirTransformer</c> (scope guard: move, do not add), plus
+    /// the undeclared-procedure rule that closes the silent JSR $F000 hazard:
     ///  - an assignment target / expression identifier that is neither a declared
     ///    variable nor a known constant is "undefined";
-    ///  - a string or boolean literal cannot be assigned to an Integer variable.
+    ///  - a string or boolean literal cannot be assigned to an Integer variable;
+    ///  - a procedure call naming neither a declared procedure nor a built-in
+    ///    output procedure (write/writeln) is "undefined".
     /// Message text is unchanged so existing grep-based tests keep passing.
     /// </summary>
     public sealed class PascalSemanticAnalyzer
@@ -28,10 +31,12 @@ namespace GameVM.Compiler.Pascal.Semantics
         private readonly HashSet<uint> _declaredVariables = new();
         private readonly Dictionary<uint, string> _declaredTypes = new();
         private readonly HashSet<uint> _constants = new();
+        private readonly HashSet<uint> _declaredProcedures = new();
         private readonly List<SemanticError> _errors = new();
         private IReadOnlyList<(int Line, int Column)> _positions = null!;
         private const string ErrorCodeUndefinedVariable = "PAS0001";
         private const string ErrorCodeTypeMismatch = "PAS0002";
+        private const string ErrorCodeUndefinedProcedure = "PAS0003";
 
         public PascalSemanticAnalyzer(StringPool stringPool)
         {
@@ -48,6 +53,7 @@ namespace GameVM.Compiler.Pascal.Semantics
             _declaredVariables.Clear();
             _declaredTypes.Clear();
             _constants.Clear();
+            _declaredProcedures.Clear();
             _errors.Clear();
             _positions = positions ?? throw new ArgumentNullException(nameof(positions));
 
@@ -110,6 +116,9 @@ namespace GameVM.Compiler.Pascal.Semantics
                 case PascalAstNodeKind.MethodDeclaration:
                     ProcessMethodDeclaration(astTree, stmtIdx);
                     break;
+                case PascalAstNodeKind.MethodCall:
+                    ProcessMethodCall(astTree, stmtIdx);
+                    break;
                 case PascalAstNodeKind.ReturnStatement:
                     ProcessReturnStatement(astTree, stmtIdx);
                     break;
@@ -124,13 +133,21 @@ namespace GameVM.Compiler.Pascal.Semantics
 
         private void ProcessMethodDeclaration(AstTree astTree, int stmtIdx)
         {
+            // The declaration makes the procedure callable from the enclosing
+            // scope (and recursively from its own body): register its name
+            // — the node payload is the lowercased name's pool offset —
+            // before walking the body.
+            _declaredProcedures.Add(astTree[stmtIdx].Payload);
+
             // Declarations inside a callable are scoped to it: a
             // procedure-local constant or variable must not become visible
             // to the enclosing body after the declaration is walked, or the
             // undefined-variable check silently accepts out-of-scope uses.
+            // The same holds for procedures nested inside this one.
             var savedVariables = new HashSet<uint>(_declaredVariables);
             var savedTypes = new Dictionary<uint, string>(_declaredTypes);
             var savedConstants = new HashSet<uint>(_constants);
+            var savedProcedures = new HashSet<uint>(_declaredProcedures);
 
             var mChildren = astTree.Children(stmtIdx);
             for (int i = 0; i < mChildren.Length - 1; i++)
@@ -147,6 +164,34 @@ namespace GameVM.Compiler.Pascal.Semantics
                 _declaredTypes[pair.Key] = pair.Value;
             _constants.Clear();
             _constants.UnionWith(savedConstants);
+            _declaredProcedures.Clear();
+            _declaredProcedures.UnionWith(savedProcedures);
+        }
+
+        /// <summary>Reports a call to a procedure that was never declared.
+        /// The callee name rides in the node payload (lowercased by the
+        /// visitor, so the message reads 'bump' for a <c>Bump;</c> call).
+        /// Built-in output procedures (write/writeln) lower to a dedicated
+        /// Output node, not a call, so they are always defined and exempt.
+        /// Argument expressions are still walked: they may reference
+        /// undefined variables of their own.</summary>
+        private void ProcessMethodCall(AstTree astTree, int stmtIdx)
+        {
+            var node = astTree[stmtIdx];
+            uint calleeOffset = node.Payload;
+            string callee = _pool.Resolve(calleeOffset);
+            if (string.IsNullOrEmpty(callee))
+                return;
+
+            bool isBuiltInOutput = string.Equals(callee, "write", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(callee, "writeln", StringComparison.OrdinalIgnoreCase);
+            if (!isBuiltInOutput && !_declaredProcedures.Contains(calleeOffset))
+            {
+                Report(stmtIdx, $"Undefined procedure '{callee}'", ErrorCodeUndefinedProcedure);
+            }
+
+            foreach (int childIdx in astTree.Children(stmtIdx))
+                ProcessExpression(astTree, childIdx);
         }
 
         private void RegisterChildDeclaration(AstTree astTree, int childIdx)

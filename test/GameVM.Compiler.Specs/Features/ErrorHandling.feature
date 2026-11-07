@@ -9,6 +9,12 @@ Feature: Error Handling
     Then the compilation fails
     And the error message contains "undefined variable"
 
+  Scenario: Undeclared procedure call error
+    Given a Pascal program with an undeclared procedure call
+    When I compile the program
+    Then the compilation fails
+    And the error message contains "Undefined procedure 'bump'"
+
   Scenario: Type mismatch error
     Given a Pascal program with a type mismatch
     When I compile the program
