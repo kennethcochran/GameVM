@@ -9,6 +9,11 @@
         "mutate": [
             "**/*.cs"
         ],
-        "coverage-analysis": "perTest"
+        "coverage-analysis": "perTest",
+        "thresholds": {
+            "high": 80,
+            "low": 45,
+            "break": 45
+        }
     }
 }
