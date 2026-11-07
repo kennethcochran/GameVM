@@ -1,0 +1,20 @@
+{
+    "stryker-config": {
+        "solution": "../../GameVM.sln",
+        "project": "GameVM.Compiler.Pascal.csproj",
+        "reporters": [
+            "progress",
+            "html"
+        ],
+        "mutate": [
+            "**/*.cs",
+            "!**/ANTLR/**"
+        ],
+        "coverage-analysis": "perTest",
+        "thresholds": {
+            "high": 80,
+            "low": 40,
+            "break": 40
+        }
+    }
+}

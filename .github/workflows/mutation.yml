@@ -1,0 +1,149 @@
+name: Mutation Testing
+
+# Full-codebase Stryker.NET mutation testing. Runs the complete mutation
+# suite for every configured area and publishes the HTML reports as
+# artifacts and to GitHub Pages. Informational only: it never fails the
+# build on the score (--break-at 0), so the score is a health metric, not
+# a gate. The per-PR gate lives in mutation-pr.yml.
+#
+# The Pages site (deploy job below) serves the latest full-run reports at
+# https://kennethcochran.github.io/GameVM/ — one page per area plus an
+# index. Requires GitHub Pages enabled with source "GitHub Actions" in the
+# repo settings (Settings -> Pages -> Build and deployment).
+#
+# Configured areas (each with a stryker-config.json in its test project):
+# Atari 2600 backend, Pascal frontend, compiler core, application layer,
+# compile CLI, interaction, both optimizers, DevTools. Add a config to a
+# test project to include its area here. The C# frontend is excluded: it
+# is broken and abandoned, and is not in the solution file.
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly full run (Monday 07:00 UTC) so the score is tracked even when
+    # main is quiet.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+jobs:
+  mutation:
+    name: Mutation (${{ matrix.id }})
+    runs-on: ubuntu-latest
+    # Least privilege for this job: read the repo, upload the report.
+    # The job runs test code (Stryker executes the suite against mutants),
+    # so the token must not be able to modify repo contents, and checkout
+    # must not persist it into git config where test code could reach it.
+    permissions:
+      contents: read
+      actions: write
+    # Bound a potential test-runner hang: Stryker runs tests via vstest,
+    # which has deadlocked on the dev VM. GitHub runners may differ; the
+    # timeout keeps a hang from consuming the whole CI budget.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: atari2600
+            dir: test/GameVM.Compiler.Backend.Atari2600.Tests
+          - id: pascal
+            dir: test/GameVM.Compiler.Pascal.Tests
+          - id: core
+            dir: test/GameVM.Compiler.Core.Tests
+          - id: application
+            dir: test/GameVM.Compiler.Application.Tests
+          - id: compile
+            dir: test/GameVM.Compile.Tests
+          - id: interaction
+            dir: test/GameVM.Compiler.Interaction.Tests
+          - id: lowlevel
+            dir: test/GameVM.Compiler.Optimizers.LowLevel.Tests
+          - id: midlevel
+            dir: test/GameVM.Compiler.Optimizers.MidLevel.Tests
+          - id: devtools
+            dir: test/GameVM.DevTools.Tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore tools
+        run: dotnet tool restore
+      - name: Run Stryker
+        working-directory: ${{ matrix.dir }}
+        # Informational only: --break-at 0 disables the score gate so the
+        # run always passes and just publishes the report.
+        run: dotnet tool run dotnet-stryker --break-at 0
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-${{ matrix.id }}
+          path: ${{ matrix.dir }}/StrykerOutput/**/reports/mutation-report.html
+          if-no-files-found: warn
+
+  deploy:
+    name: Deploy reports to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [mutation]
+    # Deploy whatever reports were produced, even if one area's job failed.
+    # Only from main: the github-pages environment's branch policy allows
+    # deployments from main only, so a run on any other branch would be
+    # rejected at job start. Skipping here keeps that a clean skip instead
+    # of a failed run.
+    if: always() && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download all mutation reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutation-report-*
+          path: _site/raw
+      - name: Build Pages site
+        run: |
+          mkdir -p _site
+          : > _site/_areas.html
+          for d in _site/raw/mutation-report-*/; do
+            [ -d "$d" ] || continue
+            area="${d#_site/raw/mutation-report-}"
+            area="${area%/}"
+            html=$(find "$d" -name 'mutation-report.html' | head -1)
+            if [ -n "$html" ]; then
+              mkdir -p "_site/$area"
+              cp "$html" "_site/$area/index.html"
+              printf '  <li><a href="%s/">%s</a></li>\n' "$area" "$area" >> _site/_areas.html
+            fi
+          done
+          {
+            echo '<!doctype html>'
+            echo '<html><head><meta charset="utf-8"><title>GameVM mutation reports</title></head>'
+            echo '<body><h1>GameVM mutation reports</h1>'
+            echo '<p>Full-codebase Stryker.NET mutation testing. Each area links to its latest report.</p>'
+            echo '<ul>'
+            cat _site/_areas.html
+            echo '</ul>'
+            echo '</body></html>'
+          } > _site/index.html
+          rm _site/_areas.html
+          rm -rf _site/raw
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
