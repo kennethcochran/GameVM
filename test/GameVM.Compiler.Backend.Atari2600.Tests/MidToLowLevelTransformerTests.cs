@@ -804,4 +804,68 @@ public class MidToLowLevelTransformerTests
         }
 
         #endregion
+
+        #region Fail-Loud Tests (CodeRabbit review, PR #19)
+
+        [Test]
+        public void Transform_MultiplyWithFewerThanTwoOperands_ThrowsGameVmException()
+        {
+            // A Multiply with a single operand is malformed: the fallback
+            // below would emit an underspecified LLIR Multiply that code
+            // generation cannot emit, silently truncating the ROM at that
+            // instruction.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirSlab(((byte)MlirInstructionKind.Multiply, new uint[] { xOffset }));
+
+            var ex = Assert.Throws<GameVmException>(() => _transformer.TransformSlab(mlir, _stringPool));
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex.Message, Does.Contain("Multiply"));
+            Assert.That(ex.Context["SlabIndex"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Transform_NestedMultiply_MaterializesInnerProductBeforeOuterMultiply()
+        {
+            // MLIR for x := (a * b) * c, as the HLIR lowering emits it: the
+            // inner product is assigned to __tmp_0, then the outer multiply
+            // reads it. The inner product lives in the accumulator after the
+            // first Multiply, so the Assign to __tmp_0 must store it to
+            // memory before the outer multiply loads it — otherwise the load
+            // reads an unwritten address (zero after the reset clear) and
+            // the product comes out 0 instead of 42.
+            uint aOffset = _stringPool.Intern("a");
+            uint bOffset = _stringPool.Intern("b");
+            uint cOffset = _stringPool.Intern("c");
+            uint xOffset = _stringPool.Intern("x");
+            uint tmp0Offset = _stringPool.Intern("__tmp_0");
+            uint tmp1Offset = _stringPool.Intern("__tmp_1");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Multiply, new uint[] { aOffset, bOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { tmp0Offset, 0 }),
+                ((byte)MlirInstructionKind.Multiply, new uint[] { tmp0Offset, cOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { tmp1Offset, 0 }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, tmp1Offset }));
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            // Load a, Multiply b, Store __tmp_0, Load __tmp_0, Multiply c,
+            // Store x. The second temp is consumed directly from the
+            // accumulator by the final Store, so it needs no materializing
+            // store of its own.
+            Assert.That(result.Count, Is.EqualTo(6));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Multiply));
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+
+            uint tmp0Addr = result.GetOperands(2)[0];
+            Assert.That(tmp0Addr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmp0Addr),
+                "the outer multiply must load the inner product from the address the materializing store wrote");
+        }
+
+        #endregion
 }

@@ -160,6 +160,23 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ["MlirKindByte"] = kind,
                     });
 
+            // A Multiply with fewer than two operands is malformed: the
+            // fallback below would emit an underspecified LLIR Multiply
+            // that code generation cannot emit, silently truncating the
+            // ROM at that instruction.
+            if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length < 2)
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer cannot lower MLIR Multiply at slab index {instIdx}: " +
+                    $"expected at least two operands (left, right), got {operands.Length}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["SlabIndex"] = instIdx,
+                        ["MlirKind"] = nameof(MlirInstructionKind.Multiply),
+                        ["OperandCount"] = operands.Length,
+                    });
+
             // Multiply: Load the left operand, then Multiply with the right
             // operand plus two scratch addresses for the shift-and-add routine.
             if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length >= 2)
@@ -329,7 +346,16 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             // "__tmp_*" names are virtual registers backed by the accumulator:
             // Assign(tmp, ...) is a declaration/no-op (value was computed in A).
-            if (targetName.StartsWith("__tmp_", StringComparison.Ordinal)) return;
+            // Except when a later operation reads the temp as an operand (a
+            // nested expression like (a * b) * c): that operation loads the
+            // temp from memory, so the value must be stored here first, or
+            // the load reads an unwritten zero-page address.
+            if (targetName.StartsWith("__tmp_", StringComparison.Ordinal))
+            {
+                if (TempIsReadByLaterOperation(inputSlab, instIdx, targetSlot))
+                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, GetAddressForVariable(targetName));
+                return;
+            }
 
             ushort targetAddr = GetAddressForVariable(targetName);
 
@@ -361,6 +387,34 @@ namespace GameVM.Compiler.Backend.Atari2600
             {
                 builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueSlot & 0xFF);
             }
+        }
+
+        /// <summary>
+        /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp).
+        /// Such a read loads the temp from its zero-page address, so the temp
+        /// must be stored to memory when it is assigned. A temp consumed only
+        /// by the Assign that stores it into its real target reads the
+        /// accumulator directly and needs no store.
+        /// </summary>
+        private static bool TempIsReadByLaterOperation(InstList inputSlab, int instIdx, uint tempSlot)
+        {
+            for (int j = instIdx + 1; j < inputSlab.Count; j++)
+            {
+                byte kind = inputSlab.GetKind(j);
+                if (kind != (byte)LlirInstructionKind.Add
+                    && kind != (byte)LlirInstructionKind.Sub
+                    && kind != (byte)LlirInstructionKind.Multiply
+                    && kind != (byte)LlirInstructionKind.Cmp)
+                    continue;
+                ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);
+                for (int k = 0; k < operands.Length; k++)
+                {
+                    if (operands[k] == tempSlot)
+                        return true;
+                }
+            }
+            return false;
         }
 
         private static void ProcessBranch(InstList inputSlab, int instIdx, InstListBuilder builder)

@@ -1,3 +1,4 @@
+using GameVM.Compiler.Core.IR;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.SlabProcessing;
 using GameVM.Compiler.Core.IR.Buffers;
@@ -16,6 +17,7 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
         private const byte LLIR_LABEL = 192;
         private const byte LLIR_CALL = 195;
         private const byte LLIR_JUMP = 196;
+        private const byte LLIR_MULTIPLY = (byte)LlirInstructionKind.Multiply;
 
         private DefaultLowLevelOptimizer _optimizer;
 
@@ -331,6 +333,56 @@ namespace GameVM.Compiler.Optimizers.LowLevel.Tests
             Assert.That(resultList.Count, Is.EqualTo(2));
             Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
             Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithConsecutiveProducts_KeepsLoadConsumedByMultiply()
+        {
+            // Two consecutive products share their left operand: a gets x
+            // times y and b gets x times z. The first Load of x feeds the
+            // first Multiply through the accumulator, so it must survive
+            // Basic optimization even though a second Load of x follows it.
+            var instList = CreateLlirInstList(
+                new uint[] { LLIR_LOAD, 0x80u, 0u },                          // Load x
+                new uint[] { LLIR_MULTIPLY, 0x81u, 0u, 0x85u, 0x86u },       // Multiply y (scratch $85/$86)
+                new uint[] { LLIR_STORE, 0x83u },                            // Store a
+                new uint[] { LLIR_LOAD, 0x80u, 0u },                          // Load x
+                new uint[] { LLIR_MULTIPLY, 0x82u, 0u, 0x85u, 0x86u },       // Multiply z
+                new uint[] { LLIR_STORE, 0x84u }                             // Store b
+            );
+
+            var resultList = _optimizer.OptimizeSlab(instList, new StringPool(), OptimizationLevel.Basic);
+
+            Assert.That(resultList.Count, Is.EqualTo(6));
+            Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+            Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_MULTIPLY));
+            Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_STORE));
+            Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_LOAD));
+            Assert.That(resultList.GetKind(4), Is.EqualTo(LLIR_MULTIPLY));
+            Assert.That(resultList.GetKind(5), Is.EqualTo(LLIR_STORE));
+        }
+
+        [Test]
+        public void OptimizeSlab_WithConsecutiveCopies_KeepsLoadConsumedByStore()
+        {
+            // Two consecutive copies share their source: a gets x and b gets
+            // x. The first Load of x feeds the first Store through the
+            // accumulator even though the store targets a different address,
+            // so it must survive even though a second Load of x follows it.
+            var instList = CreateLlirInstList(
+                new uint[] { LLIR_LOAD, 0x80u, 0u },  // Load x
+                new uint[] { LLIR_STORE, 0x81u },     // Store a
+                new uint[] { LLIR_LOAD, 0x80u, 0u },  // Load x
+                new uint[] { LLIR_STORE, 0x82u }      // Store b
+            );
+
+            var resultList = _optimizer.OptimizeSlab(instList, new StringPool(), OptimizationLevel.Basic);
+
+            Assert.That(resultList.Count, Is.EqualTo(4));
+            Assert.That(resultList.GetKind(0), Is.EqualTo(LLIR_LOAD));
+            Assert.That(resultList.GetKind(1), Is.EqualTo(LLIR_STORE));
+            Assert.That(resultList.GetKind(2), Is.EqualTo(LLIR_LOAD));
+            Assert.That(resultList.GetKind(3), Is.EqualTo(LLIR_STORE));
         }
 
         [Test]

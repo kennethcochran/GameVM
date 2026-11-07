@@ -101,6 +101,21 @@ public class PascalProcedureRomTests
         "  x := x * y;\n" +
         "end.";
 
+    private const string ConsecutiveProductsProgram =
+        "program Test;\n" +
+        "var x: Integer;\n" +
+        "var y: Integer;\n" +
+        "var z: Integer;\n" +
+        "var a: Integer;\n" +
+        "var b: Integer;\n" +
+        "begin\n" +
+        "  x := 6;\n" +
+        "  y := 7;\n" +
+        "  z := 8;\n" +
+        "  a := x * y;\n" +
+        "  b := x * z;\n" +
+        "end.";
+
     /// <summary>Scans for multiply machinery at or after
     /// <paramref name="from"/>: a JSR to an in-ROM target (0x20), a
     /// backward relative branch (a branch opcode with offset &gt;= 0x80),
@@ -228,6 +243,35 @@ public class PascalProcedureRomTests
         // The buggy lowering emits no JSR, no branch, and no ASL here.
         Assert.That(HasMultiplyMachinery(rom, bodyStart), Is.True,
             "the ROM must contain multiply machinery (a JSR, a backward branch, or ASL) for x * y");
+    }
+
+    [Test]
+    public void ProgramComputingConsecutiveProducts()
+    {
+        // End to end: a := x * y; b := x * z must each load x before its
+        // multiply. The low-level optimizer used to drop the first Load(x)
+        // as overwritten by the second, so the first product multiplied the
+        // stale accumulator value instead of x.
+        var result = Compile(ConsecutiveProductsProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
+
+        // The var declarations allocate from $80 in order (x = $80, y =
+        // $81, z = $82, a = $83, b = $84), and the multiply scratch pair
+        // takes $85/$86. Each multiply starts by loading its left operand
+        // (LDA $80) and saving it to the multiplicand scratch (STA $85),
+        // then loading its right operand.
+        int first = IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x81);
+        Assert.That(first, Is.GreaterThanOrEqualTo(0),
+            "the first product must load x (LDA $80) before multiplying by y");
+        int second = IndexOfSequence(rom, first + 6, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x82);
+        Assert.That(second, Is.GreaterThanOrEqualTo(0),
+            "the second product must load x (LDA $80) before multiplying by z");
     }
 
     [Test]
