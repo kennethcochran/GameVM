@@ -520,14 +520,15 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
-    public void OrderingComparisonEmitsCorrectBranch()
+    public void LessThanEmitsCorrectBranch()
     {
-        // An if-skip on an ordering comparison must lower to a conditional
-        // branch distinct from the '=' and '<>' encodings. Today every
-        // ordering op emits exactly the '=' stream (Cmp + Branch), so
-        // `if x < 5` behaves as `if x = 5`. The exact new encoding (a
-        // carry-based branch kind, a flag, or an operand) is the
-        // implementer's; the ROM test pins the 6502 opcode it must become.
+        // An if-skip on '<' must lower to a conditional branch distinct
+        // from the '=' and '<>' encodings. Today '<' emits exactly the '='
+        // stream (Cmp + Branch), so `if x < 5` behaves as `if x = 5`. The
+        // exact new encoding (a carry-based branch kind, a flag, or an
+        // operand) is the implementer's; the ROM test pins the 6502 opcode
+        // it must become. This slice covers '<' only; '>', '<=', '>=' are
+        // separate slices.
         byte[] equalStream = IfKindStream('=');
         byte[] notEqualStream = IfKindStream('!');
 
@@ -539,22 +540,19 @@ public class HlirTreeToMlirTransformerTests
             (byte)MlirInstructionKind.Label,
         }), "the '=' baseline this test compares against must be Cmp + Branch + Assign + Label");
 
-        foreach (char op in new[] { '<', '>', 'L', 'G' })
-        {
-            byte[] stream = IfKindStream(op);
-            Assert.That(stream.Length, Is.GreaterThanOrEqualTo(4),
-                $"'{op}' must lower to at least Cmp + Branch + Assign + Label");
-            Assert.That(stream[0], Is.EqualTo((byte)LlirInstructionKind.Cmp),
-                $"'{op}' must start with a compare");
-            Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Branch),
-                $"'{op}' must emit a conditional Branch");
-            Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Assign),
-                $"'{op}' must keep the then-arm assignment after the branch");
-            Assert.That(stream, Is.Not.EqualTo(equalStream),
-                $"'{op}' must not lower like '='");
-            Assert.That(stream, Is.Not.EqualTo(notEqualStream),
-                $"'{op}' must not lower like '<>'");
-        }
+        byte[] stream = IfKindStream('<');
+        Assert.That(stream.Length, Is.GreaterThanOrEqualTo(4),
+            "'<' must lower to at least Cmp + Branch + Assign + Label");
+        Assert.That(stream[0], Is.EqualTo((byte)LlirInstructionKind.Cmp),
+            "'<' must start with a compare");
+        Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Branch),
+            "'<' must emit a conditional Branch");
+        Assert.That(stream, Does.Contain((byte)MlirInstructionKind.Assign),
+            "'<' must keep the then-arm assignment after the branch");
+        Assert.That(stream, Is.Not.EqualTo(equalStream),
+            "'<' must not lower like '='");
+        Assert.That(stream, Is.Not.EqualTo(notEqualStream),
+            "'<' must not lower like '<>'");
     }
 
     [Test]

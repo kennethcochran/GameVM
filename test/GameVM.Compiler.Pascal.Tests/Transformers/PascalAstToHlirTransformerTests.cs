@@ -237,20 +237,15 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
-        public void RelationalComparisonOfLiteralsFoldsToCorrectValue()
+        public void LessThanOfLiteralsFoldsToCorrectValue()
         {
             // The visitor encodes '<=' as 'L' and '>=' as 'G' (single-char
-            // payloads); 8-bit unsigned semantics throughout.
+            // payloads); 8-bit unsigned semantics throughout. This slice
+            // covers '<' only; '>', '<=', '>=' are separate slices.
             var cases = new (string Left, char Op, string Right, string Expected)[]
             {
                 ("1", '<', "2", "1"),
                 ("2", '<', "1", "0"),
-                ("2", '>', "1", "1"),
-                ("1", '>', "2", "0"),
-                ("1", 'L', "1", "1"),
-                ("2", 'L', "1", "0"),
-                ("1", 'G', "1", "1"),
-                ("1", 'G', "2", "0"),
             };
             Assert.Multiple(() =>
             {
