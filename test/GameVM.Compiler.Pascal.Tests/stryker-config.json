@@ -10,6 +10,11 @@
             "**/*.cs",
             "!**/ANTLR/**"
         ],
-        "coverage-analysis": "perTest"
+        "coverage-analysis": "perTest",
+        "thresholds": {
+            "high": 80,
+            "low": 40,
+            "break": 40
+        }
     }
 }
