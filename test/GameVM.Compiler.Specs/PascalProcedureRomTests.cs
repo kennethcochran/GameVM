@@ -243,6 +243,90 @@ public class PascalProcedureRomTests
             "`if x = 5` must still guard its then-arm with BNE");
     }
 
+    [Test]
+    public void ProgramStoringAndReadingBackAValueGreaterThan255()
+    {
+        // End to end: 300 must survive a store and a read-back whole. Today
+        // every layer truncates to 8 bits, so x := 300 stores 44 (300 & 0xFF)
+        // and y := x copies only that one byte.
+        var result = Compile(ValueGreaterThan255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // x := 300: LDA #$2C; STA $80 (low byte 44); LDA #$01; STA $81 (high byte 1).
+        Assert.That(ContainsSequence(rom, 0xA9, 0x2C, 0x85, 0x80, 0xA9, 0x01, 0x85, 0x81), Is.True,
+            "storing 300 must write both bytes: low 44 to $80, high 1 to $81");
+        // y := x: LDA $80; STA $82; LDA $81; STA $83 — both bytes copied, low first.
+        Assert.That(ContainsSequence(rom, 0xA5, 0x80, 0x85, 0x82, 0xA5, 0x81, 0x85, 0x83), Is.True,
+            "reading 300 back into y must copy both bytes");
+    }
+
+    [Test]
+    public void ProgramAddingTwoValuesAbove255CarriesIntoHighByte()
+    {
+        // 300 + 500 = 800. The low bytes (44 + 244 = 288) carry, so the high
+        // add must run with the carry set — no CLC between the low ADC and
+        // the high ADC. Today the addition is a single 8-bit add (and the
+        // values are already truncated to 44 and 244), so the carry is lost.
+        var result = Compile(AddAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; CLC; ADC $82; STA $84; LDA $81; ADC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x18, 0x65, 0x82, 0x85, 0x84, 0xA5, 0x81, 0x65, 0x83, 0x85, 0x85), Is.True,
+            "16-bit addition must carry from the low byte into the high byte: CLC only before the low ADC");
+    }
+
+    [Test]
+    public void ProgramSubtractingTwoValuesAbove255BorrowsFromHighByte()
+    {
+        // 300 - 500 = -200. The low bytes (44 - 244) borrow, so the high
+        // subtract must run with the borrow outstanding — no SEC between
+        // the low SBC and the high SBC.
+        var result = Compile(SubtractAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; SEC; SBC $82; STA $84; LDA $81; SBC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x38, 0xE5, 0x82, 0x85, 0x84, 0xA5, 0x81, 0xE5, 0x83, 0x85, 0x85), Is.True,
+            "16-bit subtraction must borrow from the low byte into the high byte: SEC only before the low SBC");
+    }
+
+    private const string ValueGreaterThan255Program =
+        "program Probe;\n" +
+        "var x, y: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := x;\n" +
+        "end.";
+
+    private const string AddAbove255Program =
+        "program Probe;\n" +
+        "var x, y, z: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  z := x + y;\n" +
+        "end.";
+
+    private const string SubtractAbove255Program =
+        "program Probe;\n" +
+        "var x, y, w: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  w := x - y;\n" +
+        "end.";
+
     private const string LessThanProgram =
         "program Probe;\n" +
         "var x: Integer;\n" +
