@@ -210,6 +210,80 @@ public class PascalProcedureRomTests
     }
 
     [Test]
+    public void CaseSelectingAmongThreeBranches()
+    {
+        // `case x of 1: x := 10; 2: x := 20; 3: x := 30; else x := 40 end`
+        // with x = 2 must dispatch on the selector: each label is tested in
+        // source order with CMP against the label constant, skipping its arm
+        // with BNE when the selector differs (the '=' relation's skip branch,
+        // the same machinery `if x = n` uses), and each arm jumps to the
+        // shared end — the halt loop just past the else arm. The else arm
+        // sits in the fall-through position after the last test. Today the
+        // visitor drops the whole case to a Nop, so the ROM contains no
+        // comparison against any label and no arm at all.
+        var result = Compile(CaseOfProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // Selector assignment: x := 2 (LDA #2; STA $80).
+        int selectorAt = IndexOfSequence(rom, 0, 0xA9, 0x02, 0x85, 0x80);
+        Assert.That(selectorAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the selector assignment (LDA #2; STA $80)");
+
+        // Test 1 compares the selector against label 1 and skips arm 1
+        // when they differ; the arm immediately follows its test.
+        int test1At = IndexOfSequence(rom, selectorAt + 4, 0xA5, 0x80, 0xC9, 0x01, 0xD0, 0x07);
+        Assert.That(test1At, Is.GreaterThanOrEqualTo(0),
+            "the ROM must test the selector against label 1 (LDA $80; CMP #1; BNE +7)");
+        int arm1At = IndexOfSequence(rom, test1At + 6, 0xA9, 0x0A, 0x85, 0x80);
+        Assert.That(arm1At, Is.EqualTo(test1At + 6),
+            "arm 1 (LDA #10; STA $80) must immediately follow its test");
+        Assert.That(rom[arm1At + 4], Is.EqualTo(0x4C),
+            "arm 1 must end in a JMP to the shared end label");
+
+        // Test 2 follows arm 1's JMP; its BNE lands on test 3.
+        int test2At = IndexOfSequence(rom, arm1At + 4, 0xA5, 0x80, 0xC9, 0x02, 0xD0, 0x07);
+        Assert.That(test2At, Is.EqualTo(arm1At + 7),
+            "test 2 must follow arm 1's JMP");
+        int arm2At = IndexOfSequence(rom, test2At + 6, 0xA9, 0x14, 0x85, 0x80);
+        Assert.That(arm2At, Is.EqualTo(test2At + 6),
+            "arm 2 (LDA #20; STA $80) must immediately follow its test");
+        Assert.That(rom[arm2At + 4], Is.EqualTo(0x4C),
+            "arm 2 must end in a JMP to the shared end label");
+
+        // Test 3 follows arm 2's JMP; its BNE lands on the else arm.
+        int test3At = IndexOfSequence(rom, arm2At + 4, 0xA5, 0x80, 0xC9, 0x03, 0xD0, 0x07);
+        Assert.That(test3At, Is.EqualTo(arm2At + 7),
+            "test 3 must follow arm 2's JMP");
+        int arm3At = IndexOfSequence(rom, test3At + 6, 0xA9, 0x1E, 0x85, 0x80);
+        Assert.That(arm3At, Is.EqualTo(test3At + 6),
+            "arm 3 (LDA #30; STA $80) must immediately follow its test");
+        Assert.That(rom[arm3At + 4], Is.EqualTo(0x4C),
+            "arm 3 must end in a JMP to the shared end label");
+
+        // Else arm sits in the fall-through position after the last test.
+        int elseAt = IndexOfSequence(rom, arm3At + 4, 0xA9, 0x28, 0x85, 0x80);
+        Assert.That(elseAt, Is.EqualTo(arm3At + 7),
+            "the else arm (LDA #40; STA $80) must sit in the fall-through position after the last test");
+
+        // Halt loop right after the else arm; every arm's JMP lands on it.
+        int haltAt = elseAt + 4;
+        Assert.That(rom[haltAt], Is.EqualTo(0x4C),
+            "a JMP must follow the else arm (halt loop)");
+        int haltTarget = rom[haltAt + 1] | (rom[haltAt + 2] << 8);
+        Assert.That(haltTarget - 0xF000, Is.EqualTo(haltAt),
+            "the JMP after the else arm must target itself (halt loop)");
+        foreach (int armAt in new[] { arm1At, arm2At, arm3At })
+        {
+            int jmpTarget = rom[armAt + 5] | (rom[armAt + 6] << 8);
+            Assert.That(jmpTarget - 0xF000, Is.EqualTo(haltAt),
+                "each arm's JMP must land on the halt loop (the shared end)");
+        }
+    }
+
+    [Test]
     public void ProgramBranchingOnLessThan()
     {
         // `x < 5` must skip its then-arm with BCS (0xB0, carry set after
@@ -242,6 +316,20 @@ public class PascalProcedureRomTests
             0xA5, 0x80, 0xC9, 0x05, 0xD0, 0x04, 0xA9, 0x01, 0x85, 0x80), Is.True,
             "`if x = 5` must still guard its then-arm with BNE");
     }
+
+    private const string CaseOfProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 2;\n" +
+        "  case x of\n" +
+        "    1: x := 10;\n" +
+        "    2: x := 20;\n" +
+        "    3: x := 30;\n" +
+        "  else\n" +
+        "    x := 40\n" +
+        "  end;\n" +
+        "end.";
 
     private const string LessThanProgram =
         "program Probe;\n" +

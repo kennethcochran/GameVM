@@ -179,6 +179,105 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseOfProducesDispatchNodeNotNop()
+        {
+            // `case...of` currently falls through VisitStatement to a Nop:
+            // the selector and every branch vanish with no error anywhere.
+            // The visitor must produce a Case node carrying the selector, one
+            // CaseBranch per case list element (each holding its constant
+            // labels, then its statement), and the else statements as a
+            // trailing Block — the shape the grammar itself describes
+            // (`caseListElement : constList COLON statement`, optional
+            // `(SEMI ELSE statements)?`). A branch with several labels
+            // (`1, 2: ...`) carries one LiteralInt per label.
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := 2;
+                    case x of
+                        1, 2: x := 10;
+                        3: x := 20;
+                    else
+                        x := 30
+                    end;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+            Assert.That(tree.Count, Is.GreaterThan(0));
+
+            int caseIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.Case)
+                {
+                    caseIdx = i;
+                    break;
+                }
+            }
+            Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0),
+                "Case statement should be present in the method body, not dropped to Nop");
+
+            var caseNode = tree[caseIdx];
+            Assert.That(caseNode.ChildCount, Is.EqualTo(4),
+                "Case should have 4 children (selector, two branches, else block)");
+
+            var caseChildren = tree.Children(caseIdx);
+            int selectorIdx = caseChildren[0];
+            Assert.That(tree.GetKind(selectorIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
+                "Case selector must be the identifier expression");
+            Assert.That(pool.Resolve(tree[selectorIdx].Payload), Is.EqualTo("x"),
+                "Case selector must be x");
+
+            // First branch: labels 1 and 2, then the assignment.
+            int branch12Idx = caseChildren[1];
+            Assert.That(tree.GetKind(branch12Idx), Is.EqualTo((byte)PascalAstNodeKind.CaseBranch),
+                "Each case list element must be a CaseBranch node");
+            var branch12 = tree[branch12Idx];
+            Assert.That(branch12.ChildCount, Is.EqualTo(3),
+                "A branch with two labels must have 3 children (label, label, statement)");
+            var branch12Children = tree.Children(branch12Idx);
+            Assert.That(tree.GetKind(branch12Children[0]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+            Assert.That(pool.Resolve(tree[branch12Children[0]].Payload), Is.EqualTo("1"),
+                "First label of the first branch must be 1");
+            Assert.That(tree.GetKind(branch12Children[1]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+            Assert.That(pool.Resolve(tree[branch12Children[1]].Payload), Is.EqualTo("2"),
+                "Second label of the first branch must be 2");
+            Assert.That(tree.GetKind(branch12Children[2]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                "The last child of a branch must be its statement");
+
+            // Second branch: label 3, then the assignment.
+            int branch3Idx = caseChildren[2];
+            Assert.That(tree.GetKind(branch3Idx), Is.EqualTo((byte)PascalAstNodeKind.CaseBranch));
+            var branch3 = tree[branch3Idx];
+            Assert.That(branch3.ChildCount, Is.EqualTo(2),
+                "A branch with one label must have 2 children (label, statement)");
+            var branch3Children = tree.Children(branch3Idx);
+            Assert.That(tree.GetKind(branch3Children[0]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+            Assert.That(pool.Resolve(tree[branch3Children[0]].Payload), Is.EqualTo("3"),
+                "Label of the second branch must be 3");
+            Assert.That(tree.GetKind(branch3Children[1]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                "The last child of a branch must be its statement");
+
+            // Else: a Block holding the else statements.
+            int elseIdx = caseChildren[3];
+            Assert.That(tree.GetKind(elseIdx), Is.EqualTo((byte)PascalAstNodeKind.Block),
+                "The else part must be a Block of its statements");
+            var elseChildren = tree.Children(elseIdx);
+            Assert.That(elseChildren.Length, Is.EqualTo(1),
+                "The else block must hold the single else statement");
+            Assert.That(tree.GetKind(elseChildren[0]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                "The else statement must be the `x := 30` assignment");
+        }
+
+        [Test]
         public void Visitor_HandlesWhileLoop()
         {
             string code = @"

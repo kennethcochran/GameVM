@@ -136,3 +136,23 @@ Feature: Pascal Language Extended
     When I compile the program
     Then the compilation succeeds
     And the output binary should contain the hex sequence "a9 00 85 80"
+
+  Scenario: Case Of Dispatches To The Matching Branch
+    Given the following Pascal program:
+      """
+      program CaseOf;
+      var x: Integer;
+      begin
+          x := 2;
+          case x of
+              1: x := 10;
+              2: x := 20;
+              3: x := 30;
+          else
+              x := 40
+          end;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a5 80 c9 01 d0 07"
