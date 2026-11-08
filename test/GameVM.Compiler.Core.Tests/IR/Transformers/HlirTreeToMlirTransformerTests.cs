@@ -349,6 +349,57 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void RepeatUntilExecutesBodyThenTestsCondition()
+    {
+        // `repeat <body> until <cond>` lowers to: loop label, body, condition
+        // test, back-edge to the loop label while the condition is false,
+        // exit label. The body runs BEFORE the first condition test — that
+        // ordering is what distinguishes repeat from while.
+        //
+        // HlirNodeKind.Repeat does not exist yet: the implementer adds it
+        // with the value pinned here (the next free value after Block = 22),
+        // with children [body, condition] in source order. Replace this
+        // constant with (byte)HlirNodeKind.Repeat once the kind exists.
+        const byte repeatKind = 23;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        // Body of repeat: x := 0
+        int identBody = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litBody = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, identBody, litBody);
+
+        // Exit condition: x <> 0
+        int identCond = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litCond = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int binOpNe = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, identCond, litCond);
+
+        // Repeat node: 2 children — body + condition, body first.
+        builder.Add(repeatKind, 0, 0, HlirPayloadKind.None, assign, binOpNe);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        Assert.That(result.Count, Is.EqualTo(6),
+            "Repeat lowers to: Label, body, Cmp, Transition, Branch, Label");
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 0: loop header label");
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 1: body assignment runs before any condition test");
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 2: compare exit condition");
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Transition), "Index 3: transition");
+        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 4: back-edge to the loop label while the condition is false");
+        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 5: exit label");
+
+        // The back-edge must target the loop header, not the exit label.
+        uint loopLabel = result.GetOperands(0)[0];
+        uint exitLabel = result.GetOperands(5)[0];
+        Assert.That(loopLabel, Is.Not.EqualTo(exitLabel), "loop and exit labels must differ");
+        Assert.That(result.GetOperands(4)[0], Is.EqualTo(loopLabel),
+            "the conditional branch must jump back to the loop header");
+    }
+
+    [Test]
     public void Transform_UnaryMinusVariable_LowersToSubFromZero()
     {
         // HLIR -> MLIR seam: x := -y lowers to the temp sequence

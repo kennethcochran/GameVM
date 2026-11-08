@@ -243,6 +243,81 @@ public class PascalProcedureRomTests
             "`if x = 5` must still guard its then-arm with BNE");
     }
 
+    [Test]
+    public void RepeatUntilLoopRunningUntilConditionMet()
+    {
+        // `repeat x := x + 1 until x = 3` must run its body (x reaches 3 by
+        // repeated increments) and stop when the condition holds. At the ROM
+        // level: the body increment is emitted, the `x = 3` test follows the
+        // body (the body runs before the first test), and a BNE branches back
+        // to the body start while x is not yet 3. Today the visitor drops the
+        // whole repeat to a Nop, so the ROM contains no increment at all.
+        var result = Compile(RepeatUntilProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // Body: LDA $80; CLC; ADC #1; STA $80 (x := x + 1).
+        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80);
+        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the repeat body (LDA $80; CLC; ADC #1; STA $80)");
+
+        // Exit condition, tested after the body: LDA $80; CMP #3; BNE back.
+        int condAt = IndexOfSequence(rom, bodyAt + 7, 0xA5, 0x80, 0xC9, 0x03, 0xD0);
+        Assert.That(condAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must test `x = 3` after the body — the body runs before the first test");
+        int bneOffset = (sbyte)rom[condAt + 5];
+        int bneTarget = condAt + 6 + bneOffset;
+        Assert.That(bneTarget, Is.EqualTo(bodyAt),
+            "the BNE back-edge must land on the body start, so the loop repeats while x <> 3");
+
+        // Falling through past the BNE (x = 3) must reach the halt loop, not
+        // run off into padding: a JMP to itself sits right after the branch.
+        Assert.That(rom[condAt + 6], Is.EqualTo(0x4C),
+            "a JMP must follow the back-edge branch so the program halts once the condition holds");
+        int jmpTarget = rom[condAt + 7] | (rom[condAt + 8] << 8);
+        Assert.That(jmpTarget - 0xF000, Is.EqualTo(condAt + 6),
+            "the JMP after the loop must target itself (halt loop)");
+    }
+
+    [Test]
+    public void WhileLoopStillRunsBodyAndExits()
+    {
+        // Guard: `while` already works and this slice must not disturb it.
+        // The condition is tested before the body (CMP #3; BCS past the
+        // body), the body increments x, and a JMP returns to the test.
+        var result = Compile(WhileLoopProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+        Assert.That(ContainsSequence(result.Code,
+            0xA9, 0x00, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x80,
+            0xC9, 0x03, 0xB0, 0x0A,
+            0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80,
+            0x4C, 0x15, 0xF0), Is.True,
+            "`while x < 3` must keep its established lowering (test before body, JMP back to the test)");
+    }
+
+    private const string RepeatUntilProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  repeat\n" +
+        "    x := x + 1;\n" +
+        "  until x = 3;\n" +
+        "end.";
+
+    private const string WhileLoopProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  while x < 3 do\n" +
+        "    x := x + 1;\n" +
+        "end.";
+
     private const string LessThanProgram =
         "program Probe;\n" +
         "var x: Integer;\n" +

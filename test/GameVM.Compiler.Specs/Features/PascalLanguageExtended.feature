@@ -122,6 +122,22 @@ Feature: Pascal Language Extended
     When I compile the program
     Then the compilation succeeds
 
+  Scenario: Repeat Until Loop
+    Given the following Pascal program:
+      """
+      program RepeatUntil;
+      var x: Integer;
+      begin
+          x := 0;
+          repeat
+              x := x + 1;
+          until x = 3;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a5 80 18 69 01 85 80"
+
   Scenario: Edge Cases - Zero Value
     Given the following Pascal program:
       """
