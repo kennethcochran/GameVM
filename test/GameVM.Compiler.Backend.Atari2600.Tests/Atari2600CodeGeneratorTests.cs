@@ -702,4 +702,146 @@ public class Atari2600CodeGeneratorTests
         Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xC5), "CMP zp opcode (2-operand Cmp uses zero-page)");
         Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xF0), "BEQ opcode");
     }
+
+    // Unresolved-label slice: a Jump, Call, or Branch to a label with no
+    // matching Label instruction must fail loudly. Today Jump/Call silently
+    // emit a transfer to $F000 (the reset prologue) and Branch uses the
+    // label's pool-offset byte as its displacement — both produce a ROM
+    // that jumps somewhere wrong. Labels that DO resolve still emit
+    // correctly (the guards below).
+
+    [Test]
+    public void UnresolvedLabelInJumpCallOrBranchThrowsInsteadOfSilentFallback()
+    {
+        // One assertion per transfer kind, collected so a partial fix
+        // still shows exactly which kinds fall back silently.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.Throws<GameVmException>(() =>
+            {
+                var builder = new InstListBuilder();
+                builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, 9999);
+                _codeGenerator.GenerateFromSlab(builder.Build(), new StringPool(), new CodeGenOptions());
+            }, "Jump to an unresolved label must throw, not JMP $F000");
+            Assert.Throws<GameVmException>(() =>
+            {
+                var builder = new InstListBuilder();
+                builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 9999);
+                _codeGenerator.GenerateFromSlab(builder.Build(), new StringPool(), new CodeGenOptions());
+            }, "Call to an unresolved label must throw, not JSR $F000");
+            Assert.Throws<GameVmException>(() =>
+            {
+                var builder = new InstListBuilder();
+                builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x80, 0);
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 9999);
+                _codeGenerator.GenerateFromSlab(builder.Build(), new StringPool(), new CodeGenOptions());
+            }, "Branch to an unresolved label must throw, not branch by a garbage offset");
+        }
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithJumpToUnresolvedLabel_ThrowsInsteadOfSilentFallback()
+    {
+        // Today the generator silently emits JMP $F000 for a Jump whose
+        // label has no matching Label instruction.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, 9999);
+        var slab = builder.Build();
+
+        Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithCallToUnresolvedLabel_ThrowsInsteadOfSilentFallback()
+    {
+        // Today the generator silently emits JSR $F000 for a Call whose
+        // label has no matching Label instruction.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 9999);
+        var slab = builder.Build();
+
+        Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithBranchToUnresolvedLabel_ThrowsInsteadOfSilentFallback()
+    {
+        // Today the generator uses the label's pool-offset byte
+        // (9999 & 0xFF = 0x0F) as the branch displacement and emits a BNE
+        // that lands somewhere wrong.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x80, 0);
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 9999);
+        var slab = builder.Build();
+
+        Assert.Throws<GameVmException>(() =>
+            _codeGenerator.GenerateFromSlab(slab, new StringPool(), new CodeGenOptions()));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithJumpToResolvedLabel_EmitsJumpToLabelAddress()
+    {
+        // Guard: a Jump to a label that IS defined still emits JMP to the
+        // label's address, not an error.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Jump, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x4C)); // JMP
+        int jumpTarget = rom[PrologueSize + 1] | (rom[PrologueSize + 2] << 8);
+        Assert.That(jumpTarget, Is.EqualTo(0xF000 + PrologueSize + 3), "jump lands on the LDA after the label");
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0xA9)); // LDA #$42
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x42));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithCallToResolvedLabel_EmitsCallToLabelAddress()
+    {
+        // Guard: a Call to a label that IS defined still emits JSR to the
+        // label's address, not an error.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0x20)); // JSR
+        int callTarget = rom[PrologueSize + 1] | (rom[PrologueSize + 2] << 8);
+        Assert.That(callTarget, Is.EqualTo(0xF000 + PrologueSize + 3), "call lands on the LDA after the label");
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0xA9)); // LDA #$42
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x42));
+    }
+
+    [Test]
+    public void GenerateFromSlab_WithBranchToResolvedLabel_EmitsBranchWithCorrectDisplacement()
+    {
+        // Guard: a Branch to a label that IS defined still emits a branch
+        // with the displacement to the label, not an error.
+        var builder = new InstListBuilder();
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, 0x80, 0); // CMP $80
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 1000);
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42);
+        var slab = builder.Build();
+        var stringPool = new StringPool();
+
+        var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
+
+        Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xC5)); // CMP zp
+        Assert.That(rom[PrologueSize + 1], Is.EqualTo(0x80));
+        Assert.That(rom[PrologueSize + 2], Is.EqualTo(0xD0)); // BNE
+        Assert.That(rom[PrologueSize + 3], Is.EqualTo(0x00), "displacement is 0: the label sits right after the branch");
+        Assert.That(rom[PrologueSize + 4], Is.EqualTo(0xA9)); // LDA #$42
+        Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x42));
+    }
 }
