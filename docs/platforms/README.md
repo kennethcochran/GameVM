@@ -6,6 +6,7 @@ This directory holds the **hardware capability catalog** for the retro platforms
 
 - **`specs/`** — per-console hardware reference specifications (Atari, Nintendo, Sega, NEC, SNK, and obscure systems). Each is a factual hardware/feasibility reference.
 - **`specs/TEMPLATE.md`** — template for authoring new platform reference specs.
+- **`CapabilityProfiles.md`** — the capability profile system: provisional L1/L2 levels (ADR-010), how levels are settled, and ISA mobility across levels.
 - **`CapabilityProfilesReport.md`** — hardware capability comparison / analysis.
 
 ## Status
