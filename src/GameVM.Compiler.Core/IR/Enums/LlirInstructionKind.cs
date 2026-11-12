@@ -75,4 +75,39 @@ public enum LlirInstructionKind : byte
     /// before a Branch.
     /// </summary>
     Bcs = 209,
+
+    /// <summary>
+    /// Multiply: 8-bit unsigned product. Operands are the right operand plus
+    /// two scratch zero-page addresses (see MidToLowLevelTransformer):
+    /// variable right is (rightAddr, 0, scratchM, scratchN), literal right
+    /// is (rightVal, scratchM, scratchN). The left operand arrives in the
+    /// accumulator via a preceding Load. The backend lowers it to an inline
+    /// shift-and-add routine and leaves the product in the accumulator.
+    /// </summary>
+    Multiply = 210,
+
+    /// <summary>
+    /// BitwiseAnd: 8-bit bitwise AND. Operands follow the Add/Sub convention
+    /// (see MidToLowLevelTransformer): the left operand arrives in the
+    /// accumulator via a preceding Load, the right operand is (rightAddr, 0)
+    /// for a variable or (rightVal) for a literal. The backend emits AND
+    /// (zp or immediate) and leaves the result in the accumulator.
+    /// </summary>
+    BitwiseAnd = 211,
+
+    /// <summary>
+    /// BitwiseOr: 8-bit bitwise OR. Operands follow the Add/Sub convention
+    /// (see MidToLowLevelTransformer): the left operand arrives in the
+    /// accumulator via a preceding Load, the right operand is (rightAddr, 0)
+    /// for a variable or (rightVal) for a literal. The backend emits ORA
+    /// (zp or immediate) and leaves the result in the accumulator.
+    /// </summary>
+    BitwiseOr = 212,
+
+    /// <summary>
+    /// BitwiseNot: 8-bit bitwise complement. Carries no operands: the value
+    /// arrives in the accumulator via a preceding Load. The backend emits
+    /// EOR #$FF and leaves the complement in the accumulator.
+    /// </summary>
+    BitwiseNot = 213,
 }

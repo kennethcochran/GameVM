@@ -73,6 +73,29 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             var (insnAddr, labelOffsets) = ComputeInstructionAddresses(llirSlab, exitLabels);
 
+            // The program must fit the usable ROM space: code plus the 3-byte
+            // halt loop must end at or before the interrupt vectors. Anything
+            // larger used to be silently truncated (the loop below breaks on
+            // the first instruction that no longer fits) or overwrite the
+            // vectors — fail loudly instead of returning a partial ROM.
+            int lastInsn = llirSlab.Count - 1;
+            int codeEnd = insnAddr[lastInsn] + EmitSize(
+                llirSlab.GetKind(lastInsn),
+                llirSlab.GetOperands(lastInsn),
+                (InstructionFlag)llirSlab.GetFlags(lastInsn));
+            if (codeEnd + 3 > VectorBaseOffset)
+                throw new GameVmException(
+                    ErrorCode.RomSizeExceeded,
+                    $"Atari2600CodeGenerator: program needs {codeEnd + 3} bytes (code plus " +
+                    $"halt loop) but only {VectorBaseOffset} bytes fit before the interrupt " +
+                    "vectors at $FFFC. Remove code or split the program.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["EmittedBytes"] = codeEnd + 3,
+                        ["UsableRomBytes"] = VectorBaseOffset,
+                    });
+
             for (int i = 0; i < llirSlab.Count; i++)
             {
                 byte kindByte = llirSlab.GetKind(i);
@@ -84,6 +107,10 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Store => EmitStore(rom, ref currentAddress, operands),
                     LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
                     LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Multiply => EmitMultiply(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseAnd => EmitBitwiseAnd(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseOr => EmitBitwiseOr(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseNot => EmitBitwiseNot(rom, ref currentAddress),
                     LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition, ref lastWasBcs),
                     LlirInstructionKind.Assign => EmitAssign(rom, ref currentAddress, operands),
                     LlirInstructionKind.Label => EmitLabel(),
@@ -224,6 +251,53 @@ namespace GameVM.Compiler.Backend.Atari2600
             return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x38, zeroPageOpcode: 0xE5, immediateOpcode: 0xE9); // SEC; SBC zp; SBC #imm
         }
 
+        private static int EmitBitwiseAnd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Two operands [addr, 0]: variable — AND zp (AND with VALUE at address)
+            // One operand [val]: immediate — AND #imm (AND with literal value)
+            // AND needs no carry setup, unlike ADC/SBC.
+            return EmitBitwiseBinary(rom, ref currentAddress, operands, zeroPageOpcode: 0x25, immediateOpcode: 0x29);
+        }
+
+        private static int EmitBitwiseOr(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Two operands [addr, 0]: variable — ORA zp (OR with VALUE at address)
+            // One operand [val]: immediate — ORA #imm (OR with literal value)
+            return EmitBitwiseBinary(rom, ref currentAddress, operands, zeroPageOpcode: 0x05, immediateOpcode: 0x09);
+        }
+
+        private static int EmitBitwiseNot(byte[] rom, ref int currentAddress)
+        {
+            // No operands: the value to complement is already in A (loaded by
+            // the preceding Load). Complement is EOR #$FF.
+            if (currentAddress + 2 > RomSize)
+                return 0;
+            rom[currentAddress++] = 0x49; // EOR #imm
+            rom[currentAddress++] = 0xFF;
+            return 2;
+        }
+
+        // Shared shape for AND/ORA: the zero-page form for a variable operand
+        // or the immediate form for a literal. No carry setup: unlike ADC/SBC,
+        // AND/ORA leave the carry flag alone.
+        private static int EmitBitwiseBinary(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
+            byte zeroPageOpcode, byte immediateOpcode)
+        {
+            if (operands.Length >= 2 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = zeroPageOpcode;
+                rom[currentAddress++] = (byte)operands[0];
+                return 2;
+            }
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = immediateOpcode;
+                rom[currentAddress++] = (byte)operands[0];
+                return 2;
+            }
+            return 0;
+        }
+
         // Shared shape for ADC/SBC: set the carry flag, then the zero-page
         // form for a variable operand or the immediate form for a literal.
         private static int EmitArithmetic(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
@@ -244,6 +318,91 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return 3;
             }
             return 0;
+        }
+
+        /// <summary>
+        /// 8-bit unsigned multiply as an inline shift-and-add routine
+        /// (22 bytes). Entry: A = multiplicand (loaded by the preceding
+        /// Load); operands carry the multiplier and two scratch zero-page
+        /// addresses (see MidToLowLevelTransformer.EmitMultiplyOp).
+        /// Variable right (4 operands: rightAddr, 0, scratchM, scratchN):
+        /// STA scratchM; LDA rightAddr; STA scratchN. Literal right
+        /// (3 operands: rightVal, scratchM, scratchN): STA scratchM;
+        /// LDA #rightVal; STA scratchN. Then A = 0 (result), X = 8 (bit
+        /// counter); loop 8 times: shift the multiplier right (bit 0 goes
+        /// to carry), add the multiplicand to the result when the bit is
+        /// set, shift the multiplicand left. The product is left in A.
+        /// Neither operand in memory is modified — only the scratch copies.
+        /// </summary>
+        private static int EmitMultiply(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Operand layout: 4 operands = variable right (rightAddr, 0,
+            // scratchM, scratchN); 3 operands = literal right (rightVal,
+            // scratchM, scratchN). Both forms emit the same 22 bytes.
+            // A Multiply with fewer than three operands is malformed: the
+            // old code returned 0 here and the emit loop broke, returning
+            // a ROM that omitted this instruction and every following
+            // one. Fail loudly instead.
+            if (operands.Length < 3)
+                throw new GameVmException(
+                    ErrorCode.UnhandledLlirInstruction,
+                    $"Atari2600CodeGenerator cannot emit LLIR Multiply with {operands.Length} operand(s): " +
+                    "a well-formed Multiply carries three operands (literal right) or four (variable right).",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["LlirKind"] = nameof(LlirInstructionKind.Multiply),
+                        ["OperandCount"] = operands.Length,
+                    });
+
+            bool variableRight = operands.Length >= 4;
+            if (currentAddress + 22 > RomSize)
+                return 0;
+
+            byte scratchM;
+            byte scratchN;
+            if (variableRight)
+            {
+                scratchM = (byte)operands[2];
+                scratchN = (byte)operands[3];
+            }
+            else
+            {
+                scratchM = (byte)operands[1];
+                scratchN = (byte)operands[2];
+            }
+
+            rom[currentAddress++] = 0x85; // STA scratchM (save multiplicand from A)
+            rom[currentAddress++] = scratchM;
+            if (variableRight)
+            {
+                rom[currentAddress++] = 0xA5; // LDA rightAddr (multiplier)
+                rom[currentAddress++] = (byte)operands[0];
+            }
+            else
+            {
+                rom[currentAddress++] = 0xA9; // LDA #rightVal (multiplier)
+                rom[currentAddress++] = (byte)operands[0];
+            }
+            rom[currentAddress++] = 0x85; // STA scratchN (save multiplier)
+            rom[currentAddress++] = scratchN;
+            rom[currentAddress++] = 0xA9; // LDA #0 (result)
+            rom[currentAddress++] = 0x00;
+            rom[currentAddress++] = 0xA2; // LDX #8 (bit counter)
+            rom[currentAddress++] = 0x08;
+            rom[currentAddress++] = 0x46; // LSR scratchN (multiplier >>= 1, bit 0 -> carry)
+            rom[currentAddress++] = scratchN;
+            rom[currentAddress++] = 0x90; // BCC +3 (skip the add when the bit is clear)
+            rom[currentAddress++] = 0x03;
+            rom[currentAddress++] = 0x18; // CLC
+            rom[currentAddress++] = 0x65; // ADC scratchM (result += multiplicand)
+            rom[currentAddress++] = scratchM;
+            rom[currentAddress++] = 0x06; // ASL scratchM (multiplicand <<= 1)
+            rom[currentAddress++] = scratchM;
+            rom[currentAddress++] = 0xCA; // DEX
+            rom[currentAddress++] = 0xD0; // BNE -12 (loop, back to LSR)
+            rom[currentAddress++] = 0xF4;
+            return 22;
         }
 
         private static int EmitCmp(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, ref bool lastWasTransition, ref bool lastWasBcs)
@@ -373,6 +532,22 @@ namespace GameVM.Compiler.Backend.Atari2600
                     displacement = targetAddr - (insnAddress + 2);
                 else if (operands.Length >= 1)
                     displacement = (sbyte)(byte)operands[0];
+                // The 6502 encodes a branch displacement in one signed byte.
+                // A target outside -128..+127 would wrap (a 130-byte skip
+                // encodes as 0x82 and jumps backward), so reject it loudly
+                // instead of emitting a branch to the wrong address.
+                if (displacement < -128 || displacement > 127)
+                    throw new GameVmException(
+                        ErrorCode.BranchOutOfRange,
+                        $"Atari2600CodeGenerator: conditional branch at ROM offset {insnAddress} " +
+                        $"needs displacement {displacement}, outside the 6502 relative-branch " +
+                        "range (-128..+127). Shorten the skipped code or split the branch.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["BranchAddress"] = insnAddress,
+                            ["Displacement"] = displacement,
+                        });
                 rom[currentAddress++] = (byte)(displacement & 0xFF);
                 written = 2;
             }
@@ -477,6 +652,12 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Store when op.Length == 0 => 0,
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
                 LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                LlirInstructionKind.Multiply => 22,
+                // AND/ORA occupy 2 bytes in both the zero-page and
+                // immediate forms, and the complement is 2 bytes too —
+                // none of the three needs the carry-setup byte ADC/SBC use.
+                LlirInstructionKind.BitwiseAnd or LlirInstructionKind.BitwiseOr => 2,
+                LlirInstructionKind.BitwiseNot => 2,
                 LlirInstructionKind.Cmp => op.Length >= 1 ? 2 : 1,
                 LlirInstructionKind.Assign => op.Length >= 1 ? 4 : 0,
                 LlirInstructionKind.Branch => 2,

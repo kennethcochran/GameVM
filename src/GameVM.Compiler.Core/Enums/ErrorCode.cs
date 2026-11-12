@@ -38,5 +38,11 @@ namespace GameVM.Compiler.Core.Enums
         /// relative-branch range (0x4004).
         /// </summary>
         BranchOutOfRange = 0x4004,
+
+        /// <summary>
+        /// Backend: the emitted program plus the halt loop exceeds the
+        /// target's usable ROM space before the interrupt vectors (0x4005).
+        /// </summary>
+        RomSizeExceeded = 0x4005,
     }
 }
