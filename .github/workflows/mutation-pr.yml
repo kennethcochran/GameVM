@@ -13,7 +13,12 @@ name: Mutation Testing (PR)
 # test project to include its area here. The C# frontend is excluded: it
 # is broken and abandoned, and is not in the solution file. A PR that
 # touches none of an area's files yields zero mutants for that area, and
-# that area's job passes vacuously.
+# that area's job passes vacuously: a guard step below skips the Stryker
+# run when the PR changes no file in the area's scope. The guard is
+# load-bearing, not an optimization — in --since mode Stryker's initial
+# test run discovers no tests when nothing changed, and some areas'
+# test projects report that as a failure instead of an empty run
+# (pascal and lowlevel failed this way on the docs-only PR #20).
 on:
   pull_request:
     branches: [main]
@@ -37,36 +42,66 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # scope: the production files the area's stryker-config.json
+          # mutates, as git pathspecs. The guard step diffs the PR
+          # against these; keep them in sync with the config's mutate
+          # list and project.
           - id: atari2600
             dir: test/GameVM.Compiler.Backend.Atari2600.Tests
+            scope: "src/GameVM.Compiler.Backend.Atari2600/Atari2600CodeGenerator.cs src/GameVM.Compiler.Backend.Atari2600/MidToLowLevelTransformer.cs"
           - id: pascal
             dir: test/GameVM.Compiler.Pascal.Tests
+            scope: "src/GameVM.Compiler.Pascal/**/*.cs :(exclude)src/GameVM.Compiler.Pascal/ANTLR/**"
           - id: core
             dir: test/GameVM.Compiler.Core.Tests
+            scope: "src/GameVM.Compiler.Core/**/*.cs"
           - id: application
             dir: test/GameVM.Compiler.Application.Tests
+            scope: "src/GameVM.Compiler.Application/**/*.cs"
           - id: compile
             dir: test/GameVM.Compile.Tests
+            scope: "src/GameVM.Compile/**/*.cs"
           - id: interaction
             dir: test/GameVM.Compiler.Interaction.Tests
+            scope: "src/GameVM.Compiler.Interaction/**/*.cs"
           - id: lowlevel
             dir: test/GameVM.Compiler.Optimizers.LowLevel.Tests
+            scope: "src/GameVM.Compiler.Optimizers.LowLevel/**/*.cs"
           - id: midlevel
             dir: test/GameVM.Compiler.Optimizers.MidLevel.Tests
+            scope: "src/GameVM.Compiler.Optimizers.MidLevel/**/*.cs"
           - id: devtools
             dir: test/GameVM.DevTools.Tests
+            scope: "src/GameVM.DevTools/**/*.cs"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Detect changed code in this area
+        id: scope
+        # Three-dot diff: files this PR changes relative to the merge
+        # base, restricted to the area's mutated production files.
+        # Unquoted expansion is deliberate: scope holds one or more
+        # pathspecs. Skipping on an empty diff is what makes an
+        # untouched area pass vacuously (see the header comment).
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD -- ${{ matrix.scope }} | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No changed code in the ${{ matrix.id }} area; skipping its mutation run, which passes vacuously."
+          fi
       - name: Setup .NET 10
+        if: steps.scope.outputs.changed == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - name: Restore tools
+        if: steps.scope.outputs.changed == 'true'
         run: dotnet tool restore
       - name: Run Stryker (changed code only)
+        if: steps.scope.outputs.changed == 'true'
         working-directory: ${{ matrix.dir }}
         # --since scopes the run to code changed since the PR base branch,
         # so only the PR's changed code is mutated. The break threshold in
