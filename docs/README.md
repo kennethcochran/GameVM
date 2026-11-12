@@ -12,7 +12,7 @@ GameVM documentation keeps agents and humans on the same page and prevents aspir
 | [`docs/adr/`](adr/) | Architectural Decision Records — immutable `why` records (e.g. SoA over OOP AST). |
 | GitHub Issues | In-flight planned work — one issue per feature or slice. (Specs are the failing test files.) |
 
-> `docs/` is strictly **what exists**. Planned work lives as failing test files (tracked as GitHub issues) until implemented. See [`docs/AGENTS.md`](AGENTS.md) and [`docs/DOC-IMPACT.md`](DOC-IMPACT.md).
+> `docs/` is strictly **what exists**, with two exceptions: ADRs, and documents recording an approved decision that state plainly at the top that the behavior is not yet implemented. Planned work otherwise lives as failing test files (tracked as GitHub issues) until implemented. See [`docs/AGENTS.md`](AGENTS.md) and [`docs/DOC-IMPACT.md`](DOC-IMPACT.md).
 
 ## Documentation in this directory
 
