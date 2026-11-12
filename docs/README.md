@@ -10,9 +10,9 @@ GameVM documentation keeps agents and humans on the same page and prevents aspir
 |---|---|
 | [`CONTEXT.md`](../CONTEXT.md) | Glossary of canonical terms, current architecture, invariants, stabilized APIs. The "True North" — start here. |
 | [`docs/adr/`](adr/) | Architectural Decision Records — immutable `why` records (e.g. SoA over OOP AST). |
-| `.scratch/` | In-flight planned work — `issues/` tickets. Ephemeral and gitignored. (Specs are the failing test files.) |
+| GitHub Issues | In-flight planned work — one issue per feature or slice. (Specs are the failing test files.) |
 
-> `docs/` is strictly **what exists**. Planned work lives as failing test files (tracked via `.scratch/` tickets) until implemented. See [`docs/AGENTS.md`](AGENTS.md) and [`docs/DOC-IMPACT.md`](DOC-IMPACT.md).
+> `docs/` is strictly **what exists**. Planned work lives as failing test files (tracked as GitHub issues) until implemented. See [`docs/AGENTS.md`](AGENTS.md) and [`docs/DOC-IMPACT.md`](DOC-IMPACT.md).
 
 ## Documentation in this directory
 
@@ -26,7 +26,7 @@ GameVM documentation keeps agents and humans on the same page and prevents aspir
 ## Where to look first
 
 - **What the code is today** → [`CONTEXT.md`](../CONTEXT.md)
-- **What's planned** → `.scratch/` (in-flight, gitignored)
+- **What's planned** → GitHub Issues
 - **Why a decision was made** → [`docs/adr/`](adr/)
 
 ## Key references

@@ -6,7 +6,7 @@ Issues and tickets for this repo live on GitHub Issues (kennethcochran/GameVM) â
 
 - One feature or slice per issue. A slice issue carries the slice's narrative: what it delivers, its status, and its spec (the failing tests).
 - State is carried by the `kind:` / `state:` label taxonomy on the repo; triage roles use the label strings in `triage-labels.md`.
-- Blocking is recorded in the issue body with links to the blocking issues; a ticket is unblocked when every issue it links is closed or merged.
+- Blocking is recorded in the issue body under a "Blocked by" heading listing the blocking issues; only those count as blockers. A ticket is unblocked when every issue in its Blocked by list is closed or merged. Links included for context (for example, to the map issue) are not blockers.
 - Comments and conversation history live on the issue.
 
 ## Publishing to the issue tracker

@@ -20,7 +20,7 @@ Only the **Atari 2600** backend is implemented today (see [`CONTEXT.md`](../../C
 ## Adding a platform
 
 1. Add/have a reference spec in `specs/`.
-2. Track the target's build as planned work under `.scratch/`.
+2. Track the target's build as planned work in GitHub Issues.
 3. Implement the backend; update `CONTEXT.md` when it ships.
 
 See [Compiler docs](../compiler/README.md) for how the pipeline produces platform binaries.
