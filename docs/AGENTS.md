@@ -5,7 +5,7 @@ and docs-related workflows in the GameVM project. It supplements the [root AGENT
 
 ## Documentation Strategy
 
-GameVM documentation lives in two persistent locations, plus an ephemeral planned-work area:
+GameVM documentation lives in two persistent locations; planned work is tracked outside `docs/` as GitHub Issues:
 
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
 2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
@@ -32,7 +32,7 @@ The gate's enforcement (husky hook and CI step) was disabled; the script remains
 
 ## Starting New Work
 
-New work is discussed and sharpened first, then specified as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end), then broken into tickets tracked as local markdown under `.scratch/<feature>/`. Once implemented, its architecture/API details move into `CONTEXT.md`.
+New work is discussed and sharpened first, then specified as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end), then broken into tickets tracked as GitHub Issues. Once implemented, its architecture/API details move into `CONTEXT.md`.
 
 
 ## Adding Documentation
