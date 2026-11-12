@@ -17,6 +17,8 @@ Planned work that does not exist yet lives as failing test files until it is imp
 **1. Never Write Aspirational Docs**
 If you are designing a feature that doesn't exist yet, specify it as failing tests — NUnit for unit behavior, Reqnroll for acceptance and end-to-end. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
 
+**Exception — decision records.** ADRs in `docs/adr/` are exempt from this rule. An ADR's job is to record a decision made about the work, or guidance for future work, and a decision is often necessarily about behavior that does not exist yet; forward-looking statements of that kind have to live somewhere, and the ADR is where they belong. Pending work itself is not an ADR and does not belong in `docs/`: it is tracked as GitHub Issues and specified as failing tests. A non-ADR doc whose subject is an approved decision or guidance for future work (for example, a platform doc recording an ADR) may describe the decided behavior, provided it states plainly at the top that the behavior is not yet implemented.
+
 **2. The "True North" Update Rule**
 If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/LLIR), or the structural invariants of the compiler, you **must** update `CONTEXT.md` in the exact same session. 
 *   Do not just tag sections as `[implemented]`. 

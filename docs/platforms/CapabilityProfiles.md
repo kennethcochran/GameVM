@@ -32,7 +32,15 @@ first and scales up, never the reverse.
 The L1 instruction set must be implementable on the most constrained L1
 hardware. The LLIR register set (accumulator plus 6 general-purpose
 registers, ADR-009) was sized against exactly these four CPUs: 7 is the
-largest set fitting every L1 CPU's register file with a spare.
+largest virtual set every L1 backend can support with a spare cell. What
+a "register" is differs per CPU. On the Z80 (Bally Astrocade) they are
+physical registers: A plus B, C, D, E, H, L. On the Atari 2600 they are
+not CPU registers at all — the 6507 has only A, X, and Y — they are seven
+zero-page memory locations. On the Odyssey² (Intel 8048) they are A plus
+six of R0–R7 in internal RAM; on the Channel F (Fairchild F8) they are
+the accumulator plus six directly addressable scratchpad cells. On the
+memory-backed machines the seven registers are a RAM budget line, not
+register-file space.
 
 ### L2 — runs L1 games with a simple recompile
 
