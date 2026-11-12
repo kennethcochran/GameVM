@@ -45,34 +45,40 @@ jobs:
           # scope: the production files the area's stryker-config.json
           # mutates, as git pathspecs. The guard step diffs the PR
           # against these; keep them in sync with the config's mutate
-          # list and project.
+          # list and project. The "/*.cs" form is deliberate: in git
+          # pathspecs "*" crosses directory separators, so it covers
+          # .cs files at every depth under the project — whereas
+          # "/**/*.cs" would miss the project's top-level files.
           - id: atari2600
             dir: test/GameVM.Compiler.Backend.Atari2600.Tests
             scope: "src/GameVM.Compiler.Backend.Atari2600/Atari2600CodeGenerator.cs src/GameVM.Compiler.Backend.Atari2600/MidToLowLevelTransformer.cs"
           - id: pascal
             dir: test/GameVM.Compiler.Pascal.Tests
-            scope: "src/GameVM.Compiler.Pascal/**/*.cs :(exclude)src/GameVM.Compiler.Pascal/ANTLR/**"
+            # The .g4 grammar is in scope because it generates the
+            # parser: a grammar-only PR changes compiled code while
+            # changing no committed .cs file.
+            scope: "src/GameVM.Compiler.Pascal/*.cs src/GameVM.Compiler.Pascal/ANTLR/*.g4"
           - id: core
             dir: test/GameVM.Compiler.Core.Tests
-            scope: "src/GameVM.Compiler.Core/**/*.cs"
+            scope: "src/GameVM.Compiler.Core/*.cs"
           - id: application
             dir: test/GameVM.Compiler.Application.Tests
-            scope: "src/GameVM.Compiler.Application/**/*.cs"
+            scope: "src/GameVM.Compiler.Application/*.cs"
           - id: compile
             dir: test/GameVM.Compile.Tests
-            scope: "src/GameVM.Compile/**/*.cs"
+            scope: "src/GameVM.Compile/*.cs"
           - id: interaction
             dir: test/GameVM.Compiler.Interaction.Tests
-            scope: "src/GameVM.Compiler.Interaction/**/*.cs"
+            scope: "src/GameVM.Compiler.Interaction/*.cs"
           - id: lowlevel
             dir: test/GameVM.Compiler.Optimizers.LowLevel.Tests
-            scope: "src/GameVM.Compiler.Optimizers.LowLevel/**/*.cs"
+            scope: "src/GameVM.Compiler.Optimizers.LowLevel/*.cs"
           - id: midlevel
             dir: test/GameVM.Compiler.Optimizers.MidLevel.Tests
-            scope: "src/GameVM.Compiler.Optimizers.MidLevel/**/*.cs"
+            scope: "src/GameVM.Compiler.Optimizers.MidLevel/*.cs"
           - id: devtools
             dir: test/GameVM.DevTools.Tests
-            scope: "src/GameVM.DevTools/**/*.cs"
+            scope: "src/GameVM.DevTools/*.cs"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,13 +86,21 @@ jobs:
           persist-credentials: false
       - name: Detect changed code in this area
         id: scope
+        env:
+          AREA_SCOPE: ${{ matrix.scope }}
         # Three-dot diff: files this PR changes relative to the merge
         # base, restricted to the area's mutated production files.
-        # Unquoted expansion is deliberate: scope holds one or more
-        # pathspecs. Skipping on an empty diff is what makes an
-        # untouched area pass vacuously (see the header comment).
+        # Scope travels via env and read -ra on purpose: expanding a
+        # multi-pathspec string unquoted in the run script is fragile —
+        # on this guard's first outing (PR #28) the pascal scope's
+        # :(exclude) pathspec was a bash syntax error near '(' and the
+        # job failed in this step. Passing scope as data avoids the
+        # whole class, whatever pathspecs an area needs later.
+        # Skipping on an empty diff is what makes an untouched area
+        # pass vacuously (see the header comment).
         run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD -- ${{ matrix.scope }} | grep -q .; then
+          read -ra pathspecs <<< "$AREA_SCOPE"
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD -- "${pathspecs[@]}" | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
