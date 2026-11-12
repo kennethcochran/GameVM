@@ -826,24 +826,27 @@ public class HlirTreeToMlirTransformerTests
         uint tmpOffset = _pool.Intern("__tmp_0");
         var result = LowerAssignWithBinaryOp('=');
 
-        Assert.That(result.Count, Is.EqualTo(3),
-            "x := y = z should lower to Cmp; Assign(tmp,1); Assign(x,tmp)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y = z should lower to Cmp; Assign(tmp,1); Assign(x,tmp)");
 
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
-        var cmpOps = result.GetOperands(0);
-        Assert.That(cmpOps.Length, Is.EqualTo(2));
-        Assert.That(cmpOps[0], Is.EqualTo(yOffset), "Cmp left operand = y");
-        Assert.That(cmpOps[1], Is.EqualTo(zOffset), "Cmp right operand = z");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+            var cmpOps = result.GetOperands(0);
+            Assert.That(cmpOps.Length, Is.EqualTo(2));
+            Assert.That(cmpOps[0], Is.EqualTo(yOffset), "Cmp left operand = y");
+            Assert.That(cmpOps[1], Is.EqualTo(zOffset), "Cmp right operand = z");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var tmpOps = result.GetOperands(1);
-        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
-        Assert.That(tmpOps[1], Is.EqualTo(1u), "Temp declaration value = 1 (comparison result)");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.EqualTo(1u), "Temp declaration value = 1 (comparison result)");
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
-        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     /// <summary>Instruction kinds a bitwise operation must not be: the
@@ -892,26 +895,29 @@ public class HlirTreeToMlirTransformerTests
         uint tmpOffset = _pool.Intern("__tmp_0");
         var result = LowerAssignWithBinaryOp(op);
 
-        Assert.That(result.Count, Is.EqualTo(3),
-            $"x := y {name} z should lower to <bitwise-op>; Assign(tmp,0); Assign(x,tmp)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                $"x := y {name} z should lower to <bitwise-op>; Assign(tmp,0); Assign(x,tmp)");
 
-        byte opKind = result.GetKind(0);
-        Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
-            $"'{op}' must lower to a bitwise operation, not the comparison path (Cmp), an arithmetic op (Add/Sub), or a control op");
-        var opOperands = result.GetOperands(0);
-        Assert.That(opOperands.Length, Is.EqualTo(2), "a bitwise op takes exactly two operands");
-        Assert.That(opOperands[0], Is.EqualTo(yOffset), $"{name} left operand = y");
-        Assert.That(opOperands[1], Is.EqualTo(zOffset), $"{name} right operand = z");
+            byte opKind = result.GetKind(0);
+            Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
+                $"'{op}' must lower to a bitwise operation, not the comparison path (Cmp), an arithmetic op (Add/Sub), or a control op");
+            var opOperands = result.GetOperands(0);
+            Assert.That(opOperands.Length, Is.EqualTo(2), "a bitwise op takes exactly two operands");
+            Assert.That(opOperands[0], Is.EqualTo(yOffset), $"{name} left operand = y");
+            Assert.That(opOperands[1], Is.EqualTo(zOffset), $"{name} right operand = z");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var tmpOps = result.GetOperands(1);
-        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
-        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
-        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     private void AssertNotLowers()
@@ -940,24 +946,27 @@ public class HlirTreeToMlirTransformerTests
             "x := not y must lower without throwing; today UnaryOp '!' throws UnhandledInstruction");
         if (error != null) return;
 
-        Assert.That(result.Count, Is.EqualTo(3),
-            "x := not y should lower to <complement>; Assign(tmp,0); Assign(x,tmp)");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := not y should lower to <complement>; Assign(tmp,0); Assign(x,tmp)");
 
-        byte opKind = result.GetKind(0);
-        Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
-            "'!' must lower to a complement operation, not the comparison path (Cmp) or an arithmetic op");
-        var opOperands = result.GetOperands(0);
-        Assert.That(opOperands.ToArray(), Does.Contain(yOffset), "the complement must operate on y");
+            byte opKind = result.GetKind(0);
+            Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
+                "'!' must lower to a complement operation, not the comparison path (Cmp) or an arithmetic op");
+            var opOperands = result.GetOperands(0);
+            Assert.That(opOperands.ToArray(), Does.Contain(yOffset), "the complement must operate on y");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var tmpOps = result.GetOperands(1);
-        Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
-        Assert.That(tmpOps[1], Is.EqualTo(0u), "Temp declaration value = 0");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
-        Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     /// <summary>Lowers `if x op 0 then x := 0` (no else) and returns the

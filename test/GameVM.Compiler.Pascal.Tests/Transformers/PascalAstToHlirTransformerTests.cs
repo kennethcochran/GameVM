@@ -393,17 +393,20 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0),
                 "x := not y must lower to an HLIR Assign, not vanish");
 
-            var assignChildren = hlir.Children(assignIdx);
-            Assert.That(assignChildren.Length, Is.EqualTo(2));
-            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.UnaryOp),
-                "x := not y must lower to an HLIR UnaryOp, not vanish");
+            using (Assert.EnterMultipleScope())
+            {
+                var assignChildren = hlir.Children(assignIdx);
+                Assert.That(assignChildren.Length, Is.EqualTo(2));
+                Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.UnaryOp),
+                    "x := not y must lower to an HLIR UnaryOp, not vanish");
 
-            int unaryIdx = assignChildren[1];
-            Assert.That(hlir[unaryIdx].Payload, Is.EqualTo((uint)'!'), "UnaryOp payload must be the '!' op char");
-            var unaryChildren = hlir.Children(unaryIdx);
-            Assert.That(unaryChildren.Length, Is.EqualTo(1), "UnaryOp must have exactly one operand child");
-            Assert.That(hlir.GetKind(unaryChildren[0]), Is.EqualTo((byte)HlirNodeKind.Identifier));
-            Assert.That(hlir[unaryChildren[0]].Payload, Is.EqualTo(yOffset), "operand must be y");
+                int unaryIdx = assignChildren[1];
+                Assert.That(hlir[unaryIdx].Payload, Is.EqualTo((uint)'!'), "UnaryOp payload must be the '!' op char");
+                var unaryChildren = hlir.Children(unaryIdx);
+                Assert.That(unaryChildren.Length, Is.EqualTo(1), "UnaryOp must have exactly one operand child");
+                Assert.That(hlir.GetKind(unaryChildren[0]), Is.EqualTo((byte)HlirNodeKind.Identifier));
+                Assert.That(hlir[unaryChildren[0]].Payload, Is.EqualTo(yOffset), "operand must be y");
+            }
         }
     }
 }

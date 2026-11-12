@@ -392,26 +392,29 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             uint yOffset = pool.Intern("y");
             int unaryCount = 0;
             int yOperandCount = 0;
-            for (int i = 0; i < tree.Count; i++)
+            using (Assert.EnterMultipleScope())
             {
-                if (tree.GetKind(i) == (byte)PascalAstNodeKind.UnaryOp)
+                for (int i = 0; i < tree.Count; i++)
                 {
-                    unaryCount++;
-                    Assert.That(tree[i].Payload, Is.EqualTo((uint)'!'), "UnaryOp payload must be the '!' op char");
-                    Assert.That(tree[i].ChildCount, Is.EqualTo(1), "UnaryOp must wrap exactly one operand");
-                    var operand = tree[tree.Children(i)[0]];
-                    Assert.That((PascalAstNodeKind)operand.Kind, Is.EqualTo(PascalAstNodeKind.Identifier));
-                    Assert.That(operand.Payload, Is.EqualTo(yOffset));
-                    yOperandCount++;
+                    if (tree.GetKind(i) == (byte)PascalAstNodeKind.UnaryOp)
+                    {
+                        unaryCount++;
+                        Assert.That(tree[i].Payload, Is.EqualTo((uint)'!'), "UnaryOp payload must be the '!' op char");
+                        Assert.That(tree[i].ChildCount, Is.EqualTo(1), "UnaryOp must wrap exactly one operand");
+                        var operand = tree[tree.Children(i)[0]];
+                        Assert.That((PascalAstNodeKind)operand.Kind, Is.EqualTo(PascalAstNodeKind.Identifier));
+                        Assert.That(operand.Payload, Is.EqualTo(yOffset));
+                        yOperandCount++;
+                    }
+                    if (tree.GetKind(i) == (byte)PascalAstNodeKind.BinaryOp)
+                    {
+                        Assert.That(tree[i].Payload, Is.Not.EqualTo((uint)'!'),
+                            "a BinaryOp must never carry the '!' payload — `not` is a unary op, not a two-operand one");
+                    }
                 }
-                if (tree.GetKind(i) == (byte)PascalAstNodeKind.BinaryOp)
-                {
-                    Assert.That(tree[i].Payload, Is.Not.EqualTo((uint)'!'),
-                        "a BinaryOp must never carry the '!' payload — `not` is a unary op, not a two-operand one");
-                }
+                Assert.That(unaryCount, Is.EqualTo(1), "exactly one UnaryOp node expected");
+                Assert.That(yOperandCount, Is.EqualTo(1), "the factor must be visited exactly once (no duplicate subtree)");
             }
-            Assert.That(unaryCount, Is.EqualTo(1), "exactly one UnaryOp node expected");
-            Assert.That(yOperandCount, Is.EqualTo(1), "the factor must be visited exactly once (no duplicate subtree)");
         }
 
         [Test]
