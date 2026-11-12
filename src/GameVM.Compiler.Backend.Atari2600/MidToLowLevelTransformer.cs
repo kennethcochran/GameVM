@@ -17,6 +17,11 @@ namespace GameVM.Compiler.Backend.Atari2600
     /// </summary>
     public class MidToLowLevelTransformer : IIRSlabTransformer
     {
+        // Error-context key naming the MLIR slab index in GameVmException
+        // data dictionaries; shared by every throw site in this class so
+        // the key is spelled one way everywhere.
+        private const string SlabIndexKey = "SlabIndex";
+
         private readonly Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
 
         // Deterministic allocation of user variables to zero-page addresses
@@ -114,7 +119,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                             ErrorSeverity.Error,
                             new Dictionary<string, object?>
                             {
-                                ["SlabIndex"] = i,
+                                [SlabIndexKey] = i,
                                 ["MlirKind"] = nameof(MlirInstructionKind.Output),
                                 ["MlirKindByte"] = kind,
                             });
@@ -146,12 +151,31 @@ namespace GameVM.Compiler.Backend.Atari2600
         private void MapArithmetic(InstList inputSlab, int instIdx, byte kind, InstListBuilder builder, StringPool stringPool)
         {
             ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+            byte llirKind = MapToLlirKind(kind, instIdx);
 
+            if (TryEmitMultiply(builder, stringPool, llirKind, operands, instIdx))
+                return;
+            if (TryEmitLoadThenOp(builder, stringPool, llirKind, operands))
+                return;
+            if (TryEmitBitwiseNot(builder, stringPool, llirKind, operands, instIdx))
+                return;
+
+            EmitResolvedOp(builder, stringPool, llirKind, operands);
+        }
+
+        /// <summary>Maps an MLIR arithmetic/compare kind to its LLIR kind.
+        /// A kind with no LLIR mapping fails loudly: emitting a Nop for it
+        /// would silently drop the computation from the ROM.</summary>
+        private static byte MapToLlirKind(byte kind, int instIdx)
+        {
             byte llirKind = kind switch
             {
                 (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
                 (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
                 (byte)LlirInstructionKind.Multiply => (byte)LlirInstructionKind.Multiply,
+                (byte)LlirInstructionKind.BitwiseAnd => (byte)LlirInstructionKind.BitwiseAnd,
+                (byte)LlirInstructionKind.BitwiseOr => (byte)LlirInstructionKind.BitwiseOr,
+                (byte)LlirInstructionKind.BitwiseNot => (byte)LlirInstructionKind.BitwiseNot,
                 (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
                 (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
                 _ => (byte)LlirInstructionKind.Nop
@@ -165,15 +189,25 @@ namespace GameVM.Compiler.Backend.Atari2600
                     ErrorSeverity.Error,
                     new Dictionary<string, object?>
                     {
-                        ["SlabIndex"] = instIdx,
+                        [SlabIndexKey] = instIdx,
                         ["MlirKindByte"] = kind,
                     });
 
-            // A Multiply with fewer than two operands is malformed: the
-            // fallback below would emit an underspecified LLIR Multiply
-            // that code generation cannot emit, silently truncating the
-            // ROM at that instruction.
-            if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length < 2)
+            return llirKind;
+        }
+
+        /// <summary>Lowers a Multiply: Load the left operand, then Multiply
+        /// with the right operand plus the shift-and-add scratch. A Multiply
+        /// with fewer than two operands is malformed: the fallback would emit
+        /// an underspecified LLIR Multiply that code generation cannot emit,
+        /// silently truncating the ROM at that instruction. Returns false
+        /// when the op is not a Multiply.</summary>
+        private bool TryEmitMultiply(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, int instIdx)
+        {
+            if (llirKind != (byte)LlirInstructionKind.Multiply)
+                return false;
+
+            if (operands.Length < 2)
                 throw new GameVmException(
                     ErrorCode.UnhandledInstruction,
                     $"MidToLowLevelTransformer cannot lower MLIR Multiply at slab index {instIdx}: " +
@@ -181,34 +215,74 @@ namespace GameVM.Compiler.Backend.Atari2600
                     ErrorSeverity.Error,
                     new Dictionary<string, object?>
                     {
-                        ["SlabIndex"] = instIdx,
+                        [SlabIndexKey] = instIdx,
                         ["MlirKind"] = nameof(MlirInstructionKind.Multiply),
                         ["OperandCount"] = operands.Length,
                     });
 
-            // Multiply: Load the left operand, then Multiply with the right
-            // operand plus two scratch addresses for the shift-and-add routine.
-            if (llirKind == (byte)LlirInstructionKind.Multiply && operands.Length >= 2)
-            {
-                EmitMultiplyOp(builder, stringPool, operands);
-                return;
-            }
+            EmitMultiplyOp(builder, stringPool, operands);
+            return true;
+        }
 
-            // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
-            if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
-            {
-                EmitLoadThenOp(builder, stringPool, llirKind, operands);
-                return;
-            }
+        /// <summary>Whether a kind lowers as Load(left) then op(right), with
+        /// the result in the accumulator: the binary arithmetic and bitwise
+        /// ops (Add/Sub/BitwiseAnd/BitwiseOr) and Cmp, which needs A holding
+        /// the left value before the compare.</summary>
+        private static bool IsLoadThenOpKind(byte llirKind)
+        {
+            return llirKind == (byte)LlirInstructionKind.Add
+                || llirKind == (byte)LlirInstructionKind.Sub
+                || llirKind == (byte)LlirInstructionKind.BitwiseAnd
+                || llirKind == (byte)LlirInstructionKind.BitwiseOr
+                || llirKind == (byte)LlirInstructionKind.Cmp;
+        }
 
-            // Cmp: emit Load(left) first so A holds the value, then CMP.
-            if (llirKind == (byte)LlirInstructionKind.Cmp && operands.Length >= 2)
-            {
-                EmitLoadThenOp(builder, stringPool, llirKind, operands);
-                return;
-            }
+        /// <summary>Lowers a two-operand op as Load(left) then op(right).
+        /// Returns false when the kind is not a load-then-op kind or the op
+        /// carries fewer than two operands; such short forms fall through to
+        /// the resolved-operand fallback below.</summary>
+        private bool TryEmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
+        {
+            if (!IsLoadThenOpKind(llirKind) || operands.Length < 2)
+                return false;
 
-            // Existing behavior for Cmp and single-operand forms below
+            EmitLoadThenOp(builder, stringPool, llirKind, operands);
+            return true;
+        }
+
+        /// <summary>Lowers a BitwiseNot: Load the operand into A, then
+        /// complement it with EOR #$FF. The op carries no operands of its
+        /// own — the value to complement is the accumulator. A BitwiseNot
+        /// with no MLIR operand is malformed: the fallback would emit a bare
+        /// complement over a stale accumulator. Returns false when the op is
+        /// not a BitwiseNot.</summary>
+        private bool TryEmitBitwiseNot(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, int instIdx)
+        {
+            if (llirKind != (byte)LlirInstructionKind.BitwiseNot)
+                return false;
+
+            if (operands.Length < 1)
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer cannot lower MLIR BitwiseNot at slab index {instIdx}: " +
+                    $"expected one operand (the value to complement), got {operands.Length}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        [SlabIndexKey] = instIdx,
+                        ["MlirKind"] = nameof(LlirInstructionKind.BitwiseNot),
+                        ["OperandCount"] = operands.Length,
+                    });
+
+            EmitLoadLeft(builder, stringPool, operands);
+            builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0);
+            return true;
+        }
+
+        /// <summary>Fallback for single-operand forms (and Load): resolve
+        /// each operand to a machine operand and emit the op as-is.</summary>
+        private void EmitResolvedOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
+        {
             var resolved = new uint[operands.Length];
             for (int i = 0; i < operands.Length; i++)
                 resolved[i] = ResolveSlot(operands[i], stringPool);
@@ -401,7 +475,8 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         /// <summary>
         /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
-        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp).
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp)
+        /// or a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot).
         /// Such a read loads the temp from its zero-page address, so the temp
         /// must be stored to memory when it is assigned. A temp consumed only
         /// by the Assign that stores it into its real target reads the
@@ -415,6 +490,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 if (kind != (byte)LlirInstructionKind.Add
                     && kind != (byte)LlirInstructionKind.Sub
                     && kind != (byte)LlirInstructionKind.Multiply
+                    && kind != (byte)LlirInstructionKind.BitwiseAnd
+                    && kind != (byte)LlirInstructionKind.BitwiseOr
+                    && kind != (byte)LlirInstructionKind.BitwiseNot
                     && kind != (byte)LlirInstructionKind.Cmp)
                     continue;
                 ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);
