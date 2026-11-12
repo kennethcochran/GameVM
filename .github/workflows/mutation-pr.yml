@@ -88,6 +88,7 @@ jobs:
         id: scope
         env:
           AREA_SCOPE: ${{ matrix.scope }}
+          BASE_REF: ${{ github.base_ref }}
         # Three-dot diff: files this PR changes relative to the merge
         # base, restricted to the area's mutated production files.
         # Scope travels via env and read -ra on purpose: expanding a
@@ -98,9 +99,15 @@ jobs:
         # whole class, whatever pathspecs an area needs later.
         # Skipping on an empty diff is what makes an untouched area
         # pass vacuously (see the header comment).
+        # The diff is captured and its exit status checked BEFORE the
+        # emptiness test: a failed diff (unresolvable base ref, corrupt
+        # range) must fail this step loudly. Testing the diff inside an
+        # `if` condition would read failure as "no output" and skip the
+        # area — a fail-open guard, i.e. a silent pass.
         run: |
           read -ra pathspecs <<< "$AREA_SCOPE"
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD -- "${pathspecs[@]}" | grep -q .; then
+          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- "${pathspecs[@]}") || exit "$?"
+          if [[ -n "$changed_files" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
