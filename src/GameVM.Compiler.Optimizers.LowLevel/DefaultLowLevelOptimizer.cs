@@ -20,6 +20,9 @@ namespace GameVM.Compiler.Optimizers.LowLevel
         private const byte LLIR_ADD = (byte)LlirInstructionKind.Add;
         private const byte LLIR_SUB = (byte)LlirInstructionKind.Sub;
         private const byte LLIR_MULTIPLY = (byte)LlirInstructionKind.Multiply;
+        private const byte LLIR_BITWISE_AND = (byte)LlirInstructionKind.BitwiseAnd;
+        private const byte LLIR_BITWISE_OR = (byte)LlirInstructionKind.BitwiseOr;
+        private const byte LLIR_BITWISE_NOT = (byte)LlirInstructionKind.BitwiseNot;
         private const byte LLIR_CMP = (byte)LlirInstructionKind.Cmp;
         private const byte LLIR_BRANCH = (byte)LlirInstructionKind.Branch;
 
@@ -104,8 +107,9 @@ namespace GameVM.Compiler.Optimizers.LowLevel
         /// <summary>
         /// Checks if a LOAD is overwritten: a subsequent LOAD to the same register occurs
         /// before any instruction consumes its value. The loaded value lives in the
-        /// accumulator, so a Store writes it to memory, Add/Sub/Multiply/Cmp compute
-        /// with it, and a Branch reads the flags the Load set — any of those is a use.
+        /// accumulator, so a Store writes it to memory, Add/Sub/Multiply/Cmp and the
+        /// bitwise ops (BitwiseAnd/BitwiseOr/BitwiseNot) compute with it, and a Branch
+        /// reads the flags the Load set — any of those is a use.
         /// </summary>
         private static bool IsOverwrittenLoad(InstList llirSlab, int instIndex, ReadOnlySpan<uint> operands)
         {
@@ -122,6 +126,9 @@ namespace GameVM.Compiler.Optimizers.LowLevel
                     || nextKind == LLIR_ADD
                     || nextKind == LLIR_SUB
                     || nextKind == LLIR_MULTIPLY
+                    || nextKind == LLIR_BITWISE_AND
+                    || nextKind == LLIR_BITWISE_OR
+                    || nextKind == LLIR_BITWISE_NOT
                     || nextKind == LLIR_CMP
                     || nextKind == LLIR_BRANCH)
                 {

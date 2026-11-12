@@ -152,6 +152,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
                 (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
                 (byte)LlirInstructionKind.Multiply => (byte)LlirInstructionKind.Multiply,
+                (byte)LlirInstructionKind.BitwiseAnd => (byte)LlirInstructionKind.BitwiseAnd,
+                (byte)LlirInstructionKind.BitwiseOr => (byte)LlirInstructionKind.BitwiseOr,
+                (byte)LlirInstructionKind.BitwiseNot => (byte)LlirInstructionKind.BitwiseNot,
                 (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
                 (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
                 _ => (byte)LlirInstructionKind.Nop
@@ -194,10 +197,38 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return;
             }
 
-            // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
-            if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
+            // Binary arithmetic (Add|Sub) and bitwise (BitwiseAnd|BitwiseOr):
+            // emit Load(left) then op(right), accumulator holds result
+            if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub
+                || llirKind == (byte)LlirInstructionKind.BitwiseAnd || llirKind == (byte)LlirInstructionKind.BitwiseOr)
+                && operands.Length >= 2)
             {
                 EmitLoadThenOp(builder, stringPool, llirKind, operands);
+                return;
+            }
+
+            // BitwiseNot: Load the operand into A, then complement it with
+            // EOR #$FF. The op carries no operands of its own — the value
+            // to complement is the accumulator. A BitwiseNot with no MLIR
+            // operand is malformed: the fallback below would emit a bare
+            // complement over a stale accumulator.
+            if (llirKind == (byte)LlirInstructionKind.BitwiseNot && operands.Length < 1)
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer cannot lower MLIR BitwiseNot at slab index {instIdx}: " +
+                    $"expected one operand (the value to complement), got {operands.Length}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["SlabIndex"] = instIdx,
+                        ["MlirKind"] = nameof(LlirInstructionKind.BitwiseNot),
+                        ["OperandCount"] = operands.Length,
+                    });
+
+            if (llirKind == (byte)LlirInstructionKind.BitwiseNot && operands.Length >= 1)
+            {
+                EmitLoadLeft(builder, stringPool, operands);
+                builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0);
                 return;
             }
 
@@ -401,7 +432,8 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         /// <summary>
         /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
-        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp).
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp)
+        /// or a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot).
         /// Such a read loads the temp from its zero-page address, so the temp
         /// must be stored to memory when it is assigned. A temp consumed only
         /// by the Assign that stores it into its real target reads the
@@ -415,6 +447,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 if (kind != (byte)LlirInstructionKind.Add
                     && kind != (byte)LlirInstructionKind.Sub
                     && kind != (byte)LlirInstructionKind.Multiply
+                    && kind != (byte)LlirInstructionKind.BitwiseAnd
+                    && kind != (byte)LlirInstructionKind.BitwiseOr
+                    && kind != (byte)LlirInstructionKind.BitwiseNot
                     && kind != (byte)LlirInstructionKind.Cmp)
                     continue;
                 ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);

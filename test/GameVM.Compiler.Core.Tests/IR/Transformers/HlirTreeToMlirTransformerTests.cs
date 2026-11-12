@@ -485,12 +485,15 @@ public class HlirTreeToMlirTransformerTests
     [Test]
     public void Transform_UnaryMinusNonMinusOp_ThrowsFailLoud()
     {
-        // Only '-' is produced by the frontend; any other op char must fail
-        // loudly rather than silently lowering to nothing (or a bogus Sub).
+        // Only '-' and '!' are produced by the frontend; any other op char
+        // must fail loudly rather than silently lowering to nothing (or a
+        // bogus Sub). ('!' used to be the unsupported char here; the
+        // bitwise slice made it a supported unary op, so the test moved
+        // to '~', a char no frontend production emits.)
         uint yOffset = _pool.Intern("y");
         var builder = new HlirBuilder();
         int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
-        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
+        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'~', HlirPayloadKind.Immediate, operand);
         var tree = builder.Build();
 
         var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
