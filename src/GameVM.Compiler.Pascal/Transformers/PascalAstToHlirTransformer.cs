@@ -501,15 +501,20 @@ namespace GameVM.Compiler.Pascal.Transformers
             char op = (char)astTree[exprIdx].Payload;
             if (op != '-' && op != '!') return -1; // unary minus and `not` are the only unary ops the frontend produces
 
-            // Constant-fold: -N becomes its 8-bit two's complement value,
+            // Constant-fold: -N becomes its 16-bit two's complement value,
             // `not N` its 8-bit complement, interned as decimal text like
-            // every other integer literal in this pipeline.
+            // every other integer literal in this pipeline. The minus fold
+            // is 16-bit because integer values are 16-bit: -5 is 65531,
+            // not 251. (`not` stays 8-bit: the variable complement is a
+            // single-byte EOR and widening the literal fold alone would
+            // make `not 12` disagree with `not y` for y = 12; widening
+            // `not` end to end is a separate slice.)
             var operandNode = astTree[children[0]];
             uint? constVal = ResolveConstantOperand(operandNode);
             if (constVal.HasValue)
             {
                 uint folded = op == '-'
-                    ? (256 - (constVal.Value & 0xFF)) & 0xFF
+                    ? (65536 - (constVal.Value & 0xFFFF)) & 0xFFFF
                     : (~constVal.Value) & 0xFF;
                 uint foldedOffset = _pool.Intern(folded.ToString());
                 return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, foldedOffset, HlirPayloadKind.Immediate);

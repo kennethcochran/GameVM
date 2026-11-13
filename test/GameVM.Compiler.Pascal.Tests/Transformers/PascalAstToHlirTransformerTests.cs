@@ -116,7 +116,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         [Test]
         public void Transform_UnaryMinusLiteral_FoldsToTwosComplement()
         {
-            // x := -5  ->  Assign(Identifier x, LiteralInt "251")
+            // x := -5  ->  Assign(Identifier x, LiteralInt "65531")
             var pool = new StringPool();
             var builder = new AstBuilder();
             uint xOffset = pool.Intern("x");
@@ -146,14 +146,14 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var assignChildren = hlir.Children(assignIdx);
             Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
                 "-5 must constant-fold to a LiteralInt");
-            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"),
-                "-5 folds to its 8-bit two's complement value 251");
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("65531"),
+                "-5 folds to its 16-bit two's complement value 65531");
         }
 
         [Test]
         public void Transform_UnaryMinusNamedConstant_FoldsToTwosComplement()
         {
-            // const FIVE = 5; x := -FIVE  ->  Assign(Identifier x, LiteralInt "251")
+            // const FIVE = 5; x := -FIVE  ->  Assign(Identifier x, LiteralInt "65531")
             var pool = new StringPool();
             var builder = new AstBuilder();
             uint xOffset = pool.Intern("x");
@@ -187,7 +187,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var assignChildren = hlir.Children(assignIdx);
             Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt));
-            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"));
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("65531"));
         }
 
         [Test]

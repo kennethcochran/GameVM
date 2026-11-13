@@ -19,6 +19,15 @@ public enum InstructionFlag : ushort
     Diagnostic = 1 << 1,
 
     /// <summary>
+    /// On an Add/Sub instruction: consume the carry flag left by the
+    /// preceding arithmetic instead of setting it first. The high byte
+    /// of a 16-bit Add/Sub carries this flag, so the code generator
+    /// emits a bare ADC/SBC (no CLC/SEC) and the low byte's carry or
+    /// borrow flows into the high byte.
+    /// </summary>
+    CarryIn = 1 << 3,
+
+    /// <summary>
     /// On a Return instruction: the return belongs to a callable body (a
     /// function/procedure reached via Call), not to the program entry.
     /// Backends emit a true subroutine return (e.g. 6502 RTS) for flagged
@@ -27,5 +36,5 @@ public enum InstructionFlag : ushort
     /// </summary>
     CalleeReturn = 1 << 2,
 
-    // Bits 3-15 reserved for future use
+    // Bits 4-15 reserved for future use
 }
