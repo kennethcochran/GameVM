@@ -108,6 +108,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                     LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
                     LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
                     LlirInstructionKind.Multiply => EmitMultiply(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseAnd => EmitBitwiseAnd(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseOr => EmitBitwiseOr(rom, ref currentAddress, operands),
+                    LlirInstructionKind.BitwiseNot => EmitBitwiseNot(rom, ref currentAddress),
                     LlirInstructionKind.Cmp => EmitCmp(rom, ref currentAddress, operands, ref lastWasTransition, ref lastWasBcs),
                     LlirInstructionKind.Assign => EmitAssign(rom, ref currentAddress, operands),
                     LlirInstructionKind.Label => EmitLabel(),
@@ -246,6 +249,53 @@ namespace GameVM.Compiler.Backend.Atari2600
             // Two operands [addr, 0]: variable — SBC zp (subtract VALUE at address)
             // One operand [val]: immediate — SBC #imm (subtract literal value)
             return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x38, zeroPageOpcode: 0xE5, immediateOpcode: 0xE9); // SEC; SBC zp; SBC #imm
+        }
+
+        private static int EmitBitwiseAnd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Two operands [addr, 0]: variable — AND zp (AND with VALUE at address)
+            // One operand [val]: immediate — AND #imm (AND with literal value)
+            // AND needs no carry setup, unlike ADC/SBC.
+            return EmitBitwiseBinary(rom, ref currentAddress, operands, zeroPageOpcode: 0x25, immediateOpcode: 0x29);
+        }
+
+        private static int EmitBitwiseOr(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        {
+            // Two operands [addr, 0]: variable — ORA zp (OR with VALUE at address)
+            // One operand [val]: immediate — ORA #imm (OR with literal value)
+            return EmitBitwiseBinary(rom, ref currentAddress, operands, zeroPageOpcode: 0x05, immediateOpcode: 0x09);
+        }
+
+        private static int EmitBitwiseNot(byte[] rom, ref int currentAddress)
+        {
+            // No operands: the value to complement is already in A (loaded by
+            // the preceding Load). Complement is EOR #$FF.
+            if (currentAddress + 2 > RomSize)
+                return 0;
+            rom[currentAddress++] = 0x49; // EOR #imm
+            rom[currentAddress++] = 0xFF;
+            return 2;
+        }
+
+        // Shared shape for AND/ORA: the zero-page form for a variable operand
+        // or the immediate form for a literal. No carry setup: unlike ADC/SBC,
+        // AND/ORA leave the carry flag alone.
+        private static int EmitBitwiseBinary(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
+            byte zeroPageOpcode, byte immediateOpcode)
+        {
+            if (operands.Length >= 2 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = zeroPageOpcode;
+                rom[currentAddress++] = (byte)operands[0];
+                return 2;
+            }
+            if (operands.Length >= 1 && currentAddress + 2 <= RomSize)
+            {
+                rom[currentAddress++] = immediateOpcode;
+                rom[currentAddress++] = (byte)operands[0];
+                return 2;
+            }
+            return 0;
         }
 
         // Shared shape for ADC/SBC: set the carry flag, then the zero-page
@@ -603,6 +653,11 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
                 LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
                 LlirInstructionKind.Multiply => 22,
+                // AND/ORA occupy 2 bytes in both the zero-page and
+                // immediate forms, and the complement is 2 bytes too —
+                // none of the three needs the carry-setup byte ADC/SBC use.
+                LlirInstructionKind.BitwiseAnd or LlirInstructionKind.BitwiseOr => 2,
+                LlirInstructionKind.BitwiseNot => 2,
                 LlirInstructionKind.Cmp => op.Length >= 1 ? 2 : 1,
                 LlirInstructionKind.Assign => op.Length >= 1 ? 4 : 0,
                 LlirInstructionKind.Branch => 2,

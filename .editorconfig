@@ -14,3 +14,20 @@ gamevm_enforce_value_types_in = GameVM.Compiler.Core.IR.Slab
 
 # Disable S1133 (obsolete code) globally since we're transitioning from legacy OOP IR to DOD pipeline
 dotnet_diagnostic.S1133.severity = none
+
+# --- Sonar rule activation parity with SonarCloud ---
+# The pinned SonarAnalyzer.CSharp package ships these rules inactive by
+# default; SonarCloud's quality profile (Sonar way comprehensive)
+# activates them, so until now they were visible only in the CI scan,
+# never in a local build. Activating them here makes the local build
+# (and the nudge pre-commit coaching that reads it) see what the scan
+# sees. This is activation, not suppression: no rule is silenced.
+# The full inactive-by-default delta is 9 rules; S3776, S107, and S2342
+# are staged behind fixing their pre-existing violations on main
+# (9, 3, and 1 open issues respectively) and activate with those fixes.
+dotnet_diagnostic.S110.severity = warning
+dotnet_diagnostic.S1192.severity = warning
+dotnet_diagnostic.S1479.severity = warning
+dotnet_diagnostic.S2436.severity = warning
+dotnet_diagnostic.S6664.severity = warning
+dotnet_diagnostic.S6669.severity = warning
