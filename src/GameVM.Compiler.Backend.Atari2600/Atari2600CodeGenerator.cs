@@ -312,14 +312,16 @@ namespace GameVM.Compiler.Backend.Atari2600
         private static int EmitJump(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets)
         {
             // JMP absolute (see EmitTransfer for the operand shapes).
-            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, opcode: 0x4C); // JMP
+            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, LlirInstructionKind.Jump, opcode: 0x4C); // JMP
         }
 
         // Shared shape for JMP/JSR: two operands are an explicit
         // [addrLow, addrHigh]; a single operand is a label pool-offset,
         // resolved to its ROM byte address ($F000-relative → absolute)
-        // via labelOffsets, falling back to ROM start when unresolved.
-        private static int EmitTransfer(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets, byte opcode)
+        // via labelOffsets. An unresolved label fails loudly: emitting
+        // a transfer to the reset address would produce a ROM that
+        // jumps somewhere wrong.
+        private static int EmitTransfer(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, Dictionary<uint, int> labelOffsets, LlirInstructionKind kind, byte opcode)
         {
             if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
             {
@@ -330,18 +332,23 @@ namespace GameVM.Compiler.Backend.Atari2600
             }
             if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
             {
+                if (!labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                {
+                    throw new GameVmException(
+                        ErrorCode.UnresolvedLabel,
+                        $"Atari2600CodeGenerator cannot emit {kind} to label with pool offset {operands[0]}: " +
+                        "no matching Label instruction in the slab.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["LabelPoolOffset"] = operands[0],
+                            ["LlirKind"] = kind.ToString(),
+                        });
+                }
+                int abs = 0xF000 + targetAddr;
                 rom[currentAddress++] = opcode;
-                if (labelOffsets.TryGetValue(operands[0], out int targetAddr))
-                {
-                    int abs = 0xF000 + targetAddr;
-                    rom[currentAddress++] = (byte)(abs & 0xFF);
-                    rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
-                }
-                else
-                {
-                    rom[currentAddress++] = 0x00;
-                    rom[currentAddress++] = 0xF0;
-                }
+                rom[currentAddress++] = (byte)(abs & 0xFF);
+                rom[currentAddress++] = (byte)((abs >> 8) & 0xFF);
                 return 3;
             }
             return 0;
@@ -352,6 +359,28 @@ namespace GameVM.Compiler.Backend.Atari2600
         {
             // Conditional branch. The opcode is selected from the preceding
             // Cmp + Transition/Bcs marker. Branch-to-target-when-true.
+            // Relative offset: resolved label byte-address. An unresolved
+            // label fails loudly: using the label's pool-offset byte as
+            // the displacement would branch somewhere wrong.
+            int displacement = 0;
+            if (operands.Length >= 1)
+            {
+                if (!labelOffsets.TryGetValue(operands[0], out int targetAddr))
+                {
+                    throw new GameVmException(
+                        ErrorCode.UnresolvedLabel,
+                        $"Atari2600CodeGenerator cannot emit Branch to label with pool offset {operands[0]} " +
+                        $"at ROM offset {insnAddress}: no matching Label instruction in the slab.",
+                        ErrorSeverity.Error,
+                        new Dictionary<string, object?>
+                        {
+                            ["LabelPoolOffset"] = operands[0],
+                            ["LlirKind"] = nameof(LlirInstructionKind.Branch),
+                            ["InstructionAddress"] = insnAddress,
+                        });
+                }
+                displacement = targetAddr - (insnAddress + 2);
+            }
             int written = 0;
             if (currentAddress + 2 <= RomSize)
             {
@@ -367,12 +396,6 @@ namespace GameVM.Compiler.Backend.Atari2600
                 else
                     opcode = 0xD0; // BNE
                 rom[currentAddress++] = opcode;
-                // Relative offset: resolved label byte-address, else operand[0].
-                int displacement = 0;
-                if (operands.Length >= 1 && labelOffsets.TryGetValue(operands[0], out int targetAddr))
-                    displacement = targetAddr - (insnAddress + 2);
-                else if (operands.Length >= 1)
-                    displacement = (sbyte)(byte)operands[0];
                 rom[currentAddress++] = (byte)(displacement & 0xFF);
                 written = 2;
             }
@@ -432,7 +455,7 @@ namespace GameVM.Compiler.Backend.Atari2600
             // two operands are an explicit [addrLow, addrHigh]; a single
             // operand is the function label's pool offset, resolved via
             // labelOffsets exactly like Jump.
-            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, opcode: 0x20); // JSR
+            return EmitTransfer(rom, ref currentAddress, operands, labelOffsets, LlirInstructionKind.Call, opcode: 0x20); // JSR
         }
 
         private static int EmitNop(byte[] rom, ref int currentAddress)

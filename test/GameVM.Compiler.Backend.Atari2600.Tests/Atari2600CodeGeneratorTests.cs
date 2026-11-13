@@ -284,13 +284,19 @@ public class Atari2600CodeGeneratorTests
     [Test]
     public void GenerateFromSlab_WithBranchInstruction_EmitsBneWithOffset()
     {
+        // The branch target must be defined: an unresolved label now
+        // fails loudly. Five bytes of code sit between the Branch and
+        // its Label so the computed displacement is still 5.
         var builder = new InstListBuilder();
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 5); // BNE offset 5
+        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x42); // LDA #$42 (2 bytes)
+        builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, 1); // CLC; ADC #1 (3 bytes)
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 5);
         var slab = builder.Build();
         var stringPool = new StringPool();
-        
+
         var rom = _codeGenerator.GenerateFromSlab(slab, stringPool, new CodeGenOptions());
-        
+
         Assert.That(rom, Is.Not.Null);
         Assert.That(rom[PrologueSize + 0], Is.EqualTo(0xD0)); // BNE (branch when not equal)
         Assert.That(rom[PrologueSize + 1], Is.EqualTo(5)); // offset
@@ -590,8 +596,9 @@ public class Atari2600CodeGeneratorTests
         builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0x01);     // LDA #$01  (2 bytes)
         builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, 0, 0xFF, 0x00); // STA $00FF zp (2 bytes)
         builder.Add((byte)LlirInstructionKind.Call, InstructionFlag.None, 0, 0x34, 0x12); // JSR $1234 (3 bytes)
-        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 0x7F);  // BCC +127 (2 bytes)
+        builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, 0x7F);  // BNE to label 0x7F (2 bytes)
         builder.Add((byte)LlirInstructionKind.Return, InstructionFlag.None, 0);           // JMP <halt-loop> (3 bytes, B4)
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, 0x7F); // defines the branch target (0 bytes)
         var slab = builder.Build();
         var stringPool = new StringPool();
 
@@ -605,8 +612,8 @@ public class Atari2600CodeGeneratorTests
         Assert.That(rom[PrologueSize + 4], Is.EqualTo(0x20)); // JSR $1234
         Assert.That(rom[PrologueSize + 5], Is.EqualTo(0x34));
         Assert.That(rom[PrologueSize + 6], Is.EqualTo(0x12));
-        Assert.That(rom[PrologueSize + 7], Is.EqualTo(0xD0)); // BNE +127
-        Assert.That(rom[PrologueSize + 8], Is.EqualTo(0x7F));
+        Assert.That(rom[PrologueSize + 7], Is.EqualTo(0xD0)); // BNE to label at +12: displacement 3
+        Assert.That(rom[PrologueSize + 8], Is.EqualTo(0x03));
         // B4: Return on the main path jumps to the halt loop, never RTS.
         Assert.That(rom[PrologueSize + 9], Is.EqualTo(0x4C)); // JMP
         int haltAddr = 0xF000 + PrologueSize + 12;
@@ -674,6 +681,7 @@ public class Atari2600CodeGeneratorTests
         var builder = new InstListBuilder();
         builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
 
         var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());
@@ -694,6 +702,7 @@ public class Atari2600CodeGeneratorTests
         builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, xOff, 0);
         builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
         builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, endOff);
+        builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, endOff);
         var slab = builder.Build();
 
         var rom = _codeGenerator.GenerateFromSlab(slab, pool, new CodeGenOptions());

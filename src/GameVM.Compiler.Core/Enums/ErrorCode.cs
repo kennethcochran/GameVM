@@ -38,5 +38,13 @@ namespace GameVM.Compiler.Core.Enums
         /// relative-branch range (0x4004).
         /// </summary>
         BranchOutOfRange = 0x4004,
+
+        /// <summary>
+        /// Backend: a Jump, Call, or Branch refers to a label with no
+        /// matching Label instruction in the slab (0x4005). The code
+        /// generator must fail loudly instead of emitting a transfer to
+        /// the reset address or a garbage branch displacement.
+        /// </summary>
+        UnresolvedLabel = 0x4005,
     }
 }
