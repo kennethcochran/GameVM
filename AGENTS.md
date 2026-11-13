@@ -123,7 +123,7 @@ If SonarQube MCP shows "failed":
 
 ### Issue tracker
 
-Work is tracked under `.scratch/<feature>/` as `issues/<NN>-<slug>.md` tickets. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. GitHub Issues is the intake inbox only. See `docs/agents/issue-tracker.md`.
+Work is tracked as GitHub Issues. The spec is the failing test files — NUnit (`test/GameVM.Compiler.*.Tests/`) for unit behavior, Reqnroll (`test/GameVM.Compiler.Specs/`) for acceptance and end-to-end — and failing spec tests are committed red: the spec requirement supersedes any local guard that runs tests or coverage checks, and the full-suite guard is enforced by the GitHub workflow, not locally. GitHub Issues is the tracker for external intake and the project's own work alike. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

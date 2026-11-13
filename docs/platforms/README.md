@@ -6,6 +6,7 @@ This directory holds the **hardware capability catalog** for the retro platforms
 
 - **`specs/`** — per-console hardware reference specifications (Atari, Nintendo, Sega, NEC, SNK, and obscure systems). Each is a factual hardware/feasibility reference.
 - **`specs/TEMPLATE.md`** — template for authoring new platform reference specs.
+- [CapabilityProfiles.md](CapabilityProfiles.md) — the capability profile system: provisional L1/L2 levels (ADR-010), how levels are settled, and ISA mobility across levels.
 - **`CapabilityProfilesReport.md`** — hardware capability comparison / analysis.
 
 ## Status
@@ -19,7 +20,7 @@ Only the **Atari 2600** backend is implemented today (see [`CONTEXT.md`](../../C
 ## Adding a platform
 
 1. Add/have a reference spec in `specs/`.
-2. Track the target's build as planned work under `.scratch/`.
+2. Track the target's build as planned work in GitHub Issues.
 3. Implement the backend; update `CONTEXT.md` when it ships.
 
 See [Compiler docs](../compiler/README.md) for how the pipeline produces platform binaries.

@@ -13,7 +13,12 @@ name: Mutation Testing (PR)
 # test project to include its area here. The C# frontend is excluded: it
 # is broken and abandoned, and is not in the solution file. A PR that
 # touches none of an area's files yields zero mutants for that area, and
-# that area's job passes vacuously.
+# that area's job passes vacuously: a guard step below skips the Stryker
+# run when the PR changes no file in the area's scope. The guard is
+# load-bearing, not an optimization — in --since mode Stryker's initial
+# test run discovers no tests when nothing changed, and some areas'
+# test projects report that as a failure instead of an empty run
+# (pascal and lowlevel failed this way on the docs-only PR #20).
 on:
   pull_request:
     branches: [main]
@@ -37,36 +42,87 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # scope: the production files the area's stryker-config.json
+          # mutates, as git pathspecs. The guard step diffs the PR
+          # against these; keep them in sync with the config's mutate
+          # list and project. The "/*.cs" form is deliberate: in git
+          # pathspecs "*" crosses directory separators, so it covers
+          # .cs files at every depth under the project — whereas
+          # "/**/*.cs" would miss the project's top-level files.
           - id: atari2600
             dir: test/GameVM.Compiler.Backend.Atari2600.Tests
+            scope: "src/GameVM.Compiler.Backend.Atari2600/Atari2600CodeGenerator.cs src/GameVM.Compiler.Backend.Atari2600/MidToLowLevelTransformer.cs"
           - id: pascal
             dir: test/GameVM.Compiler.Pascal.Tests
+            # The .g4 grammar is in scope because it generates the
+            # parser: a grammar-only PR changes compiled code while
+            # changing no committed .cs file.
+            scope: "src/GameVM.Compiler.Pascal/*.cs src/GameVM.Compiler.Pascal/ANTLR/*.g4"
           - id: core
             dir: test/GameVM.Compiler.Core.Tests
+            scope: "src/GameVM.Compiler.Core/*.cs"
           - id: application
             dir: test/GameVM.Compiler.Application.Tests
+            scope: "src/GameVM.Compiler.Application/*.cs"
           - id: compile
             dir: test/GameVM.Compile.Tests
+            scope: "src/GameVM.Compile/*.cs"
           - id: interaction
             dir: test/GameVM.Compiler.Interaction.Tests
+            scope: "src/GameVM.Compiler.Interaction/*.cs"
           - id: lowlevel
             dir: test/GameVM.Compiler.Optimizers.LowLevel.Tests
+            scope: "src/GameVM.Compiler.Optimizers.LowLevel/*.cs"
           - id: midlevel
             dir: test/GameVM.Compiler.Optimizers.MidLevel.Tests
+            scope: "src/GameVM.Compiler.Optimizers.MidLevel/*.cs"
           - id: devtools
             dir: test/GameVM.DevTools.Tests
+            scope: "src/GameVM.DevTools/*.cs"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Detect changed code in this area
+        id: scope
+        env:
+          AREA_SCOPE: ${{ matrix.scope }}
+          BASE_REF: ${{ github.base_ref }}
+        # Three-dot diff: files this PR changes relative to the merge
+        # base, restricted to the area's mutated production files.
+        # Scope travels via env and read -ra on purpose: expanding a
+        # multi-pathspec string unquoted in the run script is fragile —
+        # on this guard's first outing (PR #28) the pascal scope's
+        # :(exclude) pathspec was a bash syntax error near '(' and the
+        # job failed in this step. Passing scope as data avoids the
+        # whole class, whatever pathspecs an area needs later.
+        # Skipping on an empty diff is what makes an untouched area
+        # pass vacuously (see the header comment).
+        # The diff is captured and its exit status checked BEFORE the
+        # emptiness test: a failed diff (unresolvable base ref, corrupt
+        # range) must fail this step loudly. Testing the diff inside an
+        # `if` condition would read failure as "no output" and skip the
+        # area — a fail-open guard, i.e. a silent pass.
+        run: |
+          read -ra pathspecs <<< "$AREA_SCOPE"
+          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- "${pathspecs[@]}") || exit "$?"
+          if [[ -n "$changed_files" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No changed code in the ${{ matrix.id }} area; skipping its mutation run, which passes vacuously."
+          fi
       - name: Setup .NET 10
+        if: steps.scope.outputs.changed == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - name: Restore tools
+        if: steps.scope.outputs.changed == 'true'
         run: dotnet tool restore
       - name: Run Stryker (changed code only)
+        if: steps.scope.outputs.changed == 'true'
         working-directory: ${{ matrix.dir }}
         # --since scopes the run to code changed since the PR base branch,
         # so only the PR's changed code is mutated. The break threshold in

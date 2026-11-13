@@ -289,6 +289,101 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void MultiplicationLowersToMultiplyNotAdd()
+    {
+        // HLIR -> MLIR seam: x := y * z lowers to the temp sequence
+        //   Multiply(y, z); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        // Both operands are variables, not literals: only literal-vs-literal
+        // multiplication folds correctly (in the constant folder), so this
+        // is the shape the bug bites. Today '*' maps to
+        // LlirInstructionKind.Add, so a * b computes a + b. The fix adds
+        // LlirInstructionKind.Multiply — the next free value after
+        // Assign (208) — and maps '*' to it; the backend then lowers it to
+        // a real 8-bit multiply routine.
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zOffset = _pool.Intern("z");
+        var builder = new HlirBuilder();
+        int leftY = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int rightZ = builder.Add((byte)HlirNodeKind.Identifier, 0, zOffset, HlirPayloadKind.PoolOffset);
+        int binOp = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'*', HlirPayloadKind.Immediate, leftY, rightZ);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, binOp);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        const byte multiplyKind = 210; // LlirInstructionKind.Multiply, added by this slice (Bcs took 209 on main via PR #18)
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y * z should lower to Multiply; Assign(tmp,0); Assign(x,tmp)");
+
+            Assert.That(result.GetKind(0), Is.EqualTo(multiplyKind),
+                "'*' must map to Multiply (byte 210), not Add — a * b is a product, not a sum");
+            var mulOps = result.GetOperands(0);
+            Assert.That(mulOps.Length, Is.EqualTo(2));
+            Assert.That(mulOps[0], Is.EqualTo(yOffset), "Multiply left operand = y");
+            Assert.That(mulOps[1], Is.EqualTo(zOffset), "Multiply right operand = z");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
+    }
+
+    [Test]
+    public void Transform_AddExpression_EmitsAddWithTempSequence()
+    {
+        // Guard: re-pointing '*' at Multiply must not disturb '+', which
+        // keeps lowering to Add. Same temp sequence as the Sub test:
+        //   Add(y, z); Assign(__tmp_0, 0); Assign(x, __tmp_0)
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zOffset = _pool.Intern("z");
+        var builder = new HlirBuilder();
+        int leftY = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int rightZ = builder.Add((byte)HlirNodeKind.Identifier, 0, zOffset, HlirPayloadKind.PoolOffset);
+        int binOp = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'+', HlirPayloadKind.Immediate, leftY, rightZ);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, binOp);
+        var tree = builder.Build();
+
+        var result = _transformer.Transform(tree);
+
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y + z should lower to Add; Assign(tmp,0); Assign(x,tmp)");
+
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Add),
+                "'+' must keep mapping to Add");
+            var addOps = result.GetOperands(0);
+            Assert.That(addOps.Length, Is.EqualTo(2));
+            Assert.That(addOps[0], Is.EqualTo(yOffset), "Add left operand = y");
+            Assert.That(addOps[1], Is.EqualTo(zOffset), "Add right operand = z");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
+    }
+
+    [Test]
     public void Transform_IfCondition_BranchPolarity_SelectsCorrectOp()
     {
         // '<>' (relOp='!') in an if-skip must emit Cmp + Branch (BNE)
@@ -441,12 +536,15 @@ public class HlirTreeToMlirTransformerTests
     [Test]
     public void Transform_UnaryMinusNonMinusOp_ThrowsFailLoud()
     {
-        // Only '-' is produced by the frontend; any other op char must fail
-        // loudly rather than silently lowering to nothing (or a bogus Sub).
+        // Only '-' and '!' are produced by the frontend; any other op char
+        // must fail loudly rather than silently lowering to nothing (or a
+        // bogus Sub). ('!' used to be the unsupported char here; the
+        // bitwise slice made it a supported unary op, so the test moved
+        // to '~', a char no frontend production emits.)
         uint yOffset = _pool.Intern("y");
         var builder = new HlirBuilder();
         int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
-        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
+        builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'~', HlirPayloadKind.Immediate, operand);
         var tree = builder.Build();
 
         var ex = Assert.Throws<GameVmException>(() => _transformer.Transform(tree));
@@ -735,6 +833,191 @@ public class HlirTreeToMlirTransformerTests
             (byte)MlirInstructionKind.Assign,
             (byte)MlirInstructionKind.Label,
         }));
+    }
+
+    [Test]
+    public void AndOrNotLowerToBitwiseOperations()
+    {
+        // `and`/`or` in value position must lower to a two-operand bitwise
+        // operation, and `not` to a complement — never to the comparison
+        // path. Today ArithToMlirKind knows only +,-,*,/ so '&'/'|' fall
+        // through to Cmp + Assign(tmp, 1): the value 1, whatever the bits
+        // are. And UnaryOp '!' throws UnhandledInstruction.
+        //
+        // The new bitwise kind values are the implementer's:
+        // compiler-assigned, never pinned as numbers here (the kind enum
+        // has no And/Or/Not members on main yet, so naming them would not
+        // compile). The test pins the stream shape — a two-operand compute
+        // instruction that is none of the existing kinds, feeding the usual
+        // temp sequence — and the ROM test pins the 6502 opcodes the new
+        // kinds must become (AND $25, ORA $05, EOR #$FF $49).
+        //
+        // Note: this slice retires the premise of
+        // Transform_UnaryMinusNonMinusOp_ThrowsFailLoud, which pins that
+        // UnaryOp '!' throws. After the fix '!' is a supported unary op,
+        // so that test must move to a genuinely unsupported op char (e.g.
+        // '~') when this slice is implemented.
+        using (Assert.EnterMultipleScope())
+        {
+            AssertBitwiseBinaryOp('&', "and");
+            AssertBitwiseBinaryOp('|', "or");
+            AssertNotLowers();
+        }
+    }
+
+    [Test]
+    public void EqualityInValuePosition_KeepsComparisonPath()
+    {
+        // Guard: wiring `and`/`or` to bitwise ops must not disturb the
+        // comparison path — `x := y = z` still lowers to Cmp + Assign(tmp, 1)
+        // + Assign(x, tmp), exactly as today.
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zOffset = _pool.Intern("z");
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        var result = LowerAssignWithBinaryOp('=');
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := y = z should lower to Cmp; Assign(tmp,1); Assign(x,tmp)");
+
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+            var cmpOps = result.GetOperands(0);
+            Assert.That(cmpOps.Length, Is.EqualTo(2));
+            Assert.That(cmpOps[0], Is.EqualTo(yOffset), "Cmp left operand = y");
+            Assert.That(cmpOps[1], Is.EqualTo(zOffset), "Cmp right operand = z");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.EqualTo(1u), "Temp declaration value = 1 (comparison result)");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
+    }
+
+    /// <summary>Instruction kinds a bitwise operation must not be: the
+    /// comparison path (Cmp), the arithmetic ops (Add/Sub), and the
+    /// control/structural kinds. This list names only what the op must
+    /// not be, so no new kind value is pinned here — the implementer
+    /// assigns the new bitwise kind values.</summary>
+    private static readonly byte[] NonBitwiseKinds =
+    {
+        (byte)LlirInstructionKind.Cmp,
+        (byte)LlirInstructionKind.Add,
+        (byte)LlirInstructionKind.Sub,
+        (byte)MlirInstructionKind.Assign,
+        (byte)MlirInstructionKind.Branch,
+        (byte)MlirInstructionKind.Label,
+        (byte)MlirInstructionKind.Return,
+        (byte)MlirInstructionKind.Call,
+        (byte)MlirInstructionKind.Nop,
+        (byte)LlirInstructionKind.Transition,
+        (byte)LlirInstructionKind.Bcs,
+    };
+
+    /// <summary>Lowers `x := y op z` with a fresh transformer (so the temp
+    /// is always __tmp_0) and returns the MLIR stream.</summary>
+    private InstList LowerAssignWithBinaryOp(char op)
+    {
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zOffset = _pool.Intern("z");
+        var builder = new HlirBuilder();
+        int leftY = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int rightZ = builder.Add((byte)HlirNodeKind.Identifier, 0, zOffset, HlirPayloadKind.PoolOffset);
+        int binOp = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)op, HlirPayloadKind.Immediate, leftY, rightZ);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, binOp);
+        var tree = builder.Build();
+
+        return new HlirTreeToMlirTransformer(_pool).Transform(tree);
+    }
+
+    private void AssertBitwiseBinaryOp(char op, string name)
+    {
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint zOffset = _pool.Intern("z");
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        var result = LowerAssignWithBinaryOp(op);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                $"x := y {name} z should lower to <bitwise-op>; Assign(tmp,0); Assign(x,tmp)");
+
+            byte opKind = result.GetKind(0);
+            Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
+                $"'{op}' must lower to a bitwise operation, not the comparison path (Cmp), an arithmetic op (Add/Sub), or a control op");
+            var opOperands = result.GetOperands(0);
+            Assert.That(opOperands.Length, Is.EqualTo(2), "a bitwise op takes exactly two operands");
+            Assert.That(opOperands[0], Is.EqualTo(yOffset), $"{name} left operand = y");
+            Assert.That(opOperands[1], Is.EqualTo(zOffset), $"{name} right operand = z");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
+    }
+
+    private void AssertNotLowers()
+    {
+        uint xOffset = _pool.Intern("x");
+        uint yOffset = _pool.Intern("y");
+        uint tmpOffset = _pool.Intern("__tmp_0");
+        var builder = new HlirBuilder();
+        int operand = builder.Add((byte)HlirNodeKind.Identifier, 0, yOffset, HlirPayloadKind.PoolOffset);
+        int unary = builder.Add((byte)HlirNodeKind.UnaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, operand);
+        int target = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target, unary);
+        var tree = builder.Build();
+
+        InstList result = default;
+        GameVmException? error = null;
+        try
+        {
+            result = new HlirTreeToMlirTransformer(_pool).Transform(tree);
+        }
+        catch (GameVmException ex)
+        {
+            error = ex;
+        }
+        Assert.That(error, Is.Null,
+            "x := not y must lower without throwing; today UnaryOp '!' throws UnhandledInstruction");
+        if (error != null) return;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3),
+                "x := not y should lower to <complement>; Assign(tmp,0); Assign(x,tmp)");
+
+            byte opKind = result.GetKind(0);
+            Assert.That(NonBitwiseKinds, Does.Not.Contain(opKind),
+                "'!' must lower to a complement operation, not the comparison path (Cmp) or an arithmetic op");
+            var opOperands = result.GetOperands(0);
+            Assert.That(opOperands.ToArray(), Does.Contain(yOffset), "the complement must operate on y");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var tmpOps = result.GetOperands(1);
+            Assert.That(tmpOps[0], Is.EqualTo(tmpOffset), "Temp target = __tmp_0");
+            Assert.That(tmpOps[1], Is.Zero, "Temp declaration value = 0");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(xOffset), "Final Assign target = x");
+            Assert.That(storeOps[1], Is.EqualTo(tmpOffset), "Final Assign value = __tmp_0");
+        }
     }
 
     /// <summary>Lowers `if x op 0 then x := 0` (no else) and returns the

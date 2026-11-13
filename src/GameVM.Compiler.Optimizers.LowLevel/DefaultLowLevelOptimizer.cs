@@ -17,6 +17,14 @@ namespace GameVM.Compiler.Optimizers.LowLevel
     {
         private const byte LLIR_LOAD = (byte)LlirInstructionKind.Load;
         private const byte LLIR_STORE = (byte)LlirInstructionKind.Store;
+        private const byte LLIR_ADD = (byte)LlirInstructionKind.Add;
+        private const byte LLIR_SUB = (byte)LlirInstructionKind.Sub;
+        private const byte LLIR_MULTIPLY = (byte)LlirInstructionKind.Multiply;
+        private const byte LLIR_BITWISE_AND = (byte)LlirInstructionKind.BitwiseAnd;
+        private const byte LLIR_BITWISE_OR = (byte)LlirInstructionKind.BitwiseOr;
+        private const byte LLIR_BITWISE_NOT = (byte)LlirInstructionKind.BitwiseNot;
+        private const byte LLIR_CMP = (byte)LlirInstructionKind.Cmp;
+        private const byte LLIR_BRANCH = (byte)LlirInstructionKind.Branch;
 
         /// <summary>
         /// Optimizes the given LLIR slab using InstList (DOD SoA format).
@@ -98,7 +106,10 @@ namespace GameVM.Compiler.Optimizers.LowLevel
 
         /// <summary>
         /// Checks if a LOAD is overwritten: a subsequent LOAD to the same register occurs
-        /// before any STORE consumes its value.
+        /// before any instruction consumes its value. The loaded value lives in the
+        /// accumulator, so a Store writes it to memory, Add/Sub/Multiply/Cmp and the
+        /// bitwise ops (BitwiseAnd/BitwiseOr/BitwiseNot) compute with it, and a Branch
+        /// reads the flags the Load set — any of those is a use.
         /// </summary>
         private static bool IsOverwrittenLoad(InstList llirSlab, int instIndex, ReadOnlySpan<uint> operands)
         {
@@ -110,17 +121,21 @@ namespace GameVM.Compiler.Optimizers.LowLevel
             for (int i = instIndex + 1; i < llirSlab.Count; i++)
             {
                 byte nextKind = llirSlab.GetKind(i);
-                ushort nextArgCount = llirSlab.GetArgCount(i);
 
-                if (nextKind == LLIR_STORE && nextArgCount >= 1)
+                if (nextKind == LLIR_STORE
+                    || nextKind == LLIR_ADD
+                    || nextKind == LLIR_SUB
+                    || nextKind == LLIR_MULTIPLY
+                    || nextKind == LLIR_BITWISE_AND
+                    || nextKind == LLIR_BITWISE_OR
+                    || nextKind == LLIR_BITWISE_NOT
+                    || nextKind == LLIR_CMP
+                    || nextKind == LLIR_BRANCH)
                 {
-                    uint storeReg = llirSlab.GetOperand(i, 0);
-                    if (storeReg == reg)
-                    {
-                        return false; // Load's value IS used by this store
-                    }
+                    return false; // Load's value IS used by this instruction
                 }
-                else if (nextKind == LLIR_LOAD && nextArgCount >= 1)
+
+                if (nextKind == LLIR_LOAD && llirSlab.GetArgCount(i) >= 1)
                 {
                     uint loadReg = llirSlab.GetOperand(i, 0);
                     if (loadReg == reg)

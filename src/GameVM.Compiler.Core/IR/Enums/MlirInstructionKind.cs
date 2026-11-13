@@ -39,6 +39,26 @@ namespace GameVM.Compiler.Core.IR
         /// Shares its value with LlirInstructionKind.Bcs: the marker passes
         /// through the MLIR stream unchanged in meaning.</summary>
         Bcs = 209,
+
+        /// <summary>Multiply: 8-bit unsigned product, lowered to a shift-and-add
+        /// routine by the backend. Shares its value with LlirInstructionKind.Multiply:
+        /// the MLIR stream carries Llir kind bytes for arithmetic ops.</summary>
+        Multiply = 210,
+
+        /// <summary>BitwiseAnd: 8-bit bitwise AND. Shares its value with
+        /// LlirInstructionKind.BitwiseAnd: the MLIR stream carries Llir kind
+        /// bytes for arithmetic ops.</summary>
+        BitwiseAnd = 211,
+
+        /// <summary>BitwiseOr: 8-bit bitwise OR. Shares its value with
+        /// LlirInstructionKind.BitwiseOr: the MLIR stream carries Llir kind
+        /// bytes for arithmetic ops.</summary>
+        BitwiseOr = 212,
+
+        /// <summary>BitwiseNot: 8-bit bitwise complement. Shares its value with
+        /// LlirInstructionKind.BitwiseNot: the MLIR stream carries Llir kind
+        /// bytes for arithmetic ops.</summary>
+        BitwiseNot = 213,
         
         /// <summary>Return instruction</summary>
         Return = 16,

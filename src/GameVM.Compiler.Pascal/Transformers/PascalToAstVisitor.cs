@@ -443,8 +443,13 @@ namespace GameVM.Compiler.Pascal.Transformers
                 return VisitExpression(context.expression());
             if (context.NOT() != null && context.factor() != null)
             {
+                // `not` is a unary op: single visit of the factor, wrapped in
+                // a UnaryOp node (payload = '!' op char), the same shape as
+                // unary minus. Emitting it as a BinaryOp left a single-child
+                // node the middle end rejects, so the whole enclosing
+                // statement was silently dropped.
                 int operandIdx = VisitFactor(context.factor()) is int o ? o : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.factor()?.Start ?? context.Start);
-                return Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'!', context.NOT().Symbol, operandIdx);
+                return Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'!', context.NOT().Symbol, operandIdx);
             }
             if (context.bool_() != null)
                 return VisitBool_(context.bool_());

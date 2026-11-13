@@ -286,15 +286,17 @@ public sealed class HlirTreeToMlirTransformer
                 {
                     // Unary minus: -x == 0 - x. Reuses the existing Sub lowering so
                     // the operand flows through the normal Load/Sub path.
-                    // Any other unary op is unsupported: fail loudly rather
-                    // than silently evaluating to 0.
+                    // `not` x complements the operand: BitwiseNot over the
+                    // operand slot, the same temp sequence as the other
+                    // compute ops. Any other unary op is unsupported: fail
+                    // loudly rather than silently evaluating to 0.
                     var children = tree.Children(idx);
-                    if (children.Length < 1 || (char)node.Payload != '-')
+                    if (children.Length < 1 || ((char)node.Payload != '-' && (char)node.Payload != '!'))
                     {
                         throw new GameVmException(
                             ErrorCode.UnhandledInstruction,
                             $"HlirTreeToMlirTransformer has no MLIR lowering for unary operator " +
-                            $"'{(char)node.Payload}' at tree index {idx}; only unary minus is supported.",
+                            $"'{(char)node.Payload}' at tree index {idx}; only unary minus and `not` are supported.",
                             ErrorSeverity.Error,
                             new Dictionary<string, object?>
                             {
@@ -305,11 +307,18 @@ public sealed class HlirTreeToMlirTransformer
                     }
 
                     uint operandSlot = EvaluateExpression(tree, children[0], builder, out _);
-                    uint zeroSlot = _pool.Intern("0");
 
                     string temp = NewTemp();
                     uint tempOffset = _pool.Intern(temp);
-                    builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, zeroSlot, operandSlot);
+                    if ((char)node.Payload == '!')
+                    {
+                        builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0, operandSlot);
+                    }
+                    else
+                    {
+                        uint zeroSlot = _pool.Intern("0");
+                        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, zeroSlot, operandSlot);
+                    }
                     builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tempOffset, 0);
 
                     isImmediate = false;
@@ -328,8 +337,10 @@ public sealed class HlirTreeToMlirTransformer
         {
             '+' => (byte)LlirInstructionKind.Add,
             '-' => (byte)LlirInstructionKind.Sub,
-            '*' => (byte)LlirInstructionKind.Add,
+            '*' => (byte)LlirInstructionKind.Multiply,
             '/' => (byte)LlirInstructionKind.Sub,
+            '&' => (byte)LlirInstructionKind.BitwiseAnd,
+            '|' => (byte)LlirInstructionKind.BitwiseOr,
             _ => (byte)MlirInstructionKind.Nop
         };
     }

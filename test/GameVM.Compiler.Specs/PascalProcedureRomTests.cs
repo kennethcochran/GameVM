@@ -298,6 +298,77 @@ public class PascalProcedureRomTests
             0x4C, 0x15, 0xF0), Is.True,
             "`while x < 3` must keep its established lowering (test before body, JMP back to the test)");
     }
+    [Test]
+    public void ProgramUsingAndOrAndNot()
+    {
+        // End to end: `and`/`or` must compute bitwise values with the
+        // 6502's AND/ORA, and `not` must complement with EOR #$FF.
+        // Today `and`/`or` fall through to the comparison path (the ROM
+        // holds CMP $82; STA $80 — the value 1, whatever the bits are),
+        // literal `and`/`or` fold to 0, and both `not` statements vanish
+        // entirely — the middle end rejects the single-child node, so the
+        // enclosing statement is silently dropped. This slice covers
+        // bitwise `and`/`or`/`not` on values only; comparisons are separate
+        // slices, and there is no short-circuit evaluation (Pascal's
+        // `and`/`or` here are bitwise, evaluated eagerly).
+        //
+        // Implementer note: the new LLIR kinds must also join the
+        // low-level optimizer's accumulator-consumer list
+        // (DefaultLowLevelOptimizer.IsOverwrittenLoad — the same fix shape
+        // PR #19 applied for Multiply), or the Load before a repeated
+        // bitwise op is dropped as overwritten and the statement computes
+        // with a stale accumulator.
+        var result = Compile(BitwiseProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
+
+        // Setup stays intact, and pins the addresses the op sequences
+        // below rely on: variables allocate from $80 in declaration order
+        // (x = $80, y = $81, z = $82).
+        int yStore = IndexOfSequence(rom, bodyStart, 0xA9, 0x0C, 0x85, 0x81);
+        Assert.That(yStore, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain y := 12 (LDA #12; STA $81)");
+        int zStore = IndexOfSequence(rom, yStore + 4, 0xA9, 0x0A, 0x85, 0x82);
+        Assert.That(zStore, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain z := 10 (LDA #10; STA $82)");
+
+        // y and z (12 and 10 = 8): LDA $81; AND $82; STA $80.
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA5, 0x81, 0x25, 0x82, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := y and z must use the 6502 AND (LDA $81; AND $82; STA $80), not the comparison path");
+
+        // y or z (12 or 10 = 14): LDA $81; ORA $82; STA $80.
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA5, 0x81, 0x05, 0x82, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := y or z must use the 6502 ORA (LDA $81; ORA $82; STA $80), not the comparison path");
+
+        // not y (not 12 = 243): LDA $81; EOR #$FF; STA $80.
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA5, 0x81, 0x49, 0xFF, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := not y must complement with EOR #$FF (LDA $81; EOR #$FF; STA $80) — the statement must not be dropped");
+
+        // Literal operands must fold to their bitwise values, not to 0.
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA9, 0x08, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := 12 and 10 must fold to 8 (LDA #8; STA $80), not to 0");
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA9, 0x0E, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := 12 or 10 must fold to 14 (LDA #14; STA $80), not to 0");
+        Assert.That(IndexOfSequence(rom, zStore + 4, 0xA9, 0xF3, 0x85, 0x80),
+            Is.GreaterThanOrEqualTo(0),
+            "x := not 12 must fold to 243 (LDA #243; STA $80) — the statement must not be dropped");
+
+        // The comparison path must be gone: no CMP $82 anywhere in the
+        // program body (the program contains no comparison).
+        Assert.That(ContainsSequence(rom, 0xC5, 0x82), Is.False,
+            "`and`/`or` must not lower through a CMP — there is no comparison in this program");
+    }
+
 
     private const string RepeatUntilProgram =
         "program Probe;\n" +
@@ -317,6 +388,20 @@ public class PascalProcedureRomTests
         "  while x < 3 do\n" +
         "    x := x + 1;\n" +
         "end.";
+    private const string BitwiseProgram =
+        "program Probe;\n" +
+        "var x, y, z: Integer;\n" +
+        "begin\n" +
+        "  y := 12;\n" +
+        "  z := 10;\n" +
+        "  x := y and z;\n" +
+        "  x := y or z;\n" +
+        "  x := not y;\n" +
+        "  x := 12 and 10;\n" +
+        "  x := 12 or 10;\n" +
+        "  x := not 12;\n" +
+        "end.";
+
 
     private const string LessThanProgram =
         "program Probe;\n" +
