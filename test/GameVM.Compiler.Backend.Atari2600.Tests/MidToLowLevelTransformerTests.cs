@@ -689,75 +689,78 @@ public class MidToLowLevelTransformerTests
 
             var result = _transformer.TransformSlab(mlir, _stringPool);
 
-            // 300 stores as low 44 at $80 and high 1 at $81; 500 stores as
-            // low 244 at $82 and high 1 at $83; then Load low, Add low,
-            // Store low, Load high, Add high (carry from the low add),
-            // Store high.
-            Assert.That(result.Count, Is.EqualTo(10));
+            using (Assert.EnterMultipleScope())
+            {
+                // 300 stores as low 44 at $80 and high 1 at $81; 500 stores as
+                // low 244 at $82 and high 1 at $83; then Load low, Add low,
+                // Store low, Load high, Add high (carry from the low add),
+                // Store high.
+                Assert.That(result.Count, Is.EqualTo(10));
 
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign0 = result.GetOperands(0);
-            Assert.That(assign0.Length, Is.EqualTo(2));
-            Assert.That(assign0[0], Is.EqualTo(0x80u), "x low byte at $80");
-            Assert.That(assign0[1], Is.EqualTo(44u), "300 low byte is 44");
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign0 = result.GetOperands(0);
+                Assert.That(assign0.Length, Is.EqualTo(2));
+                Assert.That(assign0[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assign0[1], Is.EqualTo(44u), "300 low byte is 44");
 
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign1 = result.GetOperands(1);
-            Assert.That(assign1.Length, Is.EqualTo(2));
-            Assert.That(assign1[0], Is.EqualTo(0x81u), "x high byte at $81");
-            Assert.That(assign1[1], Is.EqualTo(1u), "300 high byte is 1");
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign1 = result.GetOperands(1);
+                Assert.That(assign1.Length, Is.EqualTo(2));
+                Assert.That(assign1[0], Is.EqualTo(0x81u), "x high byte at $81");
+                Assert.That(assign1[1], Is.EqualTo(1u), "300 high byte is 1");
 
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign2 = result.GetOperands(2);
-            Assert.That(assign2.Length, Is.EqualTo(2));
-            Assert.That(assign2[0], Is.EqualTo(0x82u), "y low byte at $82");
-            Assert.That(assign2[1], Is.EqualTo(244u), "500 low byte is 244");
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign2 = result.GetOperands(2);
+                Assert.That(assign2.Length, Is.EqualTo(2));
+                Assert.That(assign2[0], Is.EqualTo(0x82u), "y low byte at $82");
+                Assert.That(assign2[1], Is.EqualTo(244u), "500 low byte is 244");
 
-            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign3 = result.GetOperands(3);
-            Assert.That(assign3.Length, Is.EqualTo(2));
-            Assert.That(assign3[0], Is.EqualTo(0x83u), "y high byte at $83");
-            Assert.That(assign3[1], Is.EqualTo(1u), "500 high byte is 1");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign3 = result.GetOperands(3);
+                Assert.That(assign3.Length, Is.EqualTo(2));
+                Assert.That(assign3[0], Is.EqualTo(0x83u), "y high byte at $83");
+                Assert.That(assign3[1], Is.EqualTo(1u), "500 high byte is 1");
 
-            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
-            var loadLow = result.GetOperands(4);
-            Assert.That(loadLow.Length, Is.EqualTo(2));
-            Assert.That(loadLow[0], Is.EqualTo(0x80u), "low add loads x low from $80");
-            Assert.That(loadLow[1], Is.EqualTo(0x00u));
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                var loadLow = result.GetOperands(4);
+                Assert.That(loadLow.Length, Is.EqualTo(2));
+                Assert.That(loadLow[0], Is.EqualTo(0x80u), "low add loads x low from $80");
+                Assert.That(loadLow[1], Is.Zero);
 
-            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Add));
-            var addLow = result.GetOperands(5);
-            Assert.That(addLow.Length, Is.EqualTo(2));
-            Assert.That(addLow[0], Is.EqualTo(0x82u), "low add adds y low from $82");
-            Assert.That(addLow[1], Is.EqualTo(0x00u));
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Add));
+                var addLow = result.GetOperands(5);
+                Assert.That(addLow.Length, Is.EqualTo(2));
+                Assert.That(addLow[0], Is.EqualTo(0x82u), "low add adds y low from $82");
+                Assert.That(addLow[1], Is.Zero);
 
-            Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
-            var storeLow = result.GetOperands(6);
-            Assert.That(storeLow.Length, Is.EqualTo(1));
-            Assert.That(storeLow[0], Is.EqualTo(0x84u), "low sum stores to z low at $84");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                var storeLow = result.GetOperands(6);
+                Assert.That(storeLow.Length, Is.EqualTo(1));
+                Assert.That(storeLow[0], Is.EqualTo(0x84u), "low sum stores to z low at $84");
 
-            Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
-            var loadHigh = result.GetOperands(7);
-            Assert.That(loadHigh.Length, Is.EqualTo(2));
-            Assert.That(loadHigh[0], Is.EqualTo(0x81u), "high add loads x high from $81");
-            Assert.That(loadHigh[1], Is.EqualTo(0x00u));
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
+                var loadHigh = result.GetOperands(7);
+                Assert.That(loadHigh.Length, Is.EqualTo(2));
+                Assert.That(loadHigh[0], Is.EqualTo(0x81u), "high add loads x high from $81");
+                Assert.That(loadHigh[1], Is.Zero);
 
-            // The high add is a separate step so the low add's carry feeds
-            // it. No assertion is made here on instruction flags: the
-            // mechanism that tells the code generator "add with incoming
-            // carry, do not clear it first" (a flag, a new kind, or codegen
-            // state) is the implementer's choice — the ROM test proves the
-            // carry actually flows.
-            Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Add));
-            var addHigh = result.GetOperands(8);
-            Assert.That(addHigh.Length, Is.EqualTo(2));
-            Assert.That(addHigh[0], Is.EqualTo(0x83u), "high add adds y high from $83");
-            Assert.That(addHigh[1], Is.EqualTo(0x00u));
+                // The high add is a separate step so the low add's carry feeds
+                // it. No assertion is made here on instruction flags: the
+                // mechanism that tells the code generator "add with incoming
+                // carry, do not clear it first" (a flag, a new kind, or codegen
+                // state) is the implementer's choice — the ROM test proves the
+                // carry actually flows.
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Add));
+                var addHigh = result.GetOperands(8);
+                Assert.That(addHigh.Length, Is.EqualTo(2));
+                Assert.That(addHigh[0], Is.EqualTo(0x83u), "high add adds y high from $83");
+                Assert.That(addHigh[1], Is.Zero);
 
-            Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
-            var storeHigh = result.GetOperands(9);
-            Assert.That(storeHigh.Length, Is.EqualTo(1));
-            Assert.That(storeHigh[0], Is.EqualTo(0x85u), "high sum stores to z high at $85");
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                var storeHigh = result.GetOperands(9);
+                Assert.That(storeHigh.Length, Is.EqualTo(1));
+                Assert.That(storeHigh[0], Is.EqualTo(0x85u), "high sum stores to z high at $85");
+            }
         }
 
         [Test]
@@ -781,33 +784,36 @@ public class MidToLowLevelTransformerTests
 
             var result = _transformer.TransformSlab(mlir, _stringPool);
 
-            Assert.That(result.Count, Is.EqualTo(10));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(10));
 
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u));
-            Assert.That(result.GetOperands(0)[1], Is.EqualTo(44u));
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u));
-            Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u));
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x82u));
-            Assert.That(result.GetOperands(2)[1], Is.EqualTo(244u));
-            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x83u));
-            Assert.That(result.GetOperands(3)[1], Is.EqualTo(1u));
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u));
+                Assert.That(result.GetOperands(0)[1], Is.EqualTo(44u));
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u));
+                Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u));
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x82u));
+                Assert.That(result.GetOperands(2)[1], Is.EqualTo(244u));
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x83u));
+                Assert.That(result.GetOperands(3)[1], Is.EqualTo(1u));
 
-            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x80u), "low subtract loads x low from $80");
-            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Sub));
-            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x82u), "low subtract takes y low from $82");
-            Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
-            Assert.That(result.GetOperands(6)[0], Is.EqualTo(0x84u), "low difference stores to w low at $84");
-            Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetOperands(7)[0], Is.EqualTo(0x81u), "high subtract loads x high from $81");
-            Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Sub));
-            Assert.That(result.GetOperands(8)[0], Is.EqualTo(0x83u), "high subtract takes y high from $83");
-            Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
-            Assert.That(result.GetOperands(9)[0], Is.EqualTo(0x85u), "high difference stores to w high at $85");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x80u), "low subtract loads x low from $80");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x82u), "low subtract takes y low from $82");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(0x84u), "low difference stores to w low at $84");
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(7)[0], Is.EqualTo(0x81u), "high subtract loads x high from $81");
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(0x83u), "high subtract takes y high from $83");
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(0x85u), "high difference stores to w high at $85");
+            }
         }
 
         [Test]
@@ -827,23 +833,26 @@ public class MidToLowLevelTransformerTests
 
             var result = _transformer.TransformSlab(mlir, _stringPool);
 
-            Assert.That(result.Count, Is.EqualTo(3));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(3));
 
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign0 = result.GetOperands(0);
-            Assert.That(assign0.Length, Is.EqualTo(2));
-            Assert.That(assign0[0], Is.EqualTo(0x80u), "x := 255 still takes one slot at $80");
-            Assert.That(assign0[1], Is.EqualTo(255u));
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign0 = result.GetOperands(0);
+                Assert.That(assign0.Length, Is.EqualTo(2));
+                Assert.That(assign0[0], Is.EqualTo(0x80u), "x := 255 still takes one slot at $80");
+                Assert.That(assign0[1], Is.EqualTo(255u));
 
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign1 = result.GetOperands(1);
-            Assert.That(assign1[0], Is.EqualTo(0x81u), "y low byte at $81");
-            Assert.That(assign1[1], Is.EqualTo(0u), "256 low byte is 0");
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign1 = result.GetOperands(1);
+                Assert.That(assign1[0], Is.EqualTo(0x81u), "y low byte at $81");
+                Assert.That(assign1[1], Is.Zero, "256 low byte is 0");
 
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
-            var assign2 = result.GetOperands(2);
-            Assert.That(assign2[0], Is.EqualTo(0x82u), "y high byte at $82");
-            Assert.That(assign2[1], Is.EqualTo(1u), "256 high byte is 1");
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign2 = result.GetOperands(2);
+                Assert.That(assign2[0], Is.EqualTo(0x82u), "y high byte at $82");
+                Assert.That(assign2[1], Is.EqualTo(1u), "256 high byte is 1");
+            }
         }
 
         #endregion

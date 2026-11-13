@@ -203,7 +203,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 ("1", "65535"),
                 ("256", "65280"),
             };
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 foreach (var (literal, expected) in cases)
                 {
@@ -211,7 +211,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                     Assert.That(actual, Is.EqualTo(expected),
                         $"-{literal} must fold to its 16-bit two's complement value {expected}");
                 }
-            });
+            }
         }
 
         [Test]

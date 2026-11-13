@@ -646,64 +646,71 @@ namespace GameVM.Compiler.Backend.Atari2600
             ushort targetAddr = GetAddressForVariable(targetName);
 
             string valueStr = stringPool.Resolve(valueSlot);
-            bool isTemp = valueStr.StartsWith(TempPrefix, StringComparison.Ordinal);
-            bool valueIsName = valueStr.Length > 0 &&
-                               !valueStr.StartsWith(InvalidPoolOffsetPrefix, StringComparison.Ordinal) &&
-                               !IsNumeric(valueStr);
-
-            if (isTemp)
-            {
-                // The computed value already lives in the accumulator (A) from the
-                // preceding Add/Sub. Store it: STA zp. A two-slot temp's bytes
-                // are already in memory — a wide Add/Sub stored both — so
-                // copy both bytes from the temp's slots instead.
-                if (WidthOf(valueStr) == 2)
-                {
-                    ushort tempAddr = GetAddressForVariable(valueStr);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, tempAddr, 0);
-                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
-                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (ushort)(tempAddr + 1), 0);
-                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
-                }
-                else
-                {
-                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
-                }
-            }
-            else if (valueIsName)
-            {
-                // Variable copy: LDA zp; STA zp, low byte then high byte
-                // when the value is two slots. A one-slot source copied
-                // into a two-slot target leaves a stale high byte, so the
-                // high copy loads immediate 0 instead of the source's
-                // (nonexistent) high byte.
-                ushort valueAddr = GetAddressForVariable(valueStr);
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, valueAddr, 0);
-                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
-                if (Math.Max(WidthOf(valueStr), WidthOf(targetName)) == 2)
-                {
-                    if (WidthOf(valueStr) == 2)
-                        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (ushort)(valueAddr + 1), 0);
-                    else
-                        builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0);
-                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
-                }
-            }
+            if (valueStr.StartsWith(TempPrefix, StringComparison.Ordinal))
+                StoreAccumulatorValue(builder, valueStr, targetAddr);
+            else if (IsName(valueStr))
+                CopyVariable(builder, valueStr, targetName, targetAddr);
             else if (TryParseNumeric(valueStr, out uint numeric))
-            {
-                // Compile-time constant: LDA #imm; STA zp (folded). A
-                // two-slot target takes both bytes even when the value
-                // fits in one — the high byte must be 0, not whatever
-                // the slot held before (zero at reset, stale after a
-                // previous wide assignment to the same variable).
-                builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, numeric & 0xFF);
-                if (WidthOf(targetName) == 2)
-                    builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, (ushort)(targetAddr + 1), (numeric >> 8) & 0xFF);
-            }
+                AssignConstant(builder, targetName, targetAddr, numeric);
             else
-            {
                 builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueSlot & 0xFF);
+        }
+
+        /// <summary>
+        /// Stores a value computed into the accumulator by the preceding
+        /// Add/Sub: STA zp. A two-slot temp's bytes are already in memory
+        /// — a wide Add/Sub stored both — so copy both bytes from the
+        /// temp's slots instead.
+        /// </summary>
+        private void StoreAccumulatorValue(InstListBuilder builder, string tempName, ushort targetAddr)
+        {
+            if (WidthOf(tempName) != 2)
+            {
+                builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+                return;
             }
+
+            ushort tempAddr = GetAddressForVariable(tempName);
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, tempAddr, 0);
+            builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (ushort)(tempAddr + 1), 0);
+            builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
+        }
+
+        /// <summary>
+        /// Copies a variable into the target: LDA zp; STA zp, low byte
+        /// then high byte when either side is two slots. A one-slot
+        /// source copied into a two-slot target leaves a stale high
+        /// byte, so the high copy loads immediate 0 instead of the
+        /// source's (nonexistent) high byte.
+        /// </summary>
+        private void CopyVariable(InstListBuilder builder, string valueName, string targetName, ushort targetAddr)
+        {
+            ushort valueAddr = GetAddressForVariable(valueName);
+            builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, valueAddr, 0);
+            builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+            if (Math.Max(WidthOf(valueName), WidthOf(targetName)) != 2)
+                return;
+
+            if (WidthOf(valueName) == 2)
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (ushort)(valueAddr + 1), 0);
+            else
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0);
+            builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
+        }
+
+        /// <summary>
+        /// Assigns a compile-time constant: LDA #imm; STA zp (folded).
+        /// A two-slot target takes both bytes even when the value fits
+        /// in one — the high byte must be written, not left holding
+        /// whatever the slot held before (zero at reset, stale after a
+        /// previous wide assignment to the same variable).
+        /// </summary>
+        private void AssignConstant(InstListBuilder builder, string targetName, ushort targetAddr, uint numeric)
+        {
+            builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, numeric & 0xFF);
+            if (WidthOf(targetName) == 2)
+                builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, (ushort)(targetAddr + 1), (numeric >> 8) & 0xFF);
         }
 
         /// <summary>
