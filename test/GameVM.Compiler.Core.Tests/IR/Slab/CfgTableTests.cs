@@ -1,8 +1,12 @@
 using System;
 using NUnit.Framework;
+using GameVM.Compiler.Core.IR;
+using GameVM.Compiler.Core.IR.Buffers;
+using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Slab;
 using GameVM.Compiler.Core.IR.Soa;
 using GameVM.Compiler.Core.IR.SlabProcessing;
+using GameVM.Compiler.Core.IR.Transformers;
 namespace GameVM.Compiler.Core.Tests.IR.Slab;
 
 public class CfgTableTests
@@ -159,5 +163,105 @@ public class CfgConstructionPassTests
         Assert.That(table.GetBlockOffset(0), Is.EqualTo(0));
         Assert.That(table.GetBlockOffset(1), Is.EqualTo(2));
         Assert.That(table.GetSuccessors(0), Is.EqualTo(new[] { 1 }));
+    }
+
+    [Test]
+    public void BlocksAreAssignedForBranchingProgram()
+    {
+        // A branching program (a while loop) lowered to MLIR must come
+        // out of the pipeline with real basic blocks: every instruction
+        // assigned to a block, the loop split into header/body/exit, and
+        // a CfgTable built from that MLIR carrying the loop's edges.
+        // Today the CFG pass is wired into nothing, so the MLIR carries
+        // no Block IDs at all (all Unassigned) and no terminators are
+        // flagged — this fails at the first BlockId assertion.
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        // Body of while: x := 0
+        int identBody = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litBody = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, identBody, litBody);
+
+        // Condition: x <> 0
+        int identCond = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litCond = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int binOpNe = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, identCond, litCond);
+
+        // While node: 2 children — condition + body
+        builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, binOpNe, assign);
+
+        var tree = builder.Build();
+        var mlir = new HlirTreeToMlirTransformer(pool).Transform(tree);
+
+        // Baseline shape this test pins against (same as the transformer's
+        // own While test): Label, Cmp, Transition, Branch, Assign, Branch, Label.
+        Assert.That(mlir.Count, Is.EqualTo(7));
+        Assert.That(mlir.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(mlir.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+        Assert.That(mlir.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Transition));
+        Assert.That(mlir.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(mlir.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        Assert.That(mlir.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(mlir.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Label));
+
+        // Every instruction belongs to a block, split at the branches:
+        // header [0..3], body [4..5], exit [6]. Block IDs are the
+        // 1-based handles the pass writes (block index + 1).
+        int[] expectedBlockIds = { 1, 1, 1, 1, 2, 2, 3 };
+        using (Assert.EnterMultipleScope())
+        {
+            for (int i = 0; i < mlir.Count; i++)
+                Assert.That(mlir.GetBlockId(i), Is.EqualTo(expectedBlockIds[i]),
+                    $"instruction {i} must sit in block {expectedBlockIds[i] - 1}");
+        }
+
+        // The two branches terminate their blocks.
+        Assert.That(((InstructionFlag)mlir.GetFlags(3)).HasFlag(InstructionFlag.Terminator), Is.True,
+            "the conditional exit branch must terminate the header block");
+        Assert.That(((InstructionFlag)mlir.GetFlags(5)).HasFlag(InstructionFlag.Terminator), Is.True,
+            "the back-edge branch must terminate the body block");
+
+        // Build the CFG from the MLIR. The successor resolver reads
+        // branch targets as Block IDs (the post-slice encoding) and adds
+        // the fall-through successor for a conditional branch (the one
+        // marked by the Transition before it); an unconditional branch
+        // has only its target.
+        int FirstIndexOfBlock(int blockIdValue)
+        {
+            for (int j = 0; j < mlir.Count; j++)
+                if (mlir.GetBlockId(j) == blockIdValue) return j;
+            return -1;
+        }
+
+        int[] Successors(int terminatorIdx)
+        {
+            if ((MlirInstructionKind)mlir.GetKind(terminatorIdx) != MlirInstructionKind.Branch)
+                return Array.Empty<int>();
+            int targetIdx = FirstIndexOfBlock((int)mlir.GetOperand(terminatorIdx, 0));
+            if (targetIdx < 0)
+                return Array.Empty<int>();
+            bool isConditional = terminatorIdx > 0 &&
+                mlir.GetKind(terminatorIdx - 1) == (byte)LlirInstructionKind.Transition;
+            if (isConditional && terminatorIdx + 1 < mlir.Count)
+                return new[] { targetIdx, terminatorIdx + 1 };
+            return new[] { targetIdx };
+        }
+
+        var table = new CfgConstructionPass(mlir).Build(Successors);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(table.BlockCount, Is.EqualTo(3), "the loop has three blocks: header, body, exit");
+            Assert.That(table.GetBlockOffset(0), Is.EqualTo(0), "header starts at instruction 0");
+            Assert.That(table.GetBlockOffset(1), Is.EqualTo(4), "body starts at instruction 4");
+            Assert.That(table.GetBlockOffset(2), Is.EqualTo(6), "exit starts at instruction 6");
+            Assert.That(table.GetSuccessors(0), Is.EquivalentTo(new[] { 1, 2 }),
+                "the header falls through to the body and branches to the exit");
+            Assert.That(table.GetSuccessors(1), Is.EquivalentTo(new[] { 0 }),
+                "the body branches back to the header");
+            Assert.That(table.GetSuccessors(2), Is.Empty, "the exit block has no outgoing edges");
+        }
     }
 }

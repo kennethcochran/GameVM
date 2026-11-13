@@ -991,4 +991,65 @@ public class HlirTreeToMlirTransformerTests
             kinds[i] = result.GetKind(i);
         return kinds;
     }
+
+    [Test]
+    public void BranchTargetsBlockIdNotStringPoolOffset()
+    {
+        // A branch in the MLIR must target the block it jumps to by
+        // stable Block ID, not by the StringPool offset of its label.
+        // Today the transformer emits the label's pool offset as the
+        // branch operand and assigns no Block IDs at all, so both the
+        // BlockId assertions and the operand assertions fail.
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        // Body of while: x := 0
+        int identBody = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litBody = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, identBody, litBody);
+
+        // Condition: x <> 0
+        int identCond = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litCond = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int binOpNe = builder.Add((byte)HlirNodeKind.BinaryOp, 0, (uint)'!', HlirPayloadKind.Immediate, identCond, litCond);
+
+        // While node: 2 children — condition + body
+        builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, binOpNe, assign);
+
+        var tree = builder.Build();
+        var result = new HlirTreeToMlirTransformer(pool).Transform(tree);
+
+        // Baseline shape: Label, Cmp, Transition, Branch, Assign, Branch, Label.
+        Assert.That(result.Count, Is.EqualTo(7));
+        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label));
+        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Transition));
+        Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Assign));
+        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Branch));
+        Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Label));
+
+        // Every instruction is assigned to a block (0 = Unassigned).
+        for (int i = 0; i < result.Count; i++)
+            Assert.That(result.GetBlockId(i), Is.Not.EqualTo(0),
+                $"instruction {i} must be assigned to a block");
+
+        // The branch operands must be Block IDs, not label pool offsets:
+        // the back-edge targets the loop-header block (first instruction),
+        // the exit branch targets the exit block (last instruction).
+        uint loopLabelOffset = result.GetOperand(0, 0);
+        uint endLabelOffset = result.GetOperand(6, 0);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((int)result.GetOperand(5, 0), Is.Not.EqualTo((int)loopLabelOffset),
+                "the back-edge branch must not carry the loop label's StringPool offset");
+            Assert.That((int)result.GetOperand(5, 0), Is.EqualTo(result.GetBlockId(0)),
+                "the back-edge branch must target the loop-header block by Block ID");
+            Assert.That((int)result.GetOperand(3, 0), Is.Not.EqualTo((int)endLabelOffset),
+                "the exit branch must not carry the end label's StringPool offset");
+            Assert.That((int)result.GetOperand(3, 0), Is.EqualTo(result.GetBlockId(6)),
+                "the exit branch must target the exit block by Block ID");
+        }
+    }
 }
