@@ -8,3 +8,28 @@ reviews:
     # Open human threads do not block it. Merge gating is set in branch rules.
     enabled: true
     allow_author_approval: false
+  path_instructions:
+    # ADRs record decisions about the work and guidance for future work.
+    # Forward-looking content is their purpose, not a violation: the
+    # aspirational-docs rule in docs/AGENTS.md exempts them explicitly.
+    - path: "docs/adr/**"
+      instructions: >
+        Files in docs/adr/ are Architecture Decision Records: records of
+        decisions made about the work and guidance for future work. An ADR
+        routinely describes behavior that is not implemented yet; that is
+        its purpose, and docs/AGENTS.md rule 1 (never write aspirational
+        docs) explicitly exempts ADRs. Do not flag an ADR for describing
+        non-existent or unimplemented behavior, do not ask for the
+        documented behavior to be specified as tests instead, and do not
+        ask for a recorded decision itself to be changed. Restrict
+        findings to factual errors, broken or non-relative links, and
+        internal inconsistencies.
+    - path: "docs/**"
+      instructions: >
+        docs/AGENTS.md rule 1 prohibits docs that describe non-existent
+        behavior, with an exception for decision records: a non-ADR doc
+        whose subject is an approved decision or guidance for future work
+        may describe the decided behavior if it states plainly at the top
+        that the behavior is not yet implemented. Flag a forward-looking
+        doc only when that notice is missing. Pending work belongs in
+        GitHub Issues and failing tests, not in docs/.
