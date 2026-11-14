@@ -222,6 +222,83 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void RepeatUntilProducesLoopNodeNotNop()
+        {
+            // `repeat...until` is currently an explicit Nop in the visitor:
+            // the body compiles "successfully" and does nothing, with no
+            // error anywhere. The visitor must produce a Repeat node
+            // carrying the body and the exit condition, in source order.
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := 0;
+                    repeat
+                        x := x + 1;
+                    until x = 3;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+            Assert.That(tree.Count, Is.GreaterThan(0));
+
+            int repeatIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.Repeat)
+                {
+                    repeatIdx = i;
+                    break;
+                }
+            }
+            Assert.That(repeatIdx, Is.GreaterThanOrEqualTo(0),
+                "Repeat statement should be present in the method body, not dropped to Nop");
+
+            var repeatNode = tree[repeatIdx];
+            Assert.That(repeatNode.ChildCount, Is.EqualTo(2),
+                "Repeat should have 2 children (body, condition) in source order");
+
+            var repeatChildren = tree.Children(repeatIdx);
+            int bodyIdx = repeatChildren[0];
+            int condIdx = repeatChildren[1];
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ContainsKind(tree, bodyIdx, PascalAstNodeKind.Assignment), Is.True,
+                    "Repeat body must contain the `x := x + 1` assignment");
+                Assert.That(tree.GetKind(condIdx), Is.EqualTo((byte)PascalAstNodeKind.BinaryOp),
+                    "Repeat condition must be the comparison expression");
+            }
+
+            // The condition is `x = 3`: the relational BinaryOp carries the
+            // operator as a third child whose payload is the op char.
+            var condChildren = tree.Children(condIdx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(condChildren.Length, Is.EqualTo(3),
+                    "Relational condition should have 3 children (left, right, operator)");
+                Assert.That(tree[condChildren[2]].Payload, Is.EqualTo((uint)'='),
+                    "Repeat exit condition must be the `=` comparison");
+            }
+        }
+
+        private static bool ContainsKind(AstTree tree, int rootIdx, PascalAstNodeKind kind)
+        {
+            if (tree.GetKind(rootIdx) == (byte)kind)
+                return true;
+            foreach (int child in tree.Children(rootIdx))
+            {
+                if (ContainsKind(tree, child, kind))
+                    return true;
+            }
+            return false;
+        }
+
+        [Test]
         public void Visitor_HandlesLiteralTypes()
         {
             string code = @"

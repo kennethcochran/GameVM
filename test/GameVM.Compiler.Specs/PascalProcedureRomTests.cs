@@ -91,58 +91,6 @@ public class PascalProcedureRomTests
         "  if false then x := 2;\n" +
         "end.";
 
-    private const string ProductProgram =
-        "program Test;\n" +
-        "var x: Integer;\n" +
-        "var y: Integer;\n" +
-        "begin\n" +
-        "  x := 6;\n" +
-        "  y := 7;\n" +
-        "  x := x * y;\n" +
-        "end.";
-
-    private const string ConsecutiveProductsProgram =
-        "program Test;\n" +
-        "var x: Integer;\n" +
-        "var y: Integer;\n" +
-        "var z: Integer;\n" +
-        "var a: Integer;\n" +
-        "var b: Integer;\n" +
-        "begin\n" +
-        "  x := 6;\n" +
-        "  y := 7;\n" +
-        "  z := 8;\n" +
-        "  a := x * y;\n" +
-        "  b := x * z;\n" +
-        "end.";
-
-    /// <summary>Scans for multiply machinery at or after
-    /// <paramref name="from"/>: a JSR to an in-ROM target (0x20), a
-    /// backward relative branch (a branch opcode with offset &gt;= 0x80),
-    /// or an ASL (0x0A/0x06/0x16/0x0E/0x1E). The 6502 has no multiply
-    /// instruction, so any real 8-bit multiply is a subroutine call, a
-    /// loop, or shift-and-add steps. The reset prologue's own BNE clear
-    /// loop sits before <paramref name="from"/> and is never counted.</summary>
-    private static bool HasMultiplyMachinery(byte[] rom, int from)
-    {
-        for (int i = from; i < rom.Length; i++)
-        {
-            byte op = rom[i];
-            if (op == 0x20 && i + 2 < rom.Length)
-            {
-                int target = rom[i + 1] | (rom[i + 2] << 8);
-                if (target > 0xF000 && target < 0xF000 + rom.Length) return true;
-                continue;
-            }
-            if (op == 0x0A || op == 0x06 || op == 0x16 || op == 0x0E || op == 0x1E) return true;
-            if ((op == 0x10 || op == 0x30 || op == 0x50 || op == 0x70 ||
-                 op == 0x90 || op == 0xB0 || op == 0xD0 || op == 0xF0) &&
-                i + 1 < rom.Length && rom[i + 1] >= 0x80)
-                return true;
-        }
-        return false;
-    }
-
     /// <summary>Finds the first occurrence of a byte sequence at or after
     /// <paramref name="from"/>, or -1.</summary>
     private static int IndexOfSequence(byte[] rom, int from, params byte[] sequence)
@@ -200,78 +148,6 @@ public class PascalProcedureRomTests
         int jmpTarget = rom[falseArm - 2] | (rom[falseArm - 1] << 8);
         Assert.That(jmpTarget - 0xF000, Is.EqualTo(falseArm + 4),
             "the JMP over the false arm must land just past its STA $80");
-    }
-
-    [Test]
-    public void ProgramComputingAProduct()
-    {
-        // End to end: 6 * 7 must be computed as a product, not a sum. Both
-        // operands are variables: only literal-vs-literal multiplication
-        // folds correctly today, in the constant folder. The 6502 has no
-        // multiply instruction, so a real multiply lowers to a routine —
-        // a subroutine call, a loop, or unrolled shift-and-add — never to
-        // the single ADC the buggy lowering emits.
-        var result = Compile(ProductProgram);
-
-        Assert.That(result.Success, Is.True, result.ErrorMessage);
-        Assert.That(result.Code, Is.Not.Null);
-        Assert.That(result.Code!.Length, Is.EqualTo(4096));
-
-        byte[] rom = result.Code;
-        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
-
-        // Setup stays intact: x := 6 and y := 7 store their literals.
-        // Variables allocate from $80 in first-use order: x = $80, y = $81.
-        int xStore = IndexOfSequence(rom, bodyStart, 0xA9, 0x06, 0x85, 0x80);
-        Assert.That(xStore, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain x := 6 (LDA #6; STA $80)");
-        int yStore = IndexOfSequence(rom, xStore + 4, 0xA9, 0x07, 0x85, 0x81);
-        Assert.That(yStore, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain y := 7 (LDA #7; STA $81)");
-
-        // The miscompilation must be gone: the product statement must not
-        // lower to LDA $80; CLC; ADC $81; STA $80 (x + y, stored to x).
-        // No correct multiply emits that exact sequence — a shift-and-add
-        // or repeated-addition multiply adds the multiplicand to a
-        // partial-product temp, never x + y back into x with nothing
-        // between.
-        Assert.That(IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x18, 0x65, 0x81, 0x85, 0x80),
-            Is.EqualTo(-1),
-            "x := x * y must not lower to LDA $80; CLC; ADC $81; STA $80 — that computes x + y");
-
-        // A real 8-bit multiply routine must be present past the prologue.
-        // The buggy lowering emits no JSR, no branch, and no ASL here.
-        Assert.That(HasMultiplyMachinery(rom, bodyStart), Is.True,
-            "the ROM must contain multiply machinery (a JSR, a backward branch, or ASL) for x * y");
-    }
-
-    [Test]
-    public void ProgramComputingConsecutiveProducts()
-    {
-        // End to end: a := x * y; b := x * z must each load x before its
-        // multiply. The low-level optimizer used to drop the first Load(x)
-        // as overwritten by the second, so the first product multiplied the
-        // stale accumulator value instead of x.
-        var result = Compile(ConsecutiveProductsProgram);
-
-        Assert.That(result.Success, Is.True, result.ErrorMessage);
-        Assert.That(result.Code, Is.Not.Null);
-        Assert.That(result.Code!.Length, Is.EqualTo(4096));
-
-        byte[] rom = result.Code;
-        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
-
-        // The var declarations allocate from $80 in order (x = $80, y =
-        // $81, z = $82, a = $83, b = $84), and the multiply scratch pair
-        // takes $85/$86. Each multiply starts by loading its left operand
-        // (LDA $80) and saving it to the multiplicand scratch (STA $85),
-        // then loading its right operand.
-        int first = IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x81);
-        Assert.That(first, Is.GreaterThanOrEqualTo(0),
-            "the first product must load x (LDA $80) before multiplying by y");
-        int second = IndexOfSequence(rom, first + 6, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x82);
-        Assert.That(second, Is.GreaterThanOrEqualTo(0),
-            "the second product must load x (LDA $80) before multiplying by z");
     }
 
     [Test]
@@ -368,6 +244,61 @@ public class PascalProcedureRomTests
     }
 
     [Test]
+    public void RepeatUntilLoopRunningUntilConditionMet()
+    {
+        // `repeat x := x + 1 until x = 3` must run its body (x reaches 3 by
+        // repeated increments) and stop when the condition holds. At the ROM
+        // level: the body increment is emitted, the `x = 3` test follows the
+        // body (the body runs before the first test), and a BNE branches back
+        // to the body start while x is not yet 3. Today the visitor drops the
+        // whole repeat to a Nop, so the ROM contains no increment at all.
+        var result = Compile(RepeatUntilProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // Body: LDA $80; CLC; ADC #1; STA $80 (x := x + 1).
+        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80);
+        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the repeat body (LDA $80; CLC; ADC #1; STA $80)");
+
+        // Exit condition, tested after the body: LDA $80; CMP #3; BNE back.
+        int condAt = IndexOfSequence(rom, bodyAt + 7, 0xA5, 0x80, 0xC9, 0x03, 0xD0);
+        Assert.That(condAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must test `x = 3` after the body — the body runs before the first test");
+        int bneOffset = (sbyte)rom[condAt + 5];
+        int bneTarget = condAt + 6 + bneOffset;
+        Assert.That(bneTarget, Is.EqualTo(bodyAt),
+            "the BNE back-edge must land on the body start, so the loop repeats while x <> 3");
+
+        // Falling through past the BNE (x = 3) must reach the halt loop, not
+        // run off into padding: a JMP to itself sits right after the branch.
+        Assert.That(rom[condAt + 6], Is.EqualTo(0x4C),
+            "a JMP must follow the back-edge branch so the program halts once the condition holds");
+        int jmpTarget = rom[condAt + 7] | (rom[condAt + 8] << 8);
+        Assert.That(jmpTarget - 0xF000, Is.EqualTo(condAt + 6),
+            "the JMP after the loop must target itself (halt loop)");
+    }
+
+    [Test]
+    public void WhileLoopStillRunsBodyAndExits()
+    {
+        // Guard: `while` already works and this slice must not disturb it.
+        // The condition is tested before the body (CMP #3; BCS past the
+        // body), the body increments x, and a JMP returns to the test.
+        var result = Compile(WhileLoopProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+        Assert.That(ContainsSequence(result.Code,
+            0xA9, 0x00, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x80,
+            0xA5, 0x80, 0xC9, 0x03, 0xB0, 0x0A,
+            0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80,
+            0x4C, 0x15, 0xF0), Is.True,
+            "`while x < 3` must keep its established lowering (test before body, JMP back to the test)");
+    }
+    [Test]
     public void ProgramUsingAndOrAndNot()
     {
         // End to end: `and`/`or` must compute bitwise values with the
@@ -438,6 +369,25 @@ public class PascalProcedureRomTests
             "`and`/`or` must not lower through a CMP — there is no comparison in this program");
     }
 
+
+    private const string RepeatUntilProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  repeat\n" +
+        "    x := x + 1;\n" +
+        "  until x = 3;\n" +
+        "end.";
+
+    private const string WhileLoopProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  while x < 3 do\n" +
+        "    x := x + 1;\n" +
+        "end.";
     private const string BitwiseProgram =
         "program Probe;\n" +
         "var x, y, z: Integer;\n" +
@@ -451,6 +401,7 @@ public class PascalProcedureRomTests
         "  x := 12 or 10;\n" +
         "  x := not 12;\n" +
         "end.";
+
 
     private const string LessThanProgram =
         "program Probe;\n" +

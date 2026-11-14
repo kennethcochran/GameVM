@@ -114,6 +114,10 @@ public sealed class HlirTreeToMlirTransformer
                 ProcessWhile(tree, idx, builder);
                 break;
 
+            case HlirNodeKind.Repeat:
+                ProcessRepeat(tree, idx, builder);
+                break;
+
             case HlirNodeKind.For:
                 ProcessFor(tree, idx, builder);
                 break;
@@ -440,6 +444,27 @@ public sealed class HlirTreeToMlirTransformer
         EmitConditionalBranch(tree, condIdx, builder, endLabel, invert: true);
         ProcessNode(tree, bodyIdx, builder);
         builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(loopLabel));
+        builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
+    }
+
+    private void ProcessRepeat(HlirTree tree, int idx, InstListBuilder builder)
+    {
+        var children = tree.Children(idx);
+        if (children.Length < 2) return;
+
+        int bodyIdx = ChildIndex(tree, idx, 0);
+        int condIdx = ChildIndex(tree, idx, 1);
+
+        string loopLabel = $"L_repeat_{_labelCounter++}";
+        string endLabel = $"L_repeat_end_{_labelCounter++}";
+
+        // The body runs before the first condition test — that ordering is
+        // what distinguishes repeat from while. The back-edge fires while
+        // the exit condition is false (invert: true selects that polarity
+        // in EmitConditionalBranch), so the loop exits when it holds.
+        builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(loopLabel));
+        ProcessNode(tree, bodyIdx, builder);
+        EmitConditionalBranch(tree, condIdx, builder, loopLabel, invert: true);
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
     }
 
