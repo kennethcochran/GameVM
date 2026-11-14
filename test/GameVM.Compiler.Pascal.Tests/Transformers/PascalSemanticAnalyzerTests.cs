@@ -131,4 +131,21 @@ public class PascalSemanticAnalyzerTests
         var errors = Analyze("program Test;\nvar s: string;\nbegin\n  s := 'hello';\nend.");
         Assert.That(errors, Is.Empty);
     }
+
+    [Test]
+    public void FunctionNameAssignmentInsideFunctionIsNotUndefinedVariable()
+    {
+        var errors = Analyze("program Test;\nfunction Seven: Integer;\nbegin\n  Seven := 42;\nend;\nbegin\nend.");
+        Assert.That(errors, Is.Empty,
+            "assigning to the function's own name inside its body sets its return value — the name is in scope there, not an undefined variable");
+
+        // Control: the body must actually be traversed. An undeclared name
+        // in the same position is still an undefined variable — without
+        // this half, the assertion above passes vacuously while function
+        // declarations are dropped before analysis.
+        var control = Analyze("program Test;\nfunction Seven: Integer;\nbegin\n  Eight := 42;\nend;\nbegin\nend.");
+        Assert.That(control, Has.Length.EqualTo(1));
+        Assert.That(control[0].Message, Does.Contain("Undefined variable 'Eight'"));
+        Assert.That(control[0].ErrorCode, Is.EqualTo("PAS0001"));
+    }
 }

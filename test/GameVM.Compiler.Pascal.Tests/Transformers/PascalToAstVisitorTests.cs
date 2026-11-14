@@ -448,5 +448,52 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             }
             Assert.That(foundUnary, Is.True, "x := -5 must produce a UnaryOp node");
         }
+
+        [Test]
+        public void FunctionDeclarationProducesMethodDeclaration()
+        {
+            string code = @"
+                program Test;
+                function Seven: Integer;
+                begin
+                  Seven := 42;
+                end;
+                begin
+                end.
+            ";
+
+            var context = Parse(code);
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(new AstBuilder(), pool);
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            int methodDeclIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if ((PascalAstNodeKind)tree.GetKind(i) == PascalAstNodeKind.MethodDeclaration
+                    && pool.Resolve(tree[i].Payload) == "seven")
+                    methodDeclIdx = i;
+            }
+
+            Assert.That(methodDeclIdx, Is.GreaterThanOrEqualTo(0),
+                "a declared function must appear in the AST as a MethodDeclaration named for the function — today it is silently dropped");
+
+            // The declaration must carry its body: the assignment
+            // `Seven := 42` lives in the declaration's subtree.
+            var stack = new Stack<int>();
+            stack.Push(methodDeclIdx);
+            bool foundAssignment = false;
+            while (stack.Count > 0)
+            {
+                int current = stack.Pop();
+                if ((PascalAstNodeKind)tree.GetKind(current) == PascalAstNodeKind.Assignment)
+                    foundAssignment = true;
+                foreach (var child in tree.Children(current))
+                    stack.Push(child);
+            }
+            Assert.That(foundAssignment, Is.True,
+                "the function body must be inside the MethodDeclaration, not dropped with the declaration");
+        }
     }
 }

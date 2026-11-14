@@ -30,6 +30,17 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             "  Bump;\n" +
             "end.";
 
+        private const string FunctionProgram =
+            "program Probe;\n" +
+            "var x: Integer;\n" +
+            "function Seven: Integer;\n" +
+            "begin\n" +
+            "  Seven := 42;\n" +
+            "end;\n" +
+            "begin\n" +
+            "  x := 0;\n" +
+            "end.";
+
         private static AstTree BuildAst(string source, StringPool pool)
         {
             var inputStream = new AntlrInputStream(source);
@@ -243,6 +254,31 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 Assert.That(calls, Is.Not.Empty, "the call must lower");
                 Assert.That(hlir[calls[0]].Payload, Is.EqualTo(hlir[bumpIdx].Payload),
                     "call site and declaration must share one pool offset, or the label never resolves");
+            }
+        }
+
+        [Test]
+        public void FunctionEntersSymbolTableAndLowersToCallableDeclaration()
+        {
+            var frontend = new PascalFrontend();
+            var result = frontend.ParseToHlir(FunctionProgram);
+            var hlir = result.Hlir;
+
+            var functions = FindByKind(hlir, HlirNodeKind.FunctionDeclaration);
+            int sevenIdx = functions.First(i =>
+                frontend.StringPool!.Resolve(hlir[i].Payload) == "seven");
+            var sevenSubtree = Subtree(hlir, sevenIdx).ToList();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null.Or.Empty,
+                    "assigning to the function's own name inside its body must be accepted: the declaration enters the name in the symbol table as the return target");
+                Assert.That(functions, Has.Count.EqualTo(2),
+                    "HLIR must contain the program entry plus the declared function");
+                Assert.That(sevenSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Assign),
+                    Is.True, "the function body (Seven := 42) must be inside the nested FunctionDeclaration");
+                Assert.That(sevenSubtree.Any(i => hlir.GetKind(i) == (byte)HlirNodeKind.Return),
+                    Is.True, "a function body must end in an implicit return so HLIR->MLIR flags it CalleeReturn, like a procedure body");
             }
         }
 
