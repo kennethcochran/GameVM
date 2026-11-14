@@ -382,28 +382,7 @@ namespace GameVM.Compiler.Pascal.Transformers
             {
                 if ((PascalAstNodeKind)astTree.GetKind(children[i]) == PascalAstNodeKind.CaseBranch)
                 {
-                    var branchChildren = astTree.Children(children[i]);
-                    if (branchChildren.Length < 2)
-                    {
-                        throw new GameVmException(
-                            ErrorCode.UnhandledInstruction,
-                            $"Case branch at AST index {children[i]} has no label or no statement; " +
-                            "each branch needs at least one label and a statement.");
-                    }
-
-                    int armHlir = ProcessStatement(astTree, branchChildren[branchChildren.Length - 1]);
-                    if (armHlir < 0)
-                    {
-                        throw new GameVmException(
-                            ErrorCode.UnhandledInstruction,
-                            $"Case arm at AST index {branchChildren[branchChildren.Length - 1]} did not lower to a statement.");
-                    }
-
-                    for (int j = 0; j < branchChildren.Length - 1; j++)
-                    {
-                        caseChildren.Add(BuildCaseLabel(astTree, branchChildren[j]));
-                        caseChildren.Add(armHlir);
-                    }
+                    AppendCaseBranch(astTree, children[i], caseChildren);
                 }
                 else
                 {
@@ -420,6 +399,32 @@ namespace GameVM.Compiler.Pascal.Transformers
             }
 
             return _builder.Add((byte)HlirNodeKind.Case, 0, 0, HlirPayloadKind.None, caseChildren.ToArray());
+        }
+
+        private void AppendCaseBranch(AstTree astTree, int branchIdx, List<int> caseChildren)
+        {
+            var branchChildren = astTree.Children(branchIdx);
+            if (branchChildren.Length < 2)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case branch at AST index {branchIdx} has no label or no statement; " +
+                    "each branch needs at least one label and a statement.");
+            }
+
+            int armHlir = ProcessStatement(astTree, branchChildren[branchChildren.Length - 1]);
+            if (armHlir < 0)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case arm at AST index {branchChildren[branchChildren.Length - 1]} did not lower to a statement.");
+            }
+
+            for (int j = 0; j < branchChildren.Length - 1; j++)
+            {
+                caseChildren.Add(BuildCaseLabel(astTree, branchChildren[j]));
+                caseChildren.Add(armHlir);
+            }
         }
 
         /// <summary>
