@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GameVM.Compiler.Core.Enums;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 using GameVM.Compiler.Core.IR.Soa;
@@ -198,6 +199,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return ProcessIfStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.WhileStatement:
                     return ProcessWhileStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.Case:
+                    return ProcessCaseStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.ForStatement:
                     return ProcessForStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.Block:
@@ -350,6 +353,113 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (condHlir < 0 || bodyHlir < 0) return -1;
 
             return _builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, condHlir, bodyHlir);
+        }
+
+        private int ProcessCaseStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case statement at AST index {stmtIdx} has no selector or branches; " +
+                    "a case needs a selector and at least one label/arm pair.");
+            }
+
+            int selectorHlir = BuildExpression(astTree, children[0]);
+            if (selectorHlir < 0)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case selector at AST index {children[0]} did not lower to an expression.");
+            }
+
+            // HLIR Case children are flat: [selector, label, arm, label, arm,
+            // ..., (else)]. A branch with several labels repeats its arm once
+            // per label, so the MLIR layer can test each label in turn.
+            var caseChildren = new List<int> { selectorHlir };
+            for (int i = 1; i < children.Length; i++)
+            {
+                if ((PascalAstNodeKind)astTree.GetKind(children[i]) == PascalAstNodeKind.CaseBranch)
+                {
+                    var branchChildren = astTree.Children(children[i]);
+                    if (branchChildren.Length < 2)
+                    {
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"Case branch at AST index {children[i]} has no label or no statement; " +
+                            "each branch needs at least one label and a statement.");
+                    }
+
+                    int armHlir = ProcessStatement(astTree, branchChildren[branchChildren.Length - 1]);
+                    if (armHlir < 0)
+                    {
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"Case arm at AST index {branchChildren[branchChildren.Length - 1]} did not lower to a statement.");
+                    }
+
+                    for (int j = 0; j < branchChildren.Length - 1; j++)
+                    {
+                        caseChildren.Add(BuildCaseLabel(astTree, branchChildren[j]));
+                        caseChildren.Add(armHlir);
+                    }
+                }
+                else
+                {
+                    // The else arm: a Block of statements, lowered as one child.
+                    int elseHlir = ProcessStatement(astTree, children[i]);
+                    if (elseHlir < 0)
+                    {
+                        throw new GameVmException(
+                            ErrorCode.UnhandledInstruction,
+                            $"Case else arm at AST index {children[i]} did not lower to a statement.");
+                    }
+                    caseChildren.Add(elseHlir);
+                }
+            }
+
+            return _builder.Add((byte)HlirNodeKind.Case, 0, 0, HlirPayloadKind.None, caseChildren.ToArray());
+        }
+
+        /// <summary>
+        /// Lowers a case label to its HLIR LiteralInt. Only integer constants
+        /// lower: an unsigned literal, a registered named constant, or a signed
+        /// constant the unary-minus folder resolves. Anything else (a string or
+        /// character label, a non-constant expression) fails loudly here instead
+        /// of reaching the MLIR layer as a comparison against a value the
+        /// backend cannot classify.
+        /// </summary>
+        private int BuildCaseLabel(AstTree astTree, int labelIdx)
+        {
+            var labelNode = astTree[labelIdx];
+            var labelKind = (PascalAstNodeKind)labelNode.Kind;
+            string labelText = _pool.Resolve(labelNode.Payload);
+            bool isIntegerConstant = labelKind switch
+            {
+                PascalAstNodeKind.LiteralInt => uint.TryParse(labelText, out _),
+                PascalAstNodeKind.Identifier => _constantValues.ContainsKey(labelNode.Payload),
+                PascalAstNodeKind.UnaryOp => (char)labelNode.Payload == '-' &&
+                    astTree.Children(labelIdx).Length > 0 &&
+                    ResolveConstantOperand(astTree[astTree.Children(labelIdx)[0]]).HasValue,
+                _ => false,
+            };
+            if (!isIntegerConstant)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case label '{labelText}' at AST index {labelIdx} is not an integer constant; " +
+                    "case labels must be integer literals or named integer constants.");
+            }
+
+            int labelHlir = BuildExpression(astTree, labelIdx);
+            if (labelHlir < 0)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"Case label '{labelText}' at AST index {labelIdx} did not lower to a literal.");
+            }
+            return labelHlir;
         }
 
         private int ProcessForStatement(AstTree astTree, int stmtIdx)

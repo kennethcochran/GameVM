@@ -205,6 +205,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                         var conditional = structured.conditionalStatement();
                         if (conditional.ifStatement() != null)
                             return VisitIfStatement(conditional.ifStatement());
+                        if (conditional.caseStatement() != null)
+                            return VisitCaseStatement(conditional.caseStatement());
                     }
 
                     if (structured.repetetiveStatement() != null)
@@ -274,6 +276,68 @@ namespace GameVM.Compiler.Pascal.Transformers
             int bodyIdx = Visit(context.statement()) is int b ? b : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.statement()?.Start ?? context.Start);
 
             return Add((byte)PascalAstNodeKind.WhileStatement, 0, 0, context.Start, conditionIdx, bodyIdx);
+        }
+
+        public override object VisitCaseStatement(PascalParser.CaseStatementContext context)
+        {
+            // Case node children: [selector, CaseBranch, CaseBranch, ..., (else Block)].
+            // Each CaseBranch carries its constant labels then its statement; the
+            // else part (when present) is a Block of its statements.
+            int selectorIdx = Visit(context.expression()) is int s ? s : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.expression()?.Start ?? context.Start);
+
+            var childIndices = new List<int> { selectorIdx };
+            foreach (var element in context.caseListElement())
+            {
+                var branchIndices = new List<int>();
+                foreach (var constant in element.constList().constant())
+                    branchIndices.Add(VisitCaseLabel(constant));
+                int armIdx = Visit(element.statement()) is int a ? a : Add((byte)PascalAstNodeKind.Nop, 0, 0, element.statement()?.Start ?? context.Start);
+                branchIndices.Add(armIdx);
+                childIndices.Add(Add((byte)PascalAstNodeKind.CaseBranch, 0, 0, element.Start, branchIndices.ToArray()));
+            }
+
+            var elseStatements = context.statements();
+            if (elseStatements != null)
+            {
+                var elseIndices = new List<int>();
+                foreach (var stmt in elseStatements.statement().Where(s => s != null))
+                {
+                    if (Visit(stmt) is int si) elseIndices.Add(si);
+                }
+                childIndices.Add(Add((byte)PascalAstNodeKind.Block, 0, 0, elseStatements.Start, elseIndices.ToArray()));
+            }
+
+            return Add((byte)PascalAstNodeKind.Case, 0, 0, context.Start, childIndices.ToArray());
+        }
+
+        private int VisitCaseLabel(PascalParser.ConstantContext context)
+        {
+            // A label constant lowers to the same node the expression visitor
+            // would produce for it: an unsigned number becomes a LiteralInt,
+            // a string or chr() a LiteralString. Two forms need handling the
+            // generic constant visit cannot supply: a named constant becomes
+            // an Identifier node (the base visitor has no VisitIdentifier
+            // override, so the name would vanish), and a signed constant
+            // keeps its sign as a UnaryOp, the shape the expression visitor
+            // emits for unary minus.
+            int innerIdx;
+            if (context.identifier() != null)
+            {
+                innerIdx = Add((byte)PascalAstNodeKind.Identifier, 0, InternIdentifier(context.identifier().GetText()), context.identifier().Start);
+            }
+            else if (Visit(context) is int visited)
+            {
+                innerIdx = visited;
+            }
+            else
+            {
+                innerIdx = Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start);
+            }
+
+            if (context.sign()?.MINUS() != null)
+                return Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', context.Start, innerIdx);
+
+            return innerIdx;
         }
 
         public override object VisitForStatement(PascalParser.ForStatementContext context)

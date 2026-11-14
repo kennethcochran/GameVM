@@ -455,15 +455,12 @@ public class HlirTreeToMlirTransformerTests
         // arm sits in the fall-through position after the last test, then
         // the end label. Arms stay in source order in the stream.
         //
-        // HlirNodeKind.Case does not exist yet: the implementer adds it
-        // with the value pinned here (24 — the next free value after
-        // Block = 22 and Repeat = 23, claimed by the repeat-until slice in
-        // draft PR #24), with children [selector, label, arm, label, arm,
-        // ..., (else)] in source order: labels are LiteralInt immediates,
-        // arms are Assign statements, the optional else arm is the last
-        // child. Replace this constant with (byte)HlirNodeKind.Case once
-        // the kind exists.
-        const byte caseKind = 24;
+        // HlirNodeKind.Case (24 — the next free value after Block = 22 and
+        // Repeat = 23, claimed by the repeat-until slice in draft PR #24),
+        // with children [selector, label, arm, label, arm, ..., (else)] in
+        // source order: labels are LiteralInt immediates, arms are Assign
+        // statements, the optional else arm is the last child.
+        const byte caseKind = (byte)HlirNodeKind.Case;
         var pool = new StringPool();
         var builder = new HlirBuilder();
         uint xOffset = pool.Intern("x");
