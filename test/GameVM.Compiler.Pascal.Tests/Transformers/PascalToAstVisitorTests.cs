@@ -448,5 +448,170 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             }
             Assert.That(foundUnary, Is.True, "x := -5 must produce a UnaryOp node");
         }
+
+        private static AstTree BuildTree(string code, out StringPool pool)
+        {
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+            return visitor.BuildTree();
+        }
+
+        // A type definition binds a name to its underlying type: a
+        // TypeDefinition node with an Identifier child carrying the name.
+        // (A bare TypeDefinition leaf is a type *reference*, the shape
+        // variable declarations already emit; only a definition has
+        // children.)
+        private static int FindTypeDefinition(AstTree tree, StringPool pool, string name)
+        {
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) != (byte)PascalAstNodeKind.TypeDefinition)
+                    continue;
+                foreach (int childIdx in tree.Children(i))
+                {
+                    if (tree.GetKind(childIdx) == (byte)PascalAstNodeKind.Identifier &&
+                        string.Equals(pool.Resolve(tree[childIdx].Payload), name, StringComparison.OrdinalIgnoreCase))
+                        return i;
+                }
+            }
+            return -1;
+        }
+
+        private static bool SubtreeContainsIdentifier(AstTree tree, StringPool pool, int rootIdx, string name)
+        {
+            if (tree.GetKind(rootIdx) == (byte)PascalAstNodeKind.Identifier &&
+                string.Equals(pool.Resolve(tree[rootIdx].Payload), name, StringComparison.OrdinalIgnoreCase))
+                return true;
+            foreach (int childIdx in tree.Children(rootIdx))
+            {
+                if (SubtreeContainsIdentifier(tree, pool, childIdx, name))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool SubtreeContainsLiteralInt(AstTree tree, int rootIdx, uint value)
+        {
+            if (tree.GetKind(rootIdx) == (byte)PascalAstNodeKind.LiteralInt && tree[rootIdx].Payload == value)
+                return true;
+            foreach (int childIdx in tree.Children(rootIdx))
+            {
+                if (SubtreeContainsLiteralInt(tree, childIdx, value))
+                    return true;
+            }
+            return false;
+        }
+
+        [Test]
+        public void TypeDeclarationProducesTypeDefinition()
+        {
+            string code = @"
+                program Test;
+                type TScore = Integer;
+                var s: TScore;
+                begin
+                    s := 42;
+                end.
+            ";
+
+            AstTree tree = BuildTree(code, out var pool);
+            int defIdx = FindTypeDefinition(tree, pool, "tscore");
+
+            bool bindsUnderlyingType = false;
+            if (defIdx >= 0)
+            {
+                foreach (int childIdx in tree.Children(defIdx))
+                {
+                    if (tree.GetKind(childIdx) == (byte)PascalAstNodeKind.TypeDefinition &&
+                        string.Equals(pool.Resolve(tree[childIdx].Payload), "integer", StringComparison.OrdinalIgnoreCase))
+                        bindsUnderlyingType = true;
+                }
+            }
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(defIdx, Is.GreaterThanOrEqualTo(0),
+                    "a type section must produce a TypeDefinition binding the declared name — today the type section is never visited and the definition is dropped");
+                Assert.That(bindsUnderlyingType, Is.True,
+                    "the TypeDefinition must carry its underlying type ('integer') as a type-reference child");
+            }
+        }
+
+        [Test]
+        public void EnumeratedTypeDeclarationProducesTypeDefinitionWithMembers()
+        {
+            string code = @"
+                program Test;
+                type TColor = (Red, Green, Blue);
+                var c: TColor;
+                begin
+                end.
+            ";
+
+            AstTree tree = BuildTree(code, out var pool);
+            int defIdx = FindTypeDefinition(tree, pool, "tcolor");
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(defIdx, Is.GreaterThanOrEqualTo(0),
+                    "an enumerated type declaration must produce a TypeDefinition binding 'tcolor'");
+                Assert.That(defIdx >= 0 && SubtreeContainsIdentifier(tree, pool, defIdx, "red"), Is.True,
+                    "the definition must carry the 'Red' member");
+                Assert.That(defIdx >= 0 && SubtreeContainsIdentifier(tree, pool, defIdx, "green"), Is.True,
+                    "the definition must carry the 'Green' member");
+                Assert.That(defIdx >= 0 && SubtreeContainsIdentifier(tree, pool, defIdx, "blue"), Is.True,
+                    "the definition must carry the 'Blue' member");
+            }
+        }
+
+        [Test]
+        public void SubrangeTypeDeclarationProducesTypeDefinitionWithBounds()
+        {
+            string code = @"
+                program Test;
+                type TDigit = 0..9;
+                var d: TDigit;
+                begin
+                end.
+            ";
+
+            AstTree tree = BuildTree(code, out var pool);
+            int defIdx = FindTypeDefinition(tree, pool, "tdigit");
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(defIdx, Is.GreaterThanOrEqualTo(0),
+                    "a subrange type declaration must produce a TypeDefinition binding 'tdigit'");
+                Assert.That(defIdx >= 0 && SubtreeContainsLiteralInt(tree, defIdx, 0), Is.True,
+                    "the definition must carry the lower bound 0");
+                Assert.That(defIdx >= 0 && SubtreeContainsLiteralInt(tree, defIdx, 9), Is.True,
+                    "the definition must carry the upper bound 9");
+            }
+        }
+
+        [Test]
+        public void ProgramWithoutTypeSectionProducesNoTypeDefinition()
+        {
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := 1;
+                end.
+            ";
+
+            AstTree tree = BuildTree(code, out var pool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(FindTypeDefinition(tree, pool, "integer"), Is.EqualTo(-1),
+                    "a program with no type section must not gain a type definition");
+                Assert.That(FindTypeDefinition(tree, pool, "x"), Is.EqualTo(-1),
+                    "a variable declaration is a type reference, not a type definition");
+            }
+        }
     }
 }
