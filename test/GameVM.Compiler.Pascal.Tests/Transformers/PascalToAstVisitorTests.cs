@@ -266,18 +266,24 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var repeatChildren = tree.Children(repeatIdx);
             int bodyIdx = repeatChildren[0];
             int condIdx = repeatChildren[1];
-            Assert.That(ContainsKind(tree, bodyIdx, PascalAstNodeKind.Assignment), Is.True,
-                "Repeat body must contain the `x := x + 1` assignment");
-            Assert.That(tree.GetKind(condIdx), Is.EqualTo((byte)PascalAstNodeKind.BinaryOp),
-                "Repeat condition must be the comparison expression");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ContainsKind(tree, bodyIdx, PascalAstNodeKind.Assignment), Is.True,
+                    "Repeat body must contain the `x := x + 1` assignment");
+                Assert.That(tree.GetKind(condIdx), Is.EqualTo((byte)PascalAstNodeKind.BinaryOp),
+                    "Repeat condition must be the comparison expression");
+            }
 
             // The condition is `x = 3`: the relational BinaryOp carries the
             // operator as a third child whose payload is the op char.
             var condChildren = tree.Children(condIdx);
-            Assert.That(condChildren.Length, Is.EqualTo(3),
-                "Relational condition should have 3 children (left, right, operator)");
-            Assert.That(tree[condChildren[2]].Payload, Is.EqualTo((uint)'='),
-                "Repeat exit condition must be the `=` comparison");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(condChildren.Length, Is.EqualTo(3),
+                    "Relational condition should have 3 children (left, right, operator)");
+                Assert.That(tree[condChildren[2]].Payload, Is.EqualTo((uint)'='),
+                    "Repeat exit condition must be the `=` comparison");
+            }
         }
 
         private static bool ContainsKind(AstTree tree, int rootIdx, PascalAstNodeKind kind)

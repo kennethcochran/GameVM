@@ -477,21 +477,27 @@ public class HlirTreeToMlirTransformerTests
         var transformer = new HlirTreeToMlirTransformer(pool);
         var result = transformer.Transform(tree);
 
-        Assert.That(result.Count, Is.EqualTo(6),
-            "Repeat lowers to: Label, body, Cmp, Transition, Branch, Label");
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 0: loop header label");
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 1: body assignment runs before any condition test");
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 2: compare exit condition");
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Transition), "Index 3: transition");
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 4: back-edge to the loop label while the condition is false");
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 5: exit label");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(6),
+                "Repeat lowers to: Label, body, Cmp, Transition, Branch, Label");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 0: loop header label");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 1: body assignment runs before any condition test");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 2: compare exit condition");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Transition), "Index 3: transition");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 4: back-edge to the loop label while the condition is false");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 5: exit label");
+        }
 
         // The back-edge must target the loop header, not the exit label.
         uint loopLabel = result.GetOperands(0)[0];
         uint exitLabel = result.GetOperands(5)[0];
-        Assert.That(loopLabel, Is.Not.EqualTo(exitLabel), "loop and exit labels must differ");
-        Assert.That(result.GetOperands(4)[0], Is.EqualTo(loopLabel),
-            "the conditional branch must jump back to the loop header");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loopLabel, Is.Not.EqualTo(exitLabel), "loop and exit labels must differ");
+            Assert.That(result.GetOperands(4)[0], Is.EqualTo(loopLabel),
+                "the conditional branch must jump back to the loop header");
+        }
     }
 
     [Test]
