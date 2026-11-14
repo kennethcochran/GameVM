@@ -131,4 +131,68 @@ public class PascalSemanticAnalyzerTests
         var errors = Analyze("program Test;\nvar s: string;\nbegin\n  s := 'hello';\nend.");
         Assert.That(errors, Is.Empty);
     }
+
+    [Test]
+    public void VariableDeclaredWithNamedTypeResolvesToUnderlyingType()
+    {
+        // TScore is an alias for Integer, so the string-to-Integer check
+        // must apply to s exactly as it does to a plain Integer variable.
+        // Today the type section is never visited, the analyzer records
+        // the unresolved name 'tscore', and the check silently never fires.
+        var errors = Analyze("program Test;\ntype TScore = Integer;\nvar s: TScore;\nbegin\n  s := 'hello';\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(errors, Has.Length.EqualTo(1));
+            Assert.That(errors[0].Message, Does.Contain("Type mismatch: cannot assign 'hello' to Integer variable 's'"));
+            Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+    }
+
+    [Test]
+    public void NamedTypeAliasChainResolvesToUnderlyingType()
+    {
+        // Resolution is transitive: B names A, A names Integer.
+        var errors = Analyze("program Test;\ntype A = Integer; B = A;\nvar x: B;\nbegin\n  x := true;\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(errors, Has.Length.EqualTo(1));
+            Assert.That(errors[0].Message, Does.Contain("Type mismatch: cannot assign 'true' to Integer variable 'x'"));
+            Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+    }
+
+    [Test]
+    public void SubrangeNamedTypeResolvesToIntegerForTypeCheck()
+    {
+        // A subrange of integer literals is an integer type: the check applies.
+        var errors = Analyze("program Test;\ntype TDigit = 0..9;\nvar d: TDigit;\nbegin\n  d := 'x';\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(errors, Has.Length.EqualTo(1));
+            Assert.That(errors[0].Message, Does.Contain("Type mismatch: cannot assign 'x' to Integer variable 'd'"));
+            Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+    }
+
+    [Test]
+    public void NamedTypeVariableAssignedIntegerLiteral_NoErrors()
+    {
+        // Guard: resolving the named type must not reject valid use.
+        var errors = Analyze("program Test;\ntype TScore = Integer;\nvar s: TScore;\nbegin\n  s := 42;\nend.");
+        Assert.That(errors, Is.Empty);
+    }
+
+    [Test]
+    public void TypeSectionDoesNotDisturbPlainIntegerTypeCheck()
+    {
+        // Guard: the presence of a type section leaves the existing
+        // plain-Integer check exactly as it was.
+        var errors = Analyze("program Test;\ntype TScore = Integer;\nvar s: TScore; x: Integer;\nbegin\n  x := 'hello';\nend.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(errors, Has.Length.EqualTo(1));
+            Assert.That(errors[0].Message, Does.Contain("Type mismatch: cannot assign 'hello' to Integer variable 'x'"));
+            Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0002"));
+        }
+    }
 }
