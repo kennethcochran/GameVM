@@ -40,11 +40,17 @@ namespace GameVM.Compiler.Core.Enums
         BranchOutOfRange = 0x4004,
 
         /// <summary>
+        /// Backend: the emitted program plus the halt loop exceeds the
+        /// target's usable ROM space before the interrupt vectors (0x4005).
+        /// </summary>
+        RomSizeExceeded = 0x4005,
+
+        /// <summary>
         /// Backend: a Jump, Call, or Branch refers to a label with no
-        /// matching Label instruction in the slab (0x4005). The code
+        /// matching Label instruction in the slab (0x4006). The code
         /// generator must fail loudly instead of emitting a transfer to
         /// the reset address or a garbage branch displacement.
         /// </summary>
-        UnresolvedLabel = 0x4005,
+        UnresolvedLabel = 0x4006,
     }
 }
