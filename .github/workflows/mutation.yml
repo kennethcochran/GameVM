@@ -6,6 +6,13 @@ name: Mutation Testing
 # build on the score (--break-at 0), so the score is a health metric, not
 # a gate. The per-PR gate lives in mutation-pr.yml.
 #
+# Stryker's VSTest test discovery intermittently aborts on the runner —
+# "did not report any test" / "Test discovery has been aborted", zero
+# tests found — with the victim area rotating between runs; it has
+# failed most recent full runs in at least one area this way. That is a
+# runner-side discovery flake, not a score, so the Run Stryker step
+# below retries it in-job when a failure carries that signature.
+#
 # The Pages site (deploy job below) serves the latest full-run reports at
 # https://kennethcochran.github.io/GameVM/ — one page per area plus an
 # index. Requires GitHub Pages enabled with source "GitHub Actions" in the
@@ -77,13 +84,55 @@ jobs:
         working-directory: ${{ matrix.dir }}
         # Informational only: --break-at 0 disables the score gate so the
         # run always passes and just publishes the report.
-        run: dotnet tool run dotnet-stryker --break-at 0
+        #
+        # The retry fires only on the discovery-abort signature (see the
+        # header comment): a run that completes — with any score — is
+        # never retried, and neither is any other failure; both break
+        # out and the step exits with Stryker's own code. tee streams
+        # the run to stryker-run.log while PIPESTATUS[0] recovers
+        # Stryker's exit code from behind the pipe. The pipeline sits
+        # in the if condition on purpose: steps run under bash -eo
+        # pipefail, and a bare failing pipeline would abort the script
+        # before the code could be read.
+        run: |
+          attempt=1
+          stryker_exit=0
+          while (( attempt <= 3 )); do
+            if dotnet tool run dotnet-stryker --break-at 0 2>&1 | tee stryker-run.log; then
+              stryker_exit=0
+            else
+              stryker_exit=${PIPESTATUS[0]}
+            fi
+            if (( stryker_exit == 0 )); then
+              break
+            fi
+            if ! grep -qE "did not report any test|Test discovery has been aborted" stryker-run.log; then
+              break
+            fi
+            if (( attempt == 3 )); then
+              break
+            fi
+            echo "::warning::Stryker attempt ${attempt} failed with a VSTest discovery abort ('did not report any test' / 'Test discovery has been aborted' in output); retrying, attempt $((attempt + 1)) of 3."
+            attempt=$((attempt + 1))
+          done
+          if (( stryker_exit != 0 )); then
+            echo "::group::Stryker output (final attempt)"
+            tail -n 100 stryker-run.log
+            echo "::endgroup::"
+          fi
+          exit "$stryker_exit"
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mutation-report-${{ matrix.id }}
-          path: ${{ matrix.dir }}/StrykerOutput/**/reports/mutation-report.html
+          # stryker-run.log rides along so a failed run's output (the
+          # discovery-abort signature, the final attempt's tail) survives
+          # the job for diagnosis. The Pages deploy finds the HTML report
+          # by name, so the extra file does not disturb it.
+          path: |
+            ${{ matrix.dir }}/StrykerOutput/**/reports/mutation-report.html
+            ${{ matrix.dir }}/stryker-run.log
           if-no-files-found: warn
 
   deploy:
