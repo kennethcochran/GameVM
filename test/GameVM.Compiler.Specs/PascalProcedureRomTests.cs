@@ -467,4 +467,69 @@ public class PascalProcedureRomTests
         "  x := 5;\n" +
         "  if x = 5 then x := 1;\n" +
         "end.";
+
+    private const string GotoProgram =
+        "program Probe;\n" +
+        "label 1;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 1;\n" +
+        "  goto 1;\n" +
+        "  x := 2;\n" +
+        "1: x := 3;\n" +
+        "end.";
+
+    /// <summary>Finds a JMP (0x4C) whose absolute target lands exactly on
+    /// the given byte sequence inside the ROM image; returns the index of
+    /// the JMP instruction, or -1 when no JMP lands there.</summary>
+    private static int FindJmpToSequence(byte[] rom, params byte[] sequence)
+    {
+        for (int i = 0; i + 2 < rom.Length; i++)
+        {
+            if (rom[i] != 0x4C) continue;
+            int target = (rom[i + 1] | (rom[i + 2] << 8)) - 0xF000;
+            if (target < 0 || target + sequence.Length > rom.Length) continue;
+            bool match = true;
+            for (int j = 0; j < sequence.Length; j++)
+            {
+                if (rom[target + j] != sequence[j]) { match = false; break; }
+            }
+            if (match) return i;
+        }
+        return -1;
+    }
+
+    [Test]
+    public void ProgramJumpingToALabel()
+    {
+        // `goto 1` must skip `x := 2` and land on the labelled statement
+        // `x := 3`: the ROM must contain a JMP whose target is exactly
+        // the labelled statement's code (LDA #3; STA $80), with the
+        // skipped statement's code (LDA #2; STA $80) lying between the
+        // JMP and its target. Today labels and goto are dropped in the
+        // frontend, so all three assignments run in sequence and no such
+        // JMP exists. The target assertion is also the guard against the
+        // unresolved-label fallback: a goto whose label never resolved
+        // would JMP into the $F000 reset prologue instead of landing on
+        // the labelled statement.
+        var result = Compile(GotoProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        var rom = result.Code;
+        int jmpIdx = FindJmpToSequence(rom, 0xA9, 0x03, 0x85, 0x80);
+        Assert.That(jmpIdx, Is.GreaterThanOrEqualTo(0),
+            "the goto must emit a JMP landing exactly on the labelled statement (LDA #3; STA $80)");
+
+        int target = (rom[jmpIdx + 1] | (rom[jmpIdx + 2] << 8)) - 0xF000;
+        bool skippedBetween = false;
+        for (int i = jmpIdx + 3; i + 4 <= target; i++)
+        {
+            if (rom[i] == 0xA9 && rom[i + 1] == 0x02 && rom[i + 2] == 0x85 && rom[i + 3] == 0x80)
+            { skippedBetween = true; break; }
+        }
+        Assert.That(skippedBetween, Is.True,
+            "the skipped statement (LDA #2; STA $80) must lie between the JMP and its target");
+    }
 }

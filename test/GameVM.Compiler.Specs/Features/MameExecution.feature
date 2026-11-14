@@ -114,3 +114,26 @@ Feature: MAME Execution Validation
     # (termination); no hardcoded PC address needed.
     Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
     And MAME execution output should contain "$80: 00"
+
+  Scenario: Goto Skips The Statements Between It And Its Label
+    Given the following Pascal program:
+      """
+      program GotoSkip;
+      label 1;
+      var x: Integer;
+      begin
+          x := 1;
+          goto 1;
+          x := 2;
+      1:  x := x + 10;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80; the goto must skip `x := 2`, so the labelled
+    # statement computes 1 + 10 = 11 ($0B). If the goto were dropped,
+    # x would be 2 + 10 = 12 ($0C) instead. The "GAMEVM PROGRAM HALTED"
+    # marker proves the program reached its JMP * halt loop
+    # (termination); no hardcoded PC address needed.
+    Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
+    And MAME execution output should contain "$80: 0B"

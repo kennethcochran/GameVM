@@ -991,4 +991,86 @@ public class HlirTreeToMlirTransformerTests
             kinds[i] = result.GetKind(i);
         return kinds;
     }
+
+    [Test]
+    public void GotoLowersToJumpToLabel()
+    {
+        // A Pascal `goto` must lower to an unconditional MLIR Branch
+        // whose operand is the same label the MLIR Label instruction
+        // carries at the labelled statement — the branch lands on the
+        // label, over the statements in between. Today the frontend
+        // drops labels and goto before HLIR, so the MLIR stream
+        // contains neither the branch nor the label and the program
+        // runs straight through the statements it should skip.
+        const string source =
+            "program Test;\n" +
+            "label 1;\n" +
+            "var x: Integer;\n" +
+            "begin\n" +
+            "  x := 1;\n" +
+            "  goto 1;\n" +
+            "  x := 2;\n" +
+            "1: x := 3;\n" +
+            "end.";
+
+        var frontend = new PascalFrontend();
+        var parsed = frontend.ParseToHlir(source);
+        Assert.That(parsed.Hlir.Count, Is.GreaterThan(0), "frontend must produce HLIR");
+
+        var mlir = new HlirTreeToMlirTransformer(frontend.StringPool!)
+            .Transform(parsed.Hlir);
+
+        uint xOffset = frontend.StringPool!.Intern("x");
+        uint oneOffset = frontend.StringPool.Intern("1");
+        uint twoOffset = frontend.StringPool.Intern("2");
+        uint threeOffset = frontend.StringPool.Intern("3");
+        int firstAssign = FindAssign(mlir, xOffset, oneOffset);
+        int skippedAssign = FindAssign(mlir, xOffset, twoOffset);
+        int labelledAssign = FindAssign(mlir, xOffset, threeOffset);
+
+        int branchIdx = -1;
+        if (firstAssign >= 0)
+        {
+            for (int i = firstAssign + 1; i < mlir.Count; i++)
+            {
+                if ((MlirInstructionKind)mlir.GetKind(i) == MlirInstructionKind.Branch)
+                { branchIdx = i; break; }
+            }
+        }
+        int labelIdx = -1;
+        if (branchIdx >= 0)
+        {
+            for (int i = branchIdx + 1; i < mlir.Count; i++)
+            {
+                if ((MlirInstructionKind)mlir.GetKind(i) == MlirInstructionKind.Label)
+                { labelIdx = i; break; }
+            }
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(firstAssign, Is.GreaterThanOrEqualTo(0), "x := 1 must be emitted");
+            Assert.That(branchIdx, Is.GreaterThanOrEqualTo(0),
+                "the goto must lower to a Branch after x := 1");
+            Assert.That(skippedAssign, Is.GreaterThan(branchIdx),
+                "x := 2 sits between the branch and its label (it is the skipped statement)");
+            Assert.That(labelIdx, Is.GreaterThan(skippedAssign),
+                "the Label instruction must sit after the skipped statement");
+            Assert.That(labelledAssign, Is.GreaterThan(labelIdx),
+                "x := 3 (the labelled statement) must be emitted after the Label");
+        }
+        if (branchIdx >= 0 && labelIdx >= 0)
+        {
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(mlir.GetOperands(branchIdx)[0], Is.EqualTo(mlir.GetOperands(labelIdx)[0]),
+                    "the Branch must target the Label placed at the labelled statement");
+                var beforeBranch = (MlirInstructionKind)mlir.GetKind(branchIdx - 1);
+                Assert.That(beforeBranch, Is.Not.EqualTo(MlirInstructionKind.Transition),
+                    "the goto branch must be unconditional (no polarity marker before it)");
+                Assert.That(beforeBranch, Is.Not.EqualTo(MlirInstructionKind.Bcs),
+                    "the goto branch must be unconditional (no carry marker before it)");
+            }
+        }
+    }
 }
