@@ -991,4 +991,344 @@ public class HlirTreeToMlirTransformerTests
             kinds[i] = result.GetKind(i);
         return kinds;
     }
+
+    [Test]
+    public void OrUsedAsConditionIsEvaluatedNotCompared()
+    {
+        // `if (a or b) then` must evaluate the `or` and branch on the
+        // result's truth. Today EmitConditionalBranch treats every
+        // two-child BinaryOp condition as a comparison and emits
+        // Cmp(a, b): with a=1, b=0 the compare leaves Z clear and the
+        // skip branch fires, so the then-arm is skipped although the
+        // condition is true; with a=0, b=0 it runs although the
+        // condition is false.
+        AssertBitwiseConditionIsEvaluated("a or b", (byte)LlirInstructionKind.BitwiseOr, "or");
+    }
+
+    [Test]
+    public void AndUsedAsConditionIsEvaluatedNotCompared()
+    {
+        // Same defect as the `or` condition: `if (a and b) then`
+        // currently compares a against b instead of evaluating the
+        // `and` and testing the result against zero.
+        AssertBitwiseConditionIsEvaluated("a and b", (byte)LlirInstructionKind.BitwiseAnd, "and");
+    }
+
+    [Test]
+    public void NotUsedAsConditionIsEvaluatedNotDropped()
+    {
+        // `if not a then` must evaluate the complement and branch on
+        // its truth. Today a UnaryOp condition reaches the default
+        // case of EmitConditionalBranch, which emits an unconditional
+        // branch: the then-arm never runs, whatever a holds.
+        var mlir = CompilePascal(ConditionProgram("if not a then x := 1;"), out var pool);
+        uint aOffset = pool.Intern("a");
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+        uint tmpOffset = pool.Intern("__tmp_0");
+
+        int notIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseNot);
+        int cmpIdx = FindCmpIndex(mlir, tmpOffset, 0);
+        int branchIdx = FindKindIndex(mlir, (byte)MlirInstructionKind.Branch);
+        int assignIdx = FindAssign(mlir, xOffset, oneOffset);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(notIdx, Is.GreaterThanOrEqualTo(0),
+                "the not condition must be evaluated to a value (BitwiseNot), not dropped to an unconditional branch");
+            if (notIdx >= 0)
+                Assert.That(mlir.GetOperands(notIdx).ToArray(), Does.Contain(aOffset),
+                    "the complement must operate on a");
+            Assert.That(cmpIdx, Is.GreaterThan(notIdx),
+                "the evaluated result must be compared against zero");
+            Assert.That(branchIdx, Is.GreaterThan(cmpIdx),
+                "the skip branch follows the zero test");
+            if (branchIdx > 0)
+                Assert.That(mlir.GetKind(branchIdx - 1), Is.EqualTo((byte)LlirInstructionKind.Transition),
+                    "the skip branch must fire when the result is zero (condition false), so a Transition (BEQ) marker must precede it");
+            Assert.That(assignIdx, Is.GreaterThan(branchIdx),
+                "the then-arm assignment follows the skip branch");
+        }
+    }
+
+    [Test]
+    public void WhileOrConditionIsEvaluatedNotCompared()
+    {
+        // The while loop head shares EmitConditionalBranch with the
+        // if statement, so `while (a or b) do` miscompiles the same
+        // way: Cmp(a, b) decides whether the body runs and whether
+        // the loop exits.
+        var mlir = CompilePascal(ConditionProgram("while (a or b) do x := 0;"), out var pool);
+        uint aOffset = pool.Intern("a");
+        uint bOffset = pool.Intern("b");
+        uint tmpOffset = pool.Intern("__tmp_0");
+
+        int orIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseOr);
+        int cmpIdx = FindCmpIndex(mlir, tmpOffset, 0);
+        int branchIdx = FindKindIndex(mlir, (byte)MlirInstructionKind.Branch);
+
+        using (Assert.EnterMultipleScope())
+        {
+            int loopLabelIdx = FindKindIndex(mlir, (byte)MlirInstructionKind.Label, 1);
+            Assert.That(loopLabelIdx, Is.GreaterThanOrEqualTo(0),
+                "the loop head starts with the loop label");
+            Assert.That(loopLabelIdx, Is.LessThan(cmpIdx),
+                "the loop label precedes the condition evaluation");
+            Assert.That(orIdx, Is.GreaterThanOrEqualTo(0),
+                "the or condition must be evaluated to a value (BitwiseOr), not compared");
+            Assert.That(FindCmpIndex(mlir, aOffset, bOffset), Is.EqualTo(-1),
+                "the condition's operands must never be compared against each other");
+            Assert.That(cmpIdx, Is.GreaterThan(orIdx),
+                "the evaluated result must be compared against zero");
+            Assert.That(branchIdx, Is.GreaterThan(cmpIdx),
+                "the exit branch follows the zero test");
+            if (branchIdx > 0)
+                Assert.That(mlir.GetKind(branchIdx - 1), Is.EqualTo((byte)LlirInstructionKind.Transition),
+                    "the exit branch must fire when the result is zero (condition false), so a Transition (BEQ) marker must precede it");
+        }
+    }
+
+    [Test]
+    public void IfElseOrConditionIsEvaluatedNotCompared()
+    {
+        // The if/else form must also evaluate the condition and test
+        // the result against zero. This test pins the evaluation only:
+        // the branch polarity of the if/else form is the arm-swap
+        // defect, owned by the branch-conditions redesign, and is
+        // deliberately not asserted here.
+        var mlir = CompilePascal(ConditionProgram("if (a or b) then x := 1 else x := 2;"), out var pool);
+        uint aOffset = pool.Intern("a");
+        uint bOffset = pool.Intern("b");
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+        uint tmpOffset = pool.Intern("__tmp_0");
+
+        int orIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseOr);
+        int cmpIdx = FindCmpIndex(mlir, tmpOffset, 0);
+        int thenIdx = FindAssign(mlir, xOffset, oneOffset);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(orIdx, Is.GreaterThanOrEqualTo(0),
+                "the or condition must be evaluated to a value (BitwiseOr), not compared");
+            Assert.That(FindCmpIndex(mlir, aOffset, bOffset), Is.EqualTo(-1),
+                "the condition's operands must never be compared against each other");
+            Assert.That(cmpIdx, Is.GreaterThan(orIdx),
+                "the evaluated result must be compared against zero");
+            Assert.That(thenIdx, Is.GreaterThan(cmpIdx),
+                "the then-arm assignment follows the condition evaluation");
+        }
+    }
+
+    [Test]
+    public void NestedOrAndConditionIsEvaluatedNotCompared()
+    {
+        // A nested condition must be evaluated as a whole: the outer
+        // `and` combines the evaluated `or` result with c, and the
+        // branch tests that final result against zero. Today the
+        // outer BinaryOp takes the comparison path, so the branch
+        // compares the `or` result temp against c.
+        var mlir = CompilePascal(ConditionProgram("if ((a or b) and c) then x := 1;"), out var pool);
+        uint cOffset = pool.Intern("c");
+        uint orTmpOffset = pool.Intern("__tmp_0");
+        uint andTmpOffset = pool.Intern("__tmp_1");
+
+        int orIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseOr);
+        int andIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseAnd);
+        int cmpIdx = FindCmpIndex(mlir, andTmpOffset, 0);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(orIdx, Is.GreaterThanOrEqualTo(0),
+                "the inner or must be evaluated to a value (BitwiseOr)");
+            Assert.That(andIdx, Is.GreaterThan(orIdx),
+                "the outer and must be evaluated to a value (BitwiseAnd) after the or");
+            if (andIdx >= 0)
+            {
+                var andOps = mlir.GetOperands(andIdx);
+                Assert.That(andOps[0], Is.EqualTo(orTmpOffset), "and left operand = the evaluated or result");
+                Assert.That(andOps[1], Is.EqualTo(cOffset), "and right operand = c");
+            }
+            Assert.That(FindCmpIndex(mlir, orTmpOffset, cOffset), Is.EqualTo(-1),
+                "the or result must never be compared against c");
+            Assert.That(cmpIdx, Is.GreaterThan(andIdx),
+                "the evaluated and result must be compared against zero");
+        }
+    }
+
+    [Test]
+    public void IdentifierConditionSkipsThenArmOnlyWhenFalse()
+    {
+        // A bare identifier condition must skip the then-arm exactly
+        // when the variable is zero. Today the Identifier case emits
+        // Cmp(a, 0) with no marker, which the backend renders as BNE:
+        // the branch fires when Z is clear, i.e. when a is nonzero
+        // (condition true) — the then-arm is skipped exactly when it
+        // should run, and run when it should be skipped. The stream
+        // needs the Transition marker so the branch fires on Z set
+        // (BEQ), the same encoding the '<>' condition already uses.
+        var mlir = CompilePascal(ConditionProgram("if a then x := 1;"), out var pool);
+        uint aOffset = pool.Intern("a");
+
+        int cmpIdx = FindKindIndex(mlir, (byte)LlirInstructionKind.Cmp);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpIdx, Is.GreaterThanOrEqualTo(0), "the condition must emit a compare");
+            if (cmpIdx >= 0)
+            {
+                Assert.That(KindSlice(mlir, cmpIdx, 5), Is.EqualTo(new byte[]
+                {
+                    (byte)LlirInstructionKind.Cmp,
+                    (byte)LlirInstructionKind.Transition,
+                    (byte)MlirInstructionKind.Branch,
+                    (byte)MlirInstructionKind.Assign,
+                    (byte)MlirInstructionKind.Label,
+                }), "an identifier condition must lower to Cmp + Transition + Branch + then-arm + end label");
+                var cmpOps = mlir.GetOperands(cmpIdx);
+                Assert.That(cmpOps[0], Is.EqualTo(aOffset), "Cmp left operand = a");
+                Assert.That(cmpOps[1], Is.Zero, "Cmp right operand = 0");
+            }
+        }
+    }
+
+    [Test]
+    public void RelationalConditionWithVariableOperandsKeepsComparisonEncoding()
+    {
+        // Guard: routing value conditions through evaluation must not
+        // disturb genuine comparisons. `a = b` and `a < b` keep the
+        // established encodings — Cmp(a, b) + Branch for '=', with the
+        // Bcs marker for '<' — even though both operands are variables,
+        // the exact shape the and/or defect mimics.
+        var eqMlir = CompilePascal(ConditionProgram("if (a = b) then x := 1;"), out var eqPool);
+        var ltMlir = CompilePascal(ConditionProgram("if (a < b) then x := 1;"), out var ltPool);
+
+        int eqCmp = FindKindIndex(eqMlir, (byte)LlirInstructionKind.Cmp);
+        int ltCmp = FindKindIndex(ltMlir, (byte)LlirInstructionKind.Cmp);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(eqCmp, Is.GreaterThanOrEqualTo(0), "'=' must emit a compare");
+            if (eqCmp >= 0)
+            {
+                Assert.That(KindSlice(eqMlir, eqCmp, 4), Is.EqualTo(new byte[]
+                {
+                    (byte)LlirInstructionKind.Cmp,
+                    (byte)MlirInstructionKind.Branch,
+                    (byte)MlirInstructionKind.Assign,
+                    (byte)MlirInstructionKind.Label,
+                }), "'=' with variable operands keeps Cmp + Branch + then-arm + end label");
+                var eqOps = eqMlir.GetOperands(eqCmp);
+                Assert.That(eqOps[0], Is.EqualTo(eqPool.Intern("a")), "'=' Cmp left operand = a");
+                Assert.That(eqOps[1], Is.EqualTo(eqPool.Intern("b")), "'=' Cmp right operand = b");
+            }
+
+            Assert.That(ltCmp, Is.GreaterThanOrEqualTo(0), "'<' must emit a compare");
+            if (ltCmp >= 0)
+            {
+                Assert.That(KindSlice(ltMlir, ltCmp, 5), Is.EqualTo(new byte[]
+                {
+                    (byte)LlirInstructionKind.Cmp,
+                    (byte)LlirInstructionKind.Bcs,
+                    (byte)MlirInstructionKind.Branch,
+                    (byte)MlirInstructionKind.Assign,
+                    (byte)MlirInstructionKind.Label,
+                }), "'<' with variable operands keeps Cmp + Bcs + Branch + then-arm + end label");
+                var ltOps = ltMlir.GetOperands(ltCmp);
+                Assert.That(ltOps[0], Is.EqualTo(ltPool.Intern("a")), "'<' Cmp left operand = a");
+                Assert.That(ltOps[1], Is.EqualTo(ltPool.Intern("b")), "'<' Cmp right operand = b");
+            }
+        }
+    }
+
+    /// <summary>Builds a program whose only statement is the given one,
+    /// over the variables a, b, c, x.</summary>
+    private static string ConditionProgram(string statement) =>
+        $"program Test;\nvar a, b, c, x: Integer;\nbegin\n  {statement}\nend.";
+
+    /// <summary>Compiles Pascal source through the real frontend and the
+    /// HLIR-to-MLIR transformer, returning the MLIR stream and the
+    /// frontend's string pool (for interning the names the stream's
+    /// operands reference).</summary>
+    private static InstList CompilePascal(string source, out StringPool pool)
+    {
+        var frontend = new PascalFrontend();
+        var parsed = frontend.ParseToHlir(source);
+        Assert.That(parsed.Hlir.Count, Is.GreaterThan(0), "frontend must produce HLIR");
+        pool = frontend.StringPool!;
+        return new HlirTreeToMlirTransformer(pool).Transform(parsed.Hlir);
+    }
+
+    private static void AssertBitwiseConditionIsEvaluated(string condition, byte opKind, string opName)
+    {
+        var mlir = CompilePascal(ConditionProgram($"if ({condition}) then x := 1;"), out var pool);
+        uint aOffset = pool.Intern("a");
+        uint bOffset = pool.Intern("b");
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+        uint tmpOffset = pool.Intern("__tmp_0");
+
+        int opIdx = FindKindIndex(mlir, opKind);
+        int cmpIdx = FindCmpIndex(mlir, tmpOffset, 0);
+        int branchIdx = FindKindIndex(mlir, (byte)MlirInstructionKind.Branch);
+        int assignIdx = FindAssign(mlir, xOffset, oneOffset);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(opIdx, Is.GreaterThanOrEqualTo(0),
+                $"the {opName} condition must be evaluated to a value, not compared");
+            if (opIdx >= 0)
+            {
+                var opOps = mlir.GetOperands(opIdx);
+                Assert.That(opOps[0], Is.EqualTo(aOffset), $"{opName} left operand = a");
+                Assert.That(opOps[1], Is.EqualTo(bOffset), $"{opName} right operand = b");
+            }
+            Assert.That(FindCmpIndex(mlir, aOffset, bOffset), Is.EqualTo(-1),
+                "the condition's operands must never be compared against each other");
+            Assert.That(cmpIdx, Is.GreaterThan(opIdx),
+                "the evaluated result must be compared against zero");
+            Assert.That(branchIdx, Is.GreaterThan(cmpIdx),
+                "the skip branch follows the zero test");
+            if (branchIdx > 0)
+                Assert.That(mlir.GetKind(branchIdx - 1), Is.EqualTo((byte)LlirInstructionKind.Transition),
+                    "the skip branch must fire when the result is zero (condition false), so a Transition (BEQ) marker must precede it");
+            Assert.That(assignIdx, Is.GreaterThan(branchIdx),
+                "the then-arm assignment follows the skip branch");
+            if (branchIdx >= 0 && assignIdx >= 0)
+            {
+                int endLabel = FindLabelAfter(mlir, assignIdx);
+                Assert.That(endLabel, Is.GreaterThanOrEqualTo(0), "the if must end in a label");
+                if (endLabel >= 0)
+                    Assert.That(mlir.GetOperands(branchIdx)[0], Is.EqualTo(mlir.GetOperands(endLabel)[0]),
+                        "the skip branch must target the label placed after the then-arm");
+            }
+        }
+    }
+
+    private static int FindKindIndex(InstList mlir, byte kind) => FindKindIndex(mlir, kind, 0);
+
+    private static int FindKindIndex(InstList mlir, byte kind, int startAt)
+    {
+        for (int i = startAt; i < mlir.Count; i++)
+            if (mlir.GetKind(i) == kind) return i;
+        return -1;
+    }
+
+    private static byte[] KindSlice(InstList mlir, int start, int count)
+    {
+        var kinds = new byte[count];
+        for (int i = 0; i < count; i++)
+            kinds[i] = mlir.GetKind(start + i);
+        return kinds;
+    }
+
+    private static int FindCmpIndex(InstList mlir, uint left, uint right)
+    {
+        for (int i = 0; i < mlir.Count; i++)
+        {
+            if (mlir.GetKind(i) != (byte)LlirInstructionKind.Cmp) continue;
+            var ops = mlir.GetOperands(i);
+            if (ops.Length == 2 && ops[0] == left && ops[1] == right) return i;
+        }
+        return -1;
+    }
+
 }

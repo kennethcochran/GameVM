@@ -153,3 +153,28 @@ Feature: Atari 2600 Backend
     # (never dropped — today the whole statement vanishes silently)
     And the output binary should contain the hex sequence "a5 81 49 ff 85 80"
 
+  Scenario: And, or, and not used as branch conditions are evaluated before branching
+    Given the following Pascal program:
+      """
+      program CondOps;
+      var a, b, x: Integer;
+      begin
+          a := 1;
+          b := 0;
+          x := 0;
+          if (a or b) then x := 1;
+          if (a and b) then x := 2;
+          if not a then x := 3;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    # a or b as a condition must be evaluated with the 6502 ORA: LDA $80; ORA $81
+    # (never compared — today the condition lowers to a CMP of a against b)
+    And the output binary should contain the hex sequence "a5 80 05 81"
+    # a and b as a condition must be evaluated with the 6502 AND: LDA $80; AND $81
+    And the output binary should contain the hex sequence "a5 80 25 81"
+    # not a as a condition must complement with EOR #$FF: LDA $80; EOR #$FF
+    # (never dropped — today the branch is unconditional and no complement is emitted)
+    And the output binary should contain the hex sequence "a5 80 49 ff"
+
