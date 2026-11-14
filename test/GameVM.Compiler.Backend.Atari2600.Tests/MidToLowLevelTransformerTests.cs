@@ -855,6 +855,93 @@ public class MidToLowLevelTransformerTests
             }
         }
 
+        [Test]
+        public void Transform_AssignConstant256_WritesZeroLowByteAndOneHighByte()
+        {
+            // x := 256. 256 is the first value needing two slots: the low byte
+            // is 0 and the high byte is 1, so the transformer must emit TWO
+            // Assigns — one to x's address carrying 0, one to x's address + 1
+            // carrying 1. A narrowing mutant that emits a single Assign of
+            // 256 & 0xFF == 0 loses the high byte.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("256"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(2), "256 needs a low and a high Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignLow = result.GetOperands(0);
+                Assert.That(assignLow.Length, Is.EqualTo(2));
+                Assert.That(assignLow[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assignLow[1], Is.Zero, "256 low byte is 0");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignHigh = result.GetOperands(1);
+                Assert.That(assignHigh.Length, Is.EqualTo(2));
+                Assert.That(assignHigh[0], Is.EqualTo(0x81u), "x high byte at $80 + 1");
+                Assert.That(assignHigh[1], Is.EqualTo(1u), "256 high byte is 1");
+            }
+        }
+
+        [Test]
+        public void Transform_AssignConstant255_WritesSingleAssignOnly()
+        {
+            // 255 is the width boundary: it stays a single-slot, single-Assign
+            // lowering carrying 255 with no second instruction. A mutant using
+            // >= 255 (or an always-true width condition) allocates a second
+            // slot and emits a spurious high Assign of 0.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("255"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(1), "255 fits one slot: exactly one Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign = result.GetOperands(0);
+                Assert.That(assign.Length, Is.EqualTo(2));
+                Assert.That(assign[0], Is.EqualTo(0x80u), "x at $80");
+                Assert.That(assign[1], Is.EqualTo(255u), "255 stores unchanged");
+            }
+        }
+
+        [Test]
+        public void Transform_AssignConstant4660_WritesHighByteEighteen()
+        {
+            // 4660 == 0x1234: the low byte is 0x34 (52) and the high byte is
+            // 0x12 (18). A mutant that shifts the high byte by the wrong amount
+            // (or not at all) gets 4660 & 0xFF or a wrong high byte instead.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("4660"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(2), "4660 needs a low and a high Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignLow = result.GetOperands(0);
+                Assert.That(assignLow.Length, Is.EqualTo(2));
+                Assert.That(assignLow[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assignLow[1], Is.EqualTo(52u), "4660 low byte is 0x34");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignHigh = result.GetOperands(1);
+                Assert.That(assignHigh.Length, Is.EqualTo(2));
+                Assert.That(assignHigh[0], Is.EqualTo(0x81u), "x high byte at $80 + 1");
+                Assert.That(assignHigh[1], Is.EqualTo(18u), "4660 high byte is 0x12");
+            }
+        }
+
         #endregion
         #region Branch Polarity Tests
 
