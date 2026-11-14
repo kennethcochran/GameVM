@@ -495,25 +495,28 @@ public class HlirTreeToMlirTransformerTests
         var transformer = new HlirTreeToMlirTransformer(pool);
         var result = transformer.Transform(tree);
 
-        Assert.That(result.Count, Is.EqualTo(17),
-            "Case lowers to: per label (Cmp, Branch, Assign, Branch), a label before each later test, else Assign, end Label");
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 0: compare selector against label 1");
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 1: skip arm 1 when the selector differs");
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 2: arm 1 assignment");
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 3: arm 1 jumps to the shared end");
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 4: next-test label");
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 5: compare selector against label 2");
-        Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 6: skip arm 2 when the selector differs");
-        Assert.That(result.GetKind(7), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 7: arm 2 assignment");
-        Assert.That(result.GetKind(8), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 8: arm 2 jumps to the shared end");
-        Assert.That(result.GetKind(9), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 9: next-test label");
-        Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 10: compare selector against label 3");
-        Assert.That(result.GetKind(11), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 11: skip arm 3 when the selector differs");
-        Assert.That(result.GetKind(12), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 12: arm 3 assignment");
-        Assert.That(result.GetKind(13), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 13: arm 3 jumps to the shared end");
-        Assert.That(result.GetKind(14), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 14: else label");
-        Assert.That(result.GetKind(15), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 15: else assignment");
-        Assert.That(result.GetKind(16), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 16: end label");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(17),
+                "Case lowers to: per label (Cmp, Branch, Assign, Branch), a label before each later test, else Assign, end Label");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 0: compare selector against label 1");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 1: skip arm 1 when the selector differs");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 2: arm 1 assignment");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 3: arm 1 jumps to the shared end");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 4: next-test label");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 5: compare selector against label 2");
+            Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 6: skip arm 2 when the selector differs");
+            Assert.That(result.GetKind(7), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 7: arm 2 assignment");
+            Assert.That(result.GetKind(8), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 8: arm 2 jumps to the shared end");
+            Assert.That(result.GetKind(9), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 9: next-test label");
+            Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 10: compare selector against label 3");
+            Assert.That(result.GetKind(11), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 11: skip arm 3 when the selector differs");
+            Assert.That(result.GetKind(12), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 12: arm 3 assignment");
+            Assert.That(result.GetKind(13), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 13: arm 3 jumps to the shared end");
+            Assert.That(result.GetKind(14), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 14: else label");
+            Assert.That(result.GetKind(15), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 15: else assignment");
+            Assert.That(result.GetKind(16), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 16: end label");
+        }
 
         // Each compare tests the selector against its label, in source order.
         Assert.That(result.GetOperands(0).ToArray(), Is.EqualTo(new uint[] { xOffset, 1u }),
@@ -540,24 +543,27 @@ public class HlirTreeToMlirTransformerTests
         uint next2Label = result.GetOperands(9)[0];
         uint elseLabel = result.GetOperands(14)[0];
         uint endLabel = result.GetOperands(16)[0];
-        Assert.That(next1Label, Is.Not.EqualTo(next2Label));
-        Assert.That(next1Label, Is.Not.EqualTo(elseLabel));
-        Assert.That(next1Label, Is.Not.EqualTo(endLabel));
-        Assert.That(next2Label, Is.Not.EqualTo(elseLabel));
-        Assert.That(next2Label, Is.Not.EqualTo(endLabel));
-        Assert.That(elseLabel, Is.Not.EqualTo(endLabel));
-        Assert.That(result.GetOperands(1)[0], Is.EqualTo(next1Label),
-            "skipping arm 1 must land on the label starting test 2");
-        Assert.That(result.GetOperands(6)[0], Is.EqualTo(next2Label),
-            "skipping arm 2 must land on the label starting test 3");
-        Assert.That(result.GetOperands(11)[0], Is.EqualTo(elseLabel),
-            "skipping arm 3 must land on the else arm");
-        Assert.That(result.GetOperands(3)[0], Is.EqualTo(endLabel),
-            "arm 1 must jump to the shared end label");
-        Assert.That(result.GetOperands(8)[0], Is.EqualTo(endLabel),
-            "arm 2 must jump to the shared end label");
-        Assert.That(result.GetOperands(13)[0], Is.EqualTo(endLabel),
-            "arm 3 must jump to the shared end label");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(next1Label, Is.Not.EqualTo(next2Label));
+            Assert.That(next1Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next1Label, Is.Not.EqualTo(endLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(endLabel));
+            Assert.That(elseLabel, Is.Not.EqualTo(endLabel));
+            Assert.That(result.GetOperands(1)[0], Is.EqualTo(next1Label),
+                "skipping arm 1 must land on the label starting test 2");
+            Assert.That(result.GetOperands(6)[0], Is.EqualTo(next2Label),
+                "skipping arm 2 must land on the label starting test 3");
+            Assert.That(result.GetOperands(11)[0], Is.EqualTo(elseLabel),
+                "skipping arm 3 must land on the else arm");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(endLabel),
+                "arm 1 must jump to the shared end label");
+            Assert.That(result.GetOperands(8)[0], Is.EqualTo(endLabel),
+                "arm 2 must jump to the shared end label");
+            Assert.That(result.GetOperands(13)[0], Is.EqualTo(endLabel),
+                "arm 3 must jump to the shared end label");
+        }
     }
 
     [Test]
