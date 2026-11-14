@@ -519,22 +519,28 @@ public class HlirTreeToMlirTransformerTests
         }
 
         // Each compare tests the selector against its label, in source order.
-        Assert.That(result.GetOperands(0).ToArray(), Is.EqualTo(new uint[] { xOffset, 1u }),
-            "First compare must test the selector against label 1");
-        Assert.That(result.GetOperands(5).ToArray(), Is.EqualTo(new uint[] { xOffset, 2u }),
-            "Second compare must test the selector against label 2");
-        Assert.That(result.GetOperands(10).ToArray(), Is.EqualTo(new uint[] { xOffset, 3u }),
-            "Third compare must test the selector against label 3");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(0).ToArray(), Is.EqualTo(new uint[] { xOffset, 1u }),
+                "First compare must test the selector against label 1");
+            Assert.That(result.GetOperands(5).ToArray(), Is.EqualTo(new uint[] { xOffset, 2u }),
+                "Second compare must test the selector against label 2");
+            Assert.That(result.GetOperands(10).ToArray(), Is.EqualTo(new uint[] { xOffset, 3u }),
+                "Third compare must test the selector against label 3");
+        }
 
         // Each arm stores its own constant to x.
-        Assert.That(result.GetOperands(2).ToArray(), Is.EqualTo(new uint[] { xOffset, 10u }),
-            "Arm 1 must assign 10 to x");
-        Assert.That(result.GetOperands(7).ToArray(), Is.EqualTo(new uint[] { xOffset, 20u }),
-            "Arm 2 must assign 20 to x");
-        Assert.That(result.GetOperands(12).ToArray(), Is.EqualTo(new uint[] { xOffset, 30u }),
-            "Arm 3 must assign 30 to x");
-        Assert.That(result.GetOperands(15).ToArray(), Is.EqualTo(new uint[] { xOffset, 40u }),
-            "Else arm must assign 40 to x");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(2).ToArray(), Is.EqualTo(new uint[] { xOffset, 10u }),
+                "Arm 1 must assign 10 to x");
+            Assert.That(result.GetOperands(7).ToArray(), Is.EqualTo(new uint[] { xOffset, 20u }),
+                "Arm 2 must assign 20 to x");
+            Assert.That(result.GetOperands(12).ToArray(), Is.EqualTo(new uint[] { xOffset, 30u }),
+                "Arm 3 must assign 30 to x");
+            Assert.That(result.GetOperands(15).ToArray(), Is.EqualTo(new uint[] { xOffset, 40u }),
+                "Else arm must assign 40 to x");
+        }
 
         // Branch wiring: each skip branch lands on the label starting the
         // next test (or the else arm for the last label); every arm's jump
