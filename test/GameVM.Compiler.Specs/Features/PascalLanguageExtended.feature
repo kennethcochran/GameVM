@@ -136,3 +136,20 @@ Feature: Pascal Language Extended
     When I compile the program
     Then the compilation succeeds
     And the output binary should contain the hex sequence "a9 00 85 80"
+
+  Scenario: Goto Jumps Over The Statements Between It And Its Label
+    Given the following Pascal program:
+      """
+      program GotoSkip;
+      label 1;
+      var x: Integer;
+      begin
+          x := 1;
+          goto 1;
+          x := 2;
+      1:  x := 3;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a9 01 85 80 4c"

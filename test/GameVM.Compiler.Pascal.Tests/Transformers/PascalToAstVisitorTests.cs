@@ -448,5 +448,74 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             }
             Assert.That(foundUnary, Is.True, "x := -5 must produce a UnaryOp node");
         }
+
+        [Test]
+        public void LabelDeclarationAndGotoProduceLabelAndJumpNodes()
+        {
+            // Labels and `goto` currently vanish: VisitBlock never visits
+            // the label declaration part, VisitStatement has no goto branch
+            // (a goto falls through to a Nop), and a labelled statement's
+            // label is dropped while its statement is kept. A program that
+            // jumps therefore compiles cleanly and goes nowhere. The
+            // visitor must emit a LabelDeclaration for the `label 1;` part,
+            // a Goto node for the `goto 1;` statement, and a Label node
+            // marking the `1:` statement — the Goto and the Label
+            // identifying the same label, matching the HLIR convention
+            // (Label/Jump payload = the label's pool offset).
+            string code = @"
+                program Test;
+                label 1;
+                var x: integer;
+                begin
+                    x := 1;
+                    goto 1;
+                    x := 2;
+                1:  x := 3;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+            Assert.That(tree.Count, Is.GreaterThan(0));
+
+            int declarationIdx = -1;
+            int gotoIdx = -1;
+            int labelIdx = -1;
+            int assignCount = 0;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                var kind = (PascalAstNodeKind)tree.GetKind(i);
+                if (kind == PascalAstNodeKind.LabelDeclaration && declarationIdx < 0)
+                    declarationIdx = i;
+                if (kind == PascalAstNodeKind.Goto && gotoIdx < 0)
+                    gotoIdx = i;
+                if (kind == PascalAstNodeKind.Label && labelIdx < 0)
+                    labelIdx = i;
+                if (kind == PascalAstNodeKind.Assignment)
+                    assignCount++;
+            }
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(declarationIdx, Is.GreaterThanOrEqualTo(0),
+                    "the label declaration part must produce a LabelDeclaration node, not be dropped");
+                Assert.That(gotoIdx, Is.GreaterThanOrEqualTo(0),
+                    "goto must produce a Goto node, not a Nop");
+                Assert.That(labelIdx, Is.GreaterThanOrEqualTo(0),
+                    "the labelled statement must carry a Label node");
+                Assert.That(assignCount, Is.EqualTo(3),
+                    "all three assignments must survive, including the labelled one");
+            }
+            if (gotoIdx >= 0 && labelIdx >= 0)
+            {
+                Assert.That(tree[labelIdx].Payload, Is.EqualTo(tree[gotoIdx].Payload),
+                    "the Label node and the Goto node must identify the same label");
+            }
+        }
     }
 }
