@@ -116,7 +116,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         [Test]
         public void Transform_UnaryMinusLiteral_FoldsToTwosComplement()
         {
-            // x := -5  ->  Assign(Identifier x, LiteralInt "251")
+            // x := -5  ->  Assign(Identifier x, LiteralInt "65531")
             var pool = new StringPool();
             var builder = new AstBuilder();
             uint xOffset = pool.Intern("x");
@@ -146,14 +146,14 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             var assignChildren = hlir.Children(assignIdx);
             Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
                 "-5 must constant-fold to a LiteralInt");
-            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"),
-                "-5 folds to its 8-bit two's complement value 251");
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("65531"),
+                "-5 folds to its 16-bit two's complement value 65531");
         }
 
         [Test]
         public void Transform_UnaryMinusNamedConstant_FoldsToTwosComplement()
         {
-            // const FIVE = 5; x := -FIVE  ->  Assign(Identifier x, LiteralInt "251")
+            // const FIVE = 5; x := -FIVE  ->  Assign(Identifier x, LiteralInt "65531")
             var pool = new StringPool();
             var builder = new AstBuilder();
             uint xOffset = pool.Intern("x");
@@ -187,7 +187,110 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var assignChildren = hlir.Children(assignIdx);
             Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt));
-            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("251"));
+            Assert.That(pool.Resolve(hlir[assignChildren[1]].Payload), Is.EqualTo("65531"));
+        }
+
+        [Test]
+        public void UnaryMinusOfLiteralFoldsToSixteenBitTwosComplement()
+        {
+            // -N must fold to its 16-bit two's complement value (65536 - N),
+            // not the 8-bit one: -5 is 65531, not 251. Today the fold masks
+            // to 8 bits ((256 - (N & 0xFF)) & 0xFF), so -5 folds to 251 and
+            // -256 folds to 0 — both silently wrong once values are 16-bit.
+            var cases = new (string Literal, string Expected)[]
+            {
+                ("5", "65531"),
+                ("1", "65535"),
+                ("256", "65280"),
+            };
+            using (Assert.EnterMultipleScope())
+            {
+                foreach (var (literal, expected) in cases)
+                {
+                    string actual = FoldUnaryMinusOfLiteral(literal);
+                    Assert.That(actual, Is.EqualTo(expected),
+                        $"-{literal} must fold to its 16-bit two's complement value {expected}");
+                }
+            }
+        }
+
+        [Test]
+        public void Transform_SmallLiteralAssignment_FoldsUnchanged()
+        {
+            // Guard: widening values to 16 bits must not disturb small
+            // literals — x := 42 still folds to "42".
+            Assert.That(AssignedLiteralValue("42"), Is.EqualTo("42"));
+        }
+
+        /// <summary>Builds `x := -N;` for a literal N, lowers it, and
+        /// returns the folded value as decimal text.</summary>
+        private static string FoldUnaryMinusOfLiteral(string literal)
+        {
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int literalNode = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(literal));
+            int unary = builder.Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'-', literalNode);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, unary);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                "-N must constant-fold to a LiteralInt");
+            return pool.Resolve(hlir[assignChildren[1]].Payload);
+        }
+
+        /// <summary>Builds `x := N;` for a literal N, lowers it, and
+        /// returns the assigned value as decimal text.</summary>
+        private static string AssignedLiteralValue(string literal)
+        {
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int value = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(literal));
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, value);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                "a literal assignment must lower to a LiteralInt");
+            return pool.Resolve(hlir[assignChildren[1]].Payload);
         }
 
         private static AstTree BuildCallStatementAst(StringPool pool, string callee)

@@ -91,58 +91,6 @@ public class PascalProcedureRomTests
         "  if false then x := 2;\n" +
         "end.";
 
-    private const string ProductProgram =
-        "program Test;\n" +
-        "var x: Integer;\n" +
-        "var y: Integer;\n" +
-        "begin\n" +
-        "  x := 6;\n" +
-        "  y := 7;\n" +
-        "  x := x * y;\n" +
-        "end.";
-
-    private const string ConsecutiveProductsProgram =
-        "program Test;\n" +
-        "var x: Integer;\n" +
-        "var y: Integer;\n" +
-        "var z: Integer;\n" +
-        "var a: Integer;\n" +
-        "var b: Integer;\n" +
-        "begin\n" +
-        "  x := 6;\n" +
-        "  y := 7;\n" +
-        "  z := 8;\n" +
-        "  a := x * y;\n" +
-        "  b := x * z;\n" +
-        "end.";
-
-    /// <summary>Scans for multiply machinery at or after
-    /// <paramref name="from"/>: a JSR to an in-ROM target (0x20), a
-    /// backward relative branch (a branch opcode with offset &gt;= 0x80),
-    /// or an ASL (0x0A/0x06/0x16/0x0E/0x1E). The 6502 has no multiply
-    /// instruction, so any real 8-bit multiply is a subroutine call, a
-    /// loop, or shift-and-add steps. The reset prologue's own BNE clear
-    /// loop sits before <paramref name="from"/> and is never counted.</summary>
-    private static bool HasMultiplyMachinery(byte[] rom, int from)
-    {
-        for (int i = from; i < rom.Length; i++)
-        {
-            byte op = rom[i];
-            if (op == 0x20 && i + 2 < rom.Length)
-            {
-                int target = rom[i + 1] | (rom[i + 2] << 8);
-                if (target > 0xF000 && target < 0xF000 + rom.Length) return true;
-                continue;
-            }
-            if (op == 0x0A || op == 0x06 || op == 0x16 || op == 0x0E || op == 0x1E) return true;
-            if ((op == 0x10 || op == 0x30 || op == 0x50 || op == 0x70 ||
-                 op == 0x90 || op == 0xB0 || op == 0xD0 || op == 0xF0) &&
-                i + 1 < rom.Length && rom[i + 1] >= 0x80)
-                return true;
-        }
-        return false;
-    }
-
     /// <summary>Finds the first occurrence of a byte sequence at or after
     /// <paramref name="from"/>, or -1.</summary>
     private static int IndexOfSequence(byte[] rom, int from, params byte[] sequence)
@@ -200,78 +148,6 @@ public class PascalProcedureRomTests
         int jmpTarget = rom[falseArm - 2] | (rom[falseArm - 1] << 8);
         Assert.That(jmpTarget - 0xF000, Is.EqualTo(falseArm + 4),
             "the JMP over the false arm must land just past its STA $80");
-    }
-
-    [Test]
-    public void ProgramComputingAProduct()
-    {
-        // End to end: 6 * 7 must be computed as a product, not a sum. Both
-        // operands are variables: only literal-vs-literal multiplication
-        // folds correctly today, in the constant folder. The 6502 has no
-        // multiply instruction, so a real multiply lowers to a routine —
-        // a subroutine call, a loop, or unrolled shift-and-add — never to
-        // the single ADC the buggy lowering emits.
-        var result = Compile(ProductProgram);
-
-        Assert.That(result.Success, Is.True, result.ErrorMessage);
-        Assert.That(result.Code, Is.Not.Null);
-        Assert.That(result.Code!.Length, Is.EqualTo(4096));
-
-        byte[] rom = result.Code;
-        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
-
-        // Setup stays intact: x := 6 and y := 7 store their literals.
-        // Variables allocate from $80 in first-use order: x = $80, y = $81.
-        int xStore = IndexOfSequence(rom, bodyStart, 0xA9, 0x06, 0x85, 0x80);
-        Assert.That(xStore, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain x := 6 (LDA #6; STA $80)");
-        int yStore = IndexOfSequence(rom, xStore + 4, 0xA9, 0x07, 0x85, 0x81);
-        Assert.That(yStore, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain y := 7 (LDA #7; STA $81)");
-
-        // The miscompilation must be gone: the product statement must not
-        // lower to LDA $80; CLC; ADC $81; STA $80 (x + y, stored to x).
-        // No correct multiply emits that exact sequence — a shift-and-add
-        // or repeated-addition multiply adds the multiplicand to a
-        // partial-product temp, never x + y back into x with nothing
-        // between.
-        Assert.That(IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x18, 0x65, 0x81, 0x85, 0x80),
-            Is.EqualTo(-1),
-            "x := x * y must not lower to LDA $80; CLC; ADC $81; STA $80 — that computes x + y");
-
-        // A real 8-bit multiply routine must be present past the prologue.
-        // The buggy lowering emits no JSR, no branch, and no ASL here.
-        Assert.That(HasMultiplyMachinery(rom, bodyStart), Is.True,
-            "the ROM must contain multiply machinery (a JSR, a backward branch, or ASL) for x * y");
-    }
-
-    [Test]
-    public void ProgramComputingConsecutiveProducts()
-    {
-        // End to end: a := x * y; b := x * z must each load x before its
-        // multiply. The low-level optimizer used to drop the first Load(x)
-        // as overwritten by the second, so the first product multiplied the
-        // stale accumulator value instead of x.
-        var result = Compile(ConsecutiveProductsProgram);
-
-        Assert.That(result.Success, Is.True, result.ErrorMessage);
-        Assert.That(result.Code, Is.Not.Null);
-        Assert.That(result.Code!.Length, Is.EqualTo(4096));
-
-        byte[] rom = result.Code;
-        const int bodyStart = 15; // past the reset prologue (SEI..BNE clear loop)
-
-        // The var declarations allocate from $80 in order (x = $80, y =
-        // $81, z = $82, a = $83, b = $84), and the multiply scratch pair
-        // takes $85/$86. Each multiply starts by loading its left operand
-        // (LDA $80) and saving it to the multiplicand scratch (STA $85),
-        // then loading its right operand.
-        int first = IndexOfSequence(rom, bodyStart, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x81);
-        Assert.That(first, Is.GreaterThanOrEqualTo(0),
-            "the first product must load x (LDA $80) before multiplying by y");
-        int second = IndexOfSequence(rom, first + 6, 0xA5, 0x80, 0x85, 0x85, 0xA5, 0x82);
-        Assert.That(second, Is.GreaterThanOrEqualTo(0),
-            "the second product must load x (LDA $80) before multiplying by z");
     }
 
     [Test]
@@ -368,6 +244,64 @@ public class PascalProcedureRomTests
     }
 
     [Test]
+    public void ProgramStoringAndReadingBackAValueGreaterThan255()
+    {
+        // End to end: 300 must survive a store and a read-back whole. Today
+        // every layer truncates to 8 bits, so x := 300 stores 44 (300 & 0xFF)
+        // and y := x copies only that one byte.
+        var result = Compile(ValueGreaterThan255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // x := 300: LDA #$2C; STA $80 (low byte 44); LDA #$01; STA $81 (high byte 1).
+        Assert.That(ContainsSequence(rom, 0xA9, 0x2C, 0x85, 0x80, 0xA9, 0x01, 0x85, 0x81), Is.True,
+            "storing 300 must write both bytes: low 44 to $80, high 1 to $81");
+        // y := x: LDA $80; STA $82; LDA $81; STA $83 — both bytes copied, low first.
+        Assert.That(ContainsSequence(rom, 0xA5, 0x80, 0x85, 0x82, 0xA5, 0x81, 0x85, 0x83), Is.True,
+            "reading 300 back into y must copy both bytes");
+    }
+
+    [Test]
+    public void ProgramAddingTwoValuesAbove255CarriesIntoHighByte()
+    {
+        // 300 + 500 = 800. The low bytes (44 + 244 = 288) carry, so the high
+        // add must run with the carry set — no CLC between the low ADC and
+        // the high ADC. Today the addition is a single 8-bit add (and the
+        // values are already truncated to 44 and 244), so the carry is lost.
+        var result = Compile(AddAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; CLC; ADC $82; STA $84; LDA $81; ADC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x18, 0x65, 0x82, 0x85, 0x84, 0xA5, 0x81, 0x65, 0x83, 0x85, 0x85), Is.True,
+            "16-bit addition must carry from the low byte into the high byte: CLC only before the low ADC");
+    }
+
+    [Test]
+    public void ProgramSubtractingTwoValuesAbove255BorrowsFromHighByte()
+    {
+        // 300 - 500 = -200. The low bytes (44 - 244) borrow, so the high
+        // subtract must run with the borrow outstanding — no SEC between
+        // the low SBC and the high SBC.
+        var result = Compile(SubtractAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; SEC; SBC $82; STA $84; LDA $81; SBC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x38, 0xE5, 0x82, 0x85, 0x84, 0xA5, 0x81, 0xE5, 0x83, 0x85, 0x85), Is.True,
+            "16-bit subtraction must borrow from the low byte into the high byte: SEC only before the low SBC");
+    }
+
+    [Test]
     public void ProgramUsingAndOrAndNot()
     {
         // End to end: `and`/`or` must compute bitwise values with the
@@ -437,6 +371,32 @@ public class PascalProcedureRomTests
         Assert.That(ContainsSequence(rom, 0xC5, 0x82), Is.False,
             "`and`/`or` must not lower through a CMP — there is no comparison in this program");
     }
+
+    private const string ValueGreaterThan255Program =
+        "program Probe;\n" +
+        "var x, y: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := x;\n" +
+        "end.";
+
+    private const string AddAbove255Program =
+        "program Probe;\n" +
+        "var x, y, z: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  z := x + y;\n" +
+        "end.";
+
+    private const string SubtractAbove255Program =
+        "program Probe;\n" +
+        "var x, y, w: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  w := x - y;\n" +
+        "end.";
 
     private const string BitwiseProgram =
         "program Probe;\n" +

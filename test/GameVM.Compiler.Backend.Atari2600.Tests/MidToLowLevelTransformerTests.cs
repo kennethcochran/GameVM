@@ -659,6 +659,290 @@ public class MidToLowLevelTransformerTests
         Assert.That(cmpOps[1], Is.EqualTo(0x00u));
     }
         #endregion
+
+        #region Sixteen-Bit Value Tests
+
+        [Test]
+        public void ValueWiderThanEightBitsAllocatesTwoSlotsAndCarriesCorrectly()
+        {
+            // x := 300; y := 500; z := x + y. 300 + 500 = 800, and the low
+            // bytes (44 + 244 = 288) carry into the high byte, so the low
+            // add must feed its carry into the high add. Each variable takes
+            // TWO consecutive zero-page slots, low byte first: x $80/$81,
+            // y $82/$83, z $84/$85. Values that fit in one byte keep the
+            // single-slot lowering; only values above 255 take two slots.
+            // Today the transformer masks every value with & 0xFF and
+            // allocates one slot per variable, so 300 stores as 44 and y
+            // lands on $81.
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint zOffset = _stringPool.Intern("z");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("500"));
+            builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, xOffset, yOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                // 300 stores as low 44 at $80 and high 1 at $81; 500 stores as
+                // low 244 at $82 and high 1 at $83; then Load low, Add low,
+                // Store low, Load high, Add high (carry from the low add),
+                // Store high.
+                Assert.That(result.Count, Is.EqualTo(10));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign0 = result.GetOperands(0);
+                Assert.That(assign0.Length, Is.EqualTo(2));
+                Assert.That(assign0[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assign0[1], Is.EqualTo(44u), "300 low byte is 44");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign1 = result.GetOperands(1);
+                Assert.That(assign1.Length, Is.EqualTo(2));
+                Assert.That(assign1[0], Is.EqualTo(0x81u), "x high byte at $81");
+                Assert.That(assign1[1], Is.EqualTo(1u), "300 high byte is 1");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign2 = result.GetOperands(2);
+                Assert.That(assign2.Length, Is.EqualTo(2));
+                Assert.That(assign2[0], Is.EqualTo(0x82u), "y low byte at $82");
+                Assert.That(assign2[1], Is.EqualTo(244u), "500 low byte is 244");
+
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign3 = result.GetOperands(3);
+                Assert.That(assign3.Length, Is.EqualTo(2));
+                Assert.That(assign3[0], Is.EqualTo(0x83u), "y high byte at $83");
+                Assert.That(assign3[1], Is.EqualTo(1u), "500 high byte is 1");
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                var loadLow = result.GetOperands(4);
+                Assert.That(loadLow.Length, Is.EqualTo(2));
+                Assert.That(loadLow[0], Is.EqualTo(0x80u), "low add loads x low from $80");
+                Assert.That(loadLow[1], Is.Zero);
+
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Add));
+                var addLow = result.GetOperands(5);
+                Assert.That(addLow.Length, Is.EqualTo(2));
+                Assert.That(addLow[0], Is.EqualTo(0x82u), "low add adds y low from $82");
+                Assert.That(addLow[1], Is.Zero);
+
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                var storeLow = result.GetOperands(6);
+                Assert.That(storeLow.Length, Is.EqualTo(1));
+                Assert.That(storeLow[0], Is.EqualTo(0x84u), "low sum stores to z low at $84");
+
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
+                var loadHigh = result.GetOperands(7);
+                Assert.That(loadHigh.Length, Is.EqualTo(2));
+                Assert.That(loadHigh[0], Is.EqualTo(0x81u), "high add loads x high from $81");
+                Assert.That(loadHigh[1], Is.Zero);
+
+                // The high add is a separate step so the low add's carry feeds
+                // it. No assertion is made here on instruction flags: the
+                // mechanism that tells the code generator "add with incoming
+                // carry, do not clear it first" (a flag, a new kind, or codegen
+                // state) is the implementer's choice — the ROM test proves the
+                // carry actually flows.
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Add));
+                var addHigh = result.GetOperands(8);
+                Assert.That(addHigh.Length, Is.EqualTo(2));
+                Assert.That(addHigh[0], Is.EqualTo(0x83u), "high add adds y high from $83");
+                Assert.That(addHigh[1], Is.Zero);
+
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                var storeHigh = result.GetOperands(9);
+                Assert.That(storeHigh.Length, Is.EqualTo(1));
+                Assert.That(storeHigh[0], Is.EqualTo(0x85u), "high sum stores to z high at $85");
+            }
+        }
+
+        [Test]
+        public void ValueWiderThanEightBitsSubtractsWithBorrow()
+        {
+            // x := 300; y := 500; w := x - y. The low bytes (44 - 244)
+            // borrow from the high byte, so the high subtract must consume
+            // the borrow — the mirror image of the carry test above.
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint wOffset = _stringPool.Intern("w");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("500"));
+            builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, xOffset, yOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, wOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(10));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u));
+                Assert.That(result.GetOperands(0)[1], Is.EqualTo(44u));
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u));
+                Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u));
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x82u));
+                Assert.That(result.GetOperands(2)[1], Is.EqualTo(244u));
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x83u));
+                Assert.That(result.GetOperands(3)[1], Is.EqualTo(1u));
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x80u), "low subtract loads x low from $80");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x82u), "low subtract takes y low from $82");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(0x84u), "low difference stores to w low at $84");
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(7)[0], Is.EqualTo(0x81u), "high subtract loads x high from $81");
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(0x83u), "high subtract takes y high from $83");
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(0x85u), "high difference stores to w high at $85");
+            }
+        }
+
+        [Test]
+        public void ValueAtEightBitBoundary_AllocatesSecondSlotOnlyAbove255()
+        {
+            // 255 is the largest single-byte value: it keeps the established
+            // single-slot, single-Assign lowering. 256 is the first value
+            // that needs two slots (low 0, high 1), and the next variable
+            // after it allocates past both.
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("255"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("256"));
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(3));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign0 = result.GetOperands(0);
+                Assert.That(assign0.Length, Is.EqualTo(2));
+                Assert.That(assign0[0], Is.EqualTo(0x80u), "x := 255 still takes one slot at $80");
+                Assert.That(assign0[1], Is.EqualTo(255u));
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign1 = result.GetOperands(1);
+                Assert.That(assign1[0], Is.EqualTo(0x81u), "y low byte at $81");
+                Assert.That(assign1[1], Is.Zero, "256 low byte is 0");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign2 = result.GetOperands(2);
+                Assert.That(assign2[0], Is.EqualTo(0x82u), "y high byte at $82");
+                Assert.That(assign2[1], Is.EqualTo(1u), "256 high byte is 1");
+            }
+        }
+
+        [Test]
+        public void Transform_AssignConstant256_WritesZeroLowByteAndOneHighByte()
+        {
+            // x := 256. 256 is the first value needing two slots: the low byte
+            // is 0 and the high byte is 1, so the transformer must emit TWO
+            // Assigns — one to x's address carrying 0, one to x's address + 1
+            // carrying 1. A narrowing mutant that emits a single Assign of
+            // 256 & 0xFF == 0 loses the high byte.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("256"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(2), "256 needs a low and a high Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignLow = result.GetOperands(0);
+                Assert.That(assignLow.Length, Is.EqualTo(2));
+                Assert.That(assignLow[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assignLow[1], Is.Zero, "256 low byte is 0");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignHigh = result.GetOperands(1);
+                Assert.That(assignHigh.Length, Is.EqualTo(2));
+                Assert.That(assignHigh[0], Is.EqualTo(0x81u), "x high byte at $80 + 1");
+                Assert.That(assignHigh[1], Is.EqualTo(1u), "256 high byte is 1");
+            }
+        }
+
+        [Test]
+        public void Transform_AssignConstant255_WritesSingleAssignOnly()
+        {
+            // 255 is the width boundary: it stays a single-slot, single-Assign
+            // lowering carrying 255 with no second instruction. A mutant using
+            // >= 255 (or an always-true width condition) allocates a second
+            // slot and emits a spurious high Assign of 0.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("255"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(1), "255 fits one slot: exactly one Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assign = result.GetOperands(0);
+                Assert.That(assign.Length, Is.EqualTo(2));
+                Assert.That(assign[0], Is.EqualTo(0x80u), "x at $80");
+                Assert.That(assign[1], Is.EqualTo(255u), "255 stores unchanged");
+            }
+        }
+
+        [Test]
+        public void Transform_AssignConstant4660_WritesHighByteEighteen()
+        {
+            // 4660 == 0x1234: the low byte is 0x34 (52) and the high byte is
+            // 0x12 (18). A mutant that shifts the high byte by the wrong amount
+            // (or not at all) gets 4660 & 0xFF or a wrong high byte instead.
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirAssign(xOffset, _stringPool.Intern("4660"));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(2), "4660 needs a low and a high Assign");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignLow = result.GetOperands(0);
+                Assert.That(assignLow.Length, Is.EqualTo(2));
+                Assert.That(assignLow[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(assignLow[1], Is.EqualTo(52u), "4660 low byte is 0x34");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                var assignHigh = result.GetOperands(1);
+                Assert.That(assignHigh.Length, Is.EqualTo(2));
+                Assert.That(assignHigh[0], Is.EqualTo(0x81u), "x high byte at $80 + 1");
+                Assert.That(assignHigh[1], Is.EqualTo(18u), "4660 high byte is 0x12");
+            }
+        }
+
+        #endregion
         #region Branch Polarity Tests
 
         [Test]

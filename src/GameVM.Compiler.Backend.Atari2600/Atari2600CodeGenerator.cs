@@ -105,8 +105,8 @@ namespace GameVM.Compiler.Backend.Atari2600
                 {
                     LlirInstructionKind.Load => EmitLoad(rom, ref currentAddress, operands),
                     LlirInstructionKind.Store => EmitStore(rom, ref currentAddress, operands),
-                    LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands),
-                    LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands),
+                    LlirInstructionKind.Add => EmitAdd(rom, ref currentAddress, operands, (InstructionFlag)llirSlab.GetFlags(i)),
+                    LlirInstructionKind.Sub => EmitSub(rom, ref currentAddress, operands, (InstructionFlag)llirSlab.GetFlags(i)),
                     LlirInstructionKind.Multiply => EmitMultiply(rom, ref currentAddress, operands),
                     LlirInstructionKind.BitwiseAnd => EmitBitwiseAnd(rom, ref currentAddress, operands),
                     LlirInstructionKind.BitwiseOr => EmitBitwiseOr(rom, ref currentAddress, operands),
@@ -237,18 +237,22 @@ namespace GameVM.Compiler.Backend.Atari2600
             return 0;
         }
 
-        private static int EmitAdd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        private static int EmitAdd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, InstructionFlag flags)
         {
             // Two operands [addr, 0]: variable — ADC zp (add VALUE at address)
             // One operand [val]: immediate — ADC #imm (add literal value)
-            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x18, zeroPageOpcode: 0x65, immediateOpcode: 0x69); // CLC; ADC zp; ADC #imm
+            // CarryIn (the high byte of a 16-bit add) skips the CLC: the
+            // low byte's carry must flow into this add untouched.
+            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x18, zeroPageOpcode: 0x65, immediateOpcode: 0x69, withCarrySetup: !flags.HasFlag(InstructionFlag.CarryIn)); // CLC; ADC zp; ADC #imm
         }
 
-        private static int EmitSub(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
+        private static int EmitSub(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands, InstructionFlag flags)
         {
             // Two operands [addr, 0]: variable — SBC zp (subtract VALUE at address)
             // One operand [val]: immediate — SBC #imm (subtract literal value)
-            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x38, zeroPageOpcode: 0xE5, immediateOpcode: 0xE9); // SEC; SBC zp; SBC #imm
+            // CarryIn (the high byte of a 16-bit subtract) skips the SEC:
+            // the low byte's borrow must flow into this subtract untouched.
+            return EmitArithmetic(rom, ref currentAddress, operands, carryOpcode: 0x38, zeroPageOpcode: 0xE5, immediateOpcode: 0xE9, withCarrySetup: !flags.HasFlag(InstructionFlag.CarryIn)); // SEC; SBC zp; SBC #imm
         }
 
         private static int EmitBitwiseAnd(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands)
@@ -300,22 +304,28 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         // Shared shape for ADC/SBC: set the carry flag, then the zero-page
         // form for a variable operand or the immediate form for a literal.
+        // With withCarrySetup false (CarryIn: the high byte of a 16-bit
+        // op), the carry-setup byte is omitted so the low byte's carry
+        // or borrow flows into this instruction.
         private static int EmitArithmetic(byte[] rom, ref int currentAddress, ReadOnlySpan<uint> operands,
-            byte carryOpcode, byte zeroPageOpcode, byte immediateOpcode)
+            byte carryOpcode, byte zeroPageOpcode, byte immediateOpcode, bool withCarrySetup)
         {
-            if (operands.Length >= 2 && currentAddress + 3 <= RomSize)
+            int setupBytes = withCarrySetup ? 1 : 0;
+            if (operands.Length >= 2 && currentAddress + 2 + setupBytes <= RomSize)
             {
-                rom[currentAddress++] = carryOpcode;
+                if (withCarrySetup)
+                    rom[currentAddress++] = carryOpcode;
                 rom[currentAddress++] = zeroPageOpcode;
                 rom[currentAddress++] = (byte)operands[0];
-                return 3;
+                return 2 + setupBytes;
             }
-            if (operands.Length >= 1 && currentAddress + 3 <= RomSize)
+            if (operands.Length >= 1 && currentAddress + 2 + setupBytes <= RomSize)
             {
-                rom[currentAddress++] = carryOpcode;
+                if (withCarrySetup)
+                    rom[currentAddress++] = carryOpcode;
                 rom[currentAddress++] = immediateOpcode;
                 rom[currentAddress++] = (byte)operands[0];
-                return 3;
+                return 2 + setupBytes;
             }
             return 0;
         }
@@ -651,7 +661,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 LlirInstructionKind.Store when op.Length >= 2 => (int)(op[0] | (op[1] << 8)) < 0x100 ? 2 : 3,
                 LlirInstructionKind.Store when op.Length == 0 => 0,
                 LlirInstructionKind.Store => (int)op[0] < 0x100 ? 2 : 3,
-                LlirInstructionKind.Add or LlirInstructionKind.Sub => 3,
+                // ADC/SBC are 3 bytes with their CLC/SEC setup, 2 when
+                // CarryIn omits it (the high byte of a 16-bit op).
+                LlirInstructionKind.Add or LlirInstructionKind.Sub => flags.HasFlag(InstructionFlag.CarryIn) ? 2 : 3,
                 LlirInstructionKind.Multiply => 22,
                 // AND/ORA occupy 2 bytes in both the zero-page and
                 // immediate forms, and the complement is 2 bytes too —
