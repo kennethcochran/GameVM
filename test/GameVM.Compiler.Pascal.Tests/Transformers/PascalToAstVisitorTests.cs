@@ -448,5 +448,53 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             }
             Assert.That(foundUnary, Is.True, "x := -5 must produce a UnaryOp node");
         }
+
+        [Test]
+        public void FunctionCallAsExpressionCarriesCalleeNameInPayload()
+        {
+            // A function call used as an expression must carry the callee
+            // name in the MethodCall node's payload — the same shape a
+            // statement call already uses, and the shape
+            // PascalAstToHlirTransformer.ProcessMethodCall consumes. If the
+            // name rides in a child Identifier instead, the middle end reads
+            // an empty name and treats the callee's name as an extra
+            // argument while the real argument vanishes.
+            string code = @"
+                program Test;
+                var result: integer;
+                begin
+                    result := Double(5);
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            int callIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.MethodCall)
+                {
+                    callIdx = i;
+                    break;
+                }
+            }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "result := Double(5) must produce a MethodCall node");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(visitor.StringPool.Resolve(tree[callIdx].Payload), Is.EqualTo("Double"),
+                    "the MethodCall payload must carry the callee name");
+                var callChildren = tree.Children(callIdx);
+                Assert.That(callChildren.Length, Is.EqualTo(1),
+                    "the call's only child must be its argument expression");
+                Assert.That((PascalAstNodeKind)tree[callChildren[0]].Kind, Is.EqualTo(PascalAstNodeKind.LiteralInt),
+                    "the argument must be the literal 5, not the callee name");
+                Assert.That(visitor.StringPool.Resolve(tree[callChildren[0]].Payload), Is.EqualTo("5"));
+            }
+        }
     }
 }
