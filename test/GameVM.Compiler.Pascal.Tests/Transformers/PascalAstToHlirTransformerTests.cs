@@ -2,7 +2,9 @@ using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 
+using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
+using Antlr4.Runtime;
 
 namespace GameVM.Compiler.Pascal.Tests.Transformers
 {
@@ -406,6 +408,52 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 Assert.That(unaryChildren.Length, Is.EqualTo(1), "UnaryOp must have exactly one operand child");
                 Assert.That(hlir.GetKind(unaryChildren[0]), Is.EqualTo((byte)HlirNodeKind.Identifier));
                 Assert.That(hlir[unaryChildren[0]].Payload, Is.EqualTo(yOffset), "operand must be y");
+            }
+        }
+
+        [Test]
+        public void ExpressionCallLowersToCallWithCorrectFunctionName()
+        {
+            // Seam test through the real visitor: parse `result := Double(5);`
+            // and transform the resulting AST. The HLIR Call must name Double.
+            // A Call whose payload resolves to an empty name is the silent
+            // miscompile this spec pins: the backend then has no label to
+            // resolve for the call. The Call's only argument must be the
+            // literal 5 — not the callee name consumed as a spurious
+            // Identifier argument while the real argument vanishes.
+            const string code = @"
+                program Test;
+                var result: integer;
+                begin
+                    result := Double(5);
+                end.
+            ";
+            var inputStream = new AntlrInputStream(code);
+            var lexer = new PascalLexer(inputStream);
+            var parser = new PascalParser(new CommonTokenStream(lexer));
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(new AstBuilder(), pool);
+            visitor.Visit(parser.program());
+            var ast = visitor.BuildTree();
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(ast);
+
+            int callIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Call) { callIdx = i; break; }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "an expression call must lower to an HLIR Call");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("Double"),
+                    "the HLIR Call payload must carry the callee name");
+                var callChildren = hlir.Children(callIdx);
+                Assert.That(callChildren.Length, Is.EqualTo(1),
+                    "the Call must have exactly its one real argument");
+                Assert.That(hlir.GetKind(callChildren[0]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "the argument must be the literal 5, not the callee name");
+                Assert.That(pool.Resolve(hlir[callChildren[0]].Payload), Is.EqualTo("5"));
             }
         }
     }
