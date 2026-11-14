@@ -123,6 +123,7 @@ Operands are either **slot IDs** (`StringPool` offsets for temporaries/constants
 | `Branch` | 0xC5 | `[condition?, target]` | conditional branch (JUMPZ/JUMPN etc.) |
 | `Return` | 0xC6 | — | RTS |
 | `Syscall` | 0xC7 | `[vector]` | OS / TIA vector trap |
+| `Multiply` | 0xD2 | `[right, 0, scratchM, scratchN]` or `[rightVal, scratchM, scratchN]` | 8-bit unsigned product; inline shift-and-add routine (22 bytes), product left in A; scratch are two compiler-allocated zero-page bytes |
 
 Register encoding: `0` = accumulator (A), `1+` = R0, R1, …. Addresses are low-byte-first; zero-page form is chosen when the resolved address `< $100` (variable in Atari zero-page `$80`-`$FF`). Function names and identifiers are 32-bit `StringPool` hashes resolved by `MidToLowLevelTransformer`.
 ### Error Handling

@@ -11,16 +11,30 @@ namespace GameVM.Compiler.Backend.Atari2600
 {
     /// <summary>
     /// Transforms MLIR (Mid-Level IR) to LLIR (Low-Level IR) for the Atari 2600 target.
-    /// Resolves StringPool offsets to zero-page addresses (deterministic $80+ allocation,
-    /// TIA register mapping), and lowers semantic arithmetic/compare/branch/call into
-    /// LLIR Load/Store/Add/Sub/Cmp/Branch/Jump instructions.
+    /// Resolves StringPool offsets to zero-page addresses (deterministic $80-$FD allocation
+    /// with $FE-$FF reserved for the 6502 stack, TIA register mapping), and lowers semantic
+    /// arithmetic/compare/branch/call into LLIR Load/Store/Add/Sub/Cmp/Branch/Jump instructions.
     /// </summary>
     public class MidToLowLevelTransformer : IIRSlabTransformer
     {
+        // Error-context key naming the MLIR slab index in GameVmException
+        // data dictionaries; shared by every throw site in this class so
+        // the key is spelled one way everywhere.
+        private const string SlabIndexKey = "SlabIndex";
+
         private readonly Dictionary<string, string> _addressMap = new(StringComparer.OrdinalIgnoreCase);
 
-        // Deterministic allocation of user variables to zero-page addresses ($80-$FF)
+        // Deterministic allocation of user variables to zero-page addresses
+        // ($80-$FD); $FE-$FF are reserved for the 6502 stack — the 2600's
+        // 128 bytes of RAM are shared between zero page and stack, and the
+        // outermost JSR return address is pushed at $01FF/$01FE.
         private readonly Dictionary<string, ushort> _userAddresses = new(StringComparer.OrdinalIgnoreCase);
+
+        // Compiler-internal scratch (multiply routine) lives in its own
+        // name map, so a user variable named "__mul_m" gets a different
+        // address than the scratch. Both maps share the address cursor
+        // below, so no two names ever share an address.
+        private readonly Dictionary<string, ushort> _scratchAddresses = new(StringComparer.OrdinalIgnoreCase);
         private ushort _nextUserAddress = 0x80;
 
         public MidToLowLevelTransformer()
@@ -105,7 +119,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                             ErrorSeverity.Error,
                             new Dictionary<string, object?>
                             {
-                                ["SlabIndex"] = i,
+                                [SlabIndexKey] = i,
                                 ["MlirKind"] = nameof(MlirInstructionKind.Output),
                                 ["MlirKindByte"] = kind,
                             });
@@ -137,11 +151,31 @@ namespace GameVM.Compiler.Backend.Atari2600
         private void MapArithmetic(InstList inputSlab, int instIdx, byte kind, InstListBuilder builder, StringPool stringPool)
         {
             ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
+            byte llirKind = MapToLlirKind(kind, instIdx);
 
+            if (TryEmitMultiply(builder, stringPool, llirKind, operands, instIdx))
+                return;
+            if (TryEmitLoadThenOp(builder, stringPool, llirKind, operands))
+                return;
+            if (TryEmitBitwiseNot(builder, stringPool, llirKind, operands, instIdx))
+                return;
+
+            EmitResolvedOp(builder, stringPool, llirKind, operands);
+        }
+
+        /// <summary>Maps an MLIR arithmetic/compare kind to its LLIR kind.
+        /// A kind with no LLIR mapping fails loudly: emitting a Nop for it
+        /// would silently drop the computation from the ROM.</summary>
+        private static byte MapToLlirKind(byte kind, int instIdx)
+        {
             byte llirKind = kind switch
             {
                 (byte)LlirInstructionKind.Add => (byte)LlirInstructionKind.Add,
                 (byte)LlirInstructionKind.Sub => (byte)LlirInstructionKind.Sub,
+                (byte)LlirInstructionKind.Multiply => (byte)LlirInstructionKind.Multiply,
+                (byte)LlirInstructionKind.BitwiseAnd => (byte)LlirInstructionKind.BitwiseAnd,
+                (byte)LlirInstructionKind.BitwiseOr => (byte)LlirInstructionKind.BitwiseOr,
+                (byte)LlirInstructionKind.BitwiseNot => (byte)LlirInstructionKind.BitwiseNot,
                 (byte)LlirInstructionKind.Cmp => (byte)LlirInstructionKind.Cmp,
                 (byte)LlirInstructionKind.Load => (byte)LlirInstructionKind.Load,
                 _ => (byte)LlirInstructionKind.Nop
@@ -155,25 +189,100 @@ namespace GameVM.Compiler.Backend.Atari2600
                     ErrorSeverity.Error,
                     new Dictionary<string, object?>
                     {
-                        ["SlabIndex"] = instIdx,
+                        [SlabIndexKey] = instIdx,
                         ["MlirKindByte"] = kind,
                     });
 
-            // Binary arithmetic (Add|Sub): emit Load(left) then op(right), accumulator holds result
-            if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub) && operands.Length >= 2)
-            {
-                EmitLoadThenOp(builder, stringPool, llirKind, operands);
-                return;
-            }
+            return llirKind;
+        }
 
-            // Cmp: emit Load(left) first so A holds the value, then CMP.
-            if (llirKind == (byte)LlirInstructionKind.Cmp && operands.Length >= 2)
-            {
-                EmitLoadThenOp(builder, stringPool, llirKind, operands);
-                return;
-            }
+        /// <summary>Lowers a Multiply: Load the left operand, then Multiply
+        /// with the right operand plus the shift-and-add scratch. A Multiply
+        /// with fewer than two operands is malformed: the fallback would emit
+        /// an underspecified LLIR Multiply that code generation cannot emit,
+        /// silently truncating the ROM at that instruction. Returns false
+        /// when the op is not a Multiply.</summary>
+        private bool TryEmitMultiply(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, int instIdx)
+        {
+            if (llirKind != (byte)LlirInstructionKind.Multiply)
+                return false;
 
-            // Existing behavior for Cmp and single-operand forms below
+            if (operands.Length < 2)
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer cannot lower MLIR Multiply at slab index {instIdx}: " +
+                    $"expected at least two operands (left, right), got {operands.Length}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        [SlabIndexKey] = instIdx,
+                        ["MlirKind"] = nameof(MlirInstructionKind.Multiply),
+                        ["OperandCount"] = operands.Length,
+                    });
+
+            EmitMultiplyOp(builder, stringPool, operands);
+            return true;
+        }
+
+        /// <summary>Whether a kind lowers as Load(left) then op(right), with
+        /// the result in the accumulator: the binary arithmetic and bitwise
+        /// ops (Add/Sub/BitwiseAnd/BitwiseOr) and Cmp, which needs A holding
+        /// the left value before the compare.</summary>
+        private static bool IsLoadThenOpKind(byte llirKind)
+        {
+            return llirKind == (byte)LlirInstructionKind.Add
+                || llirKind == (byte)LlirInstructionKind.Sub
+                || llirKind == (byte)LlirInstructionKind.BitwiseAnd
+                || llirKind == (byte)LlirInstructionKind.BitwiseOr
+                || llirKind == (byte)LlirInstructionKind.Cmp;
+        }
+
+        /// <summary>Lowers a two-operand op as Load(left) then op(right).
+        /// Returns false when the kind is not a load-then-op kind or the op
+        /// carries fewer than two operands; such short forms fall through to
+        /// the resolved-operand fallback below.</summary>
+        private bool TryEmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
+        {
+            if (!IsLoadThenOpKind(llirKind) || operands.Length < 2)
+                return false;
+
+            EmitLoadThenOp(builder, stringPool, llirKind, operands);
+            return true;
+        }
+
+        /// <summary>Lowers a BitwiseNot: Load the operand into A, then
+        /// complement it with EOR #$FF. The op carries no operands of its
+        /// own — the value to complement is the accumulator. A BitwiseNot
+        /// with no MLIR operand is malformed: the fallback would emit a bare
+        /// complement over a stale accumulator. Returns false when the op is
+        /// not a BitwiseNot.</summary>
+        private bool TryEmitBitwiseNot(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, int instIdx)
+        {
+            if (llirKind != (byte)LlirInstructionKind.BitwiseNot)
+                return false;
+
+            if (operands.Length < 1)
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"MidToLowLevelTransformer cannot lower MLIR BitwiseNot at slab index {instIdx}: " +
+                    $"expected one operand (the value to complement), got {operands.Length}.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        [SlabIndexKey] = instIdx,
+                        ["MlirKind"] = nameof(LlirInstructionKind.BitwiseNot),
+                        ["OperandCount"] = operands.Length,
+                    });
+
+            EmitLoadLeft(builder, stringPool, operands);
+            builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0);
+            return true;
+        }
+
+        /// <summary>Fallback for single-operand forms (and Load): resolve
+        /// each operand to a machine operand and emit the op as-is.</summary>
+        private void EmitResolvedOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
+        {
             var resolved = new uint[operands.Length];
             for (int i = 0; i < operands.Length; i++)
                 resolved[i] = ResolveSlot(operands[i], stringPool);
@@ -181,13 +290,18 @@ namespace GameVM.Compiler.Backend.Atari2600
         }
 
         // Binary op sequence shared by Add/Sub/Cmp: Load the left operand
-        // into A, then apply the op with the right operand. A variable right
-        // operand contributes its VALUE from memory ([addr, 0] -> zp form) —
-        // never its address as an immediate.
+        // into A, then apply the op with the right operand.
         private void EmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
         {
+            EmitLoadLeft(builder, stringPool, operands);
+            builder.Add(llirKind, InstructionFlag.None, 0, RightOperands(stringPool, operands));
+        }
+
+        // Loads the left operand of a binary op into A: a variable loads its
+        // VALUE from memory ([addr, 0] -> zp form); a literal loads immediate.
+        private void EmitLoadLeft(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
             string leftText = stringPool.Resolve(operands[0]);
-            string rightText = stringPool.Resolve(operands[1]);
             if (IsName(leftText))
             {
                 ushort leftAddr = GetAddressForVariable(leftText);
@@ -198,15 +312,57 @@ namespace GameVM.Compiler.Backend.Atari2600
                 uint leftVal = ResolveSlot(operands[0], stringPool);
                 builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
             }
+        }
+
+        // The right operand of a binary op as the leading operands of the op
+        // instruction: a variable contributes its VALUE from memory
+        // ([addr, 0] -> zp form) — never its address as an immediate; a
+        // literal contributes its value. extraOperands are appended after
+        // the right operand (Multiply's two scratch addresses).
+        private uint[] RightOperands(StringPool stringPool, ReadOnlySpan<uint> operands, params uint[] extraOperands)
+        {
+            string rightText = stringPool.Resolve(operands[1]);
+            uint[] right;
             if (IsName(rightText))
             {
                 ushort rightAddr = GetAddressForVariable(rightText);
-                builder.Add(llirKind, InstructionFlag.None, 0, rightAddr, 0);
+                right = new uint[] { rightAddr, 0 };
             }
             else
             {
-                builder.Add(llirKind, InstructionFlag.None, 0, ResolveSlot(operands[1], stringPool));
+                right = new uint[] { ResolveSlot(operands[1], stringPool) };
             }
+            if (extraOperands.Length == 0)
+                return right;
+            uint[] combined = new uint[right.Length + extraOperands.Length];
+            Array.Copy(right, combined, right.Length);
+            Array.Copy(extraOperands, 0, combined, right.Length, extraOperands.Length);
+            return combined;
+        }
+
+        /// <summary>
+        /// Multiply sequence: Load the left operand into A, then Multiply with
+        /// the right operand. The 6502 has no multiply, so the backend lowers
+        /// Multiply to an inline shift-and-add routine that needs two scratch
+        /// zero-page bytes — a copy of the multiplicand, shifted left each
+        /// iteration, and a copy of the multiplier, shifted right. Scratch is
+        /// allocated through a separate internal-name map (never the user
+        /// variable map), so a user variable named "__mul_m" gets its own
+        /// address and is never overwritten by the routine; the scratch is
+        /// shared across multiplies in one program. LLIR Multiply operands:
+        /// variable right is (rightAddr, 0, scratchM, scratchN); literal right
+        /// is (rightVal, scratchM, scratchN). The code generator tells them
+        /// apart by operand count (4 vs 3).
+        /// </summary>
+        private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
+            EmitLoadLeft(builder, stringPool, operands);
+
+            ushort scratchM = GetAddressForScratch("__mul_m");
+            ushort scratchN = GetAddressForScratch("__mul_n");
+
+            builder.Add((byte)LlirInstructionKind.Multiply, InstructionFlag.None, 0,
+                RightOperands(stringPool, operands, scratchM, scratchN));
         }
 
         /// <summary>
@@ -274,7 +430,16 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             // "__tmp_*" names are virtual registers backed by the accumulator:
             // Assign(tmp, ...) is a declaration/no-op (value was computed in A).
-            if (targetName.StartsWith("__tmp_", StringComparison.Ordinal)) return;
+            // Except when a later operation reads the temp as an operand (a
+            // nested expression like (a * b) * c): that operation loads the
+            // temp from memory, so the value must be stored here first, or
+            // the load reads an unwritten zero-page address.
+            if (targetName.StartsWith("__tmp_", StringComparison.Ordinal))
+            {
+                if (TempIsReadByLaterOperation(inputSlab, instIdx, targetSlot))
+                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, GetAddressForVariable(targetName));
+                return;
+            }
 
             ushort targetAddr = GetAddressForVariable(targetName);
 
@@ -306,6 +471,38 @@ namespace GameVM.Compiler.Backend.Atari2600
             {
                 builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueSlot & 0xFF);
             }
+        }
+
+        /// <summary>
+        /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp)
+        /// or a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot).
+        /// Such a read loads the temp from its zero-page address, so the temp
+        /// must be stored to memory when it is assigned. A temp consumed only
+        /// by the Assign that stores it into its real target reads the
+        /// accumulator directly and needs no store.
+        /// </summary>
+        private static bool TempIsReadByLaterOperation(InstList inputSlab, int instIdx, uint tempSlot)
+        {
+            for (int j = instIdx + 1; j < inputSlab.Count; j++)
+            {
+                byte kind = inputSlab.GetKind(j);
+                if (kind != (byte)LlirInstructionKind.Add
+                    && kind != (byte)LlirInstructionKind.Sub
+                    && kind != (byte)LlirInstructionKind.Multiply
+                    && kind != (byte)LlirInstructionKind.BitwiseAnd
+                    && kind != (byte)LlirInstructionKind.BitwiseOr
+                    && kind != (byte)LlirInstructionKind.BitwiseNot
+                    && kind != (byte)LlirInstructionKind.Cmp)
+                    continue;
+                ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);
+                for (int k = 0; k < operands.Length; k++)
+                {
+                    if (operands[k] == tempSlot)
+                        return true;
+                }
+            }
+            return false;
         }
 
         private static void ProcessBranch(InstList inputSlab, int instIdx, InstListBuilder builder)
@@ -390,21 +587,55 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (!_userAddresses.TryGetValue(name, out ushort addr))
             {
-                if (_nextUserAddress > 0xFF)
-                    throw new GameVmException(
-                        ErrorCode.ZeroPageExhausted,
-                        $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
-                        "The Atari 2600 has 128 bytes of RAM ($80-$FF); reduce the number of live variables.",
-                        ErrorSeverity.Error,
-                        new Dictionary<string, object?>
-                        {
-                            ["VariableName"] = name,
-                            ["AllocatedCount"] = _userAddresses.Count,
-                        });
-                addr = _nextUserAddress;
+                addr = AllocateZeroPageAddress(name);
                 _userAddresses[name] = addr;
-                _nextUserAddress++;
             }
+            return addr;
+        }
+
+        /// <summary>
+        /// Allocates a zero-page address for a compiler-internal name
+        /// (multiply scratch). Internal names live in their own map, never
+        /// in the user-variable map, so a user variable with the same name
+        /// gets a different address. The address cursor is shared with
+        /// user variables.
+        /// </summary>
+        private ushort GetAddressForScratch(string name)
+        {
+            if (!_scratchAddresses.TryGetValue(name, out ushort addr))
+            {
+                addr = AllocateZeroPageAddress(name);
+                _scratchAddresses[name] = addr;
+            }
+            return addr;
+        }
+
+        /// <summary>
+        /// Hands out the next zero-page address ($80-$FD). $FE-$FF are
+        /// reserved for the 6502 stack: the reset prologue sets SP to $FF,
+        /// so the outermost JSR pushes its return address at $01FF/$01FE —
+        /// the same physical RAM as $FF/$FE, since zero page and stack
+        /// share the 2600's 128 bytes. Allocating there would let a
+        /// variable (or the multiply scratch) be overwritten by the return
+        /// address, or overwrite it.
+        /// </summary>
+        private ushort AllocateZeroPageAddress(string name)
+        {
+            if (_nextUserAddress > 0xFD)
+                throw new GameVmException(
+                    ErrorCode.ZeroPageExhausted,
+                    $"MidToLowLevelTransformer: zero-page exhausted while allocating '{name}'. " +
+                    "The Atari 2600 has 128 bytes of RAM ($80-$FF) shared between variables and the " +
+                    "6502 stack; $FE-$FF are reserved for the stack (the outermost JSR return address), " +
+                    "so $80-$FD are available for variables. Reduce the number of live variables.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        ["VariableName"] = name,
+                        ["AllocatedCount"] = _userAddresses.Count + _scratchAddresses.Count,
+                    });
+            ushort addr = _nextUserAddress;
+            _nextUserAddress++;
             return addr;
         }
 

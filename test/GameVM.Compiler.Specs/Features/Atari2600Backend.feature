@@ -129,3 +129,27 @@ Feature: Atari 2600 Backend
     Then the compilation succeeds
     And the output binary should contain the hex sequence "a9 fb 85 80"
 
+  Scenario: Bitwise and, or, and not compute their values
+    Given the following Pascal program:
+      """
+      program BitwiseOps;
+      var x, y, z: Integer;
+      begin
+          y := 12;
+          z := 10;
+          x := y and z;
+          x := y or z;
+          x := not y;
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    # y and z (12 and 10 = 8) must use the 6502 AND: LDA $81; AND $82; STA $80
+    # (never the comparison path, which would store 1)
+    And the output binary should contain the hex sequence "a5 81 25 82 85 80"
+    # y or z (12 or 10 = 14) must use the 6502 ORA: LDA $81; ORA $82; STA $80
+    And the output binary should contain the hex sequence "a5 81 05 82 85 80"
+    # not y (not 12 = 243) must complement with EOR #$FF: LDA $81; EOR #$FF; STA $80
+    # (never dropped — today the whole statement vanishes silently)
+    And the output binary should contain the hex sequence "a5 81 49 ff 85 80"
+
