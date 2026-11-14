@@ -29,6 +29,12 @@ public sealed class HlirTreeToMlirTransformer
     private int _tempCounter;
     private int _functionDepth;
 
+    // Diagnostic-context keys shared by every GameVmException this
+    // transformer throws: one declaration so the literals are not
+    // duplicated at each throw site.
+    private const string TreeIndexKey = "TreeIndex";
+    private const string HlirKindKey = "HlirKind";
+
 
 
     public HlirTreeToMlirTransformer(StringPool stringPool)
@@ -114,6 +120,10 @@ public sealed class HlirTreeToMlirTransformer
                 ProcessWhile(tree, idx, builder);
                 break;
 
+            case HlirNodeKind.Case:
+                ProcessCase(tree, idx, builder);
+                break;
+
             case HlirNodeKind.For:
                 ProcessFor(tree, idx, builder);
                 break;
@@ -183,8 +193,8 @@ public sealed class HlirTreeToMlirTransformer
             ErrorSeverity.Error,
             new Dictionary<string, object?>
             {
-                ["TreeIndex"] = idx,
-                ["HlirKind"] = ((HlirNodeKind)node.Kind).ToString(),
+                [TreeIndexKey] = idx,
+                [HlirKindKey] = ((HlirNodeKind)node.Kind).ToString(),
                 ["HlirKindByte"] = node.Kind,
             });
 
@@ -296,8 +306,8 @@ public sealed class HlirTreeToMlirTransformer
                             ErrorSeverity.Error,
                             new Dictionary<string, object?>
                             {
-                                ["TreeIndex"] = idx,
-                                ["HlirKind"] = nameof(HlirNodeKind.UnaryOp),
+                                [TreeIndexKey] = idx,
+                                [HlirKindKey] = nameof(HlirNodeKind.UnaryOp),
                                 ["Operator"] = ((char)node.Payload).ToString(),
                             });
                     }
@@ -441,6 +451,77 @@ public sealed class HlirTreeToMlirTransformer
         ProcessNode(tree, bodyIdx, builder);
         builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(loopLabel));
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
+    }
+
+    private void ProcessCase(HlirTree tree, int idx, InstListBuilder builder)
+    {
+        // Case children are flat: [selector, label, arm, label, arm, ...,
+        // (else)]. Each label is tested in source order with Cmp(selector,
+        // label) + a Branch skipping the arm when the selector differs — the
+        // '=' relation's skip branch is BNE, so no Transition marker, the
+        // same machinery `if x = n` uses with invert=true. Each arm ends in
+        // an unconditional Branch to the shared end label. The else arm sits
+        // in the fall-through position after the last test; with no else the
+        // last skip branch lands on the end label itself.
+        var children = tree.Children(idx);
+        if (children.Length < 3)
+        {
+            throw new GameVmException(
+                ErrorCode.UnhandledInstruction,
+                $"HlirTreeToMlirTransformer has no MLIR lowering for a Case node with " +
+                $"{children.Length} children at tree index {idx}; a case needs a selector " +
+                "and at least one label/arm pair.",
+                ErrorSeverity.Error,
+                new Dictionary<string, object?>
+                {
+                    [TreeIndexKey] = idx,
+                    [HlirKindKey] = nameof(HlirNodeKind.Case),
+                });
+        }
+
+        int selectorIdx = ChildIndex(tree, idx, 0);
+        uint selectorSlot = EvaluateExpression(tree, selectorIdx, builder, out _);
+
+        int pairCount = (children.Length - 1) / 2;
+        bool hasElse = (children.Length - 1) % 2 == 1;
+        string endLabel = $"L_case_end_{_labelCounter++}";
+        string elseLabel = hasElse ? $"L_case_else_{_labelCounter++}" : endLabel;
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            int labelIdx = ChildIndex(tree, idx, 1 + 2 * i);
+            int armIdx = ChildIndex(tree, idx, 2 + 2 * i);
+            var labelNode = tree[labelIdx];
+            if ((HlirNodeKind)labelNode.Kind != HlirNodeKind.LiteralInt)
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for a Case label of kind " +
+                    $"'{(HlirNodeKind)labelNode.Kind}' at tree index {labelIdx}; case labels must be integer literals.",
+                    ErrorSeverity.Error,
+                    new Dictionary<string, object?>
+                    {
+                        [TreeIndexKey] = labelIdx,
+                        [HlirKindKey] = nameof(HlirNodeKind.Case),
+                    });
+            }
+
+            uint labelSlot = EvaluateExpression(tree, labelIdx, builder, out _);
+            string nextLabel = i < pairCount - 1 ? $"L_case_next_{_labelCounter++}" : elseLabel;
+
+            builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, selectorSlot, labelSlot);
+            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(nextLabel));
+            ProcessNode(tree, armIdx, builder);
+            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(endLabel));
+            builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(nextLabel));
+        }
+
+        if (hasElse)
+        {
+            int elseIdx = ChildIndex(tree, idx, children.Length - 1);
+            ProcessNode(tree, elseIdx, builder);
+            builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
+        }
     }
 
     private void ProcessFor(HlirTree tree, int idx, InstListBuilder builder)

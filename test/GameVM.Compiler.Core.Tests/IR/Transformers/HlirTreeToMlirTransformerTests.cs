@@ -444,6 +444,135 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void CaseSelectorMatchesAgainstEachCaseValue()
+    {
+        // `case x of 1: ...; 2: ...; 3: ...; else ... end` lowers to a chain
+        // of selector tests in source order: for each label, Cmp(selector,
+        // label) + Branch skipping the arm when the selector differs (the
+        // '=' relation's skip branch is BNE, so no Transition marker — the
+        // same machinery `if x = n` uses with invert=true), then the arm,
+        // then an unconditional Branch to the shared end label. The else
+        // arm sits in the fall-through position after the last test, then
+        // the end label. Arms stay in source order in the stream.
+        //
+        // HlirNodeKind.Case (24 — the next free value after Block = 22 and
+        // Repeat = 23, claimed by the repeat-until slice in draft PR #24),
+        // with children [selector, label, arm, label, arm, ..., (else)] in
+        // source order: labels are LiteralInt immediates, arms are Assign
+        // statements, the optional else arm is the last child.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int target1 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 10u, HlirPayloadKind.Immediate);
+        int arm1 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target1, value1);
+
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+        int target2 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 20u, HlirPayloadKind.Immediate);
+        int arm2 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target2, value2);
+
+        int label3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 3u, HlirPayloadKind.Immediate);
+        int target3 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 30u, HlirPayloadKind.Immediate);
+        int arm3 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target3, value3);
+
+        int elseTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int elseValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 40u, HlirPayloadKind.Immediate);
+        int elseArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, elseTarget, elseValue);
+
+        // Case node: 8 children — selector, then label/arm pairs in source
+        // order, then the else arm.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, arm1, label2, arm2, label3, arm3, elseArm);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(17),
+                "Case lowers to: per label (Cmp, Branch, Assign, Branch), a label before each later test, else Assign, end Label");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 0: compare selector against label 1");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 1: skip arm 1 when the selector differs");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 2: arm 1 assignment");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 3: arm 1 jumps to the shared end");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 4: next-test label");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 5: compare selector against label 2");
+            Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 6: skip arm 2 when the selector differs");
+            Assert.That(result.GetKind(7), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 7: arm 2 assignment");
+            Assert.That(result.GetKind(8), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 8: arm 2 jumps to the shared end");
+            Assert.That(result.GetKind(9), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 9: next-test label");
+            Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 10: compare selector against label 3");
+            Assert.That(result.GetKind(11), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 11: skip arm 3 when the selector differs");
+            Assert.That(result.GetKind(12), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 12: arm 3 assignment");
+            Assert.That(result.GetKind(13), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 13: arm 3 jumps to the shared end");
+            Assert.That(result.GetKind(14), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 14: else label");
+            Assert.That(result.GetKind(15), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 15: else assignment");
+            Assert.That(result.GetKind(16), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 16: end label");
+        }
+
+        // Each compare tests the selector against its label, in source order.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(0).ToArray(), Is.EqualTo(new uint[] { xOffset, 1u }),
+                "First compare must test the selector against label 1");
+            Assert.That(result.GetOperands(5).ToArray(), Is.EqualTo(new uint[] { xOffset, 2u }),
+                "Second compare must test the selector against label 2");
+            Assert.That(result.GetOperands(10).ToArray(), Is.EqualTo(new uint[] { xOffset, 3u }),
+                "Third compare must test the selector against label 3");
+        }
+
+        // Each arm stores its own constant to x.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(2).ToArray(), Is.EqualTo(new uint[] { xOffset, 10u }),
+                "Arm 1 must assign 10 to x");
+            Assert.That(result.GetOperands(7).ToArray(), Is.EqualTo(new uint[] { xOffset, 20u }),
+                "Arm 2 must assign 20 to x");
+            Assert.That(result.GetOperands(12).ToArray(), Is.EqualTo(new uint[] { xOffset, 30u }),
+                "Arm 3 must assign 30 to x");
+            Assert.That(result.GetOperands(15).ToArray(), Is.EqualTo(new uint[] { xOffset, 40u }),
+                "Else arm must assign 40 to x");
+        }
+
+        // Branch wiring: each skip branch lands on the label starting the
+        // next test (or the else arm for the last label); every arm's jump
+        // lands on the shared end label; all four labels differ.
+        uint next1Label = result.GetOperands(4)[0];
+        uint next2Label = result.GetOperands(9)[0];
+        uint elseLabel = result.GetOperands(14)[0];
+        uint endLabel = result.GetOperands(16)[0];
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(next1Label, Is.Not.EqualTo(next2Label));
+            Assert.That(next1Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next1Label, Is.Not.EqualTo(endLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(endLabel));
+            Assert.That(elseLabel, Is.Not.EqualTo(endLabel));
+            Assert.That(result.GetOperands(1)[0], Is.EqualTo(next1Label),
+                "skipping arm 1 must land on the label starting test 2");
+            Assert.That(result.GetOperands(6)[0], Is.EqualTo(next2Label),
+                "skipping arm 2 must land on the label starting test 3");
+            Assert.That(result.GetOperands(11)[0], Is.EqualTo(elseLabel),
+                "skipping arm 3 must land on the else arm");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(endLabel),
+                "arm 1 must jump to the shared end label");
+            Assert.That(result.GetOperands(8)[0], Is.EqualTo(endLabel),
+                "arm 2 must jump to the shared end label");
+            Assert.That(result.GetOperands(13)[0], Is.EqualTo(endLabel),
+                "arm 3 must jump to the shared end label");
+        }
+    }
+
+    [Test]
     public void Transform_UnaryMinusVariable_LowersToSubFromZero()
     {
         // HLIR -> MLIR seam: x := -y lowers to the temp sequence

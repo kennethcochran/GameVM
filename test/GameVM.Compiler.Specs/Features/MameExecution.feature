@@ -114,3 +114,50 @@ Feature: MAME Execution Validation
     # (termination); no hardcoded PC address needed.
     Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
     And MAME execution output should contain "$80: 00"
+
+  Scenario: Case Of Dispatches To The Matching Branch
+    Given the following Pascal program:
+      """
+      program CaseOf;
+      var x: integer;
+      begin
+          x := 2;
+          case x of
+              1: x := 10;
+              2: x := 20;
+              3: x := 30;
+          else
+              x := 40
+          end;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80; the selector is 2, so the second arm runs and x
+    # becomes 20 ($14) — the other arms and the else must not run. The
+    # "GAMEVM PROGRAM HALTED" marker proves the program reached its JMP *
+    # halt loop (termination); no hardcoded PC address needed.
+    Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
+    And MAME execution output should contain "$80: 14"
+
+  Scenario: Case Of Falls Through To Else For An Unmatched Selector
+    Given the following Pascal program:
+      """
+      program CaseElse;
+      var x: integer;
+      begin
+          x := 9;
+          case x of
+              1: x := 10;
+              2: x := 20;
+              3: x := 30;
+          else
+              x := 40
+          end;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # No label matches 9, so the else arm runs and x becomes 40 ($28).
+    Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
+    And MAME execution output should contain "$80: 28"
