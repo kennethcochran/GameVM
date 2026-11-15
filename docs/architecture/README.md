@@ -2,7 +2,7 @@
 
 GameVM's **implemented architecture** is canonical in [`CONTEXT.md`](../../CONTEXT.md) (high-level pipeline, key invariants, core C# APIs, current platform reality). See the documentation model in [`../AGENTS.md`](../AGENTS.md).
 
-**Planned / aspirational architecture** (HAL, VM runtime, package management, performance, maintenance, versioning, test/verification) is tracked as planned work under `.scratch/`.
+**Planned / aspirational architecture** (HAL, VM runtime, package management, performance, maintenance, versioning, test/verification) is tracked as planned work in GitHub Issues.
 
 This `architecture/` directory retains the **process / reference** guides that are still current:
 

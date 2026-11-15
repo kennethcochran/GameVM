@@ -5,7 +5,7 @@ and docs-related workflows in the GameVM project. It supplements the [root AGENT
 
 ## Documentation Strategy
 
-GameVM documentation lives in two persistent locations, plus an ephemeral planned-work area:
+GameVM documentation lives in two persistent locations; planned work is tracked outside `docs/` as GitHub Issues:
 
 1.  **`CONTEXT.md` (Implemented Reality):** A single, high-fidelity source of truth at the repo root. It contains the glossary of terms you *must* use, the current high-level architecture diagram (AST → HLIR → MLIR → LLIR), and stabilized API interfaces. It has no "aspirational" sections.
 2.  **`docs/adr/` (Architectural Decision Records):** Immutable records of *why* the code was built a certain way (e.g., choosing Struct-of-Arrays over OOP ASTs).
@@ -16,6 +16,8 @@ Planned work that does not exist yet lives as failing test files until it is imp
 
 **1. Never Write Aspirational Docs**
 If you are designing a feature that doesn't exist yet, specify it as failing tests — NUnit for unit behavior, Reqnroll for acceptance and end-to-end. Do **not** add files to `docs/` that describe non-existent behavior. `docs/` is strictly for **what exists**.
+
+**Exception — decision records.** ADRs in `docs/adr/` are exempt from this rule. An ADR's job is to record a decision made about the work, or guidance for future work, and a decision is often necessarily about behavior that does not exist yet; forward-looking statements of that kind have to live somewhere, and the ADR is where they belong. Pending work itself is not an ADR and does not belong in `docs/`: it is tracked as GitHub Issues and specified as failing tests. A non-ADR doc whose subject is an approved decision or guidance for future work (for example, a platform doc recording an ADR) may describe the decided behavior, provided it states plainly at the top that the behavior is not yet implemented.
 
 **2. The "True North" Update Rule**
 If your code change alters the public API, the compiler pipeline (AST/HLIR/MLIR/LLIR), or the structural invariants of the compiler, you **must** update `CONTEXT.md` in the exact same session. 
@@ -30,7 +32,7 @@ The gate's enforcement (husky hook and CI step) was disabled; the script remains
 
 ## Starting New Work
 
-New work is discussed and sharpened first, then specified as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end), then broken into tickets tracked as local markdown under `.scratch/<feature>/`. Once implemented, its architecture/API details move into `CONTEXT.md`.
+New work is discussed and sharpened first, then specified as failing test files (NUnit for unit behavior, Reqnroll for acceptance/end-to-end), then broken into tickets tracked as GitHub Issues. Once implemented, its architecture/API details move into `CONTEXT.md`.
 
 
 ## Adding Documentation
