@@ -125,6 +125,31 @@ public class PascalSemanticAnalyzerTests
     }
 
     [Test]
+    public void Analyze_UndefinedAssignmentTargetInsideRepeatBody_ReportsError()
+    {
+        var errors = Analyze("program Test;\nvar x: Integer;\nbegin\n  repeat\n    y := 5;\n  until x = 5;\nend.");
+        Assert.That(errors, Has.Length.EqualTo(1));
+        Assert.That(errors[0].Message, Does.Contain("Undefined variable 'y'"));
+        Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0001"));
+    }
+
+    [Test]
+    public void Analyze_UndefinedVariableInRepeatCondition_ReportsError()
+    {
+        var errors = Analyze("program Test;\nvar x: Integer;\nbegin\n  repeat\n    x := x + 1;\n  until y = 5;\nend.");
+        Assert.That(errors, Has.Length.EqualTo(1));
+        Assert.That(errors[0].Message, Does.Contain("Undefined variable 'y'"));
+        Assert.That(errors[0].ErrorCode, Is.EqualTo("PAS0001"));
+    }
+
+    [Test]
+    public void Analyze_ValidRepeatLoop_NoErrors()
+    {
+        var errors = Analyze("program Test;\nvar x: Integer;\nbegin\n  repeat\n    x := x + 1;\n  until x = 5;\nend.");
+        Assert.That(errors, Is.Empty);
+    }
+
+    [Test]
     public void Analyze_AssignedStringToNonIntegerType_NoError()
     {
         // Scope guard: only Integer targets are checked; a string variable accepts a string.
