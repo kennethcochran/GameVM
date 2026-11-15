@@ -463,6 +463,13 @@ public sealed class HlirTreeToMlirTransformer
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
     }
 
+    // The relational operators, by the payload char the frontend assigns
+    // them ('!' is `<>`, 'L' is `<=`, 'G' is `>=`). A relational condition
+    // keeps its comparison encoding; every other expression condition is
+    // a value condition and is evaluated, then tested against zero.
+    private static bool IsComparisonOp(char op) =>
+        op is '=' or '!' or '<' or '>' or 'L' or 'G';
+
     private void EmitConditionalBranch(HlirTree tree, int condIdx, InstListBuilder builder, string targetLabel, bool invert)
     {
         uint labelOffset = _pool.Intern(targetLabel);
@@ -470,7 +477,7 @@ public sealed class HlirTreeToMlirTransformer
         var condNode = tree[condIdx];
         switch ((HlirNodeKind)condNode.Kind)
         {
-            case HlirNodeKind.BinaryOp:
+            case HlirNodeKind.BinaryOp when IsComparisonOp((char)condNode.Payload):
                 {
                     var children = tree.Children(condIdx);
                     if (children.Length >= 2)
@@ -503,12 +510,28 @@ public sealed class HlirTreeToMlirTransformer
                 }
                 break;
 
-            case HlirNodeKind.Identifier:
+            case HlirNodeKind.BinaryOp:
+            case HlirNodeKind.UnaryOp:
                 {
-                    uint nameOffset = condNode.Payload;
-                    builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, nameOffset, 0);
-                    builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
+                    // A value condition (and/or/not, arithmetic, or a nested
+                    // expression): evaluate it through the expression
+                    // lowering and branch on the result's truth. Treating
+                    // it as a comparison instead would compare the operands
+                    // against each other (for and/or) or drop the condition
+                    // to an unconditional branch (for not).
+                    uint resultSlot = EvaluateExpression(tree, condIdx, builder, out _);
+                    EmitBranchOnZero(builder, resultSlot, labelOffset);
                 }
+                break;
+
+            case HlirNodeKind.Identifier:
+                // A bare identifier is a value condition over a single
+                // slot, so it takes the same fire-on-zero branch as an
+                // evaluated expression. Without the Transition marker the
+                // backend renders BNE and the branch fires exactly when
+                // the variable is nonzero — the inverse of the intended
+                // skip.
+                EmitBranchOnZero(builder, condNode.Payload, labelOffset);
                 break;
 
             case HlirNodeKind.LiteralBool:
@@ -527,6 +550,18 @@ public sealed class HlirTreeToMlirTransformer
                 builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
                 break;
         }
+    }
+
+    // Branch to the target exactly when the slot holds zero, i.e. when a
+    // value condition is false: Cmp against zero, then a Transition marker
+    // so the backend renders the branch as BEQ (fire on Z set). The target
+    // is the skip/exit/else label in every caller, so this polarity does
+    // not depend on the caller's invert flag the way a comparison's does.
+    private static void EmitBranchOnZero(InstListBuilder builder, uint slot, uint labelOffset)
+    {
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, slot, 0);
+        builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, labelOffset);
     }
 
 }
