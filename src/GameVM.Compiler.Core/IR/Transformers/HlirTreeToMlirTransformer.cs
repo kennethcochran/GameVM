@@ -472,6 +472,8 @@ public sealed class HlirTreeToMlirTransformer
 
     private void EmitConditionalBranch(HlirTree tree, int condIdx, InstListBuilder builder, string targetLabel, bool invert)
     {
+        ValidateBranchCondition(tree, condIdx);
+
         uint labelOffset = _pool.Intern(targetLabel);
 
         var condNode = tree[condIdx];
@@ -551,6 +553,60 @@ public sealed class HlirTreeToMlirTransformer
                 break;
         }
     }
+
+    // Two condition shapes have no correct lowering yet and must fail
+    // loudly rather than miscompile. Div/mod anywhere in a condition:
+    // division has no lowering (ArithToMlirKind maps '/' to Sub), so the
+    // branch would silently test a subtraction result. A comparison
+    // nested inside a compound condition: its result is not materialized
+    // as a 0/1 value, so the enclosing operator would consume the wrong
+    // operand. A comparison is supported as the condition's root, where
+    // EmitConditionalBranch gives it its comparison encoding.
+    private static void ValidateBranchCondition(HlirTree tree, int condIdx) =>
+        ValidateConditionNode(tree, condIdx, isConditionRoot: true);
+
+    private static void ValidateConditionNode(HlirTree tree, int idx, bool isConditionRoot)
+    {
+        var node = tree[idx];
+        if ((HlirNodeKind)node.Kind == HlirNodeKind.BinaryOp)
+        {
+            char op = (char)node.Payload;
+            if (op is '/' or '%')
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for div/mod inside a branch condition " +
+                    $"at tree index {idx}: operator '{op}' would silently evaluate as a different operation " +
+                    $"and the branch would test the wrong value.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+
+            if (!isConditionRoot && IsComparisonOp(op))
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer cannot use comparison '{op}' as an operand inside a branch " +
+                    $"condition at tree index {idx}: a nested comparison's result is not materialized as a " +
+                    $"0/1 value, so the enclosing operator would consume the wrong operand. A comparison is " +
+                    $"supported as the whole condition only.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+        }
+
+        var children = tree.Children(idx);
+        for (int i = 0; i < children.Length; i++)
+            ValidateConditionNode(tree, children[i], isConditionRoot: false);
+    }
+
+    private static Dictionary<string, object?> ConditionOperatorContext(int idx, char op) =>
+        new()
+        {
+            ["TreeIndex"] = idx,
+            ["HlirKind"] = nameof(HlirNodeKind.BinaryOp),
+            ["Operator"] = op.ToString(),
+        };
 
     // Branch to the target exactly when the slot holds zero, i.e. when a
     // value condition is false: Cmp against zero, then a Transition marker

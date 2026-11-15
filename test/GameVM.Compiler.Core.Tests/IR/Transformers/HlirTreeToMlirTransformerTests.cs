@@ -1157,6 +1157,69 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void DivUsedAsConditionFailsLoudly()
+    {
+        // `if (a div b) then` has no correct lowering: ArithToMlirKind
+        // maps '/' to Sub, so the condition would silently test a - b
+        // (with a=2, b=2 that is 0, and the then-arm is skipped although
+        // a div b is 1). Until the division-and-modulo slice lands, the
+        // condition must fail loudly instead of branching on the wrong
+        // value.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("if (a div b) then x := 1;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void ModUsedAsConditionFailsLoudly()
+    {
+        // Same defect as div: '%' has no lowering either, so a mod
+        // condition must fail loudly rather than evaluate as something
+        // else.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("if (a mod b) then x := 1;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void DivNestedInsideConditionFailsLoudly()
+    {
+        // The rejection covers div anywhere inside a condition, not
+        // only at its root: here the root is a supported comparison
+        // whose left operand is a div, which would otherwise be
+        // evaluated as a subtraction before being compared.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("if ((a div b) = 1) then x := 1;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void NestedComparisonUsedAsConditionOperandFailsLoudly()
+    {
+        // `(a = b) and c` with a=0, b=0, c=1 must be true, but a nested
+        // comparison's result is not materialized as a 0/1 value: the
+        // evaluated temp ends up holding a's value, so the condition
+        // reads false. Materializing comparisons used as values is the
+        // comparisons-as-values slice's work; until it lands, the
+        // condition fails loudly instead of branching on the wrong
+        // operand.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("if ((a = b) and c) then x := 1;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void CompoundConditionWithoutDivOrNestedComparisonStillCompiles()
+    {
+        // Positive control for the condition validation: a compound
+        // condition built only from supported operators still lowers —
+        // this is the nested shape the spec pins.
+        var mlir = CompilePascal(ConditionProgram("if ((a or b) and c) then x := 1;"), out _);
+        Assert.That(FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseAnd), Is.GreaterThanOrEqualTo(0),
+            "the supported compound condition must still be evaluated");
+    }
+
+    [Test]
     public void IdentifierConditionSkipsThenArmOnlyWhenFalse()
     {
         // A bare identifier condition must skip the then-arm exactly
