@@ -501,6 +501,63 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void RepeatUntilIdentifierConditionEmitsTransitionMarker()
+    {
+        // Regression for PR #24 review finding 1: `until done` with a
+        // bare Boolean identifier. The Identifier case of
+        // EmitConditionalBranch emitted Cmp(done, 0) with a plain
+        // Branch, which the backend renders as BNE — the back-edge
+        // fired while the exit condition held, so the loop repeated
+        // exactly when it should have exited. The condition must emit
+        // the Transition marker (Cmp + Transition + Branch, rendered
+        // BEQ) so the back-edge fires while done is zero (false). The
+        // and-or-not slice (issue #71) fixed this on main: identifier
+        // conditions now take the same fire-on-zero branch as
+        // evaluated expressions.
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+        uint doneOffset = pool.Intern("done");
+
+        // Body of repeat: x := 0
+        int identBody = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int litBody = builder.Add((byte)HlirNodeKind.LiteralInt, 0, (uint)0, HlirPayloadKind.Immediate);
+        int assign = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, identBody, litBody);
+
+        // Exit condition: the bare identifier `done`.
+        int identCond = builder.Add((byte)HlirNodeKind.Identifier, 0, doneOffset, HlirPayloadKind.PoolOffset);
+
+        // Repeat node: 2 children — body + condition, body first.
+        builder.Add((byte)HlirNodeKind.Repeat, 0, 0, HlirPayloadKind.None, assign, identCond);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(6),
+                "Repeat with an identifier condition lowers to: Label, body, Cmp, Transition, Branch, Label");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 0: loop header label");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 1: body assignment runs before any condition test");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 2: compare the identifier against zero");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Transition), "Index 3: transition marker — the back-edge must fire on Z set (BEQ), not Z clear (BNE)");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 4: back-edge to the loop label while the condition is false");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 5: exit label");
+        }
+
+        var cmpOps = result.GetOperands(2);
+        uint loopLabel = result.GetOperands(0)[0];
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpOps[0], Is.EqualTo(doneOffset), "Cmp left operand = done");
+            Assert.That(cmpOps[1], Is.Zero, "Cmp right operand = 0");
+            Assert.That(result.GetOperands(4)[0], Is.EqualTo(loopLabel),
+                "the conditional branch must jump back to the loop header");
+        }
+    }
+
+    [Test]
     public void Transform_UnaryMinusVariable_LowersToSubFromZero()
     {
         // HLIR -> MLIR seam: x := -y lowers to the temp sequence
