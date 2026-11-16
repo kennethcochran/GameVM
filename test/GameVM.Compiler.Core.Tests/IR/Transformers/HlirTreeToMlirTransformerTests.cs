@@ -1209,6 +1209,55 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void NotTrueConditionSkipsThenArm()
+    {
+        // `if not true then x := 1;` must skip the then-arm: `not true`
+        // folds to LiteralBool false, whose branch rule emits an
+        // unconditional skip. Today the literal reaches the value path,
+        // where BitwiseNot turns 1 into 0xFE — nonzero, so the skip
+        // branch never fires and the then-arm runs although the
+        // condition is false.
+        var mlir = CompilePascal(ConditionProgram("if not true then x := 1;"), out var pool);
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+
+        int branchIdx = FindKindIndex(mlir, (byte)MlirInstructionKind.Branch);
+        int assignIdx = FindAssign(mlir, xOffset, oneOffset);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseNot), Is.EqualTo(-1),
+                "not true must fold to a literal, not evaluate through BitwiseNot");
+            Assert.That(branchIdx, Is.GreaterThanOrEqualTo(0),
+                "the false literal condition must emit a skip branch");
+            Assert.That(assignIdx, Is.GreaterThan(branchIdx),
+                "the skip branch must precede the then-arm assignment");
+        }
+    }
+
+    [Test]
+    public void NotFalseConditionRunsThenArm()
+    {
+        // Mirror case: `not false` is true, so the folded LiteralBool
+        // true emits no skip branch and the then-arm follows directly.
+        var mlir = CompilePascal(ConditionProgram("if not false then x := 1;"), out var pool);
+        uint xOffset = pool.Intern("x");
+        uint oneOffset = pool.Intern("1");
+
+        int assignIdx = FindAssign(mlir, xOffset, oneOffset);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(FindKindIndex(mlir, (byte)LlirInstructionKind.BitwiseNot), Is.EqualTo(-1),
+                "not false must fold to a literal, not evaluate through BitwiseNot");
+            Assert.That(FindKindIndex(mlir, (byte)MlirInstructionKind.Branch), Is.EqualTo(-1),
+                "the true literal condition must emit no skip branch");
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0),
+                "the then-arm assignment must be present");
+        }
+    }
+
+    [Test]
     public void CompoundConditionWithoutDivOrNestedComparisonStillCompiles()
     {
         // Positive control for the condition validation: a compound
