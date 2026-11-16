@@ -519,6 +519,18 @@ namespace GameVM.Compiler.Pascal.Transformers
             // `not N` its 8-bit complement, interned as decimal text like
             // every other integer literal in this pipeline.
             var operandNode = astTree[children[0]];
+
+            // Logical `not` on a Boolean literal folds to the opposite Boolean
+            // literal. The integer fold below would lower it through BitwiseNot,
+            // which turns 1 into 0xFE — nonzero, so a branch condition on
+            // `not true` would never fire its skip branch and the then-arm
+            // would run although the condition is false.
+            if (op == '!' && (PascalAstNodeKind)operandNode.Kind == PascalAstNodeKind.LiteralBool)
+            {
+                uint notValue = operandNode.Payload == 0 ? 1u : 0u;
+                return _builder.Add((byte)HlirNodeKind.LiteralBool, 0, notValue, HlirPayloadKind.Immediate);
+            }
+
             uint? constVal = ResolveConstantOperand(operandNode);
             if (constVal.HasValue)
             {
