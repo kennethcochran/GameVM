@@ -290,14 +290,17 @@ public class MidToLowLevelTransformerTests
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
         // Assert: Load 5, Load 3, then the Call.
-        Assert.That(result.Count, Is.EqualTo(3));
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetArgCount(0), Is.EqualTo(1));
-        Assert.That(result.GetOperand(0, 0), Is.EqualTo(5));
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetArgCount(1), Is.EqualTo(1));
-        Assert.That(result.GetOperand(1, 0), Is.EqualTo(3));
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Call));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetArgCount(0), Is.EqualTo(1));
+            Assert.That(result.GetOperand(0, 0), Is.EqualTo(5));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetArgCount(1), Is.EqualTo(1));
+            Assert.That(result.GetOperand(1, 0), Is.EqualTo(3));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Call));
+        }
     }
 
     #endregion
