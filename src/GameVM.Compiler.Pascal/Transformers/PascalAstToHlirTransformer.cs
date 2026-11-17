@@ -198,6 +198,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return ProcessIfStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.WhileStatement:
                     return ProcessWhileStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.Repeat:
+                    return ProcessRepeatStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.ForStatement:
                     return ProcessForStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.Block:
@@ -350,6 +352,18 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (condHlir < 0 || bodyHlir < 0) return -1;
 
             return _builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, condHlir, bodyHlir);
+        }
+
+        private int ProcessRepeatStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2) return -1;
+
+            int bodyHlir = ProcessStatement(astTree, children[0]);
+            int condHlir = BuildExpression(astTree, children[1]);
+            if (bodyHlir < 0 || condHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.Repeat, 0, 0, HlirPayloadKind.None, bodyHlir, condHlir);
         }
 
         private int ProcessForStatement(AstTree astTree, int stmtIdx)
