@@ -572,6 +572,9 @@ public class HlirTreeToMlirTransformerTests
         }
     }
 
+    private static readonly uint[] ExpectedMultiLabelCmpOperands = { 1u, 2u, 3u };
+    private static readonly uint[] ExpectedMultiLabelAssignValues = { 10u, 30u, 40u };
+
     [Test]
     public void CaseMultiLabelArmIsEmittedOnce()
     {
@@ -624,9 +627,9 @@ public class HlirTreeToMlirTransformerTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(cmpLabelOperands, Is.EqualTo(new uint[] { 1u, 2u, 3u }),
+            Assert.That(cmpLabelOperands, Is.EqualTo(ExpectedMultiLabelCmpOperands),
                 "each label must be tested once, in source order");
-            Assert.That(assignValues, Is.EqualTo(new uint[] { 10u, 30u, 40u }),
+            Assert.That(assignValues, Is.EqualTo(ExpectedMultiLabelAssignValues),
                 "the shared arm (10) must be emitted once, then arm 3 (30), then the else arm (40)");
         }
     }

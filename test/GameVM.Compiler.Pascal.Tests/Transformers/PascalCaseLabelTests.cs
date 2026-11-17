@@ -53,15 +53,18 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var result = frontend.ParseToHlir(source);
 
-            Assert.That(frontend.LastParseErrors, Is.Null, "the program must lower without errors");
-            var hlir = result.Hlir;
-            int caseIdx = FindCase(hlir);
-            Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
-            int labelIdx = hlir.Children(caseIdx)[1];
-            Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
-                "a named-constant case label must lower to a LiteralInt");
-            Assert.That(frontend.StringPool!.Resolve(hlir[labelIdx].Payload), Is.EqualTo("2"),
-                "the label payload must resolve through the pool to the constant's value text, as a literal label's does");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null, "the program must lower without errors");
+                var hlir = result.Hlir;
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int labelIdx = hlir.Children(caseIdx)[1];
+                Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a named-constant case label must lower to a LiteralInt");
+                Assert.That(frontend.StringPool!.Resolve(hlir[labelIdx].Payload), Is.EqualTo("2"),
+                    "the label payload must resolve through the pool to the constant's value text, as a literal label's does");
+            }
         }
 
         [Test]
@@ -89,16 +92,19 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             var result = frontend.ParseToHlir(source);
 
-            Assert.That(frontend.LastParseErrors, Is.Null,
-                "an uppercase named constant must be usable as a case label without errors");
-            var hlir = result.Hlir;
-            int caseIdx = FindCase(hlir);
-            Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
-            int labelIdx = hlir.Children(caseIdx)[1];
-            Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
-                "a named-constant case label must lower to a LiteralInt");
-            Assert.That(frontend.StringPool!.Resolve(hlir[labelIdx].Payload), Is.EqualTo("2"),
-                "the label payload must resolve through the pool to the constant's value text");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null,
+                    "an uppercase named constant must be usable as a case label without errors");
+                var hlir = result.Hlir;
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int labelIdx = hlir.Children(caseIdx)[1];
+                Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a named-constant case label must lower to a LiteralInt");
+                Assert.That(frontend.StringPool!.Resolve(hlir[labelIdx].Payload), Is.EqualTo("2"),
+                    "the label payload must resolve through the pool to the constant's value text");
+            }
         }
 
         [Test]
@@ -141,22 +147,25 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             // resolving offset 45 lands inside the buffer while its
             // 4-byte length prefix read runs past the end. (Measured via
             // ToByteArray: StringPool.Size is not maintained on Intern.)
-            Assert.That(pool.ToByteArray().Length, Is.EqualTo(38), "fixture precondition: pool size before padding");
-            pool.Intern("fff");
-            Assert.That(pool.ToByteArray().Length, Is.EqualTo(46), "fixture precondition: pool padded to 46 bytes");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(pool.ToByteArray(), Has.Length.EqualTo(38), "fixture precondition: pool size before padding");
+                pool.Intern("fff");
+                Assert.That(pool.ToByteArray(), Has.Length.EqualTo(46), "fixture precondition: pool padded to 46 bytes");
 
-            var transformer = new PascalAstToHlirTransformer(pool);
-            HlirTree hlir = default;
-            Assert.That(() => { hlir = transformer.Transform(builder.Build()); },
-                Throws.Nothing,
-                "a negative case label must lower, not throw out of the string pool");
-            int caseIdx = FindCase(hlir);
-            Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
-            int labelIdx = hlir.Children(caseIdx)[1];
-            Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
-                "the negative label must fold to a LiteralInt");
-            Assert.That(pool.Resolve(hlir[labelIdx].Payload), Is.EqualTo("251"),
-                "-5 folds to its 8-bit two's complement value 251");
+                var transformer = new PascalAstToHlirTransformer(pool);
+                HlirTree hlir = default;
+                Assert.That(() => { hlir = transformer.Transform(builder.Build()); },
+                    Throws.Nothing,
+                    "a negative case label must lower, not throw out of the string pool");
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int labelIdx = hlir.Children(caseIdx)[1];
+                Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "the negative label must fold to a LiteralInt");
+                Assert.That(pool.Resolve(hlir[labelIdx].Payload), Is.EqualTo("251"),
+                    "-5 folds to its 8-bit two's complement value 251");
+            }
         }
     }
 }

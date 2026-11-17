@@ -331,12 +331,15 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                     labelIdx = tree.Children(i)[0];
             }
 
-            Assert.That(declNameIdx, Is.GreaterThanOrEqualTo(0), "the constant declaration must be present");
-            Assert.That(labelIdx, Is.GreaterThanOrEqualTo(0), "the case branch label must be present");
-            Assert.That(tree.GetKind(labelIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
-                "a named case label must be an Identifier node");
-            Assert.That(tree[labelIdx].Payload, Is.EqualTo(tree[declNameIdx].Payload),
-                "the case label must intern the same pool offset as the constant declaration it references");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(declNameIdx, Is.GreaterThanOrEqualTo(0), "the constant declaration must be present");
+                Assert.That(labelIdx, Is.GreaterThanOrEqualTo(0), "the case branch label must be present");
+                Assert.That(tree.GetKind(labelIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
+                    "a named case label must be an Identifier node");
+                Assert.That(tree[labelIdx].Payload, Is.EqualTo(tree[declNameIdx].Payload),
+                    "the case label must intern the same pool offset as the constant declaration it references");
+            }
         }
 
         [Test]

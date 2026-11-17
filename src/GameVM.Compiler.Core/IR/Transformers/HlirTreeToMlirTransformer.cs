@@ -523,7 +523,9 @@ public sealed class HlirTreeToMlirTransformer
             }
             else
             {
-                EmitCaseGroup(tree, idx, pairIdx, groupEnd, selectorSlot, afterGroupLabel, endLabel, builder);
+                EmitCaseGroup(tree, idx,
+                    new CaseGroupEmission(pairIdx, groupEnd, selectorSlot, afterGroupLabel, endLabel),
+                    builder);
             }
 
             builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(afterGroupLabel));
@@ -576,32 +578,55 @@ public sealed class HlirTreeToMlirTransformer
         builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(endLabel));
     }
 
-    /// <summary>Emits a multi-label group (pairs
-    /// <paramref name="firstPair"/>..<paramref name="lastPair"/> sharing
-    /// one arm): the first label's test falls through into the arm, the
-    /// arm is emitted once, and each remaining label's test sits after
-    /// the arm and jumps back to its entry on a match. The caller emits
-    /// the <paramref name="afterGroupLabel"/> Label that the last test
-    /// skips to when no label in the group matched.</summary>
-    private void EmitCaseGroup(HlirTree tree, int idx, int firstPair, int lastPair, uint selectorSlot,
-        string afterGroupLabel, string endLabel, InstListBuilder builder)
+    /// <summary>The per-group inputs to <see cref="EmitCaseGroup"/>,
+    /// carried as one value: the pair range sharing one arm, the
+    /// selector's slot, and the labels the group's tests skip to and
+    /// its arm jumps to.</summary>
+    private readonly struct CaseGroupEmission
     {
-        int armIdx = ChildIndex(tree, idx, 2 + 2 * firstPair);
+        public CaseGroupEmission(int firstPair, int lastPair, uint selectorSlot,
+            string afterGroupLabel, string endLabel)
+        {
+            FirstPair = firstPair;
+            LastPair = lastPair;
+            SelectorSlot = selectorSlot;
+            AfterGroupLabel = afterGroupLabel;
+            EndLabel = endLabel;
+        }
+
+        public int FirstPair { get; }
+        public int LastPair { get; }
+        public uint SelectorSlot { get; }
+        public string AfterGroupLabel { get; }
+        public string EndLabel { get; }
+    }
+
+    /// <summary>Emits a multi-label group (pairs
+    /// <see cref="CaseGroupEmission.FirstPair"/>..<see cref="CaseGroupEmission.LastPair"/>
+    /// sharing one arm): the first label's test falls through into the
+    /// arm, the arm is emitted once, and each remaining label's test
+    /// sits after the arm and jumps back to its entry on a match. The
+    /// caller emits the <see cref="CaseGroupEmission.AfterGroupLabel"/>
+    /// Label that the last test skips to when no label in the group
+    /// matched.</summary>
+    private void EmitCaseGroup(HlirTree tree, int idx, CaseGroupEmission group, InstListBuilder builder)
+    {
+        int armIdx = ChildIndex(tree, idx, 2 + 2 * group.FirstPair);
         string armLabel = $"L_case_arm_{_labelCounter++}";
 
         string nextTestLabel = $"L_case_test_{_labelCounter++}";
-        EmitCaseLabelTest(tree, idx, firstPair, selectorSlot, nextTestLabel, builder);
+        EmitCaseLabelTest(tree, idx, group.FirstPair, group.SelectorSlot, nextTestLabel, builder);
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(armLabel));
         ProcessNode(tree, armIdx, builder);
-        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(endLabel));
+        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(group.EndLabel));
 
-        for (int pairIdx = firstPair + 1; pairIdx <= lastPair; pairIdx++)
+        for (int pairIdx = group.FirstPair + 1; pairIdx <= group.LastPair; pairIdx++)
         {
             builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(nextTestLabel));
-            string skipLabel = pairIdx == lastPair
-                ? afterGroupLabel
+            string skipLabel = pairIdx == group.LastPair
+                ? group.AfterGroupLabel
                 : $"L_case_test_{_labelCounter++}";
-            EmitCaseLabelTest(tree, idx, pairIdx, selectorSlot, skipLabel, builder);
+            EmitCaseLabelTest(tree, idx, pairIdx, group.SelectorSlot, skipLabel, builder);
             builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(armLabel));
             nextTestLabel = skipLabel;
         }
