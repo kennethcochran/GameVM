@@ -110,6 +110,9 @@ namespace GameVM.Compiler.Pascal.Semantics
                 case PascalAstNodeKind.WhileStatement:
                     ProcessWhileStatement(astTree, stmtIdx);
                     break;
+                case PascalAstNodeKind.Repeat:
+                    ProcessRepeatStatement(astTree, stmtIdx);
+                    break;
                 case PascalAstNodeKind.Case:
                     ProcessCaseStatement(astTree, stmtIdx);
                     break;
@@ -355,6 +358,16 @@ namespace GameVM.Compiler.Pascal.Semantics
                     ProcessStatement(astTree, children[i]);
                 }
             }
+        }
+
+        private void ProcessRepeatStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2)
+                return;
+
+            ProcessStatement(astTree, children[0]);
+            ProcessExpression(astTree, children[1]);
         }
 
         private void ProcessForStatement(AstTree astTree, int stmtIdx)

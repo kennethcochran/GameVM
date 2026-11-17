@@ -91,11 +91,13 @@ public enum HlirNodeKind : byte
     /// <summary>Block of statements; children are executed in order.</summary>
     Block = 22,
 
+    /// <summary>Repeat statement: children [body, condition]. The body executes at least once; the loop repeats while the condition is false.</summary>
+    Repeat = 23,
+
     /// <summary>
     /// Case dispatch; children [selector, label, arm, label, arm, ..., (else)].
     /// Labels are LiteralInt immediates, arms are statements, the optional else
-    /// arm is the last child. Value 23 is reserved for Repeat (repeat-until
-    /// slice, unmerged at the time this value was assigned).
+    /// arm is the last child.
     /// </summary>
     Case = 24,
 }

@@ -161,3 +161,24 @@ Feature: MAME Execution Validation
     # No label matches 9, so the else arm runs and x becomes 40 ($28).
     Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
     And MAME execution output should contain "$80: 28"
+
+  Scenario: Repeat Until Loop Terminates With Condition Met
+    Given the following Pascal program:
+      """
+      program RepeatUntil;
+      var x: integer;
+      begin
+          x := 0;
+          repeat
+            x := x + 1;
+          until x = 3;
+      end.
+      """
+    When I compile the program
+    And I run the program in MAME
+    # x allocates to $80; the body runs until x reaches 3, then the loop
+    # exits — and the body runs at least once even though the condition is
+    # false on entry. The "GAMEVM PROGRAM HALTED" marker proves the program
+    # reached its JMP * halt loop (termination); no hardcoded PC address needed.
+    Then MAME execution output should contain "GAMEVM PROGRAM HALTED"
+    And MAME execution output should contain "$80: 03"
