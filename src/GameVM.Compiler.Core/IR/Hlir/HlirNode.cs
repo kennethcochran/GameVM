@@ -90,6 +90,9 @@ public enum HlirNodeKind : byte
 
     /// <summary>Block of statements; children are executed in order.</summary>
     Block = 22,
+
+    /// <summary>Repeat statement: children [body, condition]. The body executes at least once; the loop repeats while the condition is false.</summary>
+    Repeat = 23,
 }
 
 /// <summary>
