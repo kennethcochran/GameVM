@@ -294,7 +294,23 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         public override object VisitRepeatStatement(PascalParser.RepeatStatementContext context)
         {
-            return Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start);
+            var statementsContext = context.statements();
+            var statementIndices = new List<int>();
+            if (statementsContext != null)
+            {
+                foreach (var stmt in statementsContext.statement().Where(s => s != null))
+                {
+                    var stmtResult = Visit(stmt);
+                    if (stmtResult is int si) statementIndices.Add(si);
+                }
+            }
+
+            int bodyIdx = statementIndices.Count == 0
+                ? Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start)
+                : Add((byte)PascalAstNodeKind.Block, 0, 0, context.Start, statementIndices.ToArray());
+            int conditionIdx = Visit(context.expression()) is int c ? c : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.expression()?.Start ?? context.Start);
+
+            return Add((byte)PascalAstNodeKind.Repeat, 0, 0, context.Start, bodyIdx, conditionIdx);
         }
 
         public override object VisitCompoundStatement(PascalParser.CompoundStatementContext context)
