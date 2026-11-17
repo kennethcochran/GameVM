@@ -408,6 +408,52 @@ public class PascalProcedureRomTests
     }
 
     [Test]
+    public void CaseSelectingByNamedConstantLabel()
+    {
+        // `case x of k: ...` with `const k = 2` and x = 2 must dispatch
+        // to the k arm: the ROM must test the selector against the
+        // constant's VALUE (CMP #2), exactly as a literal `2:` label
+        // does. The named-constant fold emitted the raw value 2 as the
+        // label's pool offset, so the backend resolved unrelated pool
+        // bytes, classified them as a zero-page name, and compared the
+        // selector against uninitialized memory instead.
+        var result = Compile(CaseOfNamedConstantProgram);
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // Selector assignment: x := 2 (LDA #2; STA $80).
+        int selectorAt = IndexOfSequence(rom, 0, 0xA9, 0x02, 0x85, 0x80);
+        Assert.That(selectorAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must contain the selector assignment (LDA #2; STA $80)");
+
+        // The label test compares the selector against the constant's
+        // value and skips the arm when they differ; the arm follows.
+        int testAt = IndexOfSequence(rom, selectorAt + 4, 0xA5, 0x80, 0xC9, 0x02, 0xD0, 0x07);
+        Assert.That(testAt, Is.GreaterThanOrEqualTo(0),
+            "the ROM must test the selector against the named constant's value (LDA $80; CMP #2; BNE +7)");
+        int armAt = IndexOfSequence(rom, testAt + 6, 0xA9, 0x14, 0x85, 0x80);
+        Assert.That(armAt, Is.EqualTo(testAt + 6),
+            "the k arm (LDA #20; STA $80) must immediately follow its test");
+        Assert.That(rom[armAt + 4], Is.EqualTo(0x4C),
+            "the k arm must end in a JMP to the shared end label");
+    }
+
+    private const string CaseOfNamedConstantProgram =
+        "program Probe;\n" +
+        "const k = 2;\n" +
+        "var x: Integer;\n" +
+        "begin\n" +
+        "  x := 2;\n" +
+        "  case x of\n" +
+        "    k: x := 20;\n" +
+        "  else\n" +
+        "    x := 40\n" +
+        "  end;\n" +
+        "end.";
+
+    [Test]
     public void ProgramBranchingOnLessThan()
     {
         // `x < 5` must skip its then-arm with BCS (0xB0, carry set after

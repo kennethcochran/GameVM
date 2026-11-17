@@ -573,6 +573,116 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void CaseMultiLabelArmIsEmittedOnce()
+    {
+        // `case x of 1, 2: x := 10; 3: x := 30; else x := 40 end` — the
+        // HLIR carries the shared arm node once per label (labels 1 and 2
+        // point at the SAME arm index). The MLIR lowering must still emit
+        // the arm body only once: emitting it per label duplicates the
+        // body, and an arm holding another multi-label case multiplies
+        // the output at every nesting level.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+        int targetA = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int valueA = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 10u, HlirPayloadKind.Immediate);
+        int armA = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetA, valueA);
+
+        int label3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 3u, HlirPayloadKind.Immediate);
+        int targetB = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int valueB = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 30u, HlirPayloadKind.Immediate);
+        int armB = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetB, valueB);
+
+        int elseTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int elseValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 40u, HlirPayloadKind.Immediate);
+        int elseArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, elseTarget, elseValue);
+
+        // Case node: 8 children — selector, label/arm pairs in source
+        // order (armA repeated for labels 1 and 2), then the else arm.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, armA, label2, armA, label3, armB, elseArm);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        var cmpLabelOperands = new List<uint>();
+        var assignValues = new List<uint>();
+        for (int i = 0; i < result.Count; i++)
+        {
+            if (result.GetKind(i) == (byte)LlirInstructionKind.Cmp)
+                cmpLabelOperands.Add(result.GetOperands(i)[1]);
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Assign)
+                assignValues.Add(result.GetOperands(i)[1]);
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpLabelOperands, Is.EqualTo(new uint[] { 1u, 2u, 3u }),
+                "each label must be tested once, in source order");
+            Assert.That(assignValues, Is.EqualTo(new uint[] { 10u, 30u, 40u }),
+                "the shared arm (10) must be emitted once, then arm 3 (30), then the else arm (40)");
+        }
+    }
+
+    [Test]
+    public void CaseNestedInMultiLabelArmIsEmittedOnce()
+    {
+        // A case nested inside a multi-label arm must be lowered once,
+        // not once per label of the outer arm: with per-label emission
+        // the inner case's instructions multiply by the outer label
+        // count at every nesting level.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int innerLabel = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 7u, HlirPayloadKind.Immediate);
+        int innerTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int innerValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 70u, HlirPayloadKind.Immediate);
+        int innerArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, innerTarget, innerValue);
+        int innerCase = builder.Add(caseKind, 0, 0, HlirPayloadKind.None, selector, innerLabel, innerArm);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+
+        // Outer case: two labels sharing the inner-case arm, no else.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, innerCase, label2, innerCase);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        int cmpCount = 0;
+        int innerAssignCount = 0;
+        for (int i = 0; i < result.Count; i++)
+        {
+            if (result.GetKind(i) == (byte)LlirInstructionKind.Cmp)
+                cmpCount++;
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Assign &&
+                result.GetOperands(i)[1] == 70u)
+                innerAssignCount++;
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpCount, Is.EqualTo(3),
+                "two outer label tests plus one inner label test, each emitted once");
+            Assert.That(innerAssignCount, Is.EqualTo(1),
+                "the inner arm must be emitted once, not once per outer label");
+        }
+    }
+
+    [Test]
     public void Transform_UnaryMinusVariable_LowersToSubFromZero()
     {
         // HLIR -> MLIR seam: x := -y lowers to the temp sequence

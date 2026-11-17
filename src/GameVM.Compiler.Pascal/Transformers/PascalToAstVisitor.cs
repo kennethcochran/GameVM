@@ -323,7 +323,14 @@ namespace GameVM.Compiler.Pascal.Transformers
             int innerIdx;
             if (context.identifier() != null)
             {
-                innerIdx = Add((byte)PascalAstNodeKind.Identifier, 0, InternIdentifier(context.identifier().GetText()), context.identifier().Start);
+                // Intern the name as written, exactly as
+                // VisitConstantDefinition interns the declaration and
+                // VisitVariable interns an expression reference: the
+                // label's pool offset must equal the declaration's, or
+                // the label can never resolve to the constant (the
+                // lowercasing InternIdentifier is for procedure names,
+                // whose declaration and call sites both use it).
+                innerIdx = Add((byte)PascalAstNodeKind.Identifier, 0, _strings.Intern(context.identifier().GetText()), context.identifier().Start);
             }
             else if (Visit(context) is int visited)
             {

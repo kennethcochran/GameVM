@@ -290,6 +290,56 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseLabel_UppercaseConstant_InternsLikeItsDeclaration()
+        {
+            // `const Limit = 2` declares the name interned as written, and
+            // every other constant reference (an expression variable) is
+            // interned the same way — but the case-label identifier went
+            // through the lowercasing InternIdentifier, so a `Limit:` label
+            // carried a different pool offset than its declaration and
+            // could never resolve to the constant downstream (semantic
+            // analysis reported it undefined; HLIR lowering could not find
+            // the registered value).
+            string code = @"
+                program Test;
+                const Limit = 2;
+                var x: integer;
+                begin
+                    case x of
+                        Limit: x := 20;
+                    else
+                        x := 40
+                    end;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+
+            int declNameIdx = -1;
+            int labelIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.ConstantDefinition)
+                    declNameIdx = tree.Children(i)[0];
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.CaseBranch)
+                    labelIdx = tree.Children(i)[0];
+            }
+
+            Assert.That(declNameIdx, Is.GreaterThanOrEqualTo(0), "the constant declaration must be present");
+            Assert.That(labelIdx, Is.GreaterThanOrEqualTo(0), "the case branch label must be present");
+            Assert.That(tree.GetKind(labelIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
+                "a named case label must be an Identifier node");
+            Assert.That(tree[labelIdx].Payload, Is.EqualTo(tree[declNameIdx].Payload),
+                "the case label must intern the same pool offset as the constant declaration it references");
+        }
+
+        [Test]
         public void Visitor_HandlesWhileLoop()
         {
             string code = @"

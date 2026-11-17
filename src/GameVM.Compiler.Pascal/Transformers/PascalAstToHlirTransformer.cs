@@ -439,7 +439,13 @@ namespace GameVM.Compiler.Pascal.Transformers
         {
             var labelNode = astTree[labelIdx];
             var labelKind = (PascalAstNodeKind)labelNode.Kind;
-            string labelText = _pool.Resolve(labelNode.Payload);
+            // A UnaryOp label's payload is the operator character, not a
+            // pool offset: resolving it through the pool reads unrelated
+            // bytes as a string (and throws out of BitConverter when the
+            // buffer is only a few bytes longer than the offset).
+            string labelText = labelKind == PascalAstNodeKind.UnaryOp
+                ? ((char)labelNode.Payload).ToString()
+                : _pool.Resolve(labelNode.Payload);
             bool isIntegerConstant = labelKind switch
             {
                 PascalAstNodeKind.LiteralInt => uint.TryParse(labelText, out _),
@@ -455,6 +461,20 @@ namespace GameVM.Compiler.Pascal.Transformers
                     ErrorCode.UnhandledInstruction,
                     $"Case label '{labelText}' at AST index {labelIdx} is not an integer constant; " +
                     "case labels must be integer literals or named integer constants.");
+            }
+
+            if (labelKind == PascalAstNodeKind.Identifier)
+            {
+                // BuildExpression folds a named constant to a LiteralInt
+                // carrying the raw VALUE as its payload, but a literal
+                // label carries the pool offset of its decimal text, and
+                // every downstream layer treats a LiteralInt payload as
+                // that offset (the MLIR layer passes it through; the
+                // backend resolves it through the pool). Intern the
+                // value's text so a named label resolves exactly as the
+                // equivalent literal label does.
+                uint value = _constantValues[labelNode.Payload];
+                return _builder.Add((byte)HlirNodeKind.LiteralInt, 0, _pool.Intern(value.ToString()), HlirPayloadKind.Immediate);
             }
 
             int labelHlir = BuildExpression(astTree, labelIdx);
