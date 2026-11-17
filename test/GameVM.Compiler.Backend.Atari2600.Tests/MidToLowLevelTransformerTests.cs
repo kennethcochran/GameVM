@@ -1189,6 +1189,284 @@ public class MidToLowLevelTransformerTests
             }
         }
 
+        [Test]
+        public void NarrowResultAssignedToWideVariable_ClearsStaleHighByte()
+        {
+            // x := 300; a := 5; x := a + 1. The Add is narrow (both
+            // operands one byte), so its result temp takes one slot and
+            // the accumulator store writes only x's low byte. x's high
+            // byte still holds the 1 from x := 300, so x would read back
+            // as 262 instead of 6. Storing a narrow result into a wide
+            // variable must also store immediate 0 to the high byte —
+            // the same zero-extension CopyVariable already performs.
+            uint xOffset = _stringPool.Intern("x");
+            uint aOffset = _stringPool.Intern("a");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, aOffset, _stringPool.Intern("5"));
+            builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, aOffset, _stringPool.Intern("1"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(8));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(result.GetOperands(0)[1], Is.EqualTo(44u), "300 low byte is 44");
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u), "x high byte at $81");
+                Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u), "300 high byte is 1");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x82u), "a at $82");
+                Assert.That(result.GetOperands(2)[1], Is.EqualTo(5u));
+
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x82u), "the add loads a from $82");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Add));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(1u), "the add adds 1");
+
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x80u), "the narrow sum stores to x low at $80");
+
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Load));
+                var clearHigh = result.GetOperands(6);
+                Assert.That(clearHigh.Length, Is.EqualTo(1), "an immediate load, not a memory load");
+                Assert.That(clearHigh[0], Is.Zero, "the high byte is cleared with immediate 0");
+
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(7)[0], Is.EqualTo(0x81u), "the cleared high byte stores to x high at $81");
+            }
+        }
+
+        [Test]
+        public void WideVariableAssignedToTiaRegister_StoresLowByteOnly()
+        {
+            // x := 300; COLUBK := x. COLUBK is a one-byte TIA register at
+            // $09; the byte after it, $0A, is CTRLPF. Copying the wide
+            // variable must store only its low byte — a high-byte store
+            // gated on EITHER side being wide writes x's high byte (1)
+            // into CTRLPF. The gate is the DESTINATION's width.
+            uint xOffset = _stringPool.Intern("x");
+            uint colubkOffset = _stringPool.Intern("COLUBK");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, colubkOffset, xOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(4), "two Assigns for x := 300, then Load + Store for the copy — no high-byte store");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "the copy loads x low from $80");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x09u), "the copy stores to COLUBK at $09");
+
+                for (int i = 0; i < result.Count; i++)
+                {
+                    if (result.GetKind(i) == (byte)LlirInstructionKind.Store)
+                        Assert.That(result.GetOperands(i)[0], Is.Not.EqualTo(0x0Au),
+                            $"instruction {i} must not store to CTRLPF at $0A");
+                }
+            }
+        }
+
+        [Test]
+        public void WideAddAssignedToTiaRegister_StoresLowByteOnly()
+        {
+            // x := 300; y := 500; COLUBK := x + y. The wide Add stores
+            // its result straight into the assignment target, so the
+            // target here is COLUBK itself: the low byte pair stores to
+            // $09, and the high byte pair must not run at all — its
+            // store would land on $0A (CTRLPF).
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint colubkOffset = _stringPool.Intern("COLUBK");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("500"));
+            builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, xOffset, yOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, colubkOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(7), "four Assigns for the two wide constants, then only the low byte pair");
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x80u), "the low add loads x low from $80");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Add));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x82u), "the low add adds y low from $82");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(0x09u), "the low sum stores to COLUBK at $09");
+
+                for (int i = 0; i < result.Count; i++)
+                {
+                    if (result.GetKind(i) == (byte)LlirInstructionKind.Store)
+                        Assert.That(result.GetOperands(i)[0], Is.Not.EqualTo(0x0Au),
+                            $"instruction {i} must not store to CTRLPF at $0A");
+                }
+            }
+        }
+
+        [Test]
+        public void WideTempAssignedToTiaRegister_StoresLowByteOnly()
+        {
+            // x takes 300, y takes 500, and their sum stays in a temp
+            // because a later Add reads it (z takes the temp plus 1).
+            // COLUBK then takes the temp, so the COLUBK assignment
+            // copies the wide temp from memory (StoreAccumulatorValue's
+            // wide path). Only the low byte may land on COLUBK: the
+            // high-byte copy would store to $0A (CTRLPF).
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint zOffset = _stringPool.Intern("z");
+            uint colubkOffset = _stringPool.Intern("COLUBK");
+            uint tmp0Offset = _stringPool.Intern("__tmp_0");
+            uint tmp1Offset = _stringPool.Intern("__tmp_1");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("500"));
+            builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, xOffset, yOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmp0Offset, 0);
+            builder.Add((byte)LlirInstructionKind.Add, InstructionFlag.None, 0, tmp0Offset, _stringPool.Intern("1"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmp1Offset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, zOffset, tmp1Offset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, colubkOffset, tmp0Offset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(18),
+                    "four Assigns, two wide byte-pair Adds (6 each), then Load + Store for the temp copy");
+
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(0x84u), "the first sum's low byte lives in its temp at $84");
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(0x85u), "the first sum's high byte lives in its temp at $85");
+                Assert.That(result.GetKind(12), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(12)[0], Is.EqualTo(0x86u), "the second sum stores low to z at $86");
+                Assert.That(result.GetKind(15), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(15)[0], Is.EqualTo(0x87u), "the second sum stores high to z at $87");
+
+                Assert.That(result.GetKind(16), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(16)[0], Is.EqualTo(0x84u), "the COLUBK copy loads the temp's low byte from $84");
+                Assert.That(result.GetKind(17), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(17)[0], Is.EqualTo(0x09u), "the COLUBK copy stores to $09 — and stops there");
+
+                for (int i = 0; i < result.Count; i++)
+                {
+                    if (result.GetKind(i) == (byte)LlirInstructionKind.Store)
+                        Assert.That(result.GetOperands(i)[0], Is.Not.EqualTo(0x0Au),
+                            $"instruction {i} must not store to CTRLPF at $0A");
+                }
+            }
+        }
+
+        [Test]
+        public void CopyAssignedBeforeSourceWidens_TargetStillGetsTwoSlots()
+        {
+            // Declarations of x, y, and sentinel come first. Then
+            // sentinel takes 7, x takes 5, y takes x, and x takes 300.
+            // A single inference pass visits the y-from-x copy while x
+            // is still recorded at one slot, so y keeps one slot and
+            // sentinel allocates at $83 — the very address the copy
+            // then writes x's high byte to, silently replacing
+            // sentinel. Width inference must run to a fixed point:
+            // y takes two slots ($82/$83) and sentinel lands past
+            // them at $84.
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint sentinelOffset = _stringPool.Intern("sentinel");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("0"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, _stringPool.Intern("0"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, sentinelOffset, _stringPool.Intern("0"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, sentinelOffset, _stringPool.Intern("7"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("5"));
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, xOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(14));
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x84u), "sentinel allocates at $84, past y's two slots");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x84u), "sentinel := 7 writes to $84");
+                Assert.That(result.GetOperands(5)[1], Is.EqualTo(7u));
+
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(0x82u), "the copy stores x low to y low at $82");
+                Assert.That(result.GetKind(11), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(11)[0], Is.EqualTo(0x83u), "the copy stores x high to y high at $83 — y's own slot, not sentinel's");
+            }
+        }
+
+        [Test]
+        public void BitwiseNotOfWideVariable_ResultTempStaysOneSlot()
+        {
+            // x := 300; y := not x. The complement the backend computes
+            // is 8-bit: Load x's low byte, EOR #$FF, result in the
+            // accumulator (211 for 300's low byte 44). If the result
+            // temp inherits x's two-slot width, the final assignment
+            // takes the wide-temp path and loads two bytes from the
+            // temp's slots — which nothing ever wrote — instead of
+            // storing the accumulator, so y becomes 0. Like Multiply
+            // and BitwiseAnd/Or, the BitwiseNot result temp records
+            // width 1, and the assignment stores the accumulator
+            // straight to y's single slot.
+            uint xOffset = _stringPool.Intern("x");
+            uint yOffset = _stringPool.Intern("y");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, _stringPool.Intern("300"));
+            builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0, xOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, yOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(5),
+                    "two Assigns for x := 300, Load + BitwiseNot, then a single accumulator Store");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "the complement loads x low from $80");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.BitwiseNot));
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x82u),
+                    "the accumulator stores straight to y at $82 — no loads from an unwritten temp");
+            }
+        }
+
         #endregion
         #region Branch Polarity Tests
 

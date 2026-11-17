@@ -341,6 +341,12 @@ namespace GameVM.Compiler.Backend.Atari2600
             builder.Add(llirKind, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: false));
             builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, destAddr);
 
+            // A one-slot destination (a TIA register) takes only the
+            // low pair: the high pair's store would land on the
+            // neighbouring register.
+            if (WidthOf(destName) != 2)
+                return;
+
             EmitLoadOperand(builder, stringPool, operands[0], high: true);
             builder.Add(llirKind, InstructionFlag.CarryIn, 0, AddOperands(stringPool, operands[1], high: true));
             builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(destAddr + 1));
@@ -647,7 +653,7 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             string valueStr = stringPool.Resolve(valueSlot);
             if (valueStr.StartsWith(TempPrefix, StringComparison.Ordinal))
-                StoreAccumulatorValue(builder, valueStr, targetAddr);
+                StoreAccumulatorValue(builder, valueStr, targetName, targetAddr);
             else if (IsName(valueStr))
                 CopyVariable(builder, valueStr, targetName, targetAddr);
             else if (TryParseNumeric(valueStr, out uint numeric))
@@ -660,36 +666,51 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// Stores a value computed into the accumulator by the preceding
         /// Add/Sub: STA zp. A two-slot temp's bytes are already in memory
         /// — a wide Add/Sub stored both — so copy both bytes from the
-        /// temp's slots instead.
+        /// temp's slots instead. Either way the stores follow the
+        /// TARGET's width: a narrow result stored into a two-slot target
+        /// also writes 0 to the high byte, which the narrow computation
+        /// never touched and which would otherwise keep a stale value;
+        /// a wide temp stored into a one-slot target (a TIA register)
+        /// writes only the low byte, because target + 1 is a different
+        /// register.
         /// </summary>
-        private void StoreAccumulatorValue(InstListBuilder builder, string tempName, ushort targetAddr)
+        private void StoreAccumulatorValue(InstListBuilder builder, string tempName, string targetName, ushort targetAddr)
         {
             if (WidthOf(tempName) != 2)
             {
                 builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+                if (WidthOf(targetName) == 2)
+                {
+                    builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, 0);
+                    builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
+                }
                 return;
             }
 
             ushort tempAddr = GetAddressForVariable(tempName);
             builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, tempAddr, 0);
             builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
+            if (WidthOf(targetName) != 2)
+                return;
             builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, (ushort)(tempAddr + 1), 0);
             builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, (ushort)(targetAddr + 1));
         }
 
         /// <summary>
         /// Copies a variable into the target: LDA zp; STA zp, low byte
-        /// then high byte when either side is two slots. A one-slot
+        /// then high byte when the TARGET is two slots. A one-slot
         /// source copied into a two-slot target leaves a stale high
         /// byte, so the high copy loads immediate 0 instead of the
-        /// source's (nonexistent) high byte.
+        /// source's (nonexistent) high byte. A one-slot target (a TIA
+        /// register) never takes a high store at all: target + 1 is a
+        /// different register, whatever the source's width.
         /// </summary>
         private void CopyVariable(InstListBuilder builder, string valueName, string targetName, ushort targetAddr)
         {
             ushort valueAddr = GetAddressForVariable(valueName);
             builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, valueAddr, 0);
             builder.Add((byte)LlirInstructionKind.Store, InstructionFlag.None, 0, targetAddr);
-            if (Math.Max(WidthOf(valueName), WidthOf(targetName)) != 2)
+            if (WidthOf(targetName) != 2)
                 return;
 
             if (WidthOf(valueName) == 2)
@@ -843,57 +864,67 @@ namespace GameVM.Compiler.Backend.Atari2600
         ///  - Add/Sub: the wider operand's width (an operand with no
         ///    recorded width counts as 1). The result temp (named by
         ///    the following Assign(tmp, 0)) takes the result width.
-        ///  - Multiply, BitwiseAnd/Or: 8-bit ops; their result temp
-        ///    stays width 1, and their operands gain no width evidence.
-        ///  - BitwiseNot: the result temp takes its operand's width.
+        ///  - Multiply, BitwiseAnd/Or, BitwiseNot: 8-bit ops; their
+        ///    result temp stays width 1, and their operands gain no
+        ///    width evidence.
         /// Cmp, Load, Call, Return, Branch and friends carry no width
         /// evidence: comparisons stay 8-bit (a separate slice), and a
         /// variable that only ever appears in one keeps one slot.
         /// Assigns to a __tmp_ target are the op-result marker, not a
         /// value assignment, and record nothing.
+        /// The scan repeats until a full pass changes nothing:
+        /// evidence flows along copies and result temps, and a copy
+        /// can precede the assignment that widens its source, so one
+        /// pass would record the copy's target at the width the source
+        /// had when the copy was visited — short of the maximum the
+        /// evidence supports. Widths only ever grow and cap at 2, so
+        /// the fixed point arrives within a few passes.
         /// </summary>
         private void InferWidths(InstList inputSlab, StringPool stringPool)
         {
             _variableWidths.Clear();
-            for (int i = 0; i < inputSlab.Count; i++)
+            bool changed = true;
+            while (changed)
             {
-                byte kind = inputSlab.GetKind(i);
-                ReadOnlySpan<uint> operands = inputSlab.GetOperands(i);
-
-                switch (kind)
+                changed = false;
+                for (int i = 0; i < inputSlab.Count; i++)
                 {
-                    case (byte)MlirInstructionKind.Assign:
-                        InferAssignWidth(operands, stringPool);
-                        break;
-                    case (byte)LlirInstructionKind.Add:
-                    case (byte)LlirInstructionKind.Sub:
-                        InferArithmeticWidth(inputSlab, i, operands, stringPool);
-                        break;
-                    case (byte)LlirInstructionKind.Multiply:
-                    case (byte)LlirInstructionKind.BitwiseAnd:
-                    case (byte)LlirInstructionKind.BitwiseOr:
-                        InferResultTempWidth(inputSlab, i, 1, stringPool);
-                        break;
-                    case (byte)LlirInstructionKind.BitwiseNot:
-                        InferBitwiseNotWidth(inputSlab, i, operands, stringPool);
-                        break;
+                    byte kind = inputSlab.GetKind(i);
+                    ReadOnlySpan<uint> operands = inputSlab.GetOperands(i);
+
+                    switch (kind)
+                    {
+                        case (byte)MlirInstructionKind.Assign:
+                            changed |= InferAssignWidth(operands, stringPool);
+                            break;
+                        case (byte)LlirInstructionKind.Add:
+                        case (byte)LlirInstructionKind.Sub:
+                            changed |= InferArithmeticWidth(inputSlab, i, operands, stringPool);
+                            break;
+                        case (byte)LlirInstructionKind.Multiply:
+                        case (byte)LlirInstructionKind.BitwiseAnd:
+                        case (byte)LlirInstructionKind.BitwiseOr:
+                        case (byte)LlirInstructionKind.BitwiseNot:
+                            changed |= InferResultTempWidth(inputSlab, i, 1, stringPool);
+                            break;
+                    }
                 }
             }
         }
 
-        private void InferAssignWidth(ReadOnlySpan<uint> operands, StringPool stringPool)
+        private bool InferAssignWidth(ReadOnlySpan<uint> operands, StringPool stringPool)
         {
             if (operands.Length < 2)
-                return;
+                return false;
 
             string targetName = stringPool.Resolve(operands[0]);
             if (string.IsNullOrEmpty(targetName) || targetName.StartsWith(TempPrefix, StringComparison.Ordinal))
-                return;
+                return false;
 
             string valueStr = stringPool.Resolve(operands[1]);
             if (valueStr.StartsWith(TempPrefix, StringComparison.Ordinal))
             {
-                RecordWidth(targetName, _variableWidths.TryGetValue(valueStr, out int tempWidth) ? tempWidth : 1);
+                return RecordWidth(targetName, _variableWidths.TryGetValue(valueStr, out int tempWidth) ? tempWidth : 1);
             }
             else if (valueStr.Length > 0
                 && !valueStr.StartsWith(InvalidPoolOffsetPrefix, StringComparison.Ordinal)
@@ -902,22 +933,23 @@ namespace GameVM.Compiler.Backend.Atari2600
                 // Copy source: the target takes the source's width (1
                 // when nothing recorded one for the source).
                 int sourceWidth = _variableWidths.TryGetValue(valueStr, out int recorded) ? recorded : 1;
-                RecordWidth(targetName, sourceWidth);
+                return RecordWidth(targetName, sourceWidth);
             }
             else if (TryParseNumeric(valueStr, out uint numeric))
             {
-                RecordWidth(targetName, numeric > 255 ? 2 : 1);
+                return RecordWidth(targetName, numeric > 255 ? 2 : 1);
             }
+            return false;
         }
 
-        private void InferArithmeticWidth(InstList inputSlab, int instIdx, ReadOnlySpan<uint> operands, StringPool stringPool)
+        private bool InferArithmeticWidth(InstList inputSlab, int instIdx, ReadOnlySpan<uint> operands, StringPool stringPool)
         {
             if (operands.Length < 2)
-                return;
+                return false;
 
             int leftWidth = InferOperandWidth(operands[0], stringPool);
             int rightWidth = InferOperandWidth(operands[1], stringPool);
-            InferResultTempWidth(inputSlab, instIdx, Math.Max(leftWidth, rightWidth), stringPool);
+            return InferResultTempWidth(inputSlab, instIdx, Math.Max(leftWidth, rightWidth), stringPool);
         }
 
         /// <summary>
@@ -942,49 +974,41 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// <summary>
         /// Records the result temp of the op at <paramref name="instIdx"/>
         /// (named by the following Assign(tmp, 0)) at
-        /// <paramref name="width"/>.
+        /// <paramref name="width"/>. Returns whether a width changed.
         /// </summary>
-        private void InferResultTempWidth(InstList inputSlab, int instIdx, int width, StringPool stringPool)
+        private bool InferResultTempWidth(InstList inputSlab, int instIdx, int width, StringPool stringPool)
         {
             int nextIdx = instIdx + 1;
             if (nextIdx >= inputSlab.Count
                 || (MlirInstructionKind)inputSlab.GetKind(nextIdx) != MlirInstructionKind.Assign)
-                return;
+                return false;
 
             ReadOnlySpan<uint> nextOps = inputSlab.GetOperands(nextIdx);
             if (nextOps.Length < 2 || nextOps[1] != 0)
-                return;
+                return false;
 
             string tempName = stringPool.Resolve(nextOps[0]);
             if (tempName.StartsWith(TempPrefix, StringComparison.Ordinal))
-                RecordWidth(tempName, width);
-        }
-
-        private void InferBitwiseNotWidth(InstList inputSlab, int instIdx, ReadOnlySpan<uint> operands, StringPool stringPool)
-        {
-            if (operands.Length < 1)
-                return;
-
-            // The complement is one byte, but the result temp inherits
-            // its operand's width so a later copy or Add treats the
-            // value consistently.
-            InferResultTempWidth(inputSlab, instIdx, InferOperandWidth(operands[0], stringPool), stringPool);
+                return RecordWidth(tempName, width);
+            return false;
         }
 
         /// <summary>Raises a variable's recorded width to at least
         /// <paramref name="width"/>; widths only ever grow within a
-        /// slab (see InferWidths).</summary>
-        private void RecordWidth(string name, int width)
+        /// slab (see InferWidths). Returns whether the recorded width
+        /// changed, which drives the inference fixed point.</summary>
+        private bool RecordWidth(string name, int width)
         {
             if (_variableWidths.TryGetValue(name, out int existing))
             {
-                if (width > existing)
-                    _variableWidths[name] = width;
-            }
-            else
-            {
+                if (width <= existing)
+                    return false;
                 _variableWidths[name] = width;
+                return true;
             }
+
+            _variableWidths[name] = width;
+            return true;
         }
 
         private ushort GetAddressForVariable(string name)
