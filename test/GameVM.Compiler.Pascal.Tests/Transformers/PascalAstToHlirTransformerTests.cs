@@ -2,7 +2,9 @@ using GameVM.Compiler.Pascal.Ast;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Hlir;
 
+using GameVM.Compiler.Pascal.ANTLR;
 using GameVM.Compiler.Pascal.Transformers;
+using Antlr4.Runtime;
 
 namespace GameVM.Compiler.Pascal.Tests.Transformers
 {
@@ -406,6 +408,123 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 Assert.That(unaryChildren.Length, Is.EqualTo(1), "UnaryOp must have exactly one operand child");
                 Assert.That(hlir.GetKind(unaryChildren[0]), Is.EqualTo((byte)HlirNodeKind.Identifier));
                 Assert.That(hlir[unaryChildren[0]].Payload, Is.EqualTo(yOffset), "operand must be y");
+            }
+        }
+
+        [Test]
+        public void ExpressionCallLowersToCallWithCorrectFunctionName()
+        {
+            // Seam test through the real visitor: parse `result := Double(5);`
+            // and transform the resulting AST. The HLIR Call must name Double.
+            // A Call whose payload resolves to an empty name is the silent
+            // miscompile this spec pins: the backend then has no label to
+            // resolve for the call. The Call's only argument must be the
+            // literal 5 — not the callee name consumed as a spurious
+            // Identifier argument while the real argument vanishes.
+            const string code = @"
+                program Test;
+                var result: integer;
+                begin
+                    result := Double(5);
+                end.
+            ";
+            var inputStream = new AntlrInputStream(code);
+            var lexer = new PascalLexer(inputStream);
+            var parser = new PascalParser(new CommonTokenStream(lexer));
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(new AstBuilder(), pool);
+            visitor.Visit(parser.program());
+            var ast = visitor.BuildTree();
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(ast);
+
+            int callIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Call) { callIdx = i; break; }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "an expression call must lower to an HLIR Call");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("double"),
+                    "the HLIR Call payload must carry the callee name in its canonical (lowercase) spelling, matching statement calls and declarations");
+                var callChildren = hlir.Children(callIdx);
+                Assert.That(callChildren.Length, Is.EqualTo(1),
+                    "the Call must have exactly its one real argument");
+                Assert.That(hlir.GetKind(callChildren[0]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "the argument must be the literal 5, not the callee name");
+                Assert.That(pool.Resolve(hlir[callChildren[0]].Payload), Is.EqualTo("5"));
+            }
+        }
+
+        /// <summary>Builds the AST for `var x: integer; begin x := not &lt;bool&gt;; end.`
+        /// with children before parents (AstBuilder post-order contract).</summary>
+        private static AstTree BuildNotBooleanLiteralAst(StringPool pool, uint boolPayload)
+        {
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int literal = builder.Add((byte)PascalAstNodeKind.LiteralBool, 0, boolPayload);
+            int unary = builder.Add((byte)PascalAstNodeKind.UnaryOp, 0, (uint)'!', literal);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, unary);
+
+            int varId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int typeDef = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int varDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, varId, typeDef);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), varDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+            return builder.Build();
+        }
+
+        [Test]
+        public void NotOnTrueLiteralFoldsToFalseLiteralBool()
+        {
+            // `x := not true` must fold in the frontend to LiteralBool false.
+            // Lowering it through BitwiseNot turns 1 into 0xFE, which is
+            // nonzero, so a branch condition on it never fires the skip branch
+            // and the then-arm runs although `not true` is false.
+            var pool = new StringPool();
+            var hlir = new PascalAstToHlirTransformer(pool).Transform(BuildNotBooleanLiteralAst(pool, 1));
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralBool),
+                    "not true must fold to a LiteralBool, not a UnaryOp over the literal");
+                Assert.That(hlir[assignChildren[1]].Payload, Is.Zero,
+                    "not true must fold to LiteralBool false (payload 0)");
+            }
+        }
+
+        [Test]
+        public void NotOnFalseLiteralFoldsToTrueLiteralBool()
+        {
+            // Mirror case: `not false` is true, so it must fold to LiteralBool
+            // true (payload 1), not to a BitwiseNot over the literal.
+            var pool = new StringPool();
+            var hlir = new PascalAstToHlirTransformer(pool).Transform(BuildNotBooleanLiteralAst(pool, 0));
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralBool),
+                    "not false must fold to a LiteralBool, not a UnaryOp over the literal");
+                Assert.That(hlir[assignChildren[1]].Payload, Is.EqualTo(1u),
+                    "not false must fold to LiteralBool true (payload 1)");
             }
         }
     }
