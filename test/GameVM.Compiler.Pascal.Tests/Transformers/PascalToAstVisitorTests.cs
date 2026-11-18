@@ -563,8 +563,8 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "result := Double(5) must produce a MethodCall node");
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(visitor.StringPool.Resolve(tree[callIdx].Payload), Is.EqualTo("Double"),
-                    "the MethodCall payload must carry the callee name");
+                Assert.That(visitor.StringPool.Resolve(tree[callIdx].Payload), Is.EqualTo("double"),
+                    "the MethodCall payload must carry the callee name in its canonical (lowercase) spelling, matching statement calls and declarations");
                 var callChildren = tree.Children(callIdx);
                 Assert.That(callChildren.Length, Is.EqualTo(1),
                     "the call's only child must be its argument expression");

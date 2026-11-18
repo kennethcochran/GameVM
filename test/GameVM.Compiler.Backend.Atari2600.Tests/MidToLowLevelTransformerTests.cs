@@ -303,6 +303,43 @@ public class MidToLowLevelTransformerTests
         }
     }
 
+    [Test]
+    public void Transform_FunctionCallWithComputedArgument_StoresTempBeforeArgumentLoad()
+    {
+        // MLIR for: F(x + 1), as the HLIR lowering emits it: the computed
+        // argument lives in the accumulator after the Add, is assigned to
+        // __tmp_0, and the Call reads it. The Assign to __tmp_0 must store
+        // it to memory before the Call loads it — otherwise the load reads
+        // an unwritten address and the callee receives garbage instead of
+        // x + 1.
+        uint functionId = (uint)"F".GetHashCode();
+        uint xOffset = _stringPool.Intern("x");
+        uint oneOffset = _stringPool.Intern("1");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var mlir = BuildMlirSlab(
+            ((byte)LlirInstructionKind.Add, new uint[] { xOffset, oneOffset }),
+            ((byte)MlirInstructionKind.Assign, new uint[] { tmpOffset, 0 }),
+            ((byte)MlirInstructionKind.Call, new uint[] { functionId, tmpOffset }));
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        // Load x, Add 1, Store __tmp_0, Load __tmp_0, Call F.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(5));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Call));
+
+            uint tmpAddr = result.GetOperands(2)[0];
+            Assert.That(tmpAddr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmpAddr),
+                "the Call must load the computed argument from the address the materializing store wrote");
+        }
+    }
+
     #endregion
 
     #region Return Tests

@@ -476,8 +476,8 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         /// <summary>
         /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
-        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp)
-        /// or a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot).
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp),
+        /// a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot), or a Call argument.
         /// Such a read loads the temp from its zero-page address, so the temp
         /// must be stored to memory when it is assigned. A temp consumed only
         /// by the Assign that stores it into its real target reads the
@@ -494,7 +494,8 @@ namespace GameVM.Compiler.Backend.Atari2600
                     && kind != (byte)LlirInstructionKind.BitwiseAnd
                     && kind != (byte)LlirInstructionKind.BitwiseOr
                     && kind != (byte)LlirInstructionKind.BitwiseNot
-                    && kind != (byte)LlirInstructionKind.Cmp)
+                    && kind != (byte)LlirInstructionKind.Cmp
+                    && kind != (byte)MlirInstructionKind.Call)
                     continue;
                 ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);
                 for (int k = 0; k < operands.Length; k++)

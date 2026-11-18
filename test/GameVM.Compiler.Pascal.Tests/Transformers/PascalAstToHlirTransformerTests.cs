@@ -446,8 +446,8 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "an expression call must lower to an HLIR Call");
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("Double"),
-                    "the HLIR Call payload must carry the callee name");
+                Assert.That(pool.Resolve(hlir[callIdx].Payload), Is.EqualTo("double"),
+                    "the HLIR Call payload must carry the callee name in its canonical (lowercase) spelling, matching statement calls and declarations");
                 var callChildren = hlir.Children(callIdx);
                 Assert.That(callChildren.Length, Is.EqualTo(1),
                     "the Call must have exactly its one real argument");

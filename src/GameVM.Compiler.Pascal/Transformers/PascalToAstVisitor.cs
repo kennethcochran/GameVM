@@ -434,7 +434,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                 // treated the callee's name as an extra argument while the
                 // real argument vanished.
                 var fd = context.functionDesignator();
-                uint nameOffset = _strings.Intern(fd.identifier().GetText());
+                uint nameOffset = InternIdentifier(fd.identifier().GetText());
                 var paramList = fd.parameterList();
                 var argIndices = new List<int>();
                 if (paramList != null)
