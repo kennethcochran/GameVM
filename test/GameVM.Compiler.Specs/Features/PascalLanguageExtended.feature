@@ -169,3 +169,20 @@ Feature: Pascal Language Extended
     When I compile the program
     Then the compilation succeeds
     And the output binary should contain the hex sequence "a9 01 85 80 4c"
+
+  Scenario: Function call in an expression keeps its argument
+    Given the following Pascal program:
+      """
+      program Test;
+      var result: Integer;
+      function Double(x: Integer): Integer;
+      begin
+          Double := x * 2;
+      end;
+      begin
+          result := Double(5);
+      end.
+      """
+    When I compile the program
+    Then the compilation succeeds
+    And the output binary should contain the hex sequence "a9 05"
