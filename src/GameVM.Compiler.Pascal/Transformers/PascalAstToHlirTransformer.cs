@@ -198,6 +198,8 @@ namespace GameVM.Compiler.Pascal.Transformers
                     return ProcessIfStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.WhileStatement:
                     return ProcessWhileStatement(astTree, stmtIdx);
+                case PascalAstNodeKind.Repeat:
+                    return ProcessRepeatStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.ForStatement:
                     return ProcessForStatement(astTree, stmtIdx);
                 case PascalAstNodeKind.Block:
@@ -350,6 +352,18 @@ namespace GameVM.Compiler.Pascal.Transformers
             if (condHlir < 0 || bodyHlir < 0) return -1;
 
             return _builder.Add((byte)HlirNodeKind.While, 0, 0, HlirPayloadKind.None, condHlir, bodyHlir);
+        }
+
+        private int ProcessRepeatStatement(AstTree astTree, int stmtIdx)
+        {
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 2) return -1;
+
+            int bodyHlir = ProcessStatement(astTree, children[0]);
+            int condHlir = BuildExpression(astTree, children[1]);
+            if (bodyHlir < 0 || condHlir < 0) return -1;
+
+            return _builder.Add((byte)HlirNodeKind.Repeat, 0, 0, HlirPayloadKind.None, bodyHlir, condHlir);
         }
 
         private int ProcessForStatement(AstTree astTree, int stmtIdx)
@@ -505,6 +519,18 @@ namespace GameVM.Compiler.Pascal.Transformers
             // `not N` its 8-bit complement, interned as decimal text like
             // every other integer literal in this pipeline.
             var operandNode = astTree[children[0]];
+
+            // Logical `not` on a Boolean literal folds to the opposite Boolean
+            // literal. The integer fold below would lower it through BitwiseNot,
+            // which turns 1 into 0xFE — nonzero, so a branch condition on
+            // `not true` would never fire its skip branch and the then-arm
+            // would run although the condition is false.
+            if (op == '!' && (PascalAstNodeKind)operandNode.Kind == PascalAstNodeKind.LiteralBool)
+            {
+                uint notValue = operandNode.Payload == 0 ? 1u : 0u;
+                return _builder.Add((byte)HlirNodeKind.LiteralBool, 0, notValue, HlirPayloadKind.Immediate);
+            }
+
             uint? constVal = ResolveConstantOperand(operandNode);
             if (constVal.HasValue)
             {
