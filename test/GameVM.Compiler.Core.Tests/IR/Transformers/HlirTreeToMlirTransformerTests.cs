@@ -1538,6 +1538,34 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void DivUsedAsCaseSelectorFailsLoudly()
+    {
+        // `case a div b of 1: ...` has no correct lowering either:
+        // ProcessCase evaluated the selector without the validation
+        // branch conditions receive, so ArithToMlirKind mapped '/'
+        // to Sub and the dispatch compared a - b against the labels
+        // (with a=2, b=2 that is 0, and the else arm ran although
+        // a div b is 1). The selector must fail loudly, naming the
+        // case selector rather than a branch condition.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case a div b of 1: x := 10; else x := 20 end;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+        Assert.That(ex!.Message, Does.Contain("case selector"));
+    }
+
+    [Test]
+    public void ModUsedAsCaseSelectorFailsLoudly()
+    {
+        // Same defect as div: '%' has no lowering either, so a mod
+        // selector must fail loudly rather than evaluate as something
+        // else.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case a mod b of 1: x := 10; else x := 20 end;"), out _));
+        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+        Assert.That(ex!.Message, Does.Contain("case selector"));
+    }
+
+    [Test]
     public void DivNestedInsideConditionFailsLoudly()
     {
         // The rejection covers div anywhere inside a condition, not

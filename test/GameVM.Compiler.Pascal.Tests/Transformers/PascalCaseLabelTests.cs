@@ -68,6 +68,49 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseSelector_NamedIntegerConstant_ResolvesToTheConstantsValueText()
+        {
+            // Mirror of the label test, for the selector side: `case k
+            // of 2:` with `const k = 2` must test the selector against
+            // the label exactly as the literal selector `case 2 of 2:`
+            // does. BuildExpression folded the named constant to a
+            // LiteralInt carrying the raw value (2), while a literal
+            // label carries the pool offset of its decimal text; the
+            // MLIR layer passes the payload through as a pool offset
+            // and the backend resolves it as one, so the Cmp compared
+            // a raw value against a pool offset and the selector could
+            // fail to match the label `2` or read unrelated pool data.
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "const k = 2;\n" +
+                "var x: Integer;\n" +
+                "begin\n" +
+                "  x := 2;\n" +
+                "  case k of\n" +
+                "    2: x := 20;\n" +
+                "  else\n" +
+                "    x := 40\n" +
+                "  end;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null, "the program must lower without errors");
+                var hlir = result.Hlir;
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int selectorIdx = hlir.Children(caseIdx)[0];
+                Assert.That(hlir.GetKind(selectorIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a named-constant case selector must lower to a LiteralInt");
+                Assert.That(frontend.StringPool!.Resolve(hlir[selectorIdx].Payload), Is.EqualTo("2"),
+                    "the selector payload must resolve through the pool to the constant's value text, as a literal selector's does");
+            }
+        }
+
+        [Test]
         public void CaseLabel_UppercaseNamedConstant_LowersAndResolves()
         {
             // `const Limit = 2` referenced as `Limit:` in a case must
@@ -165,6 +208,39 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                     "the negative label must fold to a LiteralInt");
                 Assert.That(pool.Resolve(hlir[labelIdx].Payload), Is.EqualTo("251"),
                     "-5 folds to its 8-bit two's complement value 251");
+            }
+        }
+
+        [Test]
+        public void CaseLabel_CharacterLabel_RejectionDiagnosticIsPreserved()
+        {
+            // A character case label is rejected in the frontend
+            // transformer with a useful message, but ParseToHlir
+            // caught the GameVmException in its general handler,
+            // cleared LastParseErrors and returned empty HLIR — the
+            // caller lost the reason compilation failed. The
+            // diagnostic must survive in LastParseErrors.
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "begin\n" +
+                "  x := 2;\n" +
+                "  case x of\n" +
+                "    'A': x := 20;\n" +
+                "  else\n" +
+                "    x := 40\n" +
+                "  end;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Hlir.Count, Is.EqualTo(0), "a rejected label must not produce HLIR");
+                Assert.That(frontend.LastParseErrors, Is.Not.Null, "the rejection diagnostic must be preserved");
+                Assert.That(frontend.LastParseErrors, Has.Some.Contains("not an integer constant"),
+                    "the diagnostic must name the reason the label was rejected");
             }
         }
     }

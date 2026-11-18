@@ -368,7 +368,24 @@ namespace GameVM.Compiler.Pascal.Transformers
                     "a case needs a selector and at least one label/arm pair.");
             }
 
-            int selectorHlir = BuildExpression(astTree, children[0]);
+            // A named-constant selector folds through BuildExpression to a
+            // LiteralInt carrying the raw VALUE, but a literal label carries
+            // the pool offset of its decimal text, and every downstream layer
+            // treats a LiteralInt payload as that offset. Intern the value's
+            // text, as BuildCaseLabel already does for named labels, so the
+            // selector resolves exactly as the equivalent literal does.
+            // Other selector expressions stay on the BuildExpression path.
+            int selectorHlir;
+            var selectorNode = astTree[children[0]];
+            if ((PascalAstNodeKind)selectorNode.Kind == PascalAstNodeKind.Identifier &&
+                _constantValues.TryGetValue(selectorNode.Payload, out uint constVal))
+            {
+                selectorHlir = _builder.Add((byte)HlirNodeKind.LiteralInt, 0, _pool.Intern(constVal.ToString()), HlirPayloadKind.Immediate);
+            }
+            else
+            {
+                selectorHlir = BuildExpression(astTree, children[0]);
+            }
             if (selectorHlir < 0)
             {
                 throw new GameVmException(

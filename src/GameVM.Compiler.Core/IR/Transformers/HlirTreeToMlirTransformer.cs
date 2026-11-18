@@ -492,6 +492,7 @@ public sealed class HlirTreeToMlirTransformer
         }
 
         int selectorIdx = ChildIndex(tree, idx, 0);
+        ValidateCaseSelector(tree, selectorIdx);
         uint selectorSlot = EvaluateExpression(tree, selectorIdx, builder, out _);
 
         int pairCount = (children.Length - 1) / 2;
@@ -772,6 +773,34 @@ public sealed class HlirTreeToMlirTransformer
     // as a 0/1 value, so the enclosing operator would consume the wrong
     // operand. A comparison is supported as the condition's root, where
     // EmitConditionalBranch gives it its comparison encoding.
+    // A case selector has no correct lowering for div/mod either:
+    // division has no lowering (ArithToMlirKind maps '/' to Sub), so
+    // the dispatch would silently test a subtraction result. The check
+    // mirrors ValidateBranchCondition but names the case selector, so
+    // the diagnostic points at the construct that must change.
+    private static void ValidateCaseSelector(HlirTree tree, int idx)
+    {
+        var node = tree[idx];
+        if ((HlirNodeKind)node.Kind == HlirNodeKind.BinaryOp)
+        {
+            char op = (char)node.Payload;
+            if (op is '/' or '%')
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for div/mod in a case selector " +
+                    $"at tree index {idx}: operator '{op}' would silently evaluate as a different operation " +
+                    $"and the dispatch would test the wrong value.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+        }
+
+        var children = tree.Children(idx);
+        for (int i = 0; i < children.Length; i++)
+            ValidateCaseSelector(tree, children[i]);
+    }
+
     private static void ValidateBranchCondition(HlirTree tree, int condIdx) =>
         ValidateConditionNode(tree, condIdx, isConditionRoot: true);
 
