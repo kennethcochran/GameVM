@@ -294,7 +294,23 @@ namespace GameVM.Compiler.Pascal.Transformers
 
         public override object VisitRepeatStatement(PascalParser.RepeatStatementContext context)
         {
-            return Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start);
+            var statementsContext = context.statements();
+            var statementIndices = new List<int>();
+            if (statementsContext != null)
+            {
+                foreach (var stmt in statementsContext.statement().Where(s => s != null))
+                {
+                    var stmtResult = Visit(stmt);
+                    if (stmtResult is int si) statementIndices.Add(si);
+                }
+            }
+
+            int bodyIdx = statementIndices.Count == 0
+                ? Add((byte)PascalAstNodeKind.Nop, 0, 0, context.Start)
+                : Add((byte)PascalAstNodeKind.Block, 0, 0, context.Start, statementIndices.ToArray());
+            int conditionIdx = Visit(context.expression()) is int c ? c : Add((byte)PascalAstNodeKind.Nop, 0, 0, context.expression()?.Start ?? context.Start);
+
+            return Add((byte)PascalAstNodeKind.Repeat, 0, 0, context.Start, bodyIdx, conditionIdx);
         }
 
         public override object VisitCompoundStatement(PascalParser.CompoundStatementContext context)
@@ -408,8 +424,17 @@ namespace GameVM.Compiler.Pascal.Transformers
                 return VisitVariable(context.variable());
             if (context.functionDesignator() != null)
             {
+                // A function call used as an expression. The MethodCall node
+                // carries the callee name as its payload and the argument
+                // expressions as children — the shape
+                // PascalAstToHlirTransformer.ProcessMethodCall consumes, and
+                // the same shape a statement call already uses. Before this
+                // fix the name rode in a child Identifier and the arguments
+                // in a Block, so the middle end read an empty name and
+                // treated the callee's name as an extra argument while the
+                // real argument vanished.
                 var fd = context.functionDesignator();
-                int nameIdx = Add((byte)PascalAstNodeKind.Identifier, 0, _strings.Intern(fd.identifier().GetText()), fd.identifier().Start);
+                uint nameOffset = InternIdentifier(fd.identifier().GetText());
                 var paramList = fd.parameterList();
                 var argIndices = new List<int>();
                 if (paramList != null)
@@ -420,8 +445,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                         if (exprResult is int ei) argIndices.Add(ei);
                     }
                 }
-                int argsIdx = Add((byte)PascalAstNodeKind.Block, 0, 0, fd.parameterList()?.Start ?? context.Start, argIndices.ToArray());
-                return Add((byte)PascalAstNodeKind.MethodCall, 0, 0, fd.Start, nameIdx, argsIdx);
+                return Add((byte)PascalAstNodeKind.MethodCall, 0, nameOffset, fd.Start, argIndices.ToArray());
             }
             if (context.LPAREN() != null && context.expression() != null)
                 return VisitExpression(context.expression());

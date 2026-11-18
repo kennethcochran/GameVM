@@ -222,6 +222,83 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void RepeatUntilProducesLoopNodeNotNop()
+        {
+            // `repeat...until` is currently an explicit Nop in the visitor:
+            // the body compiles "successfully" and does nothing, with no
+            // error anywhere. The visitor must produce a Repeat node
+            // carrying the body and the exit condition, in source order.
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := 0;
+                    repeat
+                        x := x + 1;
+                    until x = 3;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+            Assert.That(tree.Count, Is.GreaterThan(0));
+
+            int repeatIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.Repeat)
+                {
+                    repeatIdx = i;
+                    break;
+                }
+            }
+            Assert.That(repeatIdx, Is.GreaterThanOrEqualTo(0),
+                "Repeat statement should be present in the method body, not dropped to Nop");
+
+            var repeatNode = tree[repeatIdx];
+            Assert.That(repeatNode.ChildCount, Is.EqualTo(2),
+                "Repeat should have 2 children (body, condition) in source order");
+
+            var repeatChildren = tree.Children(repeatIdx);
+            int bodyIdx = repeatChildren[0];
+            int condIdx = repeatChildren[1];
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ContainsKind(tree, bodyIdx, PascalAstNodeKind.Assignment), Is.True,
+                    "Repeat body must contain the `x := x + 1` assignment");
+                Assert.That(tree.GetKind(condIdx), Is.EqualTo((byte)PascalAstNodeKind.BinaryOp),
+                    "Repeat condition must be the comparison expression");
+            }
+
+            // The condition is `x = 3`: the relational BinaryOp carries the
+            // operator as a third child whose payload is the op char.
+            var condChildren = tree.Children(condIdx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(condChildren.Length, Is.EqualTo(3),
+                    "Relational condition should have 3 children (left, right, operator)");
+                Assert.That(tree[condChildren[2]].Payload, Is.EqualTo((uint)'='),
+                    "Repeat exit condition must be the `=` comparison");
+            }
+        }
+
+        private static bool ContainsKind(AstTree tree, int rootIdx, PascalAstNodeKind kind)
+        {
+            if (tree.GetKind(rootIdx) == (byte)kind)
+                return true;
+            foreach (int child in tree.Children(rootIdx))
+            {
+                if (ContainsKind(tree, child, kind))
+                    return true;
+            }
+            return false;
+        }
+
+        [Test]
         public void Visitor_HandlesLiteralTypes()
         {
             string code = @"
@@ -611,6 +688,54 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                     "a program with no type section must not gain a type definition");
                 Assert.That(FindTypeDefinition(tree, pool, "x"), Is.EqualTo(-1),
                     "a variable declaration is a type reference, not a type definition");
+            }
+        }
+
+        [Test]
+        public void FunctionCallAsExpressionCarriesCalleeNameInPayload()
+        {
+            // A function call used as an expression must carry the callee
+            // name in the MethodCall node's payload — the same shape a
+            // statement call already uses, and the shape
+            // PascalAstToHlirTransformer.ProcessMethodCall consumes. If the
+            // name rides in a child Identifier instead, the middle end reads
+            // an empty name and treats the callee's name as an extra
+            // argument while the real argument vanishes.
+            string code = @"
+                program Test;
+                var result: integer;
+                begin
+                    result := Double(5);
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var visitor = new PascalToAstVisitor(builder, new StringPool());
+            visitor.Visit(context);
+            AstTree tree = visitor.BuildTree();
+
+            int callIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.MethodCall)
+                {
+                    callIdx = i;
+                    break;
+                }
+            }
+
+            Assert.That(callIdx, Is.GreaterThanOrEqualTo(0), "result := Double(5) must produce a MethodCall node");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(visitor.StringPool.Resolve(tree[callIdx].Payload), Is.EqualTo("double"),
+                    "the MethodCall payload must carry the callee name in its canonical (lowercase) spelling, matching statement calls and declarations");
+                var callChildren = tree.Children(callIdx);
+                Assert.That(callChildren.Length, Is.EqualTo(1),
+                    "the call's only child must be its argument expression");
+                Assert.That((PascalAstNodeKind)tree[callChildren[0]].Kind, Is.EqualTo(PascalAstNodeKind.LiteralInt),
+                    "the argument must be the literal 5, not the callee name");
+                Assert.That(visitor.StringPool.Resolve(tree[callChildren[0]].Payload), Is.EqualTo("5"));
             }
         }
     }
