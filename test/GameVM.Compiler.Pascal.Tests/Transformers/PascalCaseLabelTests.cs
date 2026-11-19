@@ -250,6 +250,76 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseLabel_SignedPlusLiteral_LowersToTheLiteralValue()
+        {
+            // A `+2` case label is a signed constant, the mirror of
+            // the supported `-2`: Kenneth's scope decision for this
+            // slice (PR #25, 2026-11-19) is that a unary-plus constant
+            // label folds to its integer value and dispatches like
+            // the bare literal `2`. It must lower to a LiteralInt
+            // resolving through the pool to "2".
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "begin\n" +
+                "  x := 2;\n" +
+                "  case x of\n" +
+                "    +2: x := 20;\n" +
+                "  else\n" +
+                "    x := 40\n" +
+                "  end;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null, "a signed-plus label must lower without errors");
+                var hlir = result.Hlir;
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int labelIdx = hlir.Children(caseIdx)[1];
+                Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a signed-plus case label must lower to a LiteralInt");
+                Assert.That(frontend.StringPool!.Resolve(hlir[labelIdx].Payload), Is.EqualTo("2"),
+                    "the label payload must resolve through the pool to the label's value text, as a bare literal's does");
+            }
+        }
+
+        [Test]
+        public void CaseLabel_RealLiteral_StillRejectedLoudly()
+        {
+            // Guard for the same scope decision: real-valued constant
+            // labels stay loudly rejected in this slice; support is
+            // deferred to a follow-up slice. The rejection must keep
+            // its diagnostic rather than lowering to something the
+            // backend would misread.
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "begin\n" +
+                "  x := 2;\n" +
+                "  case x of\n" +
+                "    2.5: x := 20;\n" +
+                "  else\n" +
+                "    x := 40\n" +
+                "  end;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Hlir.Count, Is.Zero, "a real-valued label must not produce HLIR");
+                Assert.That(frontend.LastParseErrors, Is.Not.Null, "the rejection diagnostic must be preserved");
+                Assert.That(frontend.LastParseErrors, Has.Some.Contains("not an integer constant"),
+                    "the diagnostic must name the reason the label was rejected");
+            }
+        }
+
+        [Test]
         public void CaseLabel_CharacterLabel_RejectionDiagnosticIsPreserved()
         {
             // A character case label is rejected in the frontend
