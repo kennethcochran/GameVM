@@ -212,6 +212,44 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseSelector_ConstantMod_FoldsToTheRemainder()
+        {
+            // `case 3 mod 2 of 1:` dispatched to the else arm: the
+            // frontend's constant fold had no '%' arm, so the selector
+            // fell through to the fold's default and became 0, which
+            // matches no label here. The selector must fold to the
+            // remainder, exactly as the equivalent literal selector
+            // `case 1 of 1:` does.
+            var frontend = new PascalFrontend();
+            string source =
+                "program Probe;\n" +
+                "var x: Integer;\n" +
+                "begin\n" +
+                "  x := 0;\n" +
+                "  case 3 mod 2 of\n" +
+                "    1: x := 20;\n" +
+                "  else\n" +
+                "    x := 40\n" +
+                "  end;\n" +
+                "end.";
+
+            var result = frontend.ParseToHlir(source);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(frontend.LastParseErrors, Is.Null, "the program must lower without errors");
+                var hlir = result.Hlir;
+                int caseIdx = FindCase(hlir);
+                Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0), "the HLIR must contain a Case node");
+                int selectorIdx = hlir.Children(caseIdx)[0];
+                Assert.That(hlir.GetKind(selectorIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                    "a constant case selector must fold to a LiteralInt");
+                Assert.That(frontend.StringPool!.Resolve(hlir[selectorIdx].Payload), Is.EqualTo("1"),
+                    "3 mod 2 must fold to 1 so the selector can match label 1");
+            }
+        }
+
+        [Test]
         public void CaseLabel_CharacterLabel_RejectionDiagnosticIsPreserved()
         {
             // A character case label is rejected in the frontend

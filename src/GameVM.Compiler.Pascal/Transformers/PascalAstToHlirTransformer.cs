@@ -641,6 +641,7 @@ namespace GameVM.Compiler.Pascal.Transformers
                     '-' => leftVal - rightVal,
                     '*' => leftVal * rightVal,
                     '/' => rightVal != 0 ? leftVal / rightVal : 0,
+                    '%' => rightVal != 0 ? leftVal % rightVal : 0,
                     '&' => leftVal & rightVal,
                     '|' => leftVal | rightVal,
                     '<' => leftVal < rightVal ? 1u : 0u,
