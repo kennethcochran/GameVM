@@ -1549,8 +1549,11 @@ public class HlirTreeToMlirTransformerTests
         // case selector rather than a branch condition.
         var ex = Assert.Throws<GameVmException>(() =>
             CompilePascal(ConditionProgram("case a div b of 1: x := 10; else x := 20 end;"), out _));
-        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
-        Assert.That(ex!.Message, Does.Contain("case selector"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
     }
 
     [Test]
@@ -1561,8 +1564,11 @@ public class HlirTreeToMlirTransformerTests
         // else.
         var ex = Assert.Throws<GameVmException>(() =>
             CompilePascal(ConditionProgram("case a mod b of 1: x := 10; else x := 20 end;"), out _));
-        Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
-        Assert.That(ex!.Message, Does.Contain("case selector"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
     }
 
     [Test]
