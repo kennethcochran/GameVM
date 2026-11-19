@@ -36,5 +36,16 @@ public enum InstructionFlag : ushort
     /// </summary>
     CalleeReturn = 1 << 2,
 
-    // Bits 4-15 reserved for future use
+    /// <summary>
+    /// On an Add/Sub instruction: the result is a 16-bit value even when
+    /// both operands are narrow. Set only by the unary-minus lowering,
+    /// whose contract is that negation produces a 16-bit result
+    /// regardless of the operand's width (matching the constant fold,
+    /// where -5 is 65531). Width inference and the wide lowering honor
+    /// it; a source-written binary Add/Sub never carries it, so general
+    /// Add/Sub width inference is unchanged.
+    /// </summary>
+    WideResult = 1 << 4,
+
+    // Bits 5-15 reserved for future use
 }

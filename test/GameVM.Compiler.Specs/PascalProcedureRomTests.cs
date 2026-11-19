@@ -426,6 +426,33 @@ public class PascalProcedureRomTests
     }
 
     [Test]
+    public void ProgramNegatingANarrowVariableYields65531()
+    {
+        // Unary minus is a 16-bit operation: -5 is 65531, not 251. The
+        // literal fold already does this (x := -5 stores 65531), but
+        // negating a narrow variable took the 8-bit Sub path: y := 5
+        // records width 1, the zero literal is width 1, so the Sub
+        // result temp and x stayed width 1 and only the low byte was
+        // produced (x = 251). The negation must take the 16-bit path
+        // regardless of the operand's width, matching the constant fold.
+        var result = Compile(UnaryMinusNarrowVariableProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // y := 5 stores to $82; x := -y is a 16-bit Sub(0, y) storing
+        // into x at $80/$81 (the declarations allocate x first, two
+        // slots once the negation is known 16-bit). The low pair
+        // subtracts y's low byte from 0 with the borrow set and stores
+        // 0xFB; the high pair subtracts immediate 0 with the borrow
+        // outstanding and stores 0xFF — x = 65531.
+        Assert.That(ContainsSequence(result.Code,
+            0xA9, 0x00, 0x38, 0xE5, 0x82, 0x85, 0x80, 0xA9, 0x00, 0xE9, 0x00, 0x85, 0x81), Is.True,
+            "negating a narrow variable must produce the full 16-bit two's complement (65531), not just the low byte (251)");
+    }
+
+    [Test]
     public void RepeatUntilLoopRunningUntilConditionMet()
     {
         // `repeat x := x + 1 until x = 3` must run its body (x reaches 3 by
@@ -620,6 +647,13 @@ public class PascalProcedureRomTests
         "  w := x - y;\n" +
         "end.";
 
+    private const string UnaryMinusNarrowVariableProgram =
+        "program Probe;\n" +
+        "var x, y: Integer;\n" +
+        "begin\n" +
+        "  y := 5;\n" +
+        "  x := -y;\n" +
+        "end.";
 
     private const string RepeatUntilInitiallyTrueProgram =
         "program Probe;\n" +

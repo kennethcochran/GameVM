@@ -286,14 +286,16 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// the resolved-operand fallback below. Add/Sub of 16-bit values
         /// take the wide path instead: a low byte pair that stores its
         /// result, then a high byte pair that consumes the low pair's
-        /// carry (Add) or borrow (Sub).</summary>
+        /// carry (Add) or borrow (Sub). A Sub carrying WideResult takes
+        /// the wide path too: it is a unary minus, whose contract is a
+        /// 16-bit result regardless of operand width.</summary>
         private bool TryEmitLoadThenOp(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, HashSet<int> consumed)
         {
             if (!IsLoadThenOpKind(llirKind) || operands.Length < 2)
                 return false;
 
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub)
-                && ArithmeticWidth(operands, stringPool) == 2)
+                && (ArithmeticWidth(operands, stringPool) == 2 || IsWideResult(inputSlab, instIdx)))
             {
                 EmitWideLoadThenOp(inputSlab, instIdx, builder, stringPool, llirKind, operands, consumed);
                 return true;
@@ -302,6 +304,14 @@ namespace GameVM.Compiler.Backend.Atari2600
             EmitLoadThenOp(builder, stringPool, llirKind, operands);
             return true;
         }
+
+        /// <summary>Whether the Add/Sub at <paramref name="instIdx"/>
+        /// carries the 16-bit-result marker: set only by the unary-minus
+        /// lowering, whose contract is a 16-bit result regardless of
+        /// operand width. A source-written binary Add/Sub never carries
+        /// it, so this never widens general Add/Sub inference.</summary>
+        private static bool IsWideResult(InstList inputSlab, int instIdx) =>
+            ((InstructionFlag)inputSlab.GetFlags(instIdx)).HasFlag(InstructionFlag.WideResult);
 
         /// <summary>
         /// Width of an Add/Sub result: the wider of its two operands. A
@@ -883,7 +893,9 @@ namespace GameVM.Compiler.Backend.Atari2600
         ///    temp has no recorded width).
         ///  - Add/Sub: the wider operand's width (an operand with no
         ///    recorded width counts as 1). The result temp (named by
-        ///    the following Assign(tmp, 0)) takes the result width.
+        ///    the following Assign(tmp, 0)) takes the result width. A
+        ///    Sub carrying WideResult is a unary minus and takes width
+        ///    2 regardless of operand width.
         ///  - Multiply, BitwiseAnd/Or, BitwiseNot: 8-bit ops; their
         ///    result temp stays width 1, and their operands gain no
         ///    width evidence.
@@ -969,7 +981,13 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             int leftWidth = InferOperandWidth(operands[0], stringPool);
             int rightWidth = InferOperandWidth(operands[1], stringPool);
-            return InferResultTempWidth(inputSlab, instIdx, Math.Max(leftWidth, rightWidth), stringPool);
+            int resultWidth = Math.Max(leftWidth, rightWidth);
+            // A unary minus carries WideResult: its result is 16-bit
+            // regardless of operand width, so the result temp — and
+            // anything copied from it — takes two slots.
+            if (IsWideResult(inputSlab, instIdx))
+                resultWidth = 2;
+            return InferResultTempWidth(inputSlab, instIdx, resultWidth, stringPool);
         }
 
         /// <summary>

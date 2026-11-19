@@ -1646,6 +1646,61 @@ public class MidToLowLevelTransformerTests
             Assert.That(storeOps.Length, Is.EqualTo(1));
             Assert.That(storeOps[0], Is.EqualTo(0x81u), "Store targets x's zero-page address");
         }
+
+        [Test]
+        public void Transform_UnaryMinusSequenceWithWideResult_EmitsSixteenBitSub()
+        {
+            // Same MLIR as Transform_UnaryMinusSequence_EmitsLoadZeroSubStore,
+            // but the Sub carries WideResult (set by the unary-minus
+            // lowering): negation is a 16-bit operation, so a narrow y
+            // must still take the wide path — low pair stores the low
+            // byte, high pair subtracts y's (absent) high byte as
+            // immediate 0 with the borrow and stores the high byte.
+            // The wide result resolves to x first, so x allocates
+            // $80/$81 and y takes $82.
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint xOffset = _stringPool.Intern("x");
+            uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+            var builder = new InstListBuilder();
+            builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.WideResult, 0, zeroOffset, yOffset);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tmpOffset, 0);
+            builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, xOffset, tmpOffset);
+            var mlir = builder.Build();
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            // Low pair, high pair; the two Assigns are consumed by the
+            // wide result storing straight into x.
+            Assert.That(result.Count, Is.EqualTo(6));
+
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetOperands(0)[0], Is.EqualTo(0u), "Low pair loads immediate 0");
+
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            var lowSubOps = result.GetOperands(1);
+            Assert.That(lowSubOps.Length, Is.EqualTo(2));
+            Assert.That(lowSubOps[0], Is.EqualTo(0x82u), "Low Sub subtracts y's zero-page address");
+            Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
+                "Low Sub sets the borrow itself (SEC)");
+
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "Low byte stores to x's first slot");
+
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(0u), "High pair loads immediate 0");
+
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            var highSubOps = result.GetOperands(4);
+            Assert.That(highSubOps.Length, Is.EqualTo(1));
+            Assert.That(highSubOps[0], Is.EqualTo(0u), "High Sub subtracts immediate 0 (narrow y has no high byte)");
+            Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
+                "High Sub consumes the low pair's borrow (no SEC)");
+
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "High byte stores to x's second slot");
+        }
         #endregion
 
         #region Fail-Loud Tests (Slice 1, L1)
