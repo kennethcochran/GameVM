@@ -237,7 +237,7 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(result.Hlir.Count, Is.EqualTo(0), "a rejected label must not produce HLIR");
+                Assert.That(result.Hlir.Count, Is.Zero, "a rejected label must not produce HLIR");
                 Assert.That(frontend.LastParseErrors, Is.Not.Null, "the rejection diagnostic must be preserved");
                 Assert.That(frontend.LastParseErrors, Has.Some.Contains("not an integer constant"),
                     "the diagnostic must name the reason the label was rejected");
