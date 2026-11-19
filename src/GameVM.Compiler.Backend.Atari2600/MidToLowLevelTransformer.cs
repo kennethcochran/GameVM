@@ -70,6 +70,14 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return Empty();
             }
 
+            // Each compilation is independent: allocation starts from a
+            // clean slate, so an address handed out for an earlier slab
+            // cannot survive into this one and collide with a variable
+            // whose width changed between compilations.
+            _userAddresses.Clear();
+            _scratchAddresses.Clear();
+            _nextUserAddress = 0x80;
+
             // Widths are a property of the whole slab, not of the first
             // use: a declaration Assign(x, 0) precedes x := 300 in real
             // MLIR, so a single pass would fix x at one slot before ever

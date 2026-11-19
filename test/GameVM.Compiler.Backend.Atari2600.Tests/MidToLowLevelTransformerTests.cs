@@ -1467,6 +1467,53 @@ public class MidToLowLevelTransformerTests
             }
         }
 
+        [Test]
+        public void TransformSlab_VariableWidenedInSecondCompilation_DoesNotClobberNeighbour()
+        {
+            // The transformer is a singleton: one instance transforms every
+            // slab in the process, and each compilation is independent of
+            // the ones before it. Compilation 1: a := 5; b := 7, both
+            // narrow, so a takes $80 and b takes $81. Compilation 2 widens
+            // a (a := 300) while b stays narrow: allocation restarts, so a
+            // takes $80/$81 and b takes $82. If the first compilation's
+            // addresses survive into the second, a keeps $80 but is now
+            // two slots wide, so its high byte writes to $81, which is
+            // still recorded as b's slot, and b's own assignment then
+            // lands on the same address.
+            uint aOffset = _stringPool.Intern("a");
+            uint bOffset = _stringPool.Intern("b");
+
+            var firstBuilder = new InstListBuilder();
+            firstBuilder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, aOffset, _stringPool.Intern("5"));
+            firstBuilder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, bOffset, _stringPool.Intern("7"));
+            var first = _transformer.TransformSlab(firstBuilder.Build(), _stringPool);
+
+            var secondBuilder = new InstListBuilder();
+            secondBuilder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, aOffset, _stringPool.Intern("300"));
+            secondBuilder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, bOffset, _stringPool.Intern("9"));
+            var second = _transformer.TransformSlab(secondBuilder.Build(), _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(first.Count, Is.EqualTo(2));
+                Assert.That(first.GetOperands(0)[0], Is.EqualTo(0x80u), "first compilation: a at $80");
+                Assert.That(first.GetOperands(1)[0], Is.EqualTo(0x81u), "first compilation: b at $81");
+
+                Assert.That(second.Count, Is.EqualTo(3),
+                    "a := 300 emits two Assigns (low and high byte), b := 9 emits one");
+                Assert.That(second.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(second.GetOperands(0)[0], Is.EqualTo(0x80u), "second compilation restarts allocation: a low at $80");
+                Assert.That(second.GetOperands(0)[1], Is.EqualTo(44u), "300 low byte is 44");
+                Assert.That(second.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(second.GetOperands(1)[0], Is.EqualTo(0x81u), "a high byte at $81, a's own second slot");
+                Assert.That(second.GetOperands(1)[1], Is.EqualTo(1u), "300 high byte is 1");
+                Assert.That(second.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(second.GetOperands(2)[0], Is.EqualTo(0x82u),
+                    "b allocates past both of a's slots at $82, not on a's high byte at $81");
+                Assert.That(second.GetOperands(2)[1], Is.EqualTo(9u));
+            }
+        }
+
         #endregion
         #region Branch Polarity Tests
 
