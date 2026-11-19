@@ -1572,6 +1572,42 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void ComparisonUsedAsCaseSelectorFailsLoudly()
+    {
+        // `case (a = b) of 1: ...` has no correct lowering: a
+        // comparison's result is not materialized as a 0/1 value, so
+        // EvaluateExpression emits Cmp and assigns the constant 1 to
+        // the selector temp — with a=0, b=1 the comparison is false,
+        // yet the `1` arm is selected. Materializing comparisons used
+        // as values is the comparisons-as-values slice's work; until
+        // it lands, a comparison anywhere in a case selector must
+        // fail loudly, the way div/mod in a selector already do.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case (a = b) of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
+    }
+
+    [Test]
+    public void ComparisonNestedInCaseSelectorFailsLoudly()
+    {
+        // The rejection covers a comparison anywhere inside a
+        // selector, not only at its root: here the root is an
+        // addition whose left operand is a comparison, which would
+        // otherwise be assigned the constant 1 before being added.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case ((a = b) + 1) of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
+    }
+
+    [Test]
     public void DivNestedInsideConditionFailsLoudly()
     {
         // The rejection covers div anywhere inside a condition, not

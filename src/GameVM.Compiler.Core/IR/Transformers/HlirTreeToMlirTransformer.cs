@@ -778,6 +778,12 @@ public sealed class HlirTreeToMlirTransformer
     // the dispatch would silently test a subtraction result. The check
     // mirrors ValidateBranchCondition but names the case selector, so
     // the diagnostic points at the construct that must change.
+    // A comparison in a selector is likewise not materialized as a
+    // 0/1 value: EvaluateExpression emits Cmp and assigns the constant
+    // 1 to the result temp, so the dispatch would test 1 whatever the
+    // operands are. Unlike a branch condition, a selector has no root
+    // position where a comparison keeps its comparison encoding, so
+    // comparisons are rejected at any depth.
     private static void ValidateCaseSelector(HlirTree tree, int idx)
     {
         var node = tree[idx];
@@ -790,6 +796,17 @@ public sealed class HlirTreeToMlirTransformer
                     ErrorCode.UnhandledInstruction,
                     $"HlirTreeToMlirTransformer has no MLIR lowering for div/mod in a case selector " +
                     $"at tree index {idx}: operator '{op}' would silently evaluate as a different operation " +
+                    $"and the dispatch would test the wrong value.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+
+            if (IsComparisonOp(op))
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for a comparison in a case selector " +
+                    $"at tree index {idx}: operator '{op}' would silently evaluate as the constant 1 " +
                     $"and the dispatch would test the wrong value.",
                     ErrorSeverity.Error,
                     ConditionOperatorContext(idx, op));
