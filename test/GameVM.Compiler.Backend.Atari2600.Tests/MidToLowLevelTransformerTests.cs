@@ -47,13 +47,15 @@ public class MidToLowLevelTransformerTests
         return builder.Build();
     }
 
-    private static InstList BuildMlirCall(uint functionId, uint argCount, uint[] argIds)
+    // Builds an MLIR Call in the shape the production pipeline emits
+    // (HlirTreeToMlirTransformer.ProcessCallStatement): the callee's pool
+    // offset first, then one pool offset per argument — no arg count.
+    private static InstList BuildMlirCall(uint functionId, uint[] argIds)
     {
         var builder = new InstListBuilder();
-        var operands = new uint[1 + 1 + argCount];
+        var operands = new uint[1 + argIds.Length];
         operands[0] = functionId;
-        operands[1] = argCount;
-        Array.Copy(argIds, 0, operands, 2, argIds.Length);
+        Array.Copy(argIds, 0, operands, 1, argIds.Length);
         builder.Add((byte)MlirInstructionKind.Call, InstructionFlag.None, 0, operands);
         return builder.Build();
     }
@@ -259,7 +261,7 @@ public class MidToLowLevelTransformerTests
     {
         // Arrange
         uint functionId = (uint)"InitGame".GetHashCode();
-        var mlir = BuildMlirCall(functionId, 0, Array.Empty<uint>());
+        var mlir = BuildMlirCall(functionId, Array.Empty<uint>());
 
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
@@ -273,20 +275,69 @@ public class MidToLowLevelTransformerTests
     }
 
     [Test]
-    public void Transform_FunctionCallWithArguments_PreservesCallStructure()
+    public void Transform_FunctionCallWithArguments_MaterializesArgumentsBeforeCall()
     {
-        // Arrange: call Add(5, 3)
+        // Arrange: call Add(5, 3). Each argument value must be loaded
+        // into the accumulator before the JSR — a bare Call carries only
+        // the callee label, so an unloaded argument would vanish from
+        // the ROM silently.
         uint functionId = (uint)"Add".GetHashCode();
-        uint arg1Id = (uint)"5".GetHashCode(); // simplified
-        uint arg2Id = (uint)"3".GetHashCode();
-        var mlir = BuildMlirCall(functionId, 2, new[] { arg1Id, arg2Id });
+        uint arg1 = _stringPool.Intern("5");
+        uint arg2 = _stringPool.Intern("3");
+        var mlir = BuildMlirCall(functionId, new[] { arg1, arg2 });
 
         // Act
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        // Assert
-        Assert.That(result.Count, Is.EqualTo(1));
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Call));
+        // Assert: Load 5, Load 3, then the Call.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(3));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetArgCount(0), Is.EqualTo(1));
+            Assert.That(result.GetOperand(0, 0), Is.EqualTo(5));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetArgCount(1), Is.EqualTo(1));
+            Assert.That(result.GetOperand(1, 0), Is.EqualTo(3));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Call));
+        }
+    }
+
+    [Test]
+    public void Transform_FunctionCallWithComputedArgument_StoresTempBeforeArgumentLoad()
+    {
+        // MLIR for: F(x + 1), as the HLIR lowering emits it: the computed
+        // argument lives in the accumulator after the Add, is assigned to
+        // __tmp_0, and the Call reads it. The Assign to __tmp_0 must store
+        // it to memory before the Call loads it — otherwise the load reads
+        // an unwritten address and the callee receives garbage instead of
+        // x + 1.
+        uint functionId = (uint)"F".GetHashCode();
+        uint xOffset = _stringPool.Intern("x");
+        uint oneOffset = _stringPool.Intern("1");
+        uint tmpOffset = _stringPool.Intern("__tmp_0");
+
+        var mlir = BuildMlirSlab(
+            ((byte)LlirInstructionKind.Add, new uint[] { xOffset, oneOffset }),
+            ((byte)MlirInstructionKind.Assign, new uint[] { tmpOffset, 0 }),
+            ((byte)MlirInstructionKind.Call, new uint[] { functionId, tmpOffset }));
+        var result = _transformer.TransformSlab(mlir, _stringPool);
+
+        // Load x, Add 1, Store __tmp_0, Load __tmp_0, Call F.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(5));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Call));
+
+            uint tmpAddr = result.GetOperands(2)[0];
+            Assert.That(tmpAddr, Is.GreaterThanOrEqualTo(0x80u), "__tmp_0 must have a zero-page address");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(tmpAddr),
+                "the Call must load the computed argument from the address the materializing store wrote");
+        }
     }
 
     #endregion
@@ -373,8 +424,9 @@ public class MidToLowLevelTransformerTests
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, funcHash);
         builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, 
             _stringPool.Intern("x"), _stringPool.Intern("10"));
-        builder.Add((byte)MlirInstructionKind.Call, InstructionFlag.None, 0, 
-            (uint)"myFunction".GetHashCode(), 0);
+        // Argument-less call in the production shape: callee offset only.
+        builder.Add((byte)MlirInstructionKind.Call, InstructionFlag.None, 0,
+            (uint)"myFunction".GetHashCode());
         builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, 
             _stringPool.Intern("y"), _stringPool.Intern("20"));
         var mlir = builder.Build();

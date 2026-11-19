@@ -133,7 +133,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                         break;
 
                     case MlirInstructionKind.Call:
-                        ProcessCall(inputSlab, i, builder);
+                        ProcessCall(inputSlab, i, builder, stringPool);
                         break;
 
                     case MlirInstructionKind.Return:
@@ -446,6 +446,24 @@ namespace GameVM.Compiler.Backend.Atari2600
             }
         }
 
+        // Loads one operand into A: a variable loads its VALUE from memory
+        // ([addr, 0] -> zp form); a literal loads immediate. Shared by
+        // binary-op lowering and call-argument materialization.
+        private void EmitLoadOperand(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
+        {
+            string operandText = stringPool.Resolve(operands[0]);
+            if (IsName(operandText))
+            {
+                ushort operandAddr = GetAddressForVariable(operandText);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, operandAddr, 0);
+            }
+            else
+            {
+                uint operandVal = ResolveSlot(operands[0], stringPool);
+                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, operandVal);
+            }
+        }
+
         /// <summary>One byte of a wide Add/Sub's right operand, in LLIR
         /// operand form: a variable contributes the address of the slot
         /// holding that byte; a one-slot variable's high contribution is
@@ -490,7 +508,7 @@ namespace GameVM.Compiler.Backend.Atari2600
                         ["OperandCount"] = operands.Length,
                     });
 
-            EmitLoadLeft(builder, stringPool, operands);
+            EmitLoadOperand(builder, stringPool, operands);
             builder.Add((byte)LlirInstructionKind.BitwiseNot, InstructionFlag.None, 0);
             return true;
         }
@@ -509,25 +527,8 @@ namespace GameVM.Compiler.Backend.Atari2600
         // into A, then apply the op with the right operand.
         private void EmitLoadThenOp(InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands)
         {
-            EmitLoadLeft(builder, stringPool, operands);
+            EmitLoadOperand(builder, stringPool, operands);
             builder.Add(llirKind, InstructionFlag.None, 0, RightOperands(stringPool, operands));
-        }
-
-        // Loads the left operand of a binary op into A: a variable loads its
-        // VALUE from memory ([addr, 0] -> zp form); a literal loads immediate.
-        private void EmitLoadLeft(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
-        {
-            string leftText = stringPool.Resolve(operands[0]);
-            if (IsName(leftText))
-            {
-                ushort leftAddr = GetAddressForVariable(leftText);
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftAddr, 0);
-            }
-            else
-            {
-                uint leftVal = ResolveSlot(operands[0], stringPool);
-                builder.Add((byte)LlirInstructionKind.Load, InstructionFlag.None, 0, leftVal);
-            }
         }
 
         // The right operand of a binary op as the leading operands of the op
@@ -572,7 +573,7 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// </summary>
         private void EmitMultiplyOp(InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands)
         {
-            EmitLoadLeft(builder, stringPool, operands);
+            EmitLoadOperand(builder, stringPool, operands);
 
             ushort scratchM = GetAddressForScratch("__mul_m");
             ushort scratchN = GetAddressForScratch("__mul_n");
@@ -744,8 +745,8 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         /// <summary>
         /// Whether a later MLIR instruction reads <paramref name="tempSlot"/>
-        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp)
-        /// or a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot).
+        /// as an operand of an arithmetic/compare op (Add/Sub/Multiply/Cmp),
+        /// a bitwise op (BitwiseAnd/BitwiseOr/BitwiseNot), or a Call argument.
         /// Such a read loads the temp from its zero-page address, so the temp
         /// must be stored to memory when it is assigned. A temp consumed only
         /// by the Assign that stores it into its real target reads the
@@ -762,7 +763,8 @@ namespace GameVM.Compiler.Backend.Atari2600
                     && kind != (byte)LlirInstructionKind.BitwiseAnd
                     && kind != (byte)LlirInstructionKind.BitwiseOr
                     && kind != (byte)LlirInstructionKind.BitwiseNot
-                    && kind != (byte)LlirInstructionKind.Cmp)
+                    && kind != (byte)LlirInstructionKind.Cmp
+                    && kind != (byte)MlirInstructionKind.Call)
                     continue;
                 ReadOnlySpan<uint> operands = inputSlab.GetOperands(j);
                 for (int k = 0; k < operands.Length; k++)
@@ -830,12 +832,22 @@ namespace GameVM.Compiler.Backend.Atari2600
             }
         }
 
-        private static void ProcessCall(InstList inputSlab, int instIdx, InstListBuilder builder)
+        private void ProcessCall(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool)
         {
             ReadOnlySpan<uint> operands = inputSlab.GetOperands(instIdx);
             if (operands.Length < 1) return;
 
             uint funcOffset = operands[0];
+
+            // The MLIR Call carries the argument slots after the callee
+            // (HlirTreeToMlirTransformer.ProcessCallStatement). The LLIR
+            // Call is a bare JSR to the callee's label, so each argument
+            // value must be loaded into the accumulator first — otherwise
+            // the argument vanishes from the ROM silently. This only
+            // materializes the values; assigning them to parameter slots
+            // is the parameter-passing slice's job, not this one's.
+            for (int i = 1; i < operands.Length; i++)
+                EmitLoadOperand(builder, stringPool, operands.Slice(i, 1));
 
             // Function calls are emitted as single-operand Calls carrying the
             // function's label pool-offset; the codegen resolves it to a ROM
