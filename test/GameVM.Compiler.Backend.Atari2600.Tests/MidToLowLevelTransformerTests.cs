@@ -1706,6 +1706,242 @@ public class MidToLowLevelTransformerTests
         }
         #endregion
 
+        #region Wide Comparison Tests (PR #22 fix round 13)
+
+        [Test]
+        public void Transform_WideEqualComparesBothBytes()
+        {
+            // Regression: x := 256; if x = 0 then y := 1 must NOT take
+            // the then-arm — 256 and 0 share a low byte, so a single-byte
+            // Cmp decides the branch on the wrong comparison. A wide
+            // comparison emits a low pair and a high pair, each branching
+            // to the skip label when its byte differs.
+            // MLIR: Assign(x, 256); Cmp(x, 0); Branch(L_end); Assign(y, 1); Label(L_end).
+            // x allocates $80/$81 (wide), y takes $82.
+            uint xOffset = _stringPool.Intern("x");
+            uint wideOffset = _stringPool.Intern("256");
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint oneOffset = _stringPool.Intern("1");
+            uint endOffset = _stringPool.Intern("L_end");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, wideOffset }),
+                ((byte)LlirInstructionKind.Cmp, new uint[] { xOffset, zeroOffset }),
+                ((byte)MlirInstructionKind.Branch, new uint[] { endOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, oneOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { endOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(10));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(result.GetOperands(0)[1], Is.Zero, "256 low byte is 0");
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u), "x high byte at $81");
+                Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u), "256 high byte is 1");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "Low pair loads x low byte");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(3)[0], Is.Zero, "Low pair compares against 0");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(4)[0], Is.EqualTo(endOffset), "Low pair skips to L_end when the low byte differs");
+
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "High pair loads x high byte");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(6)[0], Is.Zero, "High pair compares against 0");
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(7)[0], Is.EqualTo(endOffset), "High pair skips to L_end when the high byte differs");
+
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(0x82u), "Then-arm stores y at $82");
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(endOffset), "End label closes the if");
+            }
+        }
+
+        [Test]
+        public void Transform_WideCaseLabelComparesBothBytes()
+        {
+            // Regression: a case selector of 251 must NOT match a -5 label
+            // (65531) — they share the low byte 251, so a single-byte Cmp
+            // dispatches to the wrong arm. The label is a wide literal, so
+            // the comparison takes the wide path even though the selector
+            // itself is one slot; its absent high byte compares as 0.
+            // MLIR: Assign(x, 251); Cmp(x, 65531); Branch(L_skip); Assign(y, 1); Label(L_skip).
+            uint xOffset = _stringPool.Intern("x");
+            uint selectorOffset = _stringPool.Intern("251");
+            uint labelOffset = _stringPool.Intern("65531");
+            uint yOffset = _stringPool.Intern("y");
+            uint oneOffset = _stringPool.Intern("1");
+            uint skipOffset = _stringPool.Intern("L_skip");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, selectorOffset }),
+                ((byte)LlirInstructionKind.Cmp, new uint[] { xOffset, labelOffset }),
+                ((byte)MlirInstructionKind.Branch, new uint[] { skipOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, oneOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { skipOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(9));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u), "x at $80");
+                Assert.That(result.GetOperands(0)[1], Is.EqualTo(251u));
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x80u), "Low pair loads the selector");
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(251u), "Low pair compares against the label low byte 251");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(skipOffset), "Low pair skips when the low byte differs");
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(4)[0], Is.Zero, "A one-slot selector has no high byte: immediate 0");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(255u), "High pair compares against the label high byte 255");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(skipOffset), "High pair skips when the high byte differs");
+
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(7)[0], Is.EqualTo(0x81u), "Arm stores y at $81");
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(skipOffset), "Skip label closes the arm");
+            }
+        }
+
+        [Test]
+        public void Transform_WideLessThanComparesHighByteFirst()
+        {
+            // Regression: if x < 1 with x := 256 must NOT take the then-arm.
+            // Unsigned less-than decides on the carry after the compare, so
+            // the high bytes compare first: when they differ the carry from
+            // the high compare decides, and the low bytes compare only when
+            // the high bytes are equal. The intermediate branch jumps over
+            // the low compare to the carry decision.
+            // MLIR: Assign(x, 256); Cmp(x, 1); Bcs; Branch(L_end); Assign(y, 1); Label(L_end).
+            uint xOffset = _stringPool.Intern("x");
+            uint wideOffset = _stringPool.Intern("256");
+            uint oneOffset = _stringPool.Intern("1");
+            uint yOffset = _stringPool.Intern("y");
+            uint endOffset = _stringPool.Intern("L_end");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, wideOffset }),
+                ((byte)LlirInstructionKind.Cmp, new uint[] { xOffset, oneOffset }),
+                ((byte)LlirInstructionKind.Bcs, Array.Empty<uint>()),
+                ((byte)MlirInstructionKind.Branch, new uint[] { endOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, oneOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { endOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(14));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x81u), "High bytes compare first: load x high byte");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(3)[0], Is.Zero, "High pair compares against 1 >> 8 = 0");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                uint freshOffset = result.GetOperands(4)[0];
+                Assert.That(_stringPool.Resolve(freshOffset), Does.StartWith("L_widecmp_"),
+                    "The intermediate branch jumps over the low compare to a fresh label");
+
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x80u), "Low pair loads x low byte when the high bytes are equal");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(6)[0], Is.EqualTo(1u), "Low pair compares against 1");
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Bcs));
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(endOffset), "Carry-set branch skips when the low compare says left >= right");
+
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(freshOffset), "The fresh label lands after the first carry branch");
+                Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Bcs));
+                Assert.That(result.GetKind(11), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(11)[0], Is.EqualTo(endOffset), "Second carry branch decides on the high compare's carry");
+
+                Assert.That(result.GetKind(12), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(12)[0], Is.EqualTo(0x82u), "Then-arm stores y at $82");
+                Assert.That(result.GetKind(13), Is.EqualTo((byte)LlirInstructionKind.Label));
+            }
+        }
+
+        [Test]
+        public void Transform_WideNotEqualComparesBothBytes()
+        {
+            // Regression: if x <> 0 with x := 256 must take the then-arm —
+            // the values differ, so the skip branch (BEQ, fire when equal)
+            // must not fire. Equality needs both bytes: when the low bytes
+            // differ the branch is skipped outright, and the high compare
+            // decides only when the low bytes are equal.
+            // MLIR: Assign(x, 256); Cmp(x, 0); Transition; Branch(L_end); Assign(y, 1); Label(L_end).
+            uint xOffset = _stringPool.Intern("x");
+            uint wideOffset = _stringPool.Intern("256");
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint oneOffset = _stringPool.Intern("1");
+            uint endOffset = _stringPool.Intern("L_end");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, wideOffset }),
+                ((byte)LlirInstructionKind.Cmp, new uint[] { xOffset, zeroOffset }),
+                ((byte)LlirInstructionKind.Transition, Array.Empty<uint>()),
+                ((byte)MlirInstructionKind.Branch, new uint[] { endOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, oneOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { endOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(12));
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "Low pair loads x low byte");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(3)[0], Is.Zero, "Low pair compares against 0");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                uint freshOffset = result.GetOperands(4)[0];
+                Assert.That(_stringPool.Resolve(freshOffset), Does.StartWith("L_widecmp_"),
+                    "The intermediate branch jumps over the equal-branch when the low bytes differ");
+
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "High pair loads x high byte");
+                Assert.That(result.GetKind(6), Is.EqualTo((byte)LlirInstructionKind.Cmp));
+                Assert.That(result.GetOperands(6)[0], Is.Zero, "High pair compares against 0");
+                Assert.That(result.GetKind(7), Is.EqualTo((byte)LlirInstructionKind.Transition));
+                Assert.That(result.GetKind(8), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                Assert.That(result.GetOperands(8)[0], Is.EqualTo(endOffset), "Equal-branch skips when both bytes are equal");
+
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(freshOffset), "The fresh label lands after the equal-branch");
+                Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(10)[0], Is.EqualTo(0x82u), "Then-arm stores y at $82");
+                Assert.That(result.GetKind(11), Is.EqualTo((byte)LlirInstructionKind.Label));
+            }
+        }
+
+        #endregion
+
         #region Fail-Loud Tests (Slice 1, L1)
 
         [Test]

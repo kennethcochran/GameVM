@@ -55,6 +55,12 @@ namespace GameVM.Compiler.Backend.Atari2600
         // names the result temp in the next instruction).
         private int _wideTempCounter;
 
+        // Counter for the fall-through labels a wide comparison invents
+        // (one per wide Cmp that needs to skip its second decision — the
+        // `<>`/`<` shapes). Labels are unique per slab; the counter is
+        // never reset, so a label can never collide with an earlier one.
+        private int _wideCmpCounter;
+
         public MidToLowLevelTransformer()
         {
             InitializeAddressMap();
@@ -288,7 +294,11 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// result, then a high byte pair that consumes the low pair's
         /// carry (Add) or borrow (Sub). A Sub carrying WideResult takes
         /// the wide path too: it is a unary minus, whose contract is a
-        /// 16-bit result regardless of operand width.</summary>
+        /// 16-bit result regardless of operand width. A Cmp of 16-bit
+        /// values takes the wide compare path instead (see EmitWideCmp):
+        /// a single-byte Cmp would decide the following branch on the
+        /// low bytes alone, so `x := 256; if x = 0` would take the
+        /// then-arm and a case selector of 251 would match a -5 label.</summary>
         private bool TryEmitLoadThenOp(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool, byte llirKind, ReadOnlySpan<uint> operands, HashSet<int> consumed)
         {
             if (!IsLoadThenOpKind(llirKind) || operands.Length < 2)
@@ -301,7 +311,115 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return true;
             }
 
+            if (llirKind == (byte)LlirInstructionKind.Cmp
+                && ArithmeticWidth(operands, stringPool) == 2
+                && TryEmitWideCmp(inputSlab, instIdx, builder, stringPool, operands, consumed))
+            {
+                return true;
+            }
+
             EmitLoadThenOp(builder, stringPool, llirKind, operands);
+            return true;
+        }
+
+        /// <summary>Lowers a 16-bit Cmp as two byte compares feeding the
+        /// following conditional branch. The Cmp is wide only when the
+        /// branch group follows it directly — Cmp, then an optional
+        /// Transition/Bcs marker, then the Branch — because only the
+        /// branch reads the flags: a Cmp in expression position (followed
+        /// by Assign(tmp, 1)) has no flag consumer, so it stays narrow.
+        /// Returns false when the group does not follow, and the caller
+        /// falls back to the narrow lowering. The marker selects the
+        /// shape, and the branch fires exactly when the condition is
+        /// false, as the narrow encoding does:
+        ///  - No marker (BNE, `=` and case-label skip): compare the low
+        ///    bytes and branch when they differ, then the high bytes and
+        ///    branch when they differ — both branches to the same target.
+        ///  - Transition (BEQ, `<>` and value conditions): compare the
+        ///    low bytes and branch past the equal-branch when they differ,
+        ///    then the high bytes and branch when both bytes are equal.
+        ///  - Bcs (BCS, `&lt;`): compare the HIGH bytes first — when they
+        ///    differ their carry decides, and the low bytes compare only
+        ///    when the high bytes are equal. The first carry branch covers
+        ///    the high-equal path, the second (after the fresh label) the
+        ///    high-differ path; the flags survive the label untouched, so
+        ///    a fall-through from the first can never re-fire the second.
+        /// The `&gt;`, `&lt;=` and `&gt;=` relations have no branch encoding
+        /// yet (they lower as `=`, a separate slice — see
+        /// LessThanEmitsCorrectBranch): the wide compare still compares
+        /// both bytes, but their branch decision keeps the narrow `=`
+        /// semantics until their encodings land.
+        /// A one-slot operand has no high byte: its high contribution is
+        /// immediate 0, which is exact — the missing byte is zero.</summary>
+        private bool TryEmitWideCmp(InstList inputSlab, int instIdx, InstListBuilder builder, StringPool stringPool, ReadOnlySpan<uint> operands, HashSet<int> consumed)
+        {
+            int nextIdx = instIdx + 1;
+            bool hasTransition = false;
+            bool hasBcs = false;
+            if (nextIdx < inputSlab.Count)
+            {
+                byte nextKind = inputSlab.GetKind(nextIdx);
+                if (nextKind == (byte)LlirInstructionKind.Transition)
+                {
+                    hasTransition = true;
+                    nextIdx++;
+                }
+                else if (nextKind == (byte)LlirInstructionKind.Bcs)
+                {
+                    hasBcs = true;
+                    nextIdx++;
+                }
+            }
+
+            if (nextIdx >= inputSlab.Count
+                || (MlirInstructionKind)inputSlab.GetKind(nextIdx) != MlirInstructionKind.Branch)
+                return false;
+
+            ReadOnlySpan<uint> branchOperands = inputSlab.GetOperands(nextIdx);
+            if (branchOperands.Length < 1)
+                return false;
+
+            uint target = branchOperands[0];
+            if (hasTransition || hasBcs)
+                consumed.Add(instIdx + 1);
+            consumed.Add(nextIdx);
+
+            if (hasBcs)
+            {
+                uint freshOffset = stringPool.Intern($"L_widecmp_{_wideCmpCounter++}");
+                EmitLoadOperand(builder, stringPool, operands[0], high: true);
+                builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: true));
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, freshOffset);
+                EmitLoadOperand(builder, stringPool, operands[0], high: false);
+                builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: false));
+                builder.Add((byte)LlirInstructionKind.Bcs, InstructionFlag.None, 0);
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
+                builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, freshOffset);
+                builder.Add((byte)LlirInstructionKind.Bcs, InstructionFlag.None, 0);
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
+                return true;
+            }
+
+            if (hasTransition)
+            {
+                uint freshOffset = stringPool.Intern($"L_widecmp_{_wideCmpCounter++}");
+                EmitLoadOperand(builder, stringPool, operands[0], high: false);
+                builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: false));
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, freshOffset);
+                EmitLoadOperand(builder, stringPool, operands[0], high: true);
+                builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: true));
+                builder.Add((byte)LlirInstructionKind.Transition, InstructionFlag.None, 0);
+                builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
+                builder.Add((byte)LlirInstructionKind.Label, InstructionFlag.None, 0, freshOffset);
+                return true;
+            }
+
+            EmitLoadOperand(builder, stringPool, operands[0], high: false);
+            builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: false));
+            builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
+            EmitLoadOperand(builder, stringPool, operands[0], high: true);
+            builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: true));
+            builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
             return true;
         }
 
@@ -900,8 +1018,11 @@ namespace GameVM.Compiler.Backend.Atari2600
         ///    result temp stays width 1, and their operands gain no
         ///    width evidence.
         /// Cmp, Load, Call, Return, Branch and friends carry no width
-        /// evidence: comparisons stay 8-bit (a separate slice), and a
-        /// variable that only ever appears in one keeps one slot.
+        /// evidence: a Cmp records nothing — the wide compare path reads
+        /// a one-slot operand's high byte as immediate 0, so a variable
+        /// compared against a wide literal needs no widening of its own
+        /// allocation. A variable that only ever appears in comparisons
+        /// keeps one slot, and the comparison still decides on both bytes.
         /// Assigns to a __tmp_ target are the op-result marker, not a
         /// value assignment, and record nothing.
         /// The scan repeats until a full pass changes nothing:
