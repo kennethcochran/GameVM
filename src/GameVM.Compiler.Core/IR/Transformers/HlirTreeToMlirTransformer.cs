@@ -29,6 +29,12 @@ public sealed class HlirTreeToMlirTransformer
     private int _tempCounter;
     private int _functionDepth;
 
+    // Diagnostic-context keys shared by every GameVmException this
+    // transformer throws: one declaration so the literals are not
+    // duplicated at each throw site.
+    private const string TreeIndexKey = "TreeIndex";
+    private const string HlirKindKey = "HlirKind";
+
 
 
     public HlirTreeToMlirTransformer(StringPool stringPool)
@@ -118,6 +124,10 @@ public sealed class HlirTreeToMlirTransformer
                 ProcessRepeat(tree, idx, builder);
                 break;
 
+            case HlirNodeKind.Case:
+                ProcessCase(tree, idx, builder);
+                break;
+
             case HlirNodeKind.For:
                 ProcessFor(tree, idx, builder);
                 break;
@@ -187,8 +197,8 @@ public sealed class HlirTreeToMlirTransformer
             ErrorSeverity.Error,
             new Dictionary<string, object?>
             {
-                ["TreeIndex"] = idx,
-                ["HlirKind"] = ((HlirNodeKind)node.Kind).ToString(),
+                [TreeIndexKey] = idx,
+                [HlirKindKey] = ((HlirNodeKind)node.Kind).ToString(),
                 ["HlirKindByte"] = node.Kind,
             });
 
@@ -300,8 +310,8 @@ public sealed class HlirTreeToMlirTransformer
                             ErrorSeverity.Error,
                             new Dictionary<string, object?>
                             {
-                                ["TreeIndex"] = idx,
-                                ["HlirKind"] = nameof(HlirNodeKind.UnaryOp),
+                                [TreeIndexKey] = idx,
+                                [HlirKindKey] = nameof(HlirNodeKind.UnaryOp),
                                 ["Operator"] = ((char)node.Payload).ToString(),
                             });
                     }
@@ -455,6 +465,182 @@ public sealed class HlirTreeToMlirTransformer
         builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
     }
 
+    private void ProcessCase(HlirTree tree, int idx, InstListBuilder builder)
+    {
+        // Case children are flat: [selector, label, arm, label, arm, ...,
+        // (else)]. Each label is tested in source order with Cmp(selector,
+        // label) + a Branch skipping the arm when the selector differs — the
+        // '=' relation's skip branch is BNE, so no Transition marker, the
+        // same machinery `if x = n` uses with invert=true. Each arm ends in
+        // an unconditional Branch to the shared end label. The else arm sits
+        // in the fall-through position after the last test; with no else the
+        // last skip branch lands on the end label itself.
+        //
+        // Consecutive pairs sharing one arm index are a multi-label branch
+        // (`1, 2: ...`): the HLIR repeats the arm index once per label.
+        // Such a group is lowered so the arm body is emitted ONCE — after
+        // the group's first test, with the group's remaining tests placed
+        // after the arm and jumping back to it. Emitting the body per
+        // label multiplies the output, and an arm holding another
+        // multi-label case multiplies again at every nesting level.
+        var children = tree.Children(idx);
+        if (children.Length < 3)
+        {
+            throw new GameVmException(
+                ErrorCode.UnhandledInstruction,
+                $"HlirTreeToMlirTransformer has no MLIR lowering for a Case node with " +
+                $"{children.Length} children at tree index {idx}; a case needs a selector " +
+                "and at least one label/arm pair.",
+                ErrorSeverity.Error,
+                new Dictionary<string, object?>
+                {
+                    [TreeIndexKey] = idx,
+                    [HlirKindKey] = nameof(HlirNodeKind.Case),
+                });
+        }
+
+        int selectorIdx = ChildIndex(tree, idx, 0);
+        ValidateCaseSelector(tree, selectorIdx);
+        uint selectorSlot = EvaluateExpression(tree, selectorIdx, builder, out _);
+
+        int pairCount = (children.Length - 1) / 2;
+        bool hasElse = (children.Length - 1) % 2 == 1;
+        string endLabel = $"L_case_end_{_labelCounter++}";
+        string elseLabel = hasElse ? $"L_case_else_{_labelCounter++}" : endLabel;
+
+        int pairIdx = 0;
+        while (pairIdx < pairCount)
+        {
+            int armIdx = ChildIndex(tree, idx, 2 + 2 * pairIdx);
+            int groupEnd = pairIdx;
+            while (groupEnd + 1 < pairCount &&
+                   ChildIndex(tree, idx, 2 + 2 * (groupEnd + 1)) == armIdx)
+            {
+                groupEnd++;
+            }
+
+            // Where control lands when no label of this group matches:
+            // the next group's first test, or the else/end fall-through
+            // for the last group.
+            string afterGroupLabel = groupEnd == pairCount - 1
+                ? elseLabel
+                : $"L_case_next_{_labelCounter++}";
+
+            if (groupEnd == pairIdx)
+            {
+                EmitCasePair(tree, idx, pairIdx, selectorSlot, afterGroupLabel, endLabel, builder);
+            }
+            else
+            {
+                EmitCaseGroup(tree, idx,
+                    new CaseGroupEmission(pairIdx, groupEnd, selectorSlot, afterGroupLabel, endLabel),
+                    builder);
+            }
+
+            builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(afterGroupLabel));
+            pairIdx = groupEnd + 1;
+        }
+
+        if (hasElse)
+        {
+            int elseIdx = ChildIndex(tree, idx, children.Length - 1);
+            ProcessNode(tree, elseIdx, builder);
+            builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(endLabel));
+        }
+    }
+
+    /// <summary>Emits one label test: Cmp(selector, label) + a Branch to
+    /// <paramref name="skipLabel"/> taken when the selector differs.</summary>
+    private void EmitCaseLabelTest(HlirTree tree, int idx, int pairIdx, uint selectorSlot,
+        string skipLabel, InstListBuilder builder)
+    {
+        int labelIdx = ChildIndex(tree, idx, 1 + 2 * pairIdx);
+        var labelNode = tree[labelIdx];
+        if ((HlirNodeKind)labelNode.Kind != HlirNodeKind.LiteralInt)
+        {
+            throw new GameVmException(
+                ErrorCode.UnhandledInstruction,
+                $"HlirTreeToMlirTransformer has no MLIR lowering for a Case label of kind " +
+                $"'{(HlirNodeKind)labelNode.Kind}' at tree index {labelIdx}; case labels must be integer literals.",
+                ErrorSeverity.Error,
+                new Dictionary<string, object?>
+                {
+                    [TreeIndexKey] = labelIdx,
+                    [HlirKindKey] = nameof(HlirNodeKind.Case),
+                });
+        }
+
+        uint labelSlot = EvaluateExpression(tree, labelIdx, builder, out _);
+        builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, selectorSlot, labelSlot);
+        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(skipLabel));
+    }
+
+    /// <summary>Emits a single-pair group: the label test, the arm, and
+    /// the arm's jump to the shared end label. The caller emits the
+    /// <paramref name="nextLabel"/> Label the test skips to.</summary>
+    private void EmitCasePair(HlirTree tree, int idx, int pairIdx, uint selectorSlot,
+        string nextLabel, string endLabel, InstListBuilder builder)
+    {
+        int armIdx = ChildIndex(tree, idx, 2 + 2 * pairIdx);
+        EmitCaseLabelTest(tree, idx, pairIdx, selectorSlot, nextLabel, builder);
+        ProcessNode(tree, armIdx, builder);
+        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(endLabel));
+    }
+
+    /// <summary>The per-group inputs to <see cref="EmitCaseGroup"/>,
+    /// carried as one value: the pair range sharing one arm, the
+    /// selector's slot, and the labels the group's tests skip to and
+    /// its arm jumps to.</summary>
+    private readonly struct CaseGroupEmission
+    {
+        public CaseGroupEmission(int firstPair, int lastPair, uint selectorSlot,
+            string afterGroupLabel, string endLabel)
+        {
+            FirstPair = firstPair;
+            LastPair = lastPair;
+            SelectorSlot = selectorSlot;
+            AfterGroupLabel = afterGroupLabel;
+            EndLabel = endLabel;
+        }
+
+        public int FirstPair { get; }
+        public int LastPair { get; }
+        public uint SelectorSlot { get; }
+        public string AfterGroupLabel { get; }
+        public string EndLabel { get; }
+    }
+
+    /// <summary>Emits a multi-label group (pairs
+    /// <see cref="CaseGroupEmission.FirstPair"/>..<see cref="CaseGroupEmission.LastPair"/>
+    /// sharing one arm): the first label's test falls through into the
+    /// arm, the arm is emitted once, and each remaining label's test
+    /// sits after the arm and jumps back to its entry on a match. The
+    /// caller emits the <see cref="CaseGroupEmission.AfterGroupLabel"/>
+    /// Label that the last test skips to when no label in the group
+    /// matched.</summary>
+    private void EmitCaseGroup(HlirTree tree, int idx, CaseGroupEmission group, InstListBuilder builder)
+    {
+        int armIdx = ChildIndex(tree, idx, 2 + 2 * group.FirstPair);
+        string armLabel = $"L_case_arm_{_labelCounter++}";
+
+        string nextTestLabel = $"L_case_test_{_labelCounter++}";
+        EmitCaseLabelTest(tree, idx, group.FirstPair, group.SelectorSlot, nextTestLabel, builder);
+        builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(armLabel));
+        ProcessNode(tree, armIdx, builder);
+        builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(group.EndLabel));
+
+        for (int pairIdx = group.FirstPair + 1; pairIdx <= group.LastPair; pairIdx++)
+        {
+            builder.Add((byte)MlirInstructionKind.Label, InstructionFlag.None, 0, _pool.Intern(nextTestLabel));
+            string skipLabel = pairIdx == group.LastPair
+                ? group.AfterGroupLabel
+                : $"L_case_test_{_labelCounter++}";
+            EmitCaseLabelTest(tree, idx, pairIdx, group.SelectorSlot, skipLabel, builder);
+            builder.Add((byte)MlirInstructionKind.Branch, InstructionFlag.None, 0, _pool.Intern(armLabel));
+            nextTestLabel = skipLabel;
+        }
+    }
+
     private void ProcessRepeat(HlirTree tree, int idx, InstListBuilder builder)
     {
         var children = tree.Children(idx);
@@ -595,6 +781,51 @@ public sealed class HlirTreeToMlirTransformer
     // as a 0/1 value, so the enclosing operator would consume the wrong
     // operand. A comparison is supported as the condition's root, where
     // EmitConditionalBranch gives it its comparison encoding.
+    // A case selector has no correct lowering for div/mod either:
+    // division has no lowering (ArithToMlirKind maps '/' to Sub), so
+    // the dispatch would silently test a subtraction result. The check
+    // mirrors ValidateBranchCondition but names the case selector, so
+    // the diagnostic points at the construct that must change.
+    // A comparison in a selector is likewise not materialized as a
+    // 0/1 value: EvaluateExpression emits Cmp and assigns the constant
+    // 1 to the result temp, so the dispatch would test 1 whatever the
+    // operands are. Unlike a branch condition, a selector has no root
+    // position where a comparison keeps its comparison encoding, so
+    // comparisons are rejected at any depth.
+    private static void ValidateCaseSelector(HlirTree tree, int idx)
+    {
+        var node = tree[idx];
+        if ((HlirNodeKind)node.Kind == HlirNodeKind.BinaryOp)
+        {
+            char op = (char)node.Payload;
+            if (op is '/' or '%')
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for div/mod in a case selector " +
+                    $"at tree index {idx}: operator '{op}' would silently evaluate as a different operation " +
+                    $"and the dispatch would test the wrong value.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+
+            if (IsComparisonOp(op))
+            {
+                throw new GameVmException(
+                    ErrorCode.UnhandledInstruction,
+                    $"HlirTreeToMlirTransformer has no MLIR lowering for a comparison in a case selector " +
+                    $"at tree index {idx}: operator '{op}' would silently evaluate as the constant 1 " +
+                    $"and the dispatch would test the wrong value.",
+                    ErrorSeverity.Error,
+                    ConditionOperatorContext(idx, op));
+            }
+        }
+
+        var children = tree.Children(idx);
+        for (int i = 0; i < children.Length; i++)
+            ValidateCaseSelector(tree, children[i]);
+    }
+
     private static void ValidateBranchCondition(HlirTree tree, int condIdx) =>
         ValidateConditionNode(tree, condIdx, isConditionRoot: true);
 

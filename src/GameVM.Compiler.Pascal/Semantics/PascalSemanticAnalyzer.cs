@@ -113,6 +113,9 @@ namespace GameVM.Compiler.Pascal.Semantics
                 case PascalAstNodeKind.Repeat:
                     ProcessRepeatStatement(astTree, stmtIdx);
                     break;
+                case PascalAstNodeKind.Case:
+                    ProcessCaseStatement(astTree, stmtIdx);
+                    break;
                 case PascalAstNodeKind.ForStatement:
                     ProcessForStatement(astTree, stmtIdx);
                     break;
@@ -326,6 +329,35 @@ namespace GameVM.Compiler.Pascal.Semantics
 
             ProcessExpression(astTree, children[0]);
             ProcessStatement(astTree, children[1]);
+        }
+
+        private void ProcessCaseStatement(AstTree astTree, int stmtIdx)
+        {
+            // Case children: [selector, CaseBranch, CaseBranch, ..., (else Block)].
+            // A CaseBranch's children are its labels then its statement; labels
+            // are validated as expressions so a named-constant label must be a
+            // declared constant, and every arm and the else block are walked so
+            // an undeclared assignment target inside the dispatch is caught.
+            var children = astTree.Children(stmtIdx);
+            if (children.Length < 1)
+                return;
+
+            ProcessExpression(astTree, children[0]);
+            for (int i = 1; i < children.Length; i++)
+            {
+                if ((PascalAstNodeKind)astTree.GetKind(children[i]) == PascalAstNodeKind.CaseBranch)
+                {
+                    var branchChildren = astTree.Children(children[i]);
+                    for (int j = 0; j < branchChildren.Length - 1; j++)
+                        ProcessExpression(astTree, branchChildren[j]);
+                    if (branchChildren.Length > 0)
+                        ProcessStatement(astTree, branchChildren[branchChildren.Length - 1]);
+                }
+                else
+                {
+                    ProcessStatement(astTree, children[i]);
+                }
+            }
         }
 
         private void ProcessRepeatStatement(AstTree astTree, int stmtIdx)
