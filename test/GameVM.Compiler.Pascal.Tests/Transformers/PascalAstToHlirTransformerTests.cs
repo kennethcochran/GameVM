@@ -260,6 +260,69 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
             });
         }
 
+        [Test]
+        public void ModOfLiteralsFoldsToCorrectValue()
+        {
+            // The constant fold in BuildBinaryOp had no '%' arm, so a
+            // constant mod fell through to the default and folded to
+            // 0: `x := 3 mod 2` assigned 0 instead of 1 (and a constant
+            // mod case selector dispatched to the wrong arm). A zero
+            // divisor folds to 0, exactly as the '/' arm already
+            // treats it.
+            var cases = new (string Left, string Right, string Expected)[]
+            {
+                ("3", "2", "1"),
+                ("4", "2", "0"),
+                ("5", "0", "0"),
+            };
+            Assert.Multiple(() =>
+            {
+                foreach (var (left, right, expected) in cases)
+                {
+                    string actual = FoldMod(left, right);
+                    Assert.That(actual, Is.EqualTo(expected),
+                        $"{left} mod {right} must fold to {expected}");
+                }
+            });
+        }
+
+        /// <summary>Builds `x := left mod right;` for literal operands,
+        /// lowers it, and returns the folded value as decimal text.</summary>
+        private static string FoldMod(string left, string right)
+        {
+            var pool = new StringPool();
+            var builder = new AstBuilder();
+            uint xOffset = pool.Intern("x");
+            uint intOffset = pool.Intern("integer");
+
+            int target = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int leftLit = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(left));
+            int rightLit = builder.Add((byte)PascalAstNodeKind.LiteralInt, 0, pool.Intern(right));
+            int mod = builder.Add((byte)PascalAstNodeKind.BinaryOp, 0, (uint)'%', leftLit, rightLit);
+            int assign = builder.Add((byte)PascalAstNodeKind.Assignment, 0, 0, target, mod);
+
+            int xId = builder.Add((byte)PascalAstNodeKind.Identifier, 0, xOffset);
+            int xType = builder.Add((byte)PascalAstNodeKind.TypeDefinition, 0, intOffset);
+            int xDecl = builder.Add((byte)PascalAstNodeKind.VariableDeclaration, 0, 0, xId, xType);
+
+            int block = builder.Add((byte)PascalAstNodeKind.Block, 0, 0, assign);
+            int method = builder.Add((byte)PascalAstNodeKind.MethodDeclaration, 0, pool.Intern("main"), xDecl, block);
+            builder.Add((byte)PascalAstNodeKind.Program, 0, 0, method);
+
+            var transformer = new PascalAstToHlirTransformer(pool);
+            var hlir = transformer.Transform(builder.Build());
+
+            int assignIdx = -1;
+            for (int i = 0; i < hlir.Count; i++)
+                if (hlir.GetKind(i) == (byte)HlirNodeKind.Assign) { assignIdx = i; break; }
+            Assert.That(assignIdx, Is.GreaterThanOrEqualTo(0), "Assign node should be present");
+
+            var assignChildren = hlir.Children(assignIdx);
+            Assert.That(hlir.GetKind(assignChildren[1]), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
+                "a literal mod must constant-fold to a LiteralInt");
+            return pool.Resolve(hlir[assignChildren[1]].Payload);
+        }
+
         private static string OpName(char op)
         {
             return op switch

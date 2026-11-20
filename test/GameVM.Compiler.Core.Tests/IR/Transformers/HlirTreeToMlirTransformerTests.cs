@@ -444,6 +444,248 @@ public class HlirTreeToMlirTransformerTests
     }
 
     [Test]
+    public void CaseSelectorMatchesAgainstEachCaseValue()
+    {
+        // `case x of 1: ...; 2: ...; 3: ...; else ... end` lowers to a chain
+        // of selector tests in source order: for each label, Cmp(selector,
+        // label) + Branch skipping the arm when the selector differs (the
+        // '=' relation's skip branch is BNE, so no Transition marker — the
+        // same machinery `if x = n` uses with invert=true), then the arm,
+        // then an unconditional Branch to the shared end label. The else
+        // arm sits in the fall-through position after the last test, then
+        // the end label. Arms stay in source order in the stream.
+        //
+        // HlirNodeKind.Case (24 — the next free value after Block = 22 and
+        // Repeat = 23, claimed by the repeat-until slice in draft PR #24),
+        // with children [selector, label, arm, label, arm, ..., (else)] in
+        // source order: labels are LiteralInt immediates, arms are Assign
+        // statements, the optional else arm is the last child.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int target1 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 10u, HlirPayloadKind.Immediate);
+        int arm1 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target1, value1);
+
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+        int target2 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 20u, HlirPayloadKind.Immediate);
+        int arm2 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target2, value2);
+
+        int label3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 3u, HlirPayloadKind.Immediate);
+        int target3 = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int value3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 30u, HlirPayloadKind.Immediate);
+        int arm3 = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, target3, value3);
+
+        int elseTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int elseValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 40u, HlirPayloadKind.Immediate);
+        int elseArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, elseTarget, elseValue);
+
+        // Case node: 8 children — selector, then label/arm pairs in source
+        // order, then the else arm.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, arm1, label2, arm2, label3, arm3, elseArm);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(17),
+                "Case lowers to: per label (Cmp, Branch, Assign, Branch), a label before each later test, else Assign, end Label");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 0: compare selector against label 1");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 1: skip arm 1 when the selector differs");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 2: arm 1 assignment");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 3: arm 1 jumps to the shared end");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 4: next-test label");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 5: compare selector against label 2");
+            Assert.That(result.GetKind(6), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 6: skip arm 2 when the selector differs");
+            Assert.That(result.GetKind(7), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 7: arm 2 assignment");
+            Assert.That(result.GetKind(8), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 8: arm 2 jumps to the shared end");
+            Assert.That(result.GetKind(9), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 9: next-test label");
+            Assert.That(result.GetKind(10), Is.EqualTo((byte)LlirInstructionKind.Cmp), "Index 10: compare selector against label 3");
+            Assert.That(result.GetKind(11), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 11: skip arm 3 when the selector differs");
+            Assert.That(result.GetKind(12), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 12: arm 3 assignment");
+            Assert.That(result.GetKind(13), Is.EqualTo((byte)MlirInstructionKind.Branch), "Index 13: arm 3 jumps to the shared end");
+            Assert.That(result.GetKind(14), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 14: else label");
+            Assert.That(result.GetKind(15), Is.EqualTo((byte)MlirInstructionKind.Assign), "Index 15: else assignment");
+            Assert.That(result.GetKind(16), Is.EqualTo((byte)MlirInstructionKind.Label), "Index 16: end label");
+        }
+
+        // Each compare tests the selector against its label, in source order.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(0).ToArray(), Is.EqualTo(new uint[] { xOffset, 1u }),
+                "First compare must test the selector against label 1");
+            Assert.That(result.GetOperands(5).ToArray(), Is.EqualTo(new uint[] { xOffset, 2u }),
+                "Second compare must test the selector against label 2");
+            Assert.That(result.GetOperands(10).ToArray(), Is.EqualTo(new uint[] { xOffset, 3u }),
+                "Third compare must test the selector against label 3");
+        }
+
+        // Each arm stores its own constant to x.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetOperands(2).ToArray(), Is.EqualTo(new uint[] { xOffset, 10u }),
+                "Arm 1 must assign 10 to x");
+            Assert.That(result.GetOperands(7).ToArray(), Is.EqualTo(new uint[] { xOffset, 20u }),
+                "Arm 2 must assign 20 to x");
+            Assert.That(result.GetOperands(12).ToArray(), Is.EqualTo(new uint[] { xOffset, 30u }),
+                "Arm 3 must assign 30 to x");
+            Assert.That(result.GetOperands(15).ToArray(), Is.EqualTo(new uint[] { xOffset, 40u }),
+                "Else arm must assign 40 to x");
+        }
+
+        // Branch wiring: each skip branch lands on the label starting the
+        // next test (or the else arm for the last label); every arm's jump
+        // lands on the shared end label; all four labels differ.
+        uint next1Label = result.GetOperands(4)[0];
+        uint next2Label = result.GetOperands(9)[0];
+        uint elseLabel = result.GetOperands(14)[0];
+        uint endLabel = result.GetOperands(16)[0];
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(next1Label, Is.Not.EqualTo(next2Label));
+            Assert.That(next1Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next1Label, Is.Not.EqualTo(endLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(elseLabel));
+            Assert.That(next2Label, Is.Not.EqualTo(endLabel));
+            Assert.That(elseLabel, Is.Not.EqualTo(endLabel));
+            Assert.That(result.GetOperands(1)[0], Is.EqualTo(next1Label),
+                "skipping arm 1 must land on the label starting test 2");
+            Assert.That(result.GetOperands(6)[0], Is.EqualTo(next2Label),
+                "skipping arm 2 must land on the label starting test 3");
+            Assert.That(result.GetOperands(11)[0], Is.EqualTo(elseLabel),
+                "skipping arm 3 must land on the else arm");
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(endLabel),
+                "arm 1 must jump to the shared end label");
+            Assert.That(result.GetOperands(8)[0], Is.EqualTo(endLabel),
+                "arm 2 must jump to the shared end label");
+            Assert.That(result.GetOperands(13)[0], Is.EqualTo(endLabel),
+                "arm 3 must jump to the shared end label");
+        }
+    }
+
+    private static readonly uint[] ExpectedMultiLabelCmpOperands = { 1u, 2u, 3u };
+    private static readonly uint[] ExpectedMultiLabelAssignValues = { 10u, 30u, 40u };
+
+    [Test]
+    public void CaseMultiLabelArmIsEmittedOnce()
+    {
+        // `case x of 1, 2: x := 10; 3: x := 30; else x := 40 end` — the
+        // HLIR carries the shared arm node once per label (labels 1 and 2
+        // point at the SAME arm index). The MLIR lowering must still emit
+        // the arm body only once: emitting it per label duplicates the
+        // body, and an arm holding another multi-label case multiplies
+        // the output at every nesting level.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+        int targetA = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int valueA = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 10u, HlirPayloadKind.Immediate);
+        int armA = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetA, valueA);
+
+        int label3 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 3u, HlirPayloadKind.Immediate);
+        int targetB = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int valueB = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 30u, HlirPayloadKind.Immediate);
+        int armB = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, targetB, valueB);
+
+        int elseTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int elseValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 40u, HlirPayloadKind.Immediate);
+        int elseArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, elseTarget, elseValue);
+
+        // Case node: 8 children — selector, label/arm pairs in source
+        // order (armA repeated for labels 1 and 2), then the else arm.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, armA, label2, armA, label3, armB, elseArm);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        var cmpLabelOperands = new List<uint>();
+        var assignValues = new List<uint>();
+        for (int i = 0; i < result.Count; i++)
+        {
+            if (result.GetKind(i) == (byte)LlirInstructionKind.Cmp)
+                cmpLabelOperands.Add(result.GetOperands(i)[1]);
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Assign)
+                assignValues.Add(result.GetOperands(i)[1]);
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpLabelOperands, Is.EqualTo(ExpectedMultiLabelCmpOperands),
+                "each label must be tested once, in source order");
+            Assert.That(assignValues, Is.EqualTo(ExpectedMultiLabelAssignValues),
+                "the shared arm (10) must be emitted once, then arm 3 (30), then the else arm (40)");
+        }
+    }
+
+    [Test]
+    public void CaseNestedInMultiLabelArmIsEmittedOnce()
+    {
+        // A case nested inside a multi-label arm must be lowered once,
+        // not once per label of the outer arm: with per-label emission
+        // the inner case's instructions multiply by the outer label
+        // count at every nesting level.
+        const byte caseKind = (byte)HlirNodeKind.Case;
+        var pool = new StringPool();
+        var builder = new HlirBuilder();
+        uint xOffset = pool.Intern("x");
+
+        int selector = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+
+        int innerLabel = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 7u, HlirPayloadKind.Immediate);
+        int innerTarget = builder.Add((byte)HlirNodeKind.Identifier, 0, xOffset, HlirPayloadKind.PoolOffset);
+        int innerValue = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 70u, HlirPayloadKind.Immediate);
+        int innerArm = builder.Add((byte)HlirNodeKind.Assign, 0, 0, HlirPayloadKind.None, innerTarget, innerValue);
+        int innerCase = builder.Add(caseKind, 0, 0, HlirPayloadKind.None, selector, innerLabel, innerArm);
+
+        int label1 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 1u, HlirPayloadKind.Immediate);
+        int label2 = builder.Add((byte)HlirNodeKind.LiteralInt, 0, 2u, HlirPayloadKind.Immediate);
+
+        // Outer case: two labels sharing the inner-case arm, no else.
+        builder.Add(caseKind, 0, 0, HlirPayloadKind.None,
+            selector, label1, innerCase, label2, innerCase);
+
+        var tree = builder.Build();
+        var transformer = new HlirTreeToMlirTransformer(pool);
+        var result = transformer.Transform(tree);
+
+        int cmpCount = 0;
+        int innerAssignCount = 0;
+        for (int i = 0; i < result.Count; i++)
+        {
+            if (result.GetKind(i) == (byte)LlirInstructionKind.Cmp)
+                cmpCount++;
+            if (result.GetKind(i) == (byte)MlirInstructionKind.Assign &&
+                result.GetOperands(i)[1] == 70u)
+                innerAssignCount++;
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cmpCount, Is.EqualTo(3),
+                "two outer label tests plus one inner label test, each emitted once");
+            Assert.That(innerAssignCount, Is.EqualTo(1),
+                "the inner arm must be emitted once, not once per outer label");
+        }
+    }
+
+    [Test]
     public void RepeatUntilExecutesBodyThenTestsCondition()
     {
         // `repeat <body> until <cond>` lowers to: loop label, body, condition
@@ -1374,6 +1616,76 @@ public class HlirTreeToMlirTransformerTests
         var ex = Assert.Throws<GameVmException>(() =>
             CompilePascal(ConditionProgram("if (a mod b) then x := 1;"), out _));
         Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+    }
+
+    [Test]
+    public void DivUsedAsCaseSelectorFailsLoudly()
+    {
+        // `case a div b of 1: ...` has no correct lowering either:
+        // ProcessCase evaluated the selector without the validation
+        // branch conditions receive, so ArithToMlirKind mapped '/'
+        // to Sub and the dispatch compared a - b against the labels
+        // (with a=2, b=2 that is 0, and the else arm ran although
+        // a div b is 1). The selector must fail loudly, naming the
+        // case selector rather than a branch condition.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case a div b of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
+    }
+
+    [Test]
+    public void ModUsedAsCaseSelectorFailsLoudly()
+    {
+        // Same defect as div: '%' has no lowering either, so a mod
+        // selector must fail loudly rather than evaluate as something
+        // else.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case a mod b of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
+    }
+
+    [Test]
+    public void ComparisonUsedAsCaseSelectorFailsLoudly()
+    {
+        // `case (a = b) of 1: ...` has no correct lowering: a
+        // comparison's result is not materialized as a 0/1 value, so
+        // EvaluateExpression emits Cmp and assigns the constant 1 to
+        // the selector temp — with a=0, b=1 the comparison is false,
+        // yet the `1` arm is selected. Materializing comparisons used
+        // as values is the comparisons-as-values slice's work; until
+        // it lands, a comparison anywhere in a case selector must
+        // fail loudly, the way div/mod in a selector already do.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case (a = b) of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
+    }
+
+    [Test]
+    public void ComparisonNestedInCaseSelectorFailsLoudly()
+    {
+        // The rejection covers a comparison anywhere inside a
+        // selector, not only at its root: here the root is an
+        // addition whose left operand is a comparison, which would
+        // otherwise be assigned the constant 1 before being added.
+        var ex = Assert.Throws<GameVmException>(() =>
+            CompilePascal(ConditionProgram("case ((a = b) + 1) of 1: x := 10; else x := 20 end;"), out _));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.ErrorCode, Is.EqualTo(ErrorCode.UnhandledInstruction));
+            Assert.That(ex!.Message, Does.Contain("case selector"));
+        }
     }
 
     [Test]
