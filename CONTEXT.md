@@ -159,7 +159,7 @@ correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
   `PascalAstNodeKind.UnaryOp` (payload `'-'`, single operand child).
   `PascalAstToHlirTransformer` lowers it to the previously-never-produced
   `HlirNodeKind.UnaryOp`, constant-folding integer literals and named constants
-  to their 8-bit two's complement value (`-5` → `251`);
+  to their 16-bit two's complement value (`-5` → `65531`);
   `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)`, reusing the
   existing `Sub` path through LLIR to `SEC; SBC` on the 6502.
   `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
