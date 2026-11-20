@@ -2,6 +2,7 @@ using Antlr4.Runtime;
 using Antlr4.Runtime.Atn;
 using Antlr4.Runtime.Dfa;
 using Antlr4.Runtime.Sharpen;
+using GameVM.Compiler.Core.Exceptions;
 using GameVM.Compiler.Core.Interfaces;
 using GameVM.Compiler.Core.IR.Buffers;
 using GameVM.Compiler.Core.IR.Soa;
@@ -104,6 +105,16 @@ namespace GameVM.Compiler.Pascal
                 var hlir = transformer.Transform(astTree);
                 var symbols = transformer.BuildSymbolTable();
                 return new ParseResult(hlir, symbols);
+            }
+            catch (GameVmException ex)
+            {
+                // A structured loud failure from a later stage (e.g. the
+                // frontend transformer rejecting a case label) carries the
+                // reason compilation failed; preserve it instead of
+                // clearing it with the general handler below.
+                _lastParseErrors.Clear();
+                _lastParseErrors.Add(ex.Message);
+                return new ParseResult(HlirTree.Empty, default);
             }
             catch (InvalidOperationException ex)
             {

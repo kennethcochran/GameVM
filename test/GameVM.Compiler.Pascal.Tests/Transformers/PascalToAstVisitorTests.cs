@@ -179,6 +179,170 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
         }
 
         [Test]
+        public void CaseOfProducesDispatchNodeNotNop()
+        {
+            // `case...of` currently falls through VisitStatement to a Nop:
+            // the selector and every branch vanish with no error anywhere.
+            // The visitor must produce a Case node carrying the selector, one
+            // CaseBranch per case list element (each holding its constant
+            // labels, then its statement), and the else statements as a
+            // trailing Block — the shape the grammar itself describes
+            // (`caseListElement : constList COLON statement`, optional
+            // `(SEMI ELSE statements)?`). A branch with several labels
+            // (`1, 2: ...`) carries one LiteralInt per label.
+            string code = @"
+                program Test;
+                var x: integer;
+                begin
+                    x := 2;
+                    case x of
+                        1, 2: x := 10;
+                        3: x := 20;
+                    else
+                        x := 30
+                    end;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+            Assert.That(tree.Count, Is.GreaterThan(0));
+
+            int caseIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.Case)
+                {
+                    caseIdx = i;
+                    break;
+                }
+            }
+            Assert.That(caseIdx, Is.GreaterThanOrEqualTo(0),
+                "Case statement should be present in the method body, not dropped to Nop");
+
+            var caseNode = tree[caseIdx];
+            Assert.That(caseNode.ChildCount, Is.EqualTo(4),
+                "Case should have 4 children (selector, two branches, else block)");
+
+            var caseChildren = tree.Children(caseIdx);
+            int selectorIdx = caseChildren[0];
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(tree.GetKind(selectorIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
+                    "Case selector must be the identifier expression");
+                Assert.That(pool.Resolve(tree[selectorIdx].Payload), Is.EqualTo("x"),
+                    "Case selector must be x");
+            }
+
+            // First branch: labels 1 and 2, then the assignment.
+            int branch12Idx = caseChildren[1];
+            Assert.That(tree.GetKind(branch12Idx), Is.EqualTo((byte)PascalAstNodeKind.CaseBranch),
+                "Each case list element must be a CaseBranch node");
+            var branch12 = tree[branch12Idx];
+            Assert.That(branch12.ChildCount, Is.EqualTo(3),
+                "A branch with two labels must have 3 children (label, label, statement)");
+            var branch12Children = tree.Children(branch12Idx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(tree.GetKind(branch12Children[0]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+                Assert.That(pool.Resolve(tree[branch12Children[0]].Payload), Is.EqualTo("1"),
+                    "First label of the first branch must be 1");
+                Assert.That(tree.GetKind(branch12Children[1]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+                Assert.That(pool.Resolve(tree[branch12Children[1]].Payload), Is.EqualTo("2"),
+                    "Second label of the first branch must be 2");
+                Assert.That(tree.GetKind(branch12Children[2]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                    "The last child of a branch must be its statement");
+            }
+
+            // Second branch: label 3, then the assignment.
+            int branch3Idx = caseChildren[2];
+            Assert.That(tree.GetKind(branch3Idx), Is.EqualTo((byte)PascalAstNodeKind.CaseBranch));
+            var branch3 = tree[branch3Idx];
+            Assert.That(branch3.ChildCount, Is.EqualTo(2),
+                "A branch with one label must have 2 children (label, statement)");
+            var branch3Children = tree.Children(branch3Idx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(tree.GetKind(branch3Children[0]), Is.EqualTo((byte)PascalAstNodeKind.LiteralInt));
+                Assert.That(pool.Resolve(tree[branch3Children[0]].Payload), Is.EqualTo("3"),
+                    "Label of the second branch must be 3");
+                Assert.That(tree.GetKind(branch3Children[1]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                    "The last child of a branch must be its statement");
+            }
+
+            // Else: a Block holding the else statements.
+            int elseIdx = caseChildren[3];
+            Assert.That(tree.GetKind(elseIdx), Is.EqualTo((byte)PascalAstNodeKind.Block),
+                "The else part must be a Block of its statements");
+            var elseChildren = tree.Children(elseIdx);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(elseChildren.Length, Is.EqualTo(1),
+                    "The else block must hold the single else statement");
+                Assert.That(tree.GetKind(elseChildren[0]), Is.EqualTo((byte)PascalAstNodeKind.Assignment),
+                    "The else statement must be the `x := 30` assignment");
+            }
+        }
+
+        [Test]
+        public void CaseLabel_UppercaseConstant_InternsLikeItsDeclaration()
+        {
+            // `const Limit = 2` declares the name interned as written, and
+            // every other constant reference (an expression variable) is
+            // interned the same way — but the case-label identifier went
+            // through the lowercasing InternIdentifier, so a `Limit:` label
+            // carried a different pool offset than its declaration and
+            // could never resolve to the constant downstream (semantic
+            // analysis reported it undefined; HLIR lowering could not find
+            // the registered value).
+            string code = @"
+                program Test;
+                const Limit = 2;
+                var x: integer;
+                begin
+                    case x of
+                        Limit: x := 20;
+                    else
+                        x := 40
+                    end;
+                end.
+            ";
+
+            var context = Parse(code);
+            var builder = new AstBuilder();
+            var pool = new StringPool();
+            var visitor = new PascalToAstVisitor(builder, pool);
+            visitor.Visit(context);
+
+            AstTree tree = visitor.BuildTree();
+
+            int declNameIdx = -1;
+            int labelIdx = -1;
+            for (int i = 0; i < tree.Count; i++)
+            {
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.ConstantDefinition)
+                    declNameIdx = tree.Children(i)[0];
+                if (tree.GetKind(i) == (byte)PascalAstNodeKind.CaseBranch)
+                    labelIdx = tree.Children(i)[0];
+            }
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(declNameIdx, Is.GreaterThanOrEqualTo(0), "the constant declaration must be present");
+                Assert.That(labelIdx, Is.GreaterThanOrEqualTo(0), "the case branch label must be present");
+                Assert.That(tree.GetKind(labelIdx), Is.EqualTo((byte)PascalAstNodeKind.Identifier),
+                    "a named case label must be an Identifier node");
+                Assert.That(tree[labelIdx].Payload, Is.EqualTo(tree[declNameIdx].Payload),
+                    "the case label must intern the same pool offset as the constant declaration it references");
+            }
+        }
+
+        [Test]
         public void Visitor_HandlesWhileLoop()
         {
             string code = @"
