@@ -1675,31 +1675,34 @@ public class MidToLowLevelTransformerTests
             // wide result storing straight into x.
             Assert.That(result.Count, Is.EqualTo(6));
 
-            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetOperands(0)[0], Is.EqualTo(0u), "Low pair loads immediate 0");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(0)[0], Is.Zero, "Low pair loads immediate 0");
 
-            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
-            var lowSubOps = result.GetOperands(1);
-            Assert.That(lowSubOps.Length, Is.EqualTo(2));
-            Assert.That(lowSubOps[0], Is.EqualTo(0x82u), "Low Sub subtracts y's zero-page address");
-            Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
-                "Low Sub sets the borrow itself (SEC)");
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                var lowSubOps = result.GetOperands(1);
+                Assert.That(lowSubOps.Length, Is.EqualTo(2));
+                Assert.That(lowSubOps[0], Is.EqualTo(0x82u), "Low Sub subtracts y's zero-page address");
+                Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
+                    "Low Sub sets the borrow itself (SEC)");
 
-            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-            Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "Low byte stores to x's first slot");
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "Low byte stores to x's first slot");
 
-            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
-            Assert.That(result.GetOperands(3)[0], Is.EqualTo(0u), "High pair loads immediate 0");
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+                Assert.That(result.GetOperands(3)[0], Is.Zero, "High pair loads immediate 0");
 
-            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
-            var highSubOps = result.GetOperands(4);
-            Assert.That(highSubOps.Length, Is.EqualTo(1));
-            Assert.That(highSubOps[0], Is.EqualTo(0u), "High Sub subtracts immediate 0 (narrow y has no high byte)");
-            Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
-                "High Sub consumes the low pair's borrow (no SEC)");
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
+                var highSubOps = result.GetOperands(4);
+                Assert.That(highSubOps.Length, Is.EqualTo(1));
+                Assert.That(highSubOps[0], Is.Zero, "High Sub subtracts immediate 0 (narrow y has no high byte)");
+                Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
+                    "High Sub consumes the low pair's borrow (no SEC)");
 
-            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
-            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "High byte stores to x's second slot");
+                Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+                Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "High byte stores to x's second slot");
+            }
         }
         #endregion
 
