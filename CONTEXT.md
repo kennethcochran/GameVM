@@ -160,8 +160,12 @@ correctly or throw a `GameVmException` naming it — never a quiet `Nop`.
   `PascalAstToHlirTransformer` lowers it to the previously-never-produced
   `HlirNodeKind.UnaryOp`, constant-folding integer literals and named constants
   to their 16-bit two's complement value (`-5` → `65531`);
-  `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)`, reusing the
-  existing `Sub` path through LLIR to `SEC; SBC` on the 6502.
+  `HlirTreeToMlirTransformer` lowers `-x` to MLIR `Sub(0, x)` carrying the
+  `WideResult` flag, because negation produces a 16-bit result even from a
+  one-slot operand. The Atari backend lowers that Sub as two byte pairs:
+  the low pair runs through LLIR to `SEC; SBC` on the 6502, and the high
+  pair carries `CarryIn`, so its `SBC` is emitted without a `SEC` of its
+  own and consumes the borrow the low byte produced.
   `PascalSemanticAnalyzer` recurses into `UnaryOp` children so
   `x := -undeclared` still reports PAS0001.
 

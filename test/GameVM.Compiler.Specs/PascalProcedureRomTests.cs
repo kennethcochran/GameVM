@@ -703,9 +703,12 @@ public class PascalProcedureRomTests
         // is the wide two-pair form (x + 1 can carry out of the low byte),
         // so x takes two slots: the initialization stores both bytes, and
         // the `x < 3` test compares the high byte (against 0) first, then
-        // the low byte against 3, each BCS leaving the loop. The loop
-        // structure — test before body, JMP back to the test — is what
-        // this guard pins, and it is unchanged.
+        // the low byte against 3, each BCS leaving the loop. Since fix
+        // round 17 the declaration's raw-zero clear writes both bytes
+        // too (it previously wrote only the low byte), which moves the
+        // loop test four bytes later and the JMP target with it. The
+        // loop structure — test before body, JMP back to the test — is
+        // what this guard pins, and it is unchanged.
         var result = Compile(WhileLoopProgram);
         Assert.That(result.Success, Is.True, result.ErrorMessage);
         Assert.That(result.Code, Is.Not.Null);
@@ -717,7 +720,7 @@ public class PascalProcedureRomTests
             0xB0, 0x10,
             0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80,
             0xA5, 0x81, 0x69, 0x00, 0x85, 0x81,
-            0x4C, 0x19, 0xF0), Is.True,
+            0x4C, 0x1D, 0xF0), Is.True,
             "`while x < 3` must keep its established lowering (test before body, JMP back to the test)");
     }
     [Test]

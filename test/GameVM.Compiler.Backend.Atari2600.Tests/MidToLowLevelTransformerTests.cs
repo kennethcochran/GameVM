@@ -1074,6 +1074,76 @@ public class MidToLowLevelTransformerTests
         }
 
         [Test]
+        public void Transform_RawZeroAssignToWideVariable_ClearsBothBytes()
+        {
+            // Regression: the declaration lowering emits the clearing
+            // assign with raw slot 0 as the value operand, not an
+            // interned "0". Slot 0 resolves to the empty string, so the
+            // assign is neither a name copy nor a parseable constant,
+            // and the fallback it used to land in wrote only the low
+            // byte. A wide variable cleared that way kept its stale
+            // high byte, so after x held 300 a later copy of the
+            // cleared x read 256 instead of 0. The raw zero must clear
+            // through the constant path, which writes both bytes of a
+            // two-slot target.
+            // MLIR: Assign(x, 300); Assign(x, raw 0).
+            uint xOffset = _stringPool.Intern("x");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, _stringPool.Intern("300") }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, 0u }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(4), "300 stores two bytes and the raw-zero clear writes two more");
+
+                Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x80u), "x low byte at $80");
+                Assert.That(result.GetOperands(0)[1], Is.EqualTo(44u), "300 low byte is 44");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x81u), "x high byte at $80 + 1");
+                Assert.That(result.GetOperands(1)[1], Is.EqualTo(1u), "300 high byte is 1");
+
+                Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "the clear writes the low byte at $80");
+                Assert.That(result.GetOperands(2)[1], Is.Zero, "the clear writes 0 to the low byte");
+
+                Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x81u), "the clear writes the high byte at $80 + 1");
+                Assert.That(result.GetOperands(3)[1], Is.Zero, "the clear writes 0 to the high byte, leaving nothing stale");
+            }
+        }
+
+        [Test]
+        public void Transform_RawZeroAssignToNarrowVariable_EmitsSingleAssign()
+        {
+            // The one-slot guard for the raw-zero clear: routing slot 0
+            // through the constant path must not grow a second Assign
+            // for a one-slot target, whose address + 1 is a different
+            // variable or register.
+            // MLIR: Assign(y, 5); Assign(y, raw 0).
+            uint yOffset = _stringPool.Intern("y");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, _stringPool.Intern("5") }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, 0u }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(2), "a one-slot target takes exactly one Assign per statement");
+
+                Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Assign));
+                Assert.That(result.GetOperands(1)[0], Is.EqualTo(0x80u), "y at $80");
+                Assert.That(result.GetOperands(1)[1], Is.Zero, "the raw zero clears y");
+            }
+        }
+
+        [Test]
         public void WideAdd_LiteralRightOperand_AddsLowByteThenHighByteWithCarry()
         {
             // a := 300; z := a + 300. The right operand is a literal, so the

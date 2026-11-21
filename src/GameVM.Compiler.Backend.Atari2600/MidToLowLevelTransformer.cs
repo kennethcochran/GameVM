@@ -861,6 +861,15 @@ namespace GameVM.Compiler.Backend.Atari2600
                 CopyVariable(builder, valueStr, targetName, targetAddr);
             else if (TryParseNumeric(valueStr, out uint numeric))
                 AssignConstant(builder, targetName, targetAddr, numeric);
+            else if (valueSlot == 0)
+                // Raw slot 0 is the clearing zero the declaration
+                // lowering emits. It resolves to the empty string, so
+                // it arrives here as neither a name nor a parseable
+                // constant, but its value is the constant 0, and
+                // AssignConstant clears both bytes of a two-slot
+                // target where the raw fallback below would write
+                // only the low byte and leave a stale high byte.
+                AssignConstant(builder, targetName, targetAddr, 0);
             else
                 builder.Add((byte)LlirInstructionKind.Assign, InstructionFlag.None, 0, targetAddr, valueSlot & 0xFF);
         }
