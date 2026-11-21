@@ -296,7 +296,11 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// result, then a high byte pair that consumes the low pair's
         /// carry (Add) or borrow (Sub). A Sub carrying WideResult takes
         /// the wide path too: it is a unary minus, whose contract is a
-        /// 16-bit result regardless of operand width. A Cmp of 16-bit
+        /// 16-bit result regardless of operand width. An Add/Sub whose
+        /// result temp recorded width 2 takes the wide path too, even
+        /// with one-byte operands: its result cannot provably fit in
+        /// one byte (see InferWidths), so the narrow path would drop
+        /// its carry or borrow. A Cmp of 16-bit
         /// values takes the wide compare path instead (see EmitWideCmp):
         /// a single-byte Cmp would decide the following branch on the
         /// low bytes alone, so `x := 256; if x = 0` would take the
@@ -307,7 +311,9 @@ namespace GameVM.Compiler.Backend.Atari2600
                 return false;
 
             if ((llirKind == (byte)LlirInstructionKind.Add || llirKind == (byte)LlirInstructionKind.Sub)
-                && (ArithmeticWidth(operands, stringPool) == 2 || IsWideResult(inputSlab, instIdx)))
+                && (ArithmeticWidth(operands, stringPool) == 2
+                    || ResultTempWidth(inputSlab, instIdx, stringPool) == 2
+                    || IsWideResult(inputSlab, instIdx)))
             {
                 EmitWideLoadThenOp(inputSlab, instIdx, builder, stringPool, llirKind, operands, consumed);
                 return true;
@@ -462,6 +468,34 @@ namespace GameVM.Compiler.Backend.Atari2600
         /// it, so this never widens general Add/Sub inference.</summary>
         private static bool IsWideResult(InstList inputSlab, int instIdx) =>
             ((InstructionFlag)inputSlab.GetFlags(instIdx)).HasFlag(InstructionFlag.WideResult);
+
+        /// <summary>
+        /// Width recorded for the Add/Sub result temp at
+        /// <paramref name="instIdx"/> (the temp named by the following
+        /// Assign(tmp, 0); 1 when there is none). The emit path must
+        /// agree with inference on the RESULT's width, not only the
+        /// operands': a result that cannot provably fit in one byte
+        /// records width 2 with one-byte operands, and lowering it
+        /// narrow would write only the low byte into the two-slot
+        /// temp, leaving its high byte stale.
+        /// </summary>
+        private int ResultTempWidth(InstList inputSlab, int instIdx, StringPool stringPool)
+        {
+            int nextIdx = instIdx + 1;
+            if (nextIdx >= inputSlab.Count
+                || (MlirInstructionKind)inputSlab.GetKind(nextIdx) != MlirInstructionKind.Assign)
+                return 1;
+
+            ReadOnlySpan<uint> nextOps = inputSlab.GetOperands(nextIdx);
+            if (nextOps.Length < 2 || nextOps[1] != 0)
+                return 1;
+
+            string tempName = stringPool.Resolve(nextOps[0]);
+            if (tempName.StartsWith(TempPrefix, StringComparison.Ordinal)
+                && _variableWidths.TryGetValue(tempName, out int width))
+                return width;
+            return 1;
+        }
 
         /// <summary>
         /// Width of an Add/Sub result: the wider of its two operands. A
@@ -1042,10 +1076,15 @@ namespace GameVM.Compiler.Backend.Atari2600
         ///  - Assign(target, __tmp_N): the temp's width (1 when the
         ///    temp has no recorded width).
         ///  - Add/Sub: the wider operand's width (an operand with no
-        ///    recorded width counts as 1). The result temp (named by
-        ///    the following Assign(tmp, 0)) takes the result width. A
-        ///    Sub carrying WideResult is a unary minus and takes width
-        ///    2 regardless of operand width.
+        ///    recorded width counts as 1), raised to 2 unless the
+        ///    result provably fits in one byte from operand bounds —
+        ///    a literal's bound is its exact value and a one-slot name
+        ///    ranges over 0..255, so an Add fits only when the operand
+        ///    maxima sum to at most 255 and a Sub only when its whole
+        ///    difference range lies inside 0..255. The result temp
+        ///    (named by the following Assign(tmp, 0)) takes the result
+        ///    width. A Sub carrying WideResult is a unary minus and
+        ///    takes width 2 regardless of operand width.
         ///  - Multiply, BitwiseAnd/Or, BitwiseNot: 8-bit ops; their
         ///    result temp stays width 1, and their operands gain no
         ///    width evidence.
@@ -1140,6 +1179,12 @@ namespace GameVM.Compiler.Backend.Atari2600
             // anything copied from it — takes two slots.
             if (IsWideResult(inputSlab, instIdx))
                 resultWidth = 2;
+            // A result that cannot provably fit in one byte takes two
+            // slots even when both operands fit in one: the wide
+            // lowering preserves the carry (Add) or borrow (Sub) out
+            // of the low byte, where the narrow lowering drops it.
+            else if (!AddSubResultProvablyFitsInByte(inputSlab.GetKind(instIdx), operands, stringPool))
+                resultWidth = 2;
             return InferResultTempWidth(inputSlab, instIdx, resultWidth, stringPool);
         }
 
@@ -1160,6 +1205,39 @@ namespace GameVM.Compiler.Backend.Atari2600
             if (TryParseNumeric(text, out uint numeric))
                 return numeric > 255 ? 2 : 1;
             return 1;
+        }
+
+        /// <summary>
+        /// Whether an Add/Sub result provably fits in one byte, judged
+        /// from operand bounds (see OperandRange). An Add fits iff the
+        /// two maxima sum to at most 255; a Sub fits iff its whole
+        /// difference range lies inside 0..255. Anything else can carry
+        /// (Add) or borrow (Sub) out of the low byte, and a one-slot
+        /// result would silently drop it.
+        /// </summary>
+        private bool AddSubResultProvablyFitsInByte(byte kind, ReadOnlySpan<uint> operands, StringPool stringPool)
+        {
+            (long leftMin, long leftMax) = OperandRange(operands[0], stringPool);
+            (long rightMin, long rightMax) = OperandRange(operands[1], stringPool);
+            if (kind == (byte)LlirInstructionKind.Add)
+                return leftMax + rightMax <= 255;
+            return leftMin - rightMax >= 0 && leftMax - rightMin <= 255;
+        }
+
+        /// <summary>
+        /// The range of values an arithmetic operand can hold: a
+        /// literal's range is its exact value; a name or temp ranges
+        /// over everything its slots can hold (0..255 for one slot,
+        /// 0..65535 for two). The one-slot range is the same magnitude
+        /// reading the wide compare path gives a one-slot operand,
+        /// whose missing high byte is immediate 0.
+        /// </summary>
+        private (long Min, long Max) OperandRange(uint slot, StringPool stringPool)
+        {
+            string text = stringPool.Resolve(slot);
+            if (!IsName(text) && TryParseNumeric(text, out uint numeric))
+                return (numeric, numeric);
+            return InferOperandWidth(slot, stringPool) == 2 ? (0L, 65535L) : (0L, 255L);
         }
 
         /// <summary>
