@@ -44,5 +44,13 @@ namespace GameVM.Compiler.Core.Enums
         /// target's usable ROM space before the interrupt vectors (0x4005).
         /// </summary>
         RomSizeExceeded = 0x4005,
+
+        /// <summary>
+        /// Backend: a Jump, Call, or Branch refers to a label with no
+        /// matching Label instruction in the slab (0x4006). The code
+        /// generator must fail loudly instead of emitting a transfer to
+        /// the reset address or a garbage branch displacement.
+        /// </summary>
+        UnresolvedLabel = 0x4006,
     }
 }
