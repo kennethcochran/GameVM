@@ -616,40 +616,43 @@ public class MidToLowLevelTransformerTests
         var result = transformer.TransformSlab(mlir, pool);
 
         // Should emit the two byte pairs described above
-        Assert.That(result.Count, Is.EqualTo(6),
-            "Sub(x,1); Assign(tmp,0); Assign(x,tmp) should lower to Load; Sub; Store; Load; Sub; Store");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(6),
+                "Sub(x,1); Assign(tmp,0); Assign(x,tmp) should lower to Load; Sub; Store; Load; Sub; Store");
 
-        // Check Load(xAddr, 0) - two operands for zp address
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-        var loadOps = result.GetOperands(0);
-        Assert.That(loadOps.Length, Is.EqualTo(2), "Load should have [addrLow, addrHigh] operands");
-        Assert.That(loadOps[0], Is.EqualTo(0x80u), "Load address low byte = xAddr");
-        Assert.That(loadOps[1], Is.EqualTo(0x00u), "Load address high byte = 0 (zp)");
+            // Check Load(xAddr, 0) - two operands for zp address
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            var loadOps = result.GetOperands(0);
+            Assert.That(loadOps.Length, Is.EqualTo(2), "Load should have [addrLow, addrHigh] operands");
+            Assert.That(loadOps[0], Is.EqualTo(0x80u), "Load address low byte = xAddr");
+            Assert.That(loadOps[1], Is.EqualTo(0x00u), "Load address high byte = 0 (zp)");
 
-        // Check Sub(1) - single operand for immediate
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
-        Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
-            "the low sub sets the borrow; it does not consume one");
-        var subOps = result.GetOperands(1);
-        Assert.That(subOps.Length, Is.EqualTo(1), "Sub should have single immediate operand");
-        Assert.That(subOps[0], Is.EqualTo(1u), "Sub immediate = 1");
+            // Check Sub(1) - single operand for immediate
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
+                "the low sub sets the borrow; it does not consume one");
+            var subOps = result.GetOperands(1);
+            Assert.That(subOps.Length, Is.EqualTo(1), "Sub should have single immediate operand");
+            Assert.That(subOps[0], Is.EqualTo(1u), "Sub immediate = 1");
 
-        // Check Store(xAddr) - single operand for zp target
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
-        Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
+            // Check Store(xAddr) - single operand for zp target
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps.Length, Is.EqualTo(1), "Store should have single zp target");
+            Assert.That(storeOps[0], Is.EqualTo(0x80u), "Store target = xAddr");
 
-        // The high pair loads x's second slot, subtracts the literal's
-        // high byte (0) with the borrow, and stores beside the low byte
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x81u), "high pair loads x's high byte");
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
-        Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
-            "the high sub consumes the low pair's borrow");
-        Assert.That(result.GetOperands(4)[0], Is.EqualTo(0u), "the literal's high byte is 0");
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
-        Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "high difference stores to x's second slot");
+            // The high pair loads x's second slot, subtracts the literal's
+            // high byte (0) with the borrow, and stores beside the low byte
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetOperands(3)[0], Is.EqualTo(0x81u), "high pair loads x's high byte");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
+                "the high sub consumes the low pair's borrow");
+            Assert.That(result.GetOperands(4)[0], Is.Zero, "the literal's high byte is 0");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "high difference stores to x's second slot");
+        }
     }
 
     [Test]
@@ -678,39 +681,42 @@ public class MidToLowLevelTransformerTests
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
         // Low pair, then high pair
-        Assert.That(result.Count, Is.EqualTo(6));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(6));
 
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-        var loadOps = result.GetOperands(0);
-        Assert.That(loadOps.Length, Is.EqualTo(2));
-        Assert.That(loadOps[0], Is.EqualTo(0x82u), "x allocated at $82");
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            var loadOps = result.GetOperands(0);
+            Assert.That(loadOps.Length, Is.EqualTo(2));
+            Assert.That(loadOps[0], Is.EqualTo(0x82u), "x allocated at $82");
 
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
-        Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
-            "the low add sets the carry; it does not consume one");
-        var addOps = result.GetOperands(1);
-        Assert.That(addOps.Length, Is.EqualTo(2), "Add of a variable must use the [addrLow, addrHigh] memory-operand form");
-        Assert.That(addOps[0], Is.EqualTo(0x83u), "y allocated at $83 — its VALUE address, not an immediate");
-        Assert.That(addOps[1], Is.EqualTo(0x00u));
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Add));
+            Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
+                "the low add sets the carry; it does not consume one");
+            var addOps = result.GetOperands(1);
+            Assert.That(addOps.Length, Is.EqualTo(2), "Add of a variable must use the [addrLow, addrHigh] memory-operand form");
+            Assert.That(addOps[0], Is.EqualTo(0x83u), "y allocated at $83 — its VALUE address, not an immediate");
+            Assert.That(addOps[1], Is.EqualTo(0x00u));
 
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-        var storeOps = result.GetOperands(2);
-        Assert.That(storeOps[0], Is.EqualTo(0x80u), "z low allocated at $80");
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            var storeOps = result.GetOperands(2);
+            Assert.That(storeOps[0], Is.EqualTo(0x80u), "z low allocated at $80");
 
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
-        var loadHighOps = result.GetOperands(3);
-        Assert.That(loadHighOps.Length, Is.EqualTo(1), "x has no high byte: its high load is an immediate");
-        Assert.That(loadHighOps[0], Is.EqualTo(0x00u));
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            var loadHighOps = result.GetOperands(3);
+            Assert.That(loadHighOps.Length, Is.EqualTo(1), "x has no high byte: its high load is an immediate");
+            Assert.That(loadHighOps[0], Is.Zero);
 
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Add));
-        Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
-            "the high add consumes the low pair's carry");
-        var addHighOps = result.GetOperands(4);
-        Assert.That(addHighOps.Length, Is.EqualTo(1), "y has no high byte either: its high contribution is immediate 0");
-        Assert.That(addHighOps[0], Is.EqualTo(0x00u));
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Add));
+            Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
+                "the high add consumes the low pair's carry");
+            var addHighOps = result.GetOperands(4);
+            Assert.That(addHighOps.Length, Is.EqualTo(1), "y has no high byte either: its high contribution is immediate 0");
+            Assert.That(addHighOps[0], Is.Zero);
 
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
-        Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "z high allocated at $81");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "z high allocated at $81");
+        }
     }
 
     [Test]
@@ -736,26 +742,29 @@ public class MidToLowLevelTransformerTests
 
         var result = _transformer.TransformSlab(mlir, _stringPool);
 
-        Assert.That(result.Count, Is.EqualTo(6));
-        Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x82u), "x allocated at $82");
-        Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
-        Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
-            "the low sub sets the borrow; it does not consume one");
-        var subOps = result.GetOperands(1);
-        Assert.That(subOps.Length, Is.EqualTo(2), "Sub of a variable must use the memory-operand form");
-        Assert.That(subOps[0], Is.EqualTo(0x83u), "y's value address, not an immediate");
-        Assert.That(subOps[1], Is.EqualTo(0x00u));
-        Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
-        Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "z low allocated at $80");
-        Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
-        Assert.That(result.GetOperands(3).Length, Is.EqualTo(1), "x has no high byte: its high load is an immediate");
-        Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
-        Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
-            "the high sub consumes the low pair's borrow");
-        Assert.That(result.GetOperands(4)[0], Is.EqualTo(0x00u), "y has no high byte either: its high contribution is immediate 0");
-        Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
-        Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "z high allocated at $81");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Count, Is.EqualTo(6));
+            Assert.That(result.GetKind(0), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetOperands(0)[0], Is.EqualTo(0x82u), "x allocated at $82");
+            Assert.That(result.GetKind(1), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            Assert.That((InstructionFlag)result.GetFlags(1), Is.EqualTo(InstructionFlag.None),
+                "the low sub sets the borrow; it does not consume one");
+            var subOps = result.GetOperands(1);
+            Assert.That(subOps.Length, Is.EqualTo(2), "Sub of a variable must use the memory-operand form");
+            Assert.That(subOps[0], Is.EqualTo(0x83u), "y's value address, not an immediate");
+            Assert.That(subOps[1], Is.EqualTo(0x00u));
+            Assert.That(result.GetKind(2), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(2)[0], Is.EqualTo(0x80u), "z low allocated at $80");
+            Assert.That(result.GetKind(3), Is.EqualTo((byte)LlirInstructionKind.Load));
+            Assert.That(result.GetOperands(3).Length, Is.EqualTo(1), "x has no high byte: its high load is an immediate");
+            Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Sub));
+            Assert.That((InstructionFlag)result.GetFlags(4), Is.EqualTo(InstructionFlag.CarryIn),
+                "the high sub consumes the low pair's borrow");
+            Assert.That(result.GetOperands(4)[0], Is.Zero, "y has no high byte either: its high contribution is immediate 0");
+            Assert.That(result.GetKind(5), Is.EqualTo((byte)LlirInstructionKind.Store));
+            Assert.That(result.GetOperands(5)[0], Is.EqualTo(0x81u), "z high allocated at $81");
+        }
     }
 
     [Test]
