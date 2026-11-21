@@ -206,8 +206,8 @@ namespace GameVM.Compiler.Pascal.Tests.Transformers
                 int labelIdx = hlir.Children(caseIdx)[1];
                 Assert.That(hlir.GetKind(labelIdx), Is.EqualTo((byte)HlirNodeKind.LiteralInt),
                     "the negative label must fold to a LiteralInt");
-                Assert.That(pool.Resolve(hlir[labelIdx].Payload), Is.EqualTo("251"),
-                    "-5 folds to its 8-bit two's complement value 251");
+                Assert.That(pool.Resolve(hlir[labelIdx].Payload), Is.EqualTo("65531"),
+                    "-5 folds to its 16-bit two's complement value 65531");
             }
         }
 

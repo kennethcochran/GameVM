@@ -826,6 +826,8 @@ public class HlirTreeToMlirTransformerTests
         Assert.That(subOps.Length, Is.EqualTo(2));
         Assert.That(subOps[0], Is.EqualTo(zeroOffset), "Sub left operand is literal 0");
         Assert.That(subOps[1], Is.EqualTo(yOffset), "Sub right operand is y");
+        Assert.That((InstructionFlag)result.GetFlags(0), Is.EqualTo(InstructionFlag.WideResult),
+            "the unary-minus Sub carries WideResult: negation is a 16-bit operation regardless of operand width");
 
         Assert.That(result.GetKind(1), Is.EqualTo((byte)MlirInstructionKind.Assign));
         var tmpOps = result.GetOperands(1);

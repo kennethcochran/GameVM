@@ -326,8 +326,16 @@ public sealed class HlirTreeToMlirTransformer
                     }
                     else
                     {
+                        // The Sub carries WideResult: negation is a 16-bit
+                        // operation, so its result temp is two slots wide
+                        // regardless of the operand's width (matching the
+                        // constant fold, where -5 is 65531). Without the
+                        // flag the width inference would see Sub(0, y)
+                        // with two narrow operands and lower a single-byte
+                        // Sub, producing 251 for y = 5. A source-written
+                        // binary Sub never carries the flag.
                         uint zeroSlot = _pool.Intern("0");
-                        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.None, 0, zeroSlot, operandSlot);
+                        builder.Add((byte)LlirInstructionKind.Sub, InstructionFlag.WideResult, 0, zeroSlot, operandSlot);
                     }
                     builder.Add((byte)MlirInstructionKind.Assign, InstructionFlag.None, 0, tempOffset, 0);
 

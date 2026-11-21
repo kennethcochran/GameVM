@@ -503,6 +503,91 @@ public class PascalProcedureRomTests
 
 
     [Test]
+    public void ProgramStoringAndReadingBackAValueGreaterThan255()
+    {
+        // End to end: 300 must survive a store and a read-back whole. Today
+        // every layer truncates to 8 bits, so x := 300 stores 44 (300 & 0xFF)
+        // and y := x copies only that one byte.
+        var result = Compile(ValueGreaterThan255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // x := 300: LDA #$2C; STA $80 (low byte 44); LDA #$01; STA $81 (high byte 1).
+        Assert.That(ContainsSequence(rom, 0xA9, 0x2C, 0x85, 0x80, 0xA9, 0x01, 0x85, 0x81), Is.True,
+            "storing 300 must write both bytes: low 44 to $80, high 1 to $81");
+        // y := x: LDA $80; STA $82; LDA $81; STA $83 — both bytes copied, low first.
+        Assert.That(ContainsSequence(rom, 0xA5, 0x80, 0x85, 0x82, 0xA5, 0x81, 0x85, 0x83), Is.True,
+            "reading 300 back into y must copy both bytes");
+    }
+
+    [Test]
+    public void ProgramAddingTwoValuesAbove255CarriesIntoHighByte()
+    {
+        // 300 + 500 = 800. The low bytes (44 + 244 = 288) carry, so the high
+        // add must run with the carry set — no CLC between the low ADC and
+        // the high ADC. Today the addition is a single 8-bit add (and the
+        // values are already truncated to 44 and 244), so the carry is lost.
+        var result = Compile(AddAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; CLC; ADC $82; STA $84; LDA $81; ADC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x18, 0x65, 0x82, 0x85, 0x84, 0xA5, 0x81, 0x65, 0x83, 0x85, 0x85), Is.True,
+            "16-bit addition must carry from the low byte into the high byte: CLC only before the low ADC");
+    }
+
+    [Test]
+    public void ProgramSubtractingTwoValuesAbove255BorrowsFromHighByte()
+    {
+        // 300 - 500 = -200. The low bytes (44 - 244) borrow, so the high
+        // subtract must run with the borrow outstanding — no SEC between
+        // the low SBC and the high SBC.
+        var result = Compile(SubtractAbove255Program);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // LDA $80; SEC; SBC $82; STA $84; LDA $81; SBC $83; STA $85.
+        Assert.That(ContainsSequence(result.Code,
+            0xA5, 0x80, 0x38, 0xE5, 0x82, 0x85, 0x84, 0xA5, 0x81, 0xE5, 0x83, 0x85, 0x85), Is.True,
+            "16-bit subtraction must borrow from the low byte into the high byte: SEC only before the low SBC");
+    }
+
+    [Test]
+    public void ProgramNegatingANarrowVariableYields65531()
+    {
+        // Unary minus is a 16-bit operation: -5 is 65531, not 251. The
+        // literal fold already does this (x := -5 stores 65531), but
+        // negating a narrow variable took the 8-bit Sub path: y := 5
+        // records width 1, the zero literal is width 1, so the Sub
+        // result temp and x stayed width 1 and only the low byte was
+        // produced (x = 251). The negation must take the 16-bit path
+        // regardless of the operand's width, matching the constant fold.
+        var result = Compile(UnaryMinusNarrowVariableProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        // y := 5 stores to $82; x := -y is a 16-bit Sub(0, y) storing
+        // into x at $80/$81 (the declarations allocate x first, two
+        // slots once the negation is known 16-bit). The low pair
+        // subtracts y's low byte from 0 with the borrow set and stores
+        // 0xFB; the high pair subtracts immediate 0 with the borrow
+        // outstanding and stores 0xFF — x = 65531.
+        Assert.That(ContainsSequence(result.Code,
+            0xA9, 0x00, 0x38, 0xE5, 0x82, 0x85, 0x80, 0xA9, 0x00, 0xE9, 0x00, 0x85, 0x81), Is.True,
+            "negating a narrow variable must produce the full 16-bit two's complement (65531), not just the low byte (251)");
+    }
+
+    [Test]
     public void RepeatUntilLoopRunningUntilConditionMet()
     {
         // `repeat x := x + 1 until x = 3` must run its body (x reaches 3 by
@@ -511,42 +596,58 @@ public class PascalProcedureRomTests
         // body (the body runs before the first test), and a BNE branches back
         // to the body start while x is not yet 3. Today the visitor drops the
         // whole repeat to a Nop, so the ROM contains no increment at all.
+        // The increment is the wide two-pair form (fix round 15): x + 1 can
+        // carry out of the low byte, so x takes two slots and the `x = 3`
+        // test compares both bytes, each BNE branching back to the body.
         var result = Compile(RepeatUntilProgram);
         Assert.That(result.Success, Is.True, result.ErrorMessage);
         Assert.That(result.Code, Is.Not.Null);
         Assert.That(result.Code!.Length, Is.EqualTo(4096));
 
         byte[] rom = result.Code;
-        // Body: LDA $80; CLC; ADC #1; STA $80 (x := x + 1).
-        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80);
+        // Body: the two-pair x := x + 1 — load, add 1 and store for the low
+        // byte, then load, add 0 and store for the high byte, which the low
+        // pair's carry feeds.
+        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80, 0xA5, 0x81, 0x69, 0x00, 0x85, 0x81);
         Assert.That(bodyAt, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain the repeat body (LDA $80; CLC; ADC #1; STA $80)");
+            "the ROM must contain the repeat body (the two-pair x := x + 1)");
 
-        // Entry path: the `x := 0` store sits immediately before the body,
+        // Entry path: the `x := 0` stores sit immediately before the body,
         // so execution falls through from initialization into the body. A
         // pre-tested lowering would emit a branch to the condition between
         // them instead, and locating the condition bytes after the body
-        // would not catch it.
-        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(4));
-        Assert.That(rom.AsSpan(bodyAt - 4, 4).ToArray(),
-            Is.EqualTo(new byte[] { 0xA9, 0x00, 0x85, 0x80 }),
-            "the x := 0 store must directly precede the body (fall-through entry, no branch to a pre-test)");
+        // would not catch it. x is two slots, so the initialization is two
+        // stores, one per byte.
+        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(8));
+        Assert.That(rom.AsSpan(bodyAt - 8, 8).ToArray(),
+            Is.EqualTo(new byte[] { 0xA9, 0x00, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x81 }),
+            "the x := 0 stores must directly precede the body (fall-through entry, no branch to a pre-test)");
 
-        // Exit condition, tested after the body: LDA $80; CMP #3; BNE back.
-        int condAt = IndexOfSequence(rom, bodyAt + 7, 0xA5, 0x80, 0xC9, 0x03, 0xD0);
+        // Exit condition, tested after the body: the low byte is compared
+        // against 3 and the high byte against 0, each with a BNE back to
+        // the body — the loop repeats while either byte differs.
+        int condAt = IndexOfSequence(rom, bodyAt + 12, 0xA5, 0x80, 0xC9, 0x03, 0xD0);
         Assert.That(condAt, Is.GreaterThanOrEqualTo(0),
             "the ROM must test `x = 3` after the body — the body runs before the first test");
         int bneOffset = (sbyte)rom[condAt + 5];
         int bneTarget = condAt + 6 + bneOffset;
         Assert.That(bneTarget, Is.EqualTo(bodyAt),
-            "the BNE back-edge must land on the body start, so the loop repeats while x <> 3");
+            "the low-byte BNE back-edge must land on the body start, so the loop repeats while x <> 3");
 
-        // Falling through past the BNE (x = 3) must reach the halt loop, not
-        // run off into padding: a JMP to itself sits right after the branch.
-        Assert.That(rom[condAt + 6], Is.EqualTo(0x4C),
-            "a JMP must follow the back-edge branch so the program halts once the condition holds");
-        int jmpTarget = rom[condAt + 7] | (rom[condAt + 8] << 8);
-        Assert.That(jmpTarget - 0xF000, Is.EqualTo(condAt + 6),
+        Assert.That(rom.AsSpan(condAt + 6, 5).ToArray(),
+            Is.EqualTo(new byte[] { 0xA5, 0x81, 0xC9, 0x00, 0xD0 }),
+            "the high byte must be tested too — the equality must not be decided on the low byte alone");
+        int highBneOffset = (sbyte)rom[condAt + 11];
+        int highBneTarget = condAt + 12 + highBneOffset;
+        Assert.That(highBneTarget, Is.EqualTo(bodyAt),
+            "the high-byte BNE back-edge must land on the body start as well");
+
+        // Falling through past the BNEs (x = 3) must reach the halt loop, not
+        // run off into padding: a JMP to itself sits right after the branches.
+        Assert.That(rom[condAt + 12], Is.EqualTo(0x4C),
+            "a JMP must follow the back-edge branches so the program halts once the condition holds");
+        int jmpTarget = rom[condAt + 13] | (rom[condAt + 14] << 8);
+        Assert.That(jmpTarget - 0xF000, Is.EqualTo(condAt + 12),
             "the JMP after the loop must target itself (halt loop)");
     }
 
@@ -556,48 +657,70 @@ public class PascalProcedureRomTests
         // The condition `x = 5` already holds on entry (x starts at 5), so
         // a pre-tested (while-style) lowering would skip the body entirely.
         // A repeat loop is post-tested: the body is still entered first —
-        // execution falls through from the `x := 5` store into the body,
-        // and the test sits after the body with its back-edge landing on
-        // the body start.
+        // execution falls through from the `x := 5` stores into the body,
+        // and the test sits after the body with its back-edges landing on
+        // the body start. The body and test are the wide forms (fix round
+        // 15): x takes two slots, so the increment is two byte pairs and
+        // the `x = 5` test compares both bytes.
         var result = Compile(RepeatUntilInitiallyTrueProgram);
         Assert.That(result.Success, Is.True, result.ErrorMessage);
         Assert.That(result.Code, Is.Not.Null);
         Assert.That(result.Code!.Length, Is.EqualTo(4096));
 
         byte[] rom = result.Code;
-        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80);
+        int bodyAt = IndexOfSequence(rom, 0, 0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80, 0xA5, 0x81, 0x69, 0x00, 0x85, 0x81);
         Assert.That(bodyAt, Is.GreaterThanOrEqualTo(0),
-            "the ROM must contain the repeat body (LDA $80; CLC; ADC #1; STA $80)");
+            "the ROM must contain the repeat body (the two-pair x := x + 1)");
 
-        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(4));
-        Assert.That(rom.AsSpan(bodyAt - 4, 4).ToArray(),
-            Is.EqualTo(new byte[] { 0xA9, 0x05, 0x85, 0x80 }),
-            "the x := 5 store must directly precede the body (fall-through entry — the body runs before the first test even when the condition is already true)");
+        Assert.That(bodyAt, Is.GreaterThanOrEqualTo(8));
+        Assert.That(rom.AsSpan(bodyAt - 8, 8).ToArray(),
+            Is.EqualTo(new byte[] { 0xA9, 0x05, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x81 }),
+            "the x := 5 stores must directly precede the body (fall-through entry — the body runs before the first test even when the condition is already true)");
 
-        int condAt = IndexOfSequence(rom, bodyAt + 7, 0xA5, 0x80, 0xC9, 0x05, 0xD0);
+        int condAt = IndexOfSequence(rom, bodyAt + 12, 0xA5, 0x80, 0xC9, 0x05, 0xD0);
         Assert.That(condAt, Is.GreaterThanOrEqualTo(0),
             "the ROM must test `x = 5` after the body");
         int bneOffset = (sbyte)rom[condAt + 5];
         int bneTarget = condAt + 6 + bneOffset;
         Assert.That(bneTarget, Is.EqualTo(bodyAt),
-            "the BNE back-edge must land on the body start, so the loop repeats while x <> 5");
+            "the low-byte BNE back-edge must land on the body start, so the loop repeats while x <> 5");
+
+        Assert.That(rom.AsSpan(condAt + 6, 5).ToArray(),
+            Is.EqualTo(new byte[] { 0xA5, 0x81, 0xC9, 0x00, 0xD0 }),
+            "the high byte must be tested too — the equality must not be decided on the low byte alone");
+        int highBneOffset = (sbyte)rom[condAt + 11];
+        int highBneTarget = condAt + 12 + highBneOffset;
+        Assert.That(highBneTarget, Is.EqualTo(bodyAt),
+            "the high-byte BNE back-edge must land on the body start as well");
     }
 
     [Test]
     public void WhileLoopStillRunsBodyAndExits()
     {
         // Guard: `while` already works and this slice must not disturb it.
-        // The condition is tested before the body (CMP #3; BCS past the
-        // body), the body increments x, and a JMP returns to the test.
+        // The condition is tested before the body, the body increments x,
+        // and a JMP returns to the test. Since fix round 15 the increment
+        // is the wide two-pair form (x + 1 can carry out of the low byte),
+        // so x takes two slots: the initialization stores both bytes, and
+        // the `x < 3` test compares the high byte (against 0) first, then
+        // the low byte against 3, each BCS leaving the loop. Since fix
+        // round 17 the declaration's raw-zero clear writes both bytes
+        // too (it previously wrote only the low byte), which moves the
+        // loop test four bytes later and the JMP target with it. The
+        // loop structure — test before body, JMP back to the test — is
+        // what this guard pins, and it is unchanged.
         var result = Compile(WhileLoopProgram);
         Assert.That(result.Success, Is.True, result.ErrorMessage);
         Assert.That(result.Code, Is.Not.Null);
         Assert.That(result.Code!.Length, Is.EqualTo(4096));
         Assert.That(ContainsSequence(result.Code,
-            0xA9, 0x00, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x80,
-            0xA5, 0x80, 0xC9, 0x03, 0xB0, 0x0A,
+            0xA9, 0x00, 0x85, 0x80, 0xA9, 0x00, 0x85, 0x81,
+            0xA5, 0x81, 0xC9, 0x00, 0xD0, 0x06,
+            0xA5, 0x80, 0xC9, 0x03, 0xB0, 0x12,
+            0xB0, 0x10,
             0xA5, 0x80, 0x18, 0x69, 0x01, 0x85, 0x80,
-            0x4C, 0x15, 0xF0), Is.True,
+            0xA5, 0x81, 0x69, 0x00, 0x85, 0x81,
+            0x4C, 0x1D, 0xF0), Is.True,
             "`while x < 3` must keep its established lowering (test before body, JMP back to the test)");
     }
     [Test]
@@ -671,6 +794,39 @@ public class PascalProcedureRomTests
             "`and`/`or` must not lower through a CMP — there is no comparison in this program");
     }
 
+    private const string ValueGreaterThan255Program =
+        "program Probe;\n" +
+        "var x, y: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := x;\n" +
+        "end.";
+
+    private const string AddAbove255Program =
+        "program Probe;\n" +
+        "var x, y, z: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  z := x + y;\n" +
+        "end.";
+
+    private const string SubtractAbove255Program =
+        "program Probe;\n" +
+        "var x, y, w: Integer;\n" +
+        "begin\n" +
+        "  x := 300;\n" +
+        "  y := 500;\n" +
+        "  w := x - y;\n" +
+        "end.";
+
+    private const string UnaryMinusNarrowVariableProgram =
+        "program Probe;\n" +
+        "var x, y: Integer;\n" +
+        "begin\n" +
+        "  y := 5;\n" +
+        "  x := -y;\n" +
+        "end.";
 
     private const string RepeatUntilInitiallyTrueProgram =
         "program Probe;\n" +
