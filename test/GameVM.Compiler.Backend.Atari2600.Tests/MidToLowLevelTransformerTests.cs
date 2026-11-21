@@ -1940,6 +1940,60 @@ public class MidToLowLevelTransformerTests
             }
         }
 
+        [Test]
+        public void Transform_WideNotEqual_InputLabelCollidesWithGeneratedName_GeneratedLabelIsDistinct()
+        {
+            // Regression: the wide <> lowering invents a fall-through
+            // label whose first candidate name is L_widecmp_0 (a fresh
+            // transformer starts its counter at 0). When the input slab
+            // already defines a label with that exact name, interning the
+            // generated name returns the input label's pool offset, so
+            // the generated Label would share the input label's identity
+            // and the code generator's address table would keep only one
+            // of the two targets. The generated name must skip every name
+            // the input slab already uses.
+            // MLIR: Assign(x, 256); Cmp(x, 0); Transition; Branch(L_end); Assign(y, 1); Label(L_end); Label(L_widecmp_0).
+            uint xOffset = _stringPool.Intern("x");
+            uint wideOffset = _stringPool.Intern("256");
+            uint zeroOffset = _stringPool.Intern("0");
+            uint yOffset = _stringPool.Intern("y");
+            uint oneOffset = _stringPool.Intern("1");
+            uint endOffset = _stringPool.Intern("L_end");
+            uint inputLabelOffset = _stringPool.Intern("L_widecmp_0");
+
+            var mlir = BuildMlirSlab(
+                ((byte)MlirInstructionKind.Assign, new uint[] { xOffset, wideOffset }),
+                ((byte)LlirInstructionKind.Cmp, new uint[] { xOffset, zeroOffset }),
+                ((byte)LlirInstructionKind.Transition, Array.Empty<uint>()),
+                ((byte)MlirInstructionKind.Branch, new uint[] { endOffset }),
+                ((byte)MlirInstructionKind.Assign, new uint[] { yOffset, oneOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { endOffset }),
+                ((byte)MlirInstructionKind.Label, new uint[] { inputLabelOffset }));
+
+            var result = _transformer.TransformSlab(mlir, _stringPool);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Count, Is.EqualTo(13));
+
+                Assert.That(result.GetKind(4), Is.EqualTo((byte)LlirInstructionKind.Branch));
+                uint freshOffset = result.GetOperands(4)[0];
+                Assert.That(freshOffset, Is.Not.EqualTo(inputLabelOffset),
+                    "The generated fall-through label must not reuse the input label's offset");
+                Assert.That(_stringPool.Resolve(freshOffset), Does.StartWith("L_widecmp_"),
+                    "The generated label keeps the L_widecmp_ prefix");
+                Assert.That(_stringPool.Resolve(freshOffset), Is.Not.EqualTo("L_widecmp_0"),
+                    "The generated label must not reuse the input label's name");
+
+                Assert.That(result.GetKind(9), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(9)[0], Is.EqualTo(freshOffset), "The fresh label lands after the equal-branch");
+
+                Assert.That(result.GetKind(12), Is.EqualTo((byte)LlirInstructionKind.Label));
+                Assert.That(result.GetOperands(12)[0], Is.EqualTo(inputLabelOffset),
+                    "The input label is preserved with its own offset");
+            }
+        }
+
         #endregion
 
         #region Fail-Loud Tests (Slice 1, L1)

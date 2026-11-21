@@ -57,8 +57,10 @@ namespace GameVM.Compiler.Backend.Atari2600
 
         // Counter for the fall-through labels a wide comparison invents
         // (one per wide Cmp that needs to skip its second decision — the
-        // `<>`/`<` shapes). Labels are unique per slab; the counter is
-        // never reset, so a label can never collide with an earlier one.
+        // `<>`/`<` shapes). The counter is never reset and only ever
+        // increases, which keeps generated names unique among
+        // themselves. FreshWideCmpLabel also skips any name the input
+        // slab already carries, which the counter alone cannot rule out.
         private int _wideCmpCounter;
 
         public MidToLowLevelTransformer()
@@ -386,7 +388,7 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (hasBcs)
             {
-                uint freshOffset = stringPool.Intern($"L_widecmp_{_wideCmpCounter++}");
+                uint freshOffset = FreshWideCmpLabel(inputSlab, stringPool);
                 EmitLoadOperand(builder, stringPool, operands[0], high: true);
                 builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: true));
                 builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, freshOffset);
@@ -402,7 +404,7 @@ namespace GameVM.Compiler.Backend.Atari2600
 
             if (hasTransition)
             {
-                uint freshOffset = stringPool.Intern($"L_widecmp_{_wideCmpCounter++}");
+                uint freshOffset = FreshWideCmpLabel(inputSlab, stringPool);
                 EmitLoadOperand(builder, stringPool, operands[0], high: false);
                 builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: false));
                 builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, freshOffset);
@@ -421,6 +423,36 @@ namespace GameVM.Compiler.Backend.Atari2600
             builder.Add((byte)LlirInstructionKind.Cmp, InstructionFlag.None, 0, AddOperands(stringPool, operands[1], high: true));
             builder.Add((byte)LlirInstructionKind.Branch, InstructionFlag.None, 0, target);
             return true;
+        }
+
+        /// <summary>Interns a fall-through label name for a wide
+        /// comparison that cannot collide with a label the input slab
+        /// already carries. Candidates are L_widecmp_N with N from the
+        /// monotonic counter, which keeps generated names unique among
+        /// themselves; a candidate the input slab already uses (as a
+        /// Label or as a Branch target) is skipped, because interning it
+        /// would return the input label's pool offset and merge the two
+        /// targets in the code generator's address table.</summary>
+        private uint FreshWideCmpLabel(InstList inputSlab, StringPool stringPool)
+        {
+            var inputLabelNames = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < inputSlab.Count; i++)
+            {
+                byte kind = inputSlab.GetKind(i);
+                if (kind != (byte)MlirInstructionKind.Label && kind != (byte)MlirInstructionKind.Branch)
+                    continue;
+                ReadOnlySpan<uint> labelOperands = inputSlab.GetOperands(i);
+                if (labelOperands.Length > 0)
+                    inputLabelNames.Add(stringPool.Resolve(labelOperands[0]));
+            }
+
+            string candidate;
+            do
+            {
+                candidate = $"L_widecmp_{_wideCmpCounter++}";
+            }
+            while (inputLabelNames.Contains(candidate));
+            return stringPool.Intern(candidate);
         }
 
         /// <summary>Whether the Add/Sub at <paramref name="instIdx"/>
