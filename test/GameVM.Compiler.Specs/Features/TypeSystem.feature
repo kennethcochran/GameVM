@@ -27,3 +27,30 @@ Feature: Type System
     Then array bounds are validated
     And out-of-bounds access is detected
 
+  Scenario: Named type resolves to its underlying type for type checking
+    Given the following Pascal program:
+      """
+      program Test;
+      type TScore = Integer;
+      var s: TScore;
+      begin
+        s := 'hello';
+      end.
+      """
+    When I compile the program
+    Then the compilation fails
+    And the error message contains "Type mismatch"
+
+  Scenario: Variable declared with a named type compiles and stores its value
+    Given the following Pascal program:
+      """
+      program Test;
+      type TScore = Integer;
+      var s: TScore;
+      begin
+        s := 42;
+      end.
+      """
+    When I compile the program
+    Then the output binary should contain the hex sequence "a9 2a 85 80"
+
