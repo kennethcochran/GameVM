@@ -34,6 +34,19 @@ public class PascalProcedureRomTests
         "  Bump;\n" +
         "end.";
 
+    private const string FunctionProgram =
+        "program Probe;\n" +
+        "var x: Integer;\n" +
+        "function Seven: Integer;\n" +
+        "begin\n" +
+        "  x := 42;\n" +
+        "  Seven := 42;\n" +
+        "end;\n" +
+        "begin\n" +
+        "  x := 0;\n" +
+        "  Seven;\n" +
+        "end.";
+
     private static CompilationResult Compile(string source)
     {
         var codeGen = new Atari2600CodeGenerator();
@@ -290,6 +303,40 @@ public class PascalProcedureRomTests
         // The unresolved-label fallback JSR $F000 must not appear.
         Assert.That(ContainsSequence(rom, 0x20, 0x00, 0xF0), Is.False,
             "a call to a declared procedure must never fall back to JSR $F000 (reset entry)");
+    }
+
+    [Test]
+    public void Compile_FunctionProgram_EmitsBodyReachedByJsrEndingInRts()
+    {
+        // Body emission for a declared function is this slice's own
+        // territory (function-declarations-are-lowered): lowering the
+        // declaration is what puts the body into the ROM. The
+        // expression-function-calls spec deliberately pins nothing that
+        // depends on body bytes, and parameterized functions stay with
+        // the parameters slice — this program's function takes no
+        // parameters, so nothing but the declaration stands between the
+        // source and the emitted body.
+        var result = Compile(FunctionProgram);
+
+        Assert.That(result.Success, Is.True, result.ErrorMessage);
+        Assert.That(result.Code, Is.Not.Null);
+        Assert.That(result.Code!.Length, Is.EqualTo(4096));
+
+        byte[] rom = result.Code;
+        // The body's first statement is x := 42 (LDA #42; STA $80): a JSR
+        // from the main body must land exactly on it, i.e. the body is
+        // emitted once as a callable slab, not inlined or dropped.
+        Assert.That(HasJsrToSequence(rom, 0xA9, 0x2A, 0x85, 0x80), Is.True,
+            "the ROM must contain the function body (LDA #42; STA $80; ...) and a JSR targeting it");
+        // Two 4-byte stores (x := 42, then Seven := 42 into the
+        // function-name slot) and the body terminates in RTS.
+        int bodyStart = IndexOfSequence(rom, 0, 0xA9, 0x2A, 0x85, 0x80);
+        Assert.That(bodyStart, Is.GreaterThanOrEqualTo(0));
+        Assert.That(rom[bodyStart + 8], Is.EqualTo(0x60),
+            "the function body must terminate in RTS (0x60) after its two stores");
+        // The unresolved-label fallback JSR $F000 must not appear.
+        Assert.That(ContainsSequence(rom, 0x20, 0x00, 0xF0), Is.False,
+            "a call to a declared function must never fall back to JSR $F000 (reset entry)");
     }
 
     [Test]
