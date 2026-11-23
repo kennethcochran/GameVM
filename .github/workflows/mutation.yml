@@ -140,10 +140,18 @@ jobs:
           } > _site/index.html
           rm _site/_areas.html
           rm -rf _site/raw
+      # The artifact name carries the run attempt: deploy-pages refuses
+      # to deploy when more than one artifact bears the name it looks
+      # up, and a re-run of this job would otherwise upload a second
+      # "github-pages" artifact alongside the original attempt's and
+      # fail the deploy after every mutation job passed.
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: _site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
