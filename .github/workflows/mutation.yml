@@ -11,9 +11,16 @@ jobs:
   mutation:
     name: Mutation (${{ matrix.id }})
     runs-on: ubuntu-latest
+    # Least privilege for this job: read the repo, upload the report.
+    # The job runs test code (Stryker executes the suite against mutants),
+    # so the token must not be able to modify repo contents, and checkout
+    # must not persist it into git config where test code could reach it.
     permissions:
       contents: read
       actions: write
+    # Bound a potential test-runner hang: Stryker runs tests via vstest,
+    # which has deadlocked on the dev VM. GitHub runners may differ; the
+    # timeout keeps a hang from consuming the whole CI budget.
     timeout-minutes: 60
     strategy:
       fail-fast: false
